@@ -60,6 +60,10 @@ var (
 	lastAcceptedKey  = []byte("last accepted")
 	initializedKey   = []byte("initialized")
 
+	daoPrefix         = []byte("dao")
+	daoProposalPrefix = []byte("daoProposal")
+	daoVotePrefix     = []byte("daoVote")
+
 	errWrongNetworkID = errors.New("tx has wrong network ID")
 
 	_ InternalState = &internalStateImpl{}
@@ -95,8 +99,12 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
+	AddDaoProposal(tx *Tx)
+	DeleteDaoProposal(tx *Tx)
+
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
+	SetDaoProposalChainState(daoProposalChainState)
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(ids.ID)
@@ -154,11 +162,18 @@ type InternalState interface {
  * | '-. subnetID
  * |   '-. list
  * |     '-- txID -> nil
- * '-. singletons
- *   |-- initializedKey -> nil
- *   |-- timestampKey -> timestamp
- *   |-- currentSupplyKey -> currentSupply
- *   '-- lastAcceptedKey -> lastAccepted
+ * |-. singletons
+ * | |-- initializedKey -> nil
+ * | |-- timestampKey -> timestamp
+ * | |-- currentSupplyKey -> currentSupply
+ * | '-- lastAcceptedKey -> lastAccepted
+ * '-. dao
+ *   |-. daoProposal
+ *   |  -. list
+ *   |   '-- txID -> nil
+ *   '-. daoVote
+ *     '-. list
+ *       '-- txID -> nil
  */
 type internalStateImpl struct {
 	vm *VM
@@ -167,12 +182,16 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
+	daoProposalChainState   daoProposalChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
 	deletedCurrentStakers []*Tx
 	addedPendingStakers   []*Tx
 	deletedPendingStakers []*Tx
+	addedDaoProposals     []*Tx
+	deletedDaoProposals   []*Tx
+	addedDaoVotes         []*Tx
 	uptimes               map[ids.ShortID]*currentValidatorState // nodeID -> uptimes
 	updatedUptimes        map[ids.ShortID]struct{}               // nodeID -> nil
 
@@ -225,6 +244,12 @@ type internalStateImpl struct {
 	originalCurrentSupply, currentSupply uint64
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
+
+	daoDB             database.Database
+	daoProposalBaseDB database.Database
+	daoProposalList   linkeddb.LinkedDB
+	daoVoteBaseDB     database.Database
+	daoVoteList       linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -267,6 +292,11 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 	rewardUTXODB := prefixdb.New(rewardUTXOsPrefix, baseDB)
 	utxoDB := prefixdb.New(utxoPrefix, baseDB)
 	subnetBaseDB := prefixdb.New(subnetPrefix, baseDB)
+
+	daoDB := prefixdb.New(daoPrefix, baseDB)
+	daoProposalBaseDB := prefixdb.New(daoProposalPrefix, daoDB)
+	daoVoteBaseDB := prefixdb.New(daoVotePrefix, daoDB)
+
 	return &internalStateImpl{
 		vm: vm,
 
@@ -311,6 +341,12 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 		chainDB:     prefixdb.New(chainPrefix, baseDB),
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
+
+		daoDB:             daoDB,
+		daoProposalBaseDB: daoProposalBaseDB,
+		daoProposalList:   linkeddb.NewDefault(daoProposalBaseDB),
+		daoVoteBaseDB:     daoVoteBaseDB,
+		daoVoteList:       linkeddb.NewDefault(daoVoteBaseDB),
 	}
 }
 
@@ -696,12 +732,20 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
 }
 
+func (st *internalStateImpl) DaoProposalChainState() daoProposalChainState {
+	return st.daoProposalChainState
+}
+
 func (st *internalStateImpl) SetCurrentStakerChainState(cs currentStakerChainState) {
 	st.currentStakerChainState = cs
 }
 
 func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainState) {
 	st.pendingStakerChainState = ps
+}
+
+func (st *internalStateImpl) SetDaoProposalChainState(ds daoProposalChainState) {
+	st.daoProposalChainState = ds
 }
 
 func (st *internalStateImpl) GetUptime(nodeID ids.ShortID) (upDuration time.Duration, lastUpdated time.Time, err error) {
@@ -752,6 +796,14 @@ func (st *internalStateImpl) AddPendingStaker(tx *Tx) {
 
 func (st *internalStateImpl) DeletePendingStaker(tx *Tx) {
 	st.deletedPendingStakers = append(st.deletedPendingStakers, tx)
+}
+
+func (st *internalStateImpl) AddDaoProposal(tx *Tx) {
+	st.addedDaoProposals = append(st.addedDaoProposals, tx)
+}
+
+func (st *internalStateImpl) DeleteDaoProposal(tx *Tx) {
+	st.deletedDaoProposals = append(st.deletedDaoProposals, tx)
 }
 
 func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids.ID) (map[ids.ShortID]*ValidatorWeightDiff, error) {
@@ -837,6 +889,9 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
+	if err := st.writeDao(); err != nil {
+		return nil, fmt.Errorf("failed to write dao with: %w", err)
+	}
 	return st.baseDB.CommitBatch()
 }
 
@@ -859,6 +914,9 @@ func (st *internalStateImpl) Close() error {
 		st.subnetBaseDB.Close(),
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
+		st.daoProposalBaseDB.Close(),
+		st.daoVoteBaseDB.Close(),
+		st.daoDB.Close(),
 		st.baseDB.Close(),
 	)
 	return errs.Err
@@ -1261,6 +1319,34 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
+func (st *internalStateImpl) writeDao() error {
+	for _, tx := range st.addedDaoProposals {
+		txID := tx.ID()
+		if err := st.daoProposalList.Put(txID[:], nil); err != nil {
+			return err
+		}
+	}
+	st.addedDaoProposals = nil
+
+	for _, tx := range st.addedDaoVotes {
+		txID := tx.ID()
+		if err := st.daoVoteList.Put(txID[:], nil); err != nil {
+			return err
+		}
+	}
+	st.addedDaoVotes = nil
+
+	for _, tx := range st.deletedDaoProposals {
+		txID := tx.ID()
+		if err := st.daoProposalList.Delete(txID[:]); err != nil {
+			return err
+		}
+	}
+	st.deletedDaoProposals = nil
+
+	return nil
+}
+
 func (st *internalStateImpl) load() error {
 	if err := st.loadSingletons(); err != nil {
 		return err
@@ -1268,7 +1354,10 @@ func (st *internalStateImpl) load() error {
 	if err := st.loadCurrentValidators(); err != nil {
 		return err
 	}
-	return st.loadPendingValidators()
+	if err := st.loadPendingValidators(); err != nil {
+		return err
+	}
+	return st.loadDao()
 }
 
 func (st *internalStateImpl) loadSingletons() error {
@@ -1533,6 +1622,46 @@ func (st *internalStateImpl) loadPendingValidators() error {
 	sortValidatorsByAddition(ps.validators)
 
 	st.pendingStakerChainState = ps
+	return nil
+}
+
+func (st *internalStateImpl) loadDao() error {
+	ds := &daoProposalChainStateImpl{
+		proposalsByID: make(map[ids.ID]*daoProposalImpl),
+	}
+
+	daoProposalIt := st.daoProposalList.NewIterator()
+	defer daoProposalIt.Release()
+	for daoProposalIt.Next() {
+		txIDBytes := daoProposalIt.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		tx, _, err := st.GetTx(txID)
+		if err != nil {
+			return err
+		}
+		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		if !ok {
+			return errWrongTxType
+		}
+
+		ds.proposals = append(ds.proposals, tx)
+		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &daoProposalImpl{
+			daoProposalTx: daoProposalTx,
+			votes:         make([]*UnsignedTx, 0),
+		}
+	}
+
+	daoVoteIt := st.daoVoteList.NewIterator()
+	defer daoVoteIt.Release()
+	for daoVoteIt.Next() {
+	}
+	sortDaoProposalsByRemoval(ds.proposals)
+	ds.setNextProposal()
+
+	st.daoProposalChainState = ds
 	return nil
 }
 

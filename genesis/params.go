@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/constants"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -42,6 +43,8 @@ type StakingConfig struct {
 	MaxStakeDuration time.Duration `json:"maxStakeDuration"`
 	// RewardConfig is the config for the reward function.
 	RewardConfig reward.Config `json:"rewardConfig"`
+	// DaoConfig is the config for the dao function.
+	DaoConfig dao.Config `json:"daoConfig"`
 }
 
 type TxFeeConfig struct {
@@ -53,6 +56,8 @@ type TxFeeConfig struct {
 	CreateSubnetTxFee uint64 `json:"createSubnetTxFee"`
 	// Transaction fee for create blockchain transactions
 	CreateBlockchainTxFee uint64 `json:"createBlockchainTxFee"`
+	// Fee that must be burned by every create staker transaction
+	AddStakerTxFee uint64 `json:"addStakerTxFee"`
 }
 
 type Params struct {

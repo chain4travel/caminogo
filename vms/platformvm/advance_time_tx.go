@@ -181,7 +181,11 @@ pendingStakerLoop:
 			return nil, nil, fmt.Errorf("expected validator but got %T", tx.UnsignedTx)
 		}
 	}
-	newlyPendingStakers := pendingStakers.DeleteStakers(numToRemoveFromPending)
+
+	newlyPendingStakers := pendingStakers
+	if numToRemoveFromPending > 0 {
+		newlyPendingStakers = pendingStakers.DeleteStakers(numToRemoveFromPending)
+	}
 
 	currentStakers := parentState.CurrentStakerChainState()
 	numToRemoveFromCurrent := 0
@@ -204,23 +208,68 @@ currentStakerLoop:
 			return nil, nil, errWrongTxType
 		}
 	}
-	newlyCurrentStakers, err := currentStakers.UpdateStakers(
-		toAddValidatorsWithRewardToCurrent,
-		toAddDelegatorsWithRewardToCurrent,
-		toAddWithoutRewardToCurrent,
-		numToRemoveFromCurrent,
-	)
-	if err != nil {
-		return nil, nil, err
+
+	newlyCurrentStakers := currentStakers
+
+	if numToRemoveFromPending > 0 || numToRemoveFromCurrent > 0 {
+		if newlyCurrentStakers, err = currentStakers.UpdateStakers(
+			toAddValidatorsWithRewardToCurrent,
+			toAddDelegatorsWithRewardToCurrent,
+			toAddWithoutRewardToCurrent,
+			numToRemoveFromCurrent,
+		); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers)
+	daoProposals := parentState.DaoProposalChainState()
+	numDaoProposalsToDelete := 0
+daoProposalLoop:
+	for _, tx := range daoProposals.Proposals() {
+		switch daoProposal := tx.UnsignedTx.(type) {
+		case *UnsignedDaoProposalTx:
+			if daoProposal.EndTime().After(txTimestamp) {
+				break daoProposalLoop
+			}
+			numDaoProposalsToDelete++
+		default:
+			return nil, nil, fmt.Errorf("expected validator but got %T", tx.UnsignedTx)
+		}
+	}
+
+	newlyDaoProposals := daoProposals
+
+	if numDaoProposalsToDelete > 0 {
+		if newlyDaoProposals, err = daoProposals.DeleteNextProposals(numDaoProposalsToDelete); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	onCommitState := newVersionedState(vm, parentState, newlyCurrentStakers, newlyPendingStakers, newlyDaoProposals)
 	onCommitState.SetTimestamp(txTimestamp)
 	onCommitState.SetCurrentSupply(currentSupply)
 
 	// State doesn't change if this proposal is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
 
+	// Refund the dao proposals
+	for i := 0; i < numDaoProposalsToDelete; i++ {
+		dtx := daoProposals.Proposals()[i]
+		// We don't need the OK check because we already verified
+		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoProposalTx)
+		for i, out := range daoProposalTx.Locks {
+			utxo := &avax.UTXO{
+				UTXOID: avax.UTXOID{
+					TxID:        daoProposalTx.ID(),
+					OutputIndex: uint32(len(daoProposalTx.Outs) + i),
+				},
+				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Out:   out.Output(),
+			}
+			onCommitState.AddUTXO(utxo)
+			onAbortState.AddUTXO(utxo)
+		}
+	}
 	return onCommitState, onAbortState, nil
 }
 

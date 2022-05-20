@@ -74,6 +74,7 @@ var (
 	errStartTimeTooEarly = errors.New("start time is before the current chain time")
 	errStartAfterEndTime = errors.New("start time is after the end time")
 	errWrongCacheType    = errors.New("unexpectedly cached type")
+	errFutureStartTime   = fmt.Errorf("attempt to start staking more than %s ahead of the current chain time", maxFutureStartTime)
 
 	_ block.ChainVM        = &VM{}
 	_ validators.Connector = &VM{}
@@ -422,12 +423,14 @@ func (vm *VM) LastAccepted() (ids.ID, error) {
 
 // SetPreference sets the preferred block to be the one with ID [blkID]
 func (vm *VM) SetPreference(blkID ids.ID) error {
+	if vm.bootstrapped.GetValue() {
+		vm.blockBuilder.ResetTimer()
+	}
 	if blkID == vm.preferred {
 		// If the preference didn't change, then this is a noop
 		return nil
 	}
 	vm.preferred = blkID
-	vm.blockBuilder.ResetTimer()
 	return nil
 }
 

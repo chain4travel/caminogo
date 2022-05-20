@@ -194,11 +194,11 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 	}
 
 	// Try building a proposal block that advances the chain timestamp.
-	nextChainTime, shouldAdvanceTime, err := m.getNextChainTime(preferredState)
+	nextChainTime, waitTime, err := m.getNextChainTime(preferredState)
 	if err != nil {
 		return nil, err
 	}
-	if shouldAdvanceTime {
+	if waitTime <= 0 {
 		advanceTimeTx, err := m.vm.newAdvanceTimeTx(nextChainTime)
 		if err != nil {
 			return nil, err
@@ -264,12 +264,12 @@ func (m *blockBuilder) ResetTimer() {
 		return
 	}
 
-	_, shouldAdvanceTime, err := m.getNextChainTime(preferredState)
+	nextTime, waitTime, err := m.getNextChainTime(preferredState)
 	if err != nil {
 		m.vm.ctx.Log.Error("failed to fetch next chain time with %s", err)
 		return
 	}
-	if shouldAdvanceTime {
+	if waitTime <= 0 {
 		// time is at or after the time for the next validator to join/leave
 		m.notifyBlockReady() // Should issue a proposal to advance timestamp
 		return
@@ -280,14 +280,7 @@ func (m *blockBuilder) ResetTimer() {
 		return
 	}
 
-	now := m.vm.clock.Time()
-	nextStakerChangeTime, err := getNextStakerChangeTime(preferredState)
-	if err != nil {
-		m.vm.ctx.Log.Error("couldn't get next staker change time: %s", err)
-		return
-	}
-	waitTime := nextStakerChangeTime.Sub(now)
-	m.vm.ctx.Log.Debug("next scheduled event is at %s (%s in the future)", nextStakerChangeTime, waitTime)
+	m.vm.ctx.Log.Debug("next scheduled event is at %s (%s in the future)", nextTime, waitTime)
 
 	// Wake up when it's time to add/remove the next validator
 	m.timer.SetTimeoutIn(waitTime)
@@ -329,14 +322,24 @@ func (m *blockBuilder) getStakerToReward(preferredState MutableState) (ids.ID, b
 
 // getNextChainTime returns the timestamp for the next chain time and if the
 // local time is >= time of the next staker set change.
-func (m *blockBuilder) getNextChainTime(preferredState MutableState) (time.Time, bool, error) {
+func (m *blockBuilder) getNextChainTime(preferredState MutableState) (time.Time, time.Duration, error) {
 	nextStakerChangeTime, err := getNextStakerChangeTime(preferredState)
 	if err != nil {
-		return time.Time{}, false, err
+		return nextStakerChangeTime, 0, err
+	}
+
+	nextDaoChangeTime, err := getNextDaoProposalChangeTime(preferredState)
+	if err != nil {
+		return nextDaoChangeTime, 0, err
+	}
+
+	if nextDaoChangeTime.Before(nextStakerChangeTime) {
+		nextStakerChangeTime = nextDaoChangeTime
 	}
 
 	now := m.vm.clock.Time()
-	return nextStakerChangeTime, !now.Before(nextStakerChangeTime), nil
+	duration := nextStakerChangeTime.Sub(now)
+	return nextStakerChangeTime, duration, nil
 }
 
 // dropTooEarlyMempoolProposalTxs drops mempool's validators whose start time is

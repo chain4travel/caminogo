@@ -74,9 +74,11 @@ func (tx *UnsignedCreateSubnetTx) SyntacticVerify(ctx *snow.Context) error {
 // Attempts to verify this transaction with the provided state.
 func (tx *UnsignedCreateSubnetTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
 	vs := newVersionedState(
+		vm,
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.DaoProposalChainState(),
 	)
 	_, err := tx.Execute(vm, vs, stx)
 	return err

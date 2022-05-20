@@ -85,9 +85,11 @@ func TestCreateSubnetTxAP3FeeChange(t *testing.T) {
 			assert.NoError(err)
 
 			vs := newVersionedState(
+				vm,
 				vm.internalState,
 				vm.internalState.CurrentStakerChainState(),
 				vm.internalState.PendingStakerChainState(),
+				vm.internalState.DaoProposalChainState(),
 			)
 			vs.SetTimestamp(test.time)
 

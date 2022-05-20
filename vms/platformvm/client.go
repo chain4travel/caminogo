@@ -215,6 +215,18 @@ type Client interface {
 	GetBlock(ctx context.Context, blockID ids.ID, options ...rpc.Option) ([]byte, error)
 	// GetConfiguration returns genesis information of the primary network
 	GetConfiguration(ctx context.Context) (*GetConfigurationReply, error)
+	// AddDaoProposal adds a new Proposal created by this nodeId.
+	AddDaoProposal(
+		ctx context.Context,
+		user api.UserPass,
+		from []string,
+		changeAddr string,
+		startTime,
+		endTime,
+		lockAmount uint64,
+		proposal []byte,
+		options ...rpc.Option,
+	) (ids.ID, error)
 }
 
 // Client implementation for interacting with the P Chain endpoint
@@ -403,8 +415,9 @@ func (c *client) AddValidator(
 	jsonStakeAmount := json.Uint64(stakeAmount)
 	err := c.requester.SendRequest(ctx, "addValidator", &AddValidatorArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:      user,
-			JSONFromAddrs: api.JSONFromAddrs{From: from},
+			UserPass:       user,
+			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		APIStaker: APIStaker{
 			NodeID:      nodeID,
@@ -746,4 +759,30 @@ func (c *client) GetConfiguration(ctx context.Context) (*GetConfigurationReply, 
 	res := &GetConfigurationReply{}
 	err := c.requester.SendRequest(ctx, "getConfiguration", struct{}{}, res)
 	return res, err
+}
+
+func (c *client) AddDaoProposal(
+	ctx context.Context,
+	user api.UserPass,
+	from []string,
+	changeAddr string,
+	startTime,
+	endTime,
+	lockAmount uint64,
+	proposal []byte,
+	options ...rpc.Option,
+) (ids.ID, error) {
+	res := &api.JSONTxID{}
+	err := c.requester.SendRequest(ctx, "addDaoProposal", &AddDaoProposalArgs{
+		JSONSpendHeader: api.JSONSpendHeader{
+			UserPass:       user,
+			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+		},
+		StartTime:  json.Uint64(startTime),
+		EndTime:    json.Uint64(endTime),
+		LockAmount: json.Uint64(lockAmount),
+		Proposal:   proposal,
+	}, res, options...)
+	return res.TxID, err
 }

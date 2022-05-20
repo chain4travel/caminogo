@@ -46,6 +46,7 @@ type UTXOState interface {
 type MutableState interface {
 	UTXOState
 	ValidatorState
+	DaoProposalState
 
 	AddRewardUTXO(txID ids.ID, utxo *avax.UTXO)
 	GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error)
@@ -78,6 +79,7 @@ type versionedStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
+	daoProposalChainState   daoProposalChainState
 
 	timestamp time.Time
 
@@ -97,6 +99,9 @@ type versionedStateImpl struct {
 
 	// map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
 	modifiedUTXOs map[ids.ID]*utxoImpl
+
+	// the VM
+	vm *VM
 }
 
 type txStatusImpl struct {
@@ -110,14 +115,18 @@ type utxoImpl struct {
 }
 
 func newVersionedState(
+	vm *VM,
 	ps MutableState,
 	current currentStakerChainState,
 	pending pendingStakerChainState,
+	dao daoProposalChainState,
 ) VersionedState {
 	return &versionedStateImpl{
+		vm:                      vm,
 		parentState:             ps,
 		currentStakerChainState: current,
 		pendingStakerChainState: pending,
+		daoProposalChainState:   dao,
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
 	}
@@ -304,6 +313,10 @@ func (vs *versionedStateImpl) PendingStakerChainState() pendingStakerChainState 
 	return vs.pendingStakerChainState
 }
 
+func (vs *versionedStateImpl) DaoProposalChainState() daoProposalChainState {
+	return vs.daoProposalChainState
+}
+
 func (vs *versionedStateImpl) SetBase(parentState MutableState) {
 	vs.parentState = parentState
 }
@@ -336,4 +349,7 @@ func (vs *versionedStateImpl) Apply(is InternalState) {
 	}
 	vs.currentStakerChainState.Apply(is)
 	vs.pendingStakerChainState.Apply(is)
+	vs.daoProposalChainState.Apply(is)
+
+	vs.vm.blockBuilder.ResetTimer()
 }

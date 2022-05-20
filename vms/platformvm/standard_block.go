@@ -98,9 +98,11 @@ func (sb *StandardBlock) Verify() error {
 
 	parentState := parent.onAccept()
 	sb.onAcceptState = newVersionedState(
+		sb.vm,
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.DaoProposalChainState(),
 	)
 
 	// clear inputs so that multiple [Verify] calls can be made

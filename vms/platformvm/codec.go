@@ -20,6 +20,7 @@ import (
 	"github.com/chain4travel/caminogo/codec"
 	"github.com/chain4travel/caminogo/codec/linearcodec"
 	"github.com/chain4travel/caminogo/utils/wrappers"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
 
@@ -39,6 +40,8 @@ func init() {
 	Codec = codec.NewDefaultManager()
 	gc := linearcodec.NewCustomMaxLength(math.MaxInt32)
 	GenesisCodec = codec.NewManager(math.MaxInt32)
+
+	dao.SetCodecManager(Codec)
 
 	errs := wrappers.Errs{}
 	for _, c := range []codec.Registry{c, gc} {
@@ -75,6 +78,8 @@ func init() {
 
 			c.RegisterType(&StakeableLockIn{}),
 			c.RegisterType(&StakeableLockOut{}),
+
+			c.RegisterType(&UnsignedDaoProposalTx{}),
 		)
 	}
 	errs.Add(

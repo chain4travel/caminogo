@@ -174,9 +174,11 @@ func TestNewImportTx(t *testing.T) {
 
 			preferredState := preferredDecision.onAccept()
 			fakedState := newVersionedState(
+				vm,
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
+				preferredState.DaoProposalChainState(),
 			)
 			fakedState.SetTimestamp(tt.timestamp)
 

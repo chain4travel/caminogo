@@ -188,9 +188,11 @@ func TestCreateChainTxInsufficientControlSigs(t *testing.T) {
 	}
 
 	vs := newVersionedState(
+		vm,
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
+		vm.internalState.DaoProposalChainState(),
 	)
 
 	// Remove a signature
@@ -232,9 +234,11 @@ func TestCreateChainTxWrongControlSig(t *testing.T) {
 	}
 
 	vs := newVersionedState(
+		vm,
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
+		vm.internalState.DaoProposalChainState(),
 	)
 
 	// Replace a valid signature with one from another key
@@ -274,9 +278,11 @@ func TestCreateChainTxNoSuchSubnet(t *testing.T) {
 	}
 
 	vs := newVersionedState(
+		vm,
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
+		vm.internalState.DaoProposalChainState(),
 	)
 
 	tx.UnsignedTx.(*UnsignedCreateChainTx).SubnetID = ids.GenerateTestID()
@@ -311,9 +317,11 @@ func TestCreateChainTxValid(t *testing.T) {
 	}
 
 	vs := newVersionedState(
+		vm,
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
+		vm.internalState.DaoProposalChainState(),
 	)
 
 	_, err = tx.UnsignedTx.(UnsignedDecisionTx).Execute(vm, vs, tx)
@@ -389,9 +397,11 @@ func TestCreateChainTxAP3FeeChange(t *testing.T) {
 			assert.NoError(err)
 
 			vs := newVersionedState(
+				vm,
 				vm.internalState,
 				vm.internalState.CurrentStakerChainState(),
 				vm.internalState.PendingStakerChainState(),
+				vm.internalState.DaoProposalChainState(),
 			)
 			vs.SetTimestamp(test.time)
 

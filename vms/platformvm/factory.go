@@ -22,6 +22,7 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/uptime"
 	"github.com/chain4travel/caminogo/snow/validators"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -80,6 +81,9 @@ type Factory struct {
 
 	// Config for the minting function
 	RewardConfig reward.Config
+
+	// Config for the dao function
+	DaoConfig dao.Config
 
 	// Time of the AP3 network upgrade
 	ApricotPhase3Time time.Time

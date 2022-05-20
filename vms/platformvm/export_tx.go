@@ -173,9 +173,11 @@ func (tx *UnsignedExportTx) AtomicExecute(
 ) (VersionedState, error) {
 	// Set up the state if this tx is committed
 	newState := newVersionedState(
+		vm,
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.DaoProposalChainState(),
 	)
 	_, err := tx.Execute(vm, newState, stx)
 	return newState, err

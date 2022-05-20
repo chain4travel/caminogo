@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/units"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -74,6 +75,12 @@ var (
 				MinConsumptionRate: .10 * reward.PercentDenominator,
 				MintingPeriod:      365 * 24 * time.Hour,
 				SupplyCap:          1000 * units.MegaAvax,
+			},
+			DaoConfig: dao.Config{
+				ProposalTxFee:       units.MilliAvax,
+				MinProposalLock:     1 * units.Avax,
+				MinProposalDuration: 1 * time.Minute,
+				MaxProposalDuration: 24 * 7 * 31 * time.Hour,
 			},
 		},
 	}

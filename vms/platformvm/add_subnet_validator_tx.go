@@ -86,13 +86,13 @@ func (tx *UnsignedAddSubnetValidatorTx) SemanticVerify(vm *VM, parentState Mutab
 	startTime := tx.StartTime()
 	maxLocalStartTime := vm.clock.Time().Add(maxFutureStartTime)
 	if startTime.After(maxLocalStartTime) {
-		return errFutureStakeTime
+		return errFutureStartTime
 	}
 
 	_, _, err := tx.Execute(vm, parentState, stx)
-	// We ignore [errFutureStakeTime] here because an advanceTimeTx will be
+	// We ignore [errFutureStartTime] here because an advanceTimeTx will be
 	// issued before this transaction is issued.
-	if errors.Is(err, errFutureStakeTime) {
+	if errors.Is(err, errFutureStartTime) {
 		return nil
 	}
 	return err
@@ -231,13 +231,15 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		// error.
 		maxStartTime := currentTimestamp.Add(maxFutureStartTime)
 		if validatorStartTime.After(maxStartTime) {
-			return nil, nil, errFutureStakeTime
+			return nil, nil, errFutureStartTime
 		}
 	}
 
+	daoProposals := parentState.DaoProposalChainState()
+
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
+	onCommitState := newVersionedState(vm, parentState, currentStakers, newlyPendingStakers, daoProposals)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -246,7 +248,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS

@@ -32,6 +32,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/wrappers"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/keystore"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
@@ -76,6 +77,8 @@ var (
 	errMissingName                = errors.New("argument 'name' not given")
 	errMissingVMID                = errors.New("argument 'vmID' not given")
 	errMissingBlockchainID        = errors.New("argument 'blockchainID' not given")
+	errProposalNotEmpty           = errors.New("argument 'proposal' has to be empty for this type")
+	errInvalidProposalType        = errors.New("unknown proposaltype")
 )
 
 // Service defines the API calls that can be made to the platform chain
@@ -975,6 +978,125 @@ func (service *Service) SampleValidators(_ *http.Request, args *SampleValidators
 		reply.Validators[i] = vdrID.PrefixedString(constants.NodeIDPrefix)
 	}
 	return nil
+}
+
+/*
+ ******************************************************
+ ***************     Dao Proposal     *****************
+ ******************************************************
+ */
+
+// AddDaoProposalArgs are the arguments to AddDaoProposal
+type AddDaoProposalArgs struct {
+	// User, password, from addrs, change addr
+	api.JSONSpendHeader
+
+	ProposalType json.Uint64 `json:"proposalType"`
+
+	StartTime  json.Uint64 `json:"startTime"`
+	EndTime    json.Uint64 `json:"endTime"`
+	LockAmount json.Uint64 `json:"lockAmount,omitempty"`
+
+	Proposal []byte `json:"proposal"`
+}
+
+// PlaceDaoProposal creates, signs and issues a transaction to place a dao proposal to
+// the primary network. Can only be called on a validator node
+func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs, reply *api.JSONTxIDChangeAddr) error {
+	service.vm.ctx.Log.Debug("Platform: AddDaoProposal called")
+
+	now := service.vm.clock.Time()
+	minAddStakerTime := now.Add(minAddStakerDelay)
+	minAddStakerUnix := json.Uint64(minAddStakerTime.Unix())
+	maxAddStakerTime := now.Add(maxFutureStartTime)
+	maxAddStakerUnix := json.Uint64(maxAddStakerTime.Unix())
+
+	if args.StartTime == 0 {
+		args.StartTime = minAddStakerUnix
+		// If StartTime is not set, we allow passing relative duration
+		if args.EndTime <= json.Uint64(service.vm.Factory.DaoConfig.MaxProposalDuration) {
+			args.EndTime = args.StartTime + json.Uint64(args.EndTime)
+		}
+	}
+
+	switch {
+	case args.StartTime < minAddStakerUnix:
+		return errStartTimeTooSoon
+	case args.StartTime > maxAddStakerUnix:
+		return errStartTimeTooLate
+	}
+
+	if args.ProposalType >= json.Uint64(dao.ProposalTypeMax) {
+		return errInvalidProposalType
+	}
+
+	if args.Proposal == nil {
+		args.Proposal = []byte{}
+	}
+
+	// In case we have an ValidatorProposal, no payload is allowed
+	if args.ProposalType == json.Uint64(dao.ProposalTypeAddValidator) {
+		if len(args.Proposal) > 0 {
+			return errProposalNotEmpty
+		}
+	}
+
+	// Parse the from addresses
+	fromAddrs, err := avax.ParseLocalAddresses(service.vm, args.From)
+	if err != nil {
+		return err
+	}
+
+	user, err := keystore.NewUserFromKeystore(service.vm.ctx.Keystore, args.Username, args.Password)
+	if err != nil {
+		return err
+	}
+	defer user.Close()
+
+	// Get the user's keys
+	privKeys, err := keystore.GetKeychain(user, fromAddrs)
+	if err != nil {
+		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
+	}
+
+	// Parse the change address.
+	if len(privKeys.Keys) == 0 {
+		return errNoKeys
+	}
+	// By default, use a key controlled by the user
+	changeAddr := privKeys.Keys[0].PublicKey().Address()
+	if args.ChangeAddr != "" {
+		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
+		if err != nil {
+			return fmt.Errorf("couldn't parse changeAddr: %w", err)
+		}
+	}
+
+	// Create the transaction
+	tx, err := service.vm.newDaoProposalTx(
+		service.vm.ctx.NodeID,     // Node ID
+		privKeys.Keys,             // Private keys
+		changeAddr,                // Change address
+		uint64(args.ProposalType), // proposal type
+		uint64(args.LockAmount),   // The lock amount
+		uint64(args.StartTime),    // Start time of the proposal
+		uint64(args.EndTime),      // End time of the proposal
+		args.Proposal,             // The proposal message
+	)
+	if err != nil {
+		return fmt.Errorf("couldn't create tx: %w", err)
+	}
+
+	reply.TxID = tx.ID()
+	reply.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
+
+	errs := wrappers.Errs{}
+	errs.Add(
+		err,
+		service.vm.blockBuilder.AddUnverifiedTx(tx),
+		user.Close(),
+	)
+	return errs.Err
 }
 
 /*

@@ -109,6 +109,18 @@ func (mr *MockInternalStateMockRecorder) AddPendingStaker(tx interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPendingStaker", reflect.TypeOf((*MockInternalState)(nil).AddPendingStaker), tx)
 }
 
+// AddDaoProposal mocks base method.
+func (m *MockInternalState) AddDaoProposal(tx *Tx) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddDaoProposal", tx)
+}
+
+// AddDaoProposal indicates an expected call of AddDaoProposal.
+func (mr *MockInternalStateMockRecorder) AddDaoProposal(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDaoProposal", reflect.TypeOf((*MockInternalState)(nil).AddDaoProposal), tx)
+}
+
 // AddRewardUTXO mocks base method.
 func (m *MockInternalState) AddRewardUTXO(txID ids.ID, utxo *avax.UTXO) {
 	m.ctrl.T.Helper()
@@ -236,6 +248,18 @@ func (m *MockInternalState) DeletePendingStaker(tx *Tx) {
 func (mr *MockInternalStateMockRecorder) DeletePendingStaker(tx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeletePendingStaker", reflect.TypeOf((*MockInternalState)(nil).DeletePendingStaker), tx)
+}
+
+// DeleteDaoProposal mocks base method.
+func (m *MockInternalState) DeleteDaoProposal(tx *Tx) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteDaoProposal", tx)
+}
+
+// DeleteDaoProposal indicates an expected call of DeleteDaoProposal.
+func (mr *MockInternalStateMockRecorder) DeleteDaoProposal(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDaoProposal", reflect.TypeOf((*MockInternalState)(nil).DeleteDaoProposal), tx)
 }
 
 // DeleteUTXO mocks base method.
@@ -443,6 +467,20 @@ func (mr *MockInternalStateMockRecorder) PendingStakerChainState() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingStakerChainState", reflect.TypeOf((*MockInternalState)(nil).PendingStakerChainState))
 }
 
+// DaoProposalChainState mocks base method.
+func (m *MockInternalState) DaoProposalChainState() daoProposalChainState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DaoProposalChainState")
+	ret0, _ := ret[0].(daoProposalChainState)
+	return ret0
+}
+
+// DaoProposalChainState indicates an expected call of DaoProposalChainState.
+func (mr *MockInternalStateMockRecorder) DaoProposalChainState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DaoProposalChainState", reflect.TypeOf((*MockInternalState)(nil).DaoProposalChainState))
+}
+
 // SetCurrentStakerChainState mocks base method.
 func (m *MockInternalState) SetCurrentStakerChainState(arg0 currentStakerChainState) {
 	m.ctrl.T.Helper()
@@ -501,6 +539,18 @@ func (m *MockInternalState) SetPendingStakerChainState(arg0 pendingStakerChainSt
 func (mr *MockInternalStateMockRecorder) SetPendingStakerChainState(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPendingStakerChainState", reflect.TypeOf((*MockInternalState)(nil).SetPendingStakerChainState), arg0)
+}
+
+// SetDaoProposalChainState mocks base method.
+func (m *MockInternalState) SetDaoProposalChainState(arg0 daoProposalChainState) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetDaoProposalChainState", arg0)
+}
+
+// SetDaoProposalChainState indicates an expected call of SetDaoProposalChainState.
+func (mr *MockInternalStateMockRecorder) SetDaoProposalChainState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDaoProposalChainState", reflect.TypeOf((*MockInternalState)(nil).SetDaoProposalChainState), arg0)
 }
 
 // SetTimestamp mocks base method.
