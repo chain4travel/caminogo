@@ -216,14 +216,6 @@ func (vm *VM) stake(
 		// The remaining value is initially the full value of the input
 		remainingValue := in.Amount()
 
-		// Burn any value that should be burned
-		amountToBurn := math.Min64(
-			fee-amountBurned, // Amount we still need to burn
-			remainingValue,   // Amount available to burn
-		)
-		amountBurned += amountToBurn
-		remainingValue -= amountToBurn
-
 		// Stake any value that should be staked
 		amountToStake := math.Min64(
 			amount-amountStaked, // Amount we still need to stake
@@ -252,6 +244,17 @@ func (vm *VM) stake(
 					},
 				},
 			})
+		}
+
+		// Handle fees after stake to reduce UTXO generation
+		if amountStaked == amount && amountBurned < fee {
+			// Burn any value that should be burned
+			amountToBurn := math.Min64(
+				fee-amountBurned, // Amount we still need to burn
+				remainingValue,   // Amount available to burn
+			)
+			amountBurned += amountToBurn
+			remainingValue -= amountToBurn
 		}
 
 		if remainingValue > 0 {
