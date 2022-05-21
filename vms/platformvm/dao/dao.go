@@ -75,7 +75,8 @@ func (d *DaoProposal) Due(currentTime time.Time) bool { return currentTime.After
 func (d *DaoProposal) computeID() (ids.ID, error) {
 	data := append(d.Proposer.Bytes(), d.Data...)
 
-	if typeBytes, err := Codec.Marshal(0, d.ProposalType); err != nil {
+	toSerialize := [5]uint64{d.ProposalType, d.Wght, d.Start, d.End, uint64(d.Thresh)}
+	if typeBytes, err := Codec.Marshal(0, toSerialize); err != nil {
 		return ids.ID{}, err
 	} else {
 		data = append(data, typeBytes...)
