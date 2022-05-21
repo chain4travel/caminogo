@@ -55,7 +55,7 @@ type daoProposalChainState interface {
 	GetProposal(proposalID ids.ID) (daoProposal, error)
 
 	AddProposal(daoProposalTx *Tx) daoProposalChainState
-	DeleteNextProposals(numToDelete int) (daoProposalChainState, error)
+	ArchiveNextProposals(numToDelete int) (daoProposalChainState, error)
 
 	// Stakers returns the current stakers on the network sorted in order of the
 	// order of their future removal from the validator set.
@@ -70,14 +70,14 @@ type daoProposalChainState interface {
 type daoProposalChainStateImpl struct {
 	nextProposal *Tx
 
-	// proposalID -> proposal
+	// proposalID -> proposal, contains archive proposals, too
 	proposalsByID map[ids.ID]*daoProposalImpl
 
-	// list of current proposals sorted by end time
+	// list of active proposals sorted by end time
 	proposals []*Tx
 
-	addedProposals   []*Tx
-	deletedProposals []*Tx
+	addedProposals    []*Tx
+	archivedProposals []*Tx
 }
 
 func (ds *daoProposalChainStateImpl) GetNextProposal() (daoProposalTx *Tx, err error) {
@@ -119,26 +119,16 @@ func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalC
 	return newDS
 }
 
-func (ds *daoProposalChainStateImpl) DeleteNextProposals(numToDelete int) (daoProposalChainState, error) {
-	if numToDelete > len(ds.proposalsByID) {
-		return nil, fmt.Errorf("trying to remove %d proposals from %d", numToDelete, len(ds.proposalsByID))
+func (ds *daoProposalChainStateImpl) ArchiveNextProposals(numToDelete int) (daoProposalChainState, error) {
+	if numToDelete > len(ds.proposals) {
+		return nil, fmt.Errorf("trying to archive %d proposals from %d", numToDelete, len(ds.proposals))
 	}
 
 	newDS := &daoProposalChainStateImpl{
-		proposalsByID: make(map[ids.ID]*daoProposalImpl, len(ds.proposalsByID)-numToDelete),
-		proposals:     ds.proposals[numToDelete:], // sorted in order of removal
-
-		deletedProposals: ds.proposals[:numToDelete],
+		proposalsByID:     ds.proposalsByID,
+		proposals:         ds.proposals[numToDelete:], // sorted in order of removal
+		archivedProposals: ds.proposals[:numToDelete],
 	}
-
-	for _, tx := range newDS.proposals {
-		if daoProposal, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx); ok {
-			newDS.proposalsByID[daoProposal.ID()] = ds.proposalsByID[daoProposal.ID()]
-		} else {
-			return nil, errWrongTxType
-		}
-	}
-
 	newDS.setNextProposal()
 	return newDS, nil
 }
@@ -151,14 +141,14 @@ func (ds *daoProposalChainStateImpl) Apply(is InternalState) {
 	for _, added := range ds.addedProposals {
 		is.AddDaoProposal(added)
 	}
-	for _, deleted := range ds.deletedProposals {
-		is.DeleteDaoProposal(deleted)
+	for _, archived := range ds.archivedProposals {
+		is.ArchiveDaoProposal(archived)
 	}
 	is.SetDaoProposalChainState(ds)
 
 	// Dao changes should only be applied once.
 	ds.addedProposals = nil
-	ds.deletedProposals = nil
+	ds.archivedProposals = nil
 }
 
 // setNextProposal to the next sproposal that will be removed using a

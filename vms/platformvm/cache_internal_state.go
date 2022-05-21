@@ -60,9 +60,10 @@ var (
 	lastAcceptedKey  = []byte("last accepted")
 	initializedKey   = []byte("initialized")
 
-	daoPrefix         = []byte("dao")
-	daoProposalPrefix = []byte("daoProposal")
-	daoVotePrefix     = []byte("daoVote")
+	daoPrefix                = []byte("dao")
+	daoProposalPrefix        = []byte("daoProposal")
+	daoProposalArchivePrefix = []byte("daoProposalArchive")
+	daoVotePrefix            = []byte("daoVote")
 
 	errWrongNetworkID = errors.New("tx has wrong network ID")
 
@@ -100,7 +101,7 @@ type InternalState interface {
 	DeletePendingStaker(tx *Tx)
 
 	AddDaoProposal(tx *Tx)
-	DeleteDaoProposal(tx *Tx)
+	ArchiveDaoProposal(tx *Tx)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
@@ -171,6 +172,9 @@ type InternalState interface {
  *   |-. daoProposal
  *   |  -. list
  *   |   '-- txID -> nil
+ *   |-. daoProposalArchive
+ *   |  -. list
+ *   |   '-- txID -> nil
  *   '-. daoVote
  *     '-. list
  *       '-- txID -> nil
@@ -190,7 +194,7 @@ type internalStateImpl struct {
 	addedPendingStakers   []*Tx
 	deletedPendingStakers []*Tx
 	addedDaoProposals     []*Tx
-	deletedDaoProposals   []*Tx
+	archivedDaoProposals  []*Tx
 	addedDaoVotes         []*Tx
 	uptimes               map[ids.ShortID]*currentValidatorState // nodeID -> uptimes
 	updatedUptimes        map[ids.ShortID]struct{}               // nodeID -> nil
@@ -245,11 +249,13 @@ type internalStateImpl struct {
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
 
-	daoDB             database.Database
-	daoProposalBaseDB database.Database
-	daoProposalList   linkeddb.LinkedDB
-	daoVoteBaseDB     database.Database
-	daoVoteList       linkeddb.LinkedDB
+	daoDB                    database.Database
+	daoProposalBaseDB        database.Database
+	daoProposalList          linkeddb.LinkedDB
+	daoProposalArchiveBaseDB database.Database
+	daoProposalArchiveList   linkeddb.LinkedDB
+	daoVoteBaseDB            database.Database
+	daoVoteList              linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -295,6 +301,7 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 
 	daoDB := prefixdb.New(daoPrefix, baseDB)
 	daoProposalBaseDB := prefixdb.New(daoProposalPrefix, daoDB)
+	daoProposalArchiveBaseDB := prefixdb.New(daoProposalArchivePrefix, daoDB)
 	daoVoteBaseDB := prefixdb.New(daoVotePrefix, daoDB)
 
 	return &internalStateImpl{
@@ -342,11 +349,13 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
 
-		daoDB:             daoDB,
-		daoProposalBaseDB: daoProposalBaseDB,
-		daoProposalList:   linkeddb.NewDefault(daoProposalBaseDB),
-		daoVoteBaseDB:     daoVoteBaseDB,
-		daoVoteList:       linkeddb.NewDefault(daoVoteBaseDB),
+		daoDB:                    daoDB,
+		daoProposalBaseDB:        daoProposalBaseDB,
+		daoProposalList:          linkeddb.NewDefault(daoProposalBaseDB),
+		daoProposalArchiveBaseDB: daoProposalArchiveBaseDB,
+		daoProposalArchiveList:   linkeddb.NewDefault(daoProposalArchiveBaseDB),
+		daoVoteBaseDB:            daoVoteBaseDB,
+		daoVoteList:              linkeddb.NewDefault(daoVoteBaseDB),
 	}
 }
 
@@ -802,8 +811,8 @@ func (st *internalStateImpl) AddDaoProposal(tx *Tx) {
 	st.addedDaoProposals = append(st.addedDaoProposals, tx)
 }
 
-func (st *internalStateImpl) DeleteDaoProposal(tx *Tx) {
-	st.deletedDaoProposals = append(st.deletedDaoProposals, tx)
+func (st *internalStateImpl) ArchiveDaoProposal(tx *Tx) {
+	st.archivedDaoProposals = append(st.archivedDaoProposals, tx)
 }
 
 func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids.ID) (map[ids.ShortID]*ValidatorWeightDiff, error) {
@@ -1336,13 +1345,16 @@ func (st *internalStateImpl) writeDao() error {
 	}
 	st.addedDaoVotes = nil
 
-	for _, tx := range st.deletedDaoProposals {
+	for _, tx := range st.archivedDaoProposals {
 		txID := tx.ID()
 		if err := st.daoProposalList.Delete(txID[:]); err != nil {
 			return err
 		}
+		if err := st.daoProposalArchiveList.Put(txID[:], nil); err != nil {
+			return err
+		}
 	}
-	st.deletedDaoProposals = nil
+	st.archivedDaoProposals = nil
 
 	return nil
 }
@@ -1650,6 +1662,29 @@ func (st *internalStateImpl) loadDao() error {
 		ds.proposals = append(ds.proposals, tx)
 		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &daoProposalImpl{
 			daoProposalTx: daoProposalTx,
+			votes:         make([]*UnsignedTx, 0),
+		}
+	}
+
+	daoProposalArchiveIt := st.daoProposalArchiveList.NewIterator()
+	defer daoProposalArchiveIt.Release()
+	for daoProposalArchiveIt.Next() {
+		txIDBytes := daoProposalArchiveIt.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		tx, _, err := st.GetTx(txID)
+		if err != nil {
+			return err
+		}
+		daoProposalArchiveTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		if !ok {
+			return errWrongTxType
+		}
+
+		ds.proposalsByID[daoProposalArchiveTx.DaoProposal.ID()] = &daoProposalImpl{
+			daoProposalTx: daoProposalArchiveTx,
 			votes:         make([]*UnsignedTx, 0),
 		}
 	}

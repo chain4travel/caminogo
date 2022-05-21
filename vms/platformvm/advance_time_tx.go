@@ -223,7 +223,7 @@ currentStakerLoop:
 	}
 
 	daoProposals := parentState.DaoProposalChainState()
-	numDaoProposalsToDelete := 0
+	numDaoProposalsToArchive := 0
 daoProposalLoop:
 	for _, tx := range daoProposals.Proposals() {
 		switch daoProposal := tx.UnsignedTx.(type) {
@@ -231,7 +231,7 @@ daoProposalLoop:
 			if daoProposal.EndTime().After(txTimestamp) {
 				break daoProposalLoop
 			}
-			numDaoProposalsToDelete++
+			numDaoProposalsToArchive++
 		default:
 			return nil, nil, fmt.Errorf("expected validator but got %T", tx.UnsignedTx)
 		}
@@ -239,8 +239,8 @@ daoProposalLoop:
 
 	newlyDaoProposals := daoProposals
 
-	if numDaoProposalsToDelete > 0 {
-		if newlyDaoProposals, err = daoProposals.DeleteNextProposals(numDaoProposalsToDelete); err != nil {
+	if numDaoProposalsToArchive > 0 {
+		if newlyDaoProposals, err = daoProposals.ArchiveNextProposals(numDaoProposalsToArchive); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -253,7 +253,7 @@ daoProposalLoop:
 	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
 
 	// Refund the dao proposals
-	for i := 0; i < numDaoProposalsToDelete; i++ {
+	for i := 0; i < numDaoProposalsToArchive; i++ {
 		dtx := daoProposals.Proposals()[i]
 		// We don't need the OK check because we already verified
 		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoProposalTx)

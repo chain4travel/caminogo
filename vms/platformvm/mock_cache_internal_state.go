@@ -250,16 +250,16 @@ func (mr *MockInternalStateMockRecorder) DeletePendingStaker(tx interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeletePendingStaker", reflect.TypeOf((*MockInternalState)(nil).DeletePendingStaker), tx)
 }
 
-// DeleteDaoProposal mocks base method.
-func (m *MockInternalState) DeleteDaoProposal(tx *Tx) {
+// ArchiveDaoProposal mocks base method.
+func (m *MockInternalState) ArchiveDaoProposal(tx *Tx) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "DeleteDaoProposal", tx)
 }
 
-// DeleteDaoProposal indicates an expected call of DeleteDaoProposal.
-func (mr *MockInternalStateMockRecorder) DeleteDaoProposal(tx interface{}) *gomock.Call {
+// ArchiveDaoProposal indicates an expected call of ArchiveDaoProposal.
+func (mr *MockInternalStateMockRecorder) ArchiveDaoProposal(tx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDaoProposal", reflect.TypeOf((*MockInternalState)(nil).DeleteDaoProposal), tx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveDaoProposal", reflect.TypeOf((*MockInternalState)(nil).ArchiveDaoProposal), tx)
 }
 
 // DeleteUTXO mocks base method.
