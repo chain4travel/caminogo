@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	encodingJson "encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -469,13 +470,22 @@ func (service *Service) GetUTXOs(_ *http.Request, args *GetUTXOsArgs, response *
 
 	response.UTXOs = make([]string, len(utxos))
 	for i, utxo := range utxos {
-		bytes, err := Codec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
-		}
-		response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+		if args.Encoding == formatting.JSON {
+			utxo.Out.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize utxo: %w", err)
+			}
+			response.UTXOs[i] = string(bytes)
+		} else {
+			bytes, err := Codec.Marshal(CodecVersion, utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+			}
 		}
 	}
 
@@ -2171,6 +2181,15 @@ type GetStakeArgs struct {
 // GetStakeReply is the response from calling GetStake.
 type GetStakeReply struct {
 	Staked json.Uint64 `json:"staked"`
+	// Total Staked amount in its 3 components
+	Components struct {
+		// Part staked as Validator
+		Validator json.Uint64 `json:"staker"`
+		// Part staked as Delegator
+		Delegator json.Uint64 `json:"delegator"`
+		// Part locked for Dao proposals
+		Dao json.Uint64 `json:"dao"`
+	} `json:"components"`
 	// String representation of staked outputs
 	// Each is of type avax.TransferableOutput
 	Outputs []string `json:"stakedOutputs"`
@@ -2182,63 +2201,63 @@ type GetStakeReply struct {
 // Returns:
 // 1) The total amount staked by addresses in [addrs]
 // 2) The staked outputs
-func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []avax.TransferableOutput, error) {
+func (service *Service) getOutHelper(tx *Tx, addrs ids.ShortSet) (uint64, int, []avax.TransferableOutput, error) {
 	var outs []*avax.TransferableOutput
-	switch staker := tx.UnsignedTx.(type) {
-	case *UnsignedAddDelegatorTx:
-		outs = staker.Stake
+	var outIndex = 0
+	switch tx := tx.UnsignedTx.(type) {
 	case *UnsignedAddValidatorTx:
-		outs = staker.Stake
+		outs = tx.Stake
+	case *UnsignedAddDelegatorTx:
+		outs = tx.Stake
+		outIndex = 1
+	case *UnsignedDaoProposalTx:
+		outs = tx.Locks
+		outIndex = 2
 	case *UnsignedAddSubnetValidatorTx:
-		return 0, nil, nil
+		return 0, -1, nil, nil
 	default:
-		err := fmt.Errorf("expected *UnsignedAddDelegatorTx, *UnsignedAddValidatorTx or *UnsignedAddSubnetValidatorTx but got %T", tx.UnsignedTx)
+		err := fmt.Errorf("expected *UnsignedAddDelegatorTx, *UnsignedAddValidatorTx or *UnsignedAddSubnetValidatorTx but got %T", tx)
 		service.vm.ctx.Log.Error("invalid tx type provided from validator set %s", err)
-		return 0, nil, err
+		return 0, -1, nil, err
 	}
 
 	var (
-		totalAmountStaked uint64
-		err               error
-		stakedOuts        = make([]avax.TransferableOutput, 0, len(outs))
+		totalAmount   uint64
+		err           error
+		collectedOuts = make([]avax.TransferableOutput, 0, len(outs))
 	)
 	// Go through all of the staked outputs
-	for _, stake := range outs {
+	for _, out := range outs {
 		// This output isn't AVAX. Ignore.
-		if stake.AssetID() != service.vm.ctx.AVAXAssetID {
+		if out.AssetID() != service.vm.ctx.AVAXAssetID {
 			continue
 		}
-		out := stake.Out
-		if lockedOut, ok := out.(*StakeableLockOut); ok {
+		inner := out.Out
+		if lockedOut, ok := inner.(*StakeableLockOut); ok {
 			// This output can only be used for staking until [stakeOnlyUntil]
-			out = lockedOut.TransferableOut
+			inner = lockedOut.TransferableOut
 		}
-		secpOut, ok := out.(*secp256k1fx.TransferOutput)
-		if !ok {
-			continue
-		}
-		// Check whether this output is owned by one of the given addresses
+
 		contains := false
-		for _, addr := range secpOut.Addrs {
-			if addrs.Contains(addr) {
-				contains = true
-				break
+		if secpOut, ok := inner.(*secp256k1fx.TransferOutput); !ok {
+			continue
+		} else {
+			for _, addr := range secpOut.Addrs {
+				if addrs.Contains(addr) {
+					contains = true
+					break
+				}
 			}
 		}
 		if !contains {
-			// This output isn't owned by one of the given addresses. Ignore.
 			continue
 		}
-		totalAmountStaked, err = math.Add64(totalAmountStaked, stake.Out.Amount())
-		if err != nil {
-			return 0, stakedOuts, err
+		if totalAmount, err = math.Add64(totalAmount, inner.Amount()); err != nil {
+			return 0, -1, collectedOuts, err
 		}
-		stakedOuts = append(
-			stakedOuts,
-			*stake,
-		)
+		collectedOuts = append(collectedOuts, *out)
 	}
-	return totalAmountStaked, stakedOuts, nil
+	return totalAmount, outIndex, collectedOuts, nil
 }
 
 // GetStake returns the amount of nAVAX that [args.Addresses] have cumulatively
@@ -2265,48 +2284,57 @@ func (service *Service) GetStake(_ *http.Request, args *GetStakeArgs, response *
 		addrs.Add(addr)
 	}
 
-	currentStakers := service.vm.internalState.CurrentStakerChainState()
-	stakers := currentStakers.Stakers()
-
+	stakers := service.vm.internalState.CurrentStakerChainState().Stakers()
 	var (
 		totalStake uint64
 		stakedOuts = make([]avax.TransferableOutput, 0, len(stakers))
+		stakeParts = [3]uint64{0, 0, 0}
 	)
-	for _, tx := range stakers { // Iterates over current stakers
-		stakedAmt, outs, err := service.getStakeHelper(tx, addrs)
-		if err != nil {
-			return err
+	for i := 0; i < 3; i++ {
+		for _, tx := range stakers { // Iterates over current stakers
+			if stakedAmt, index, outs, err := service.getOutHelper(tx, addrs); err != nil {
+				return err
+			} else {
+				if totalStake, err = math.Add64(totalStake, stakedAmt); err != nil {
+					return err
+				}
+				if stakeParts[index], err = math.Add64(stakeParts[index], stakedAmt); err != nil {
+					return err
+				}
+				stakedOuts = append(stakedOuts, outs...)
+			}
 		}
-		totalStake, err = math.Add64(totalStake, stakedAmt)
-		if err != nil {
-			return err
+		if i == 0 {
+			// Second loop with pending stakers
+			stakers = service.vm.internalState.PendingStakerChainState().Stakers()
+		} else {
+			// Second loop with dao proposals
+			stakers = service.vm.internalState.DaoProposalChainState().Proposals()
 		}
-		stakedOuts = append(stakedOuts, outs...)
-	}
-
-	pendingStakers := service.vm.internalState.PendingStakerChainState()
-	for _, tx := range pendingStakers.Stakers() { // Iterates over pending stakers
-		stakedAmt, outs, err := service.getStakeHelper(tx, addrs)
-		if err != nil {
-			return err
-		}
-		totalStake, err = math.Add64(totalStake, stakedAmt)
-		if err != nil {
-			return err
-		}
-		stakedOuts = append(stakedOuts, outs...)
 	}
 
 	response.Staked = json.Uint64(totalStake)
+	response.Components.Validator = json.Uint64(stakeParts[0])
+	response.Components.Delegator = json.Uint64(stakeParts[1])
+	response.Components.Dao = json.Uint64(stakeParts[2])
 	response.Outputs = make([]string, len(stakedOuts))
 	for i, output := range stakedOuts {
-		bytes, err := Codec.Marshal(CodecVersion, output)
-		if err != nil {
-			return fmt.Errorf("couldn't serialize output %s: %w", output.ID, err)
-		}
-		response.Outputs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode output %s as string: %w", output.ID, err)
+		if args.Encoding == formatting.JSON {
+			output.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(output)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize output %s: %w", output.ID, err)
+			}
+			response.Outputs[i] = string(bytes)
+		} else {
+			bytes, err := Codec.Marshal(CodecVersion, output)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize output %s: %w", output.ID, err)
+			}
+			response.Outputs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode output %s as string: %w", output.ID, err)
+			}
 		}
 	}
 	response.Encoding = args.Encoding
@@ -2401,16 +2429,25 @@ func (service *Service) GetRewardUTXOs(_ *http.Request, args *api.GetTxArgs, rep
 	reply.NumFetched = json.Uint64(len(utxos))
 	reply.UTXOs = make([]string, len(utxos))
 	for i, utxo := range utxos {
-		utxoBytes, err := GenesisCodec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			return fmt.Errorf("failed to encode UTXO to bytes: %w", err)
-		}
+		if args.Encoding == formatting.JSON {
+			utxo.Out.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize utxo: %w", err)
+			}
+			reply.UTXOs[i] = string(bytes)
+		} else {
+			utxoBytes, err := GenesisCodec.Marshal(CodecVersion, utxo)
+			if err != nil {
+				return fmt.Errorf("failed to encode UTXO to bytes: %w", err)
+			}
 
-		utxoStr, err := formatting.EncodeWithChecksum(args.Encoding, utxoBytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode utxo as a string: %w", err)
+			utxoStr, err := formatting.EncodeWithChecksum(args.Encoding, utxoBytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode utxo as a string: %w", err)
+			}
+			reply.UTXOs[i] = utxoStr
 		}
-		reply.UTXOs[i] = utxoStr
 	}
 	reply.Encoding = args.Encoding
 	return nil
