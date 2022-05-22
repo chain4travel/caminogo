@@ -883,7 +883,7 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr, _ := pendingStakers.GetValidator(nodeID)
 	_, exists := vdr.SubnetValidators()[testSubnet1.ID()]
 
 	// Verify that new validator is in pending validator set
@@ -966,7 +966,7 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr, _ := pendingStakers.GetValidator(nodeID)
 	_, exists := vdr.SubnetValidators()[testSubnet1.ID()]
 
 	// Verify that new validator NOT in pending validator set
@@ -1429,7 +1429,7 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr, _ := pendingStakers.GetValidator(nodeID)
 	_, exists := vdr.SubnetValidators()[createSubnetTx.ID()]
 	if !exists {
 		t.Fatal("should have added a pending validator")
@@ -1477,7 +1477,7 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers = vm.internalState.PendingStakerChainState()
-	vdr = pendingStakers.GetValidator(nodeID)
+	vdr, _ = pendingStakers.GetValidator(nodeID)
 	_, exists = vdr.SubnetValidators()[createSubnetTx.ID()]
 	if exists {
 		t.Fatal("should have removed the pending validator")
@@ -1533,7 +1533,7 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers = vm.internalState.PendingStakerChainState()
-	vdr = pendingStakers.GetValidator(nodeID)
+	vdr, _ = pendingStakers.GetValidator(nodeID)
 	_, exists = vdr.SubnetValidators()[createSubnetTx.ID()]
 	if exists {
 		t.Fatal("should have removed the pending validator")

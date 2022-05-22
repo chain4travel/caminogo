@@ -35,6 +35,7 @@ var (
 	errWrongOpType                    = errors.New("wrong operation type")
 	errWrongUTXOType                  = errors.New("wrong utxo type")
 	errWrongInputType                 = errors.New("wrong input type")
+	errWrongSignatureKeyMap           = errors.New("wrong signatureKeyMap")
 	errWrongCredentialType            = errors.New("wrong credential type")
 	errWrongOwnerType                 = errors.New("wrong owner type")
 	errWrongNumberOfUTXOs             = errors.New("wrong number of utxos for the operation")
@@ -214,6 +215,35 @@ func (fx *Fx) VerifyCredentials(tx Tx, in *Input, cred *Credential, out *OutputO
 		}
 	}
 
+	return nil
+}
+
+// GetPublicKeys recovers public keys from tx and Signature and stores it
+// in the map provided.
+func (fx *Fx) GetPublicKeys(iTx, iCreds, iMap interface{}) error {
+	tx, ok := iTx.(Tx)
+	if !ok {
+		return errWrongTxType
+	}
+	creds, ok := iCreds.(*Credential)
+	if !ok {
+		return errWrongCredentialType
+	}
+	result, ok := iMap.(*SignatureKeyMap)
+	if !ok {
+		return errWrongSignatureKeyMap
+	}
+
+	txHash := hashing.ComputeHash256(tx.UnsignedBytes())
+	for _, sig := range creds.Sigs {
+		if !result.Has(sig) {
+			if pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, sig[:]); err != nil {
+				return err
+			} else {
+				result.Set(sig, pk)
+			}
+		}
+	}
 	return nil
 }
 

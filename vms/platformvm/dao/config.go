@@ -8,6 +8,8 @@ import "time"
 type Config struct {
 	// Fee that must be burned by every AddDaoProposal transaction
 	ProposalTxFee uint64 `json:"proposalTxFee"`
+	// Fee that must be burned by every VoteProposal transaction
+	VoteTxFee uint64 `json:"voteTxFee"`
 	// Minimal lock amount to ba able to add a proposal
 	MinProposalLock uint64 `json:"minProposalLock"`
 	// Minimum duration a voting period has to be active

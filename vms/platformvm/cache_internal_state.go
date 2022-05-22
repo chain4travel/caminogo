@@ -65,7 +65,8 @@ var (
 	daoProposalArchivePrefix = []byte("daoProposalArchive")
 	daoVotePrefix            = []byte("daoVote")
 
-	errWrongNetworkID = errors.New("tx has wrong network ID")
+	errWrongNetworkID      = errors.New("tx has wrong network ID")
+	errDaoProposalNotFound = errors.New("dao proposal not found")
 
 	_ InternalState = &internalStateImpl{}
 )
@@ -102,6 +103,7 @@ type InternalState interface {
 
 	AddDaoProposal(tx *Tx)
 	ArchiveDaoProposal(tx *Tx)
+	AddDaoVote(tx *Tx)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
@@ -811,6 +813,10 @@ func (st *internalStateImpl) AddDaoProposal(tx *Tx) {
 	st.addedDaoProposals = append(st.addedDaoProposals, tx)
 }
 
+func (st *internalStateImpl) AddDaoVote(tx *Tx) {
+	st.addedDaoVotes = append(st.addedDaoVotes, tx)
+}
+
 func (st *internalStateImpl) ArchiveDaoProposal(tx *Tx) {
 	st.archivedDaoProposals = append(st.archivedDaoProposals, tx)
 }
@@ -1337,14 +1343,6 @@ func (st *internalStateImpl) writeDao() error {
 	}
 	st.addedDaoProposals = nil
 
-	for _, tx := range st.addedDaoVotes {
-		txID := tx.ID()
-		if err := st.daoVoteList.Put(txID[:], nil); err != nil {
-			return err
-		}
-	}
-	st.addedDaoVotes = nil
-
 	for _, tx := range st.archivedDaoProposals {
 		txID := tx.ID()
 		if err := st.daoProposalList.Delete(txID[:]); err != nil {
@@ -1355,6 +1353,14 @@ func (st *internalStateImpl) writeDao() error {
 		}
 	}
 	st.archivedDaoProposals = nil
+
+	for _, tx := range st.addedDaoVotes {
+		txID := tx.ID()
+		if err := st.daoVoteList.Put(txID[:], nil); err != nil {
+			return err
+		}
+	}
+	st.addedDaoVotes = nil
 
 	return nil
 }
@@ -1662,7 +1668,7 @@ func (st *internalStateImpl) loadDao() error {
 		ds.proposals = append(ds.proposals, tx)
 		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &daoProposalImpl{
 			daoProposalTx: daoProposalTx,
-			votes:         make([]*UnsignedTx, 0),
+			votes:         make([]*UnsignedDaoVoteTx, 0),
 		}
 	}
 
@@ -1685,13 +1691,31 @@ func (st *internalStateImpl) loadDao() error {
 
 		ds.proposalsByID[daoProposalArchiveTx.DaoProposal.ID()] = &daoProposalImpl{
 			daoProposalTx: daoProposalArchiveTx,
-			votes:         make([]*UnsignedTx, 0),
+			votes:         make([]*UnsignedDaoVoteTx, 0),
 		}
 	}
 
 	daoVoteIt := st.daoVoteList.NewIterator()
 	defer daoVoteIt.Release()
 	for daoVoteIt.Next() {
+		txIDBytes := daoVoteIt.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		tx, _, err := st.GetTx(txID)
+		if err != nil {
+			return err
+		}
+		daoVoteTx, ok := tx.UnsignedTx.(*UnsignedDaoVoteTx)
+		if !ok {
+			return errWrongTxType
+		}
+		if proposal, ok := ds.proposalsByID[daoVoteTx.ProposalID]; !ok {
+			return errDaoProposalNotFound
+		} else {
+			proposal.votes = append(proposal.votes, daoVoteTx)
+		}
 	}
 	sortDaoProposalsByRemoval(ds.proposals)
 	ds.setNextProposal()

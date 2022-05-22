@@ -21,21 +21,31 @@ var (
 
 type daoProposal interface {
 	DaoProposalTx() *UnsignedDaoProposalTx
-	Votes() []*UnsignedTx
+	Votes() []*UnsignedDaoVoteTx
+	Voted(nodeID ids.ShortID) bool
 }
 
 type daoProposalImpl struct {
 	daoProposalTx *UnsignedDaoProposalTx
 	// sorted in order of nodeId.
-	votes []*UnsignedTx
+	votes []*UnsignedDaoVoteTx
 }
 
 func (d *daoProposalImpl) DaoProposalTx() *UnsignedDaoProposalTx {
 	return d.daoProposalTx
 }
 
-func (d *daoProposalImpl) Votes() []*UnsignedTx {
+func (d *daoProposalImpl) Votes() []*UnsignedDaoVoteTx {
 	return d.votes
+}
+
+func (d *daoProposalImpl) Voted(nodeID ids.ShortID) bool {
+	for _, vote := range d.votes {
+		if vote.NodeID == nodeID {
+			return true
+		}
+	}
+	return false
 }
 
 /*
@@ -56,6 +66,7 @@ type daoProposalChainState interface {
 
 	AddProposal(daoProposalTx *Tx) daoProposalChainState
 	ArchiveNextProposals(numToDelete int) (daoProposalChainState, error)
+	AddVote(daoVoteTx *Tx) daoProposalChainState
 
 	// Stakers returns the current stakers on the network sorted in order of the
 	// order of their future removal from the validator set.
@@ -77,6 +88,7 @@ type daoProposalChainStateImpl struct {
 	proposals []*Tx
 
 	addedProposals    []*Tx
+	addedVotes        []*Tx
 	archivedProposals []*Tx
 }
 
@@ -119,6 +131,27 @@ func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalC
 	return newDS
 }
 
+func (ds *daoProposalChainStateImpl) AddVote(daoVoteTx *Tx) daoProposalChainState {
+	newDS := &daoProposalChainStateImpl{
+		nextProposal:  ds.nextProposal,
+		proposals:     ds.proposals,
+		proposalsByID: ds.proposalsByID,
+		addedVotes:    []*Tx{daoVoteTx},
+	}
+
+	switch tx := daoVoteTx.UnsignedTx.(type) {
+	case *UnsignedDaoVoteTx:
+		if proposal, exist := ds.proposalsByID[tx.ProposalID]; exist {
+			proposal.votes = append(proposal.votes, tx)
+		} else {
+			panic(fmt.Errorf("proposal: %s not found to insert vote into", tx.ProposalID.String()))
+		}
+	default:
+		panic(fmt.Errorf("expected proposal tx type but got %T", daoVoteTx.UnsignedTx))
+	}
+	return newDS
+}
+
 func (ds *daoProposalChainStateImpl) ArchiveNextProposals(numToDelete int) (daoProposalChainState, error) {
 	if numToDelete > len(ds.proposals) {
 		return nil, fmt.Errorf("trying to archive %d proposals from %d", numToDelete, len(ds.proposals))
@@ -143,6 +176,9 @@ func (ds *daoProposalChainStateImpl) Apply(is InternalState) {
 	}
 	for _, archived := range ds.archivedProposals {
 		is.ArchiveDaoProposal(archived)
+	}
+	for _, vote := range ds.addedVotes {
+		is.AddDaoVote(vote)
 	}
 	is.SetDaoProposalChainState(ds)
 

@@ -1010,9 +1010,14 @@ type AddDaoProposalArgs struct {
 	Proposal []byte `json:"proposal"`
 }
 
+type AddDaoProposalReply struct {
+	api.JSONTxIDChangeAddr
+	ProposalID ids.ID `json:"proposalID"`
+}
+
 // PlaceDaoProposal creates, signs and issues a transaction to place a dao proposal to
 // the primary network. Can only be called on a validator node
-func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs, reply *api.JSONTxIDChangeAddr) error {
+func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs, reply *AddDaoProposalReply) error {
 	service.vm.ctx.Log.Debug("Platform: AddDaoProposal called")
 
 	now := service.vm.clock.Time()
@@ -1083,7 +1088,7 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 	}
 
 	// Create the transaction
-	tx, err := service.vm.newDaoProposalTx(
+	tx, id, err := service.vm.newDaoProposalTx(
 		service.vm.ctx.NodeID,     // Node ID
 		privKeys.Keys,             // Private keys
 		changeAddr,                // Change address
@@ -1092,6 +1097,88 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 		uint64(args.StartTime),    // Start time of the proposal
 		uint64(args.EndTime),      // End time of the proposal
 		args.Proposal,             // The proposal message
+	)
+	if err != nil {
+		return fmt.Errorf("couldn't create tx: %w", err)
+	}
+
+	reply.TxID = tx.ID()
+	reply.ProposalID = id
+	reply.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
+
+	errs := wrappers.Errs{}
+	errs.Add(
+		err,
+		service.vm.blockBuilder.AddUnverifiedTx(tx),
+		user.Close(),
+	)
+	return errs.Err
+}
+
+/*
+ ******************************************************
+ *****************     Dao Vote     *******************
+ ******************************************************
+ */
+
+// AddDaoVoteArgs are the arguments to AddDaoVote
+type AddDaoVoteArgs struct {
+	// User, password, from addrs, change addr
+	api.JSONSpendHeader
+	// The voters NodeID
+	NodeID string
+	// The proposalID
+	DaoProposalID ids.ID
+}
+
+// PlaceDaoVote creates, signs and issues a transaction to vote for a dao proposal
+// in the primary network. The issuer must be the one who adds the validator node
+// specified on FomNodeID
+func (service *Service) AddDaoVote(_ *http.Request, args *AddDaoVoteArgs, reply *api.JSONTxIDChangeAddr) error {
+	service.vm.ctx.Log.Debug("Platform: AddDaoVote called")
+
+	// Parse the from addresses
+	fromAddrs, err := avax.ParseLocalAddresses(service.vm, args.From)
+	if err != nil {
+		return err
+	}
+
+	user, err := keystore.NewUserFromKeystore(service.vm.ctx.Keystore, args.Username, args.Password)
+	if err != nil {
+		return err
+	}
+	defer user.Close()
+
+	// Get the user's keys
+	privKeys, err := keystore.GetKeychain(user, fromAddrs)
+	if err != nil {
+		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
+	}
+
+	// Parse the change address.
+	if len(privKeys.Keys) == 0 {
+		return errNoKeys
+	}
+	// By default, use a key controlled by the user
+	changeAddr := privKeys.Keys[0].PublicKey().Address()
+	if args.ChangeAddr != "" {
+		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
+		if err != nil {
+			return fmt.Errorf("couldn't parse changeAddr: %w", err)
+		}
+	}
+
+	nodeID, err := ids.ShortFromPrefixedString(args.NodeID, constants.NodeIDPrefix)
+	if err != nil {
+		return err
+	}
+
+	// Create the transaction
+	tx, err := service.vm.newDaoVoteTx(
+		nodeID,             // Node ID
+		privKeys.Keys,      // Private keys
+		changeAddr,         // Change address
+		args.DaoProposalID, // The proposalID to vote for
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)

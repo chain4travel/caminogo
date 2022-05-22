@@ -30,7 +30,7 @@ var _ pendingStakerChainState = &pendingStakerChainStateImpl{}
 // delegators) that are slated to start staking in the future.
 type pendingStakerChainState interface {
 	GetValidatorTx(nodeID ids.ShortID) (addStakerTx *UnsignedAddValidatorTx, err error)
-	GetValidator(nodeID ids.ShortID) validator
+	GetValidator(nodeID ids.ShortID) (validator, error)
 
 	AddStaker(addStakerTx *Tx) pendingStakerChainState
 	DeleteStakers(numToRemove int) pendingStakerChainState
@@ -66,11 +66,11 @@ func (ps *pendingStakerChainStateImpl) GetValidatorTx(nodeID ids.ShortID) (addSt
 	return vdr, nil
 }
 
-func (ps *pendingStakerChainStateImpl) GetValidator(nodeID ids.ShortID) validator {
+func (ps *pendingStakerChainStateImpl) GetValidator(nodeID ids.ShortID) (validator, error) {
 	if vdr, exists := ps.validatorExtrasByNodeID[nodeID]; exists {
-		return vdr
+		return vdr, nil
 	}
-	return &validatorImpl{}
+	return &validatorImpl{}, database.ErrNotFound
 }
 
 func (ps *pendingStakerChainStateImpl) AddStaker(addStakerTx *Tx) pendingStakerChainState {

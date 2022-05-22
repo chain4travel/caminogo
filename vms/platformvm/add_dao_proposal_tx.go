@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	errVotingTooShort = errors.New("voting period is too short")
-	errVotingTooLong  = errors.New("voting period is too long")
+	errVotingTooShort   = errors.New("voting period is too short")
+	errVotingTooLong    = errors.New("voting period is too long")
+	errAlreadyValidator = errors.New("node is already a validator")
 
 	_ UnsignedProposalTx = &UnsignedDaoProposalTx{}
 )
@@ -98,6 +99,8 @@ func (tx *UnsignedDaoProposalTx) Execute(
 	}
 
 	daoProposals := parentState.DaoProposalChainState()
+	currentStakers := parentState.CurrentStakerChainState()
+	pendingStakers := parentState.PendingStakerChainState()
 
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Locks))
 	copy(outs, tx.Outs)
@@ -123,6 +126,16 @@ func (tx *UnsignedDaoProposalTx) Execute(
 			return nil, nil, fmt.Errorf("cannot search for existing proposals: %w", err)
 		}
 
+		// Early exit if one tries to vote for an existing validator
+		if tx.DaoProposal.ProposalType == dao.ProposalTypeAddValidator {
+			if _, err := currentStakers.GetValidator(tx.DaoProposal.Proposer); err == nil {
+				return nil, nil, errAlreadyValidator
+			}
+			if _, err := pendingStakers.GetValidator(tx.DaoProposal.Proposer); err == nil {
+				return nil, nil, errAlreadyValidator
+			}
+		}
+
 		// Verify the flowcheck
 		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.DaoConfig.ProposalTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
@@ -136,9 +149,6 @@ func (tx *UnsignedDaoProposalTx) Execute(
 			return nil, nil, errFutureStartTime
 		}
 	}
-
-	currentStakers := parentState.CurrentStakerChainState()
-	pendingStakers := parentState.PendingStakerChainState()
 
 	// Set up the state if this tx is committed
 	newlydaoProposals := daoProposals.AddProposal(stx)
@@ -182,10 +192,10 @@ func (vm *VM) newDaoProposalTx(
 	startTime, // The time voting starts
 	endTime uint64, // The time voting ends
 	proposal []byte, // this is the proposal message, stored in TX Metadata
-) (*Tx, error) {
+) (*Tx, ids.ID, error) {
 	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, lockAmt, vm.DaoConfig.ProposalTxFee, changeAddr)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+		return nil, ids.ID{}, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
 	// 50% threshold based on current validators
@@ -210,11 +220,11 @@ func (vm *VM) newDaoProposalTx(
 		Locks: lockedOuts,
 	}
 	if err = utx.DaoProposal.InitializeID(); err != nil {
-		return nil, err
+		return nil, ids.ID{}, err
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
-		return nil, err
+		return nil, ids.ID{}, err
 	}
-	return tx, utx.SyntacticVerify(vm.ctx)
+	return tx, utx.DaoProposal.ID(), utx.SyntacticVerify(vm.ctx)
 }

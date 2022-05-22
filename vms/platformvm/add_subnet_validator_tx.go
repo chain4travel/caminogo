@@ -184,7 +184,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		}
 
 		// Ensure that this transaction isn't a duplicate add validator tx.
-		pendingValidator := pendingStakers.GetValidator(tx.Validator.NodeID)
+		pendingValidator, _ := pendingStakers.GetValidator(tx.Validator.NodeID)
 		subnets := pendingValidator.SubnetValidators()
 		if _, validates := subnets[tx.Validator.Subnet]; validates {
 			return nil, nil, fmt.Errorf(

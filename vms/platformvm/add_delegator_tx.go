@@ -190,7 +190,7 @@ func (tx *UnsignedAddDelegatorTx) Execute(
 			)
 		}
 
-		pendingValidator := pendingStakers.GetValidator(tx.Validator.NodeID)
+		pendingValidator, _ := pendingStakers.GetValidator(tx.Validator.NodeID)
 		pendingDelegators := pendingValidator.Delegators()
 
 		var (
@@ -527,7 +527,7 @@ func (vm *VM) maxSubnetStakeAmount(
 	)
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	pendingValidator := pendingStakers.GetValidator(nodeID)
+	pendingValidator, _ := pendingStakers.GetValidator(nodeID)
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
 	currentValidator, err := currentStakers.GetValidator(nodeID)
@@ -563,7 +563,7 @@ func (vm *VM) maxPrimarySubnetStakeAmount(
 	currentStakers := vm.internalState.CurrentStakerChainState()
 	pendingStakers := vm.internalState.PendingStakerChainState()
 
-	pendingValidator := pendingStakers.GetValidator(nodeID)
+	pendingValidator, _ := pendingStakers.GetValidator(nodeID)
 	currentValidator, err := currentStakers.GetValidator(nodeID)
 
 	switch err {

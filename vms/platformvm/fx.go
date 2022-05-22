@@ -45,6 +45,10 @@ type Fx interface {
 	// CreateOutput creates a new output with the provided control group worth
 	// the specified amount
 	CreateOutput(amount uint64, controlGroup interface{}) (interface{}, error)
+
+	// GetPublicKeys recovers public keys from tx and Signature and stores it
+	// using the interface provided.
+	GetPublicKeys(tx, creds, result interface{}) error
 }
 
 type Owner interface {

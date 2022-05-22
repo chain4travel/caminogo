@@ -181,7 +181,9 @@ func (vm *VM) stake(
 		// If we have consumed more AVAX than we are trying to stake, and we
 		// have burned more AVAX then we need to, then we have no need to
 		// consume more AVAX
-		if amountBurned >= fee && amountStaked >= amount {
+		// Note that we do at least one loop even we don't have fees or stakes
+		// This is because we need signatures for the DAO votes.
+		if len(signers) > 0 && amountBurned >= fee && amountStaked >= amount {
 			break
 		}
 

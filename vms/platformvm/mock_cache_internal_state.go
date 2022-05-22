@@ -121,6 +121,18 @@ func (mr *MockInternalStateMockRecorder) AddDaoProposal(tx interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDaoProposal", reflect.TypeOf((*MockInternalState)(nil).AddDaoProposal), tx)
 }
 
+// AddDaoVote mocks base method.
+func (m *MockInternalState) AddDaoVote(tx *Tx) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddDaoVote", tx)
+}
+
+// AddDaoVote indicates an expected call of AddDaoVote.
+func (mr *MockInternalStateMockRecorder) AddDaoVote(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDaoVote", reflect.TypeOf((*MockInternalState)(nil).AddDaoVote), tx)
+}
+
 // AddRewardUTXO mocks base method.
 func (m *MockInternalState) AddRewardUTXO(txID ids.ID, utxo *avax.UTXO) {
 	m.ctrl.T.Helper()

@@ -80,6 +80,7 @@ func init() {
 			c.RegisterType(&StakeableLockOut{}),
 
 			c.RegisterType(&UnsignedDaoProposalTx{}),
+			c.RegisterType(&UnsignedDaoVoteTx{}),
 		)
 	}
 	errs.Add(

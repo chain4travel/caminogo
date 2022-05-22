@@ -226,6 +226,16 @@ type Client interface {
 		lockAmount uint64,
 		proposal []byte,
 		options ...rpc.Option,
+	) (ids.ID, ids.ID, error)
+	// AddDaoVote votes for a proposal.
+	AddDaoVote(
+		ctx context.Context,
+		user api.UserPass,
+		from []string,
+		changeAddr string,
+		nodeID string,
+		daoProposalID ids.ID,
+		options ...rpc.Option,
 	) (ids.ID, error)
 }
 
@@ -771,8 +781,8 @@ func (c *client) AddDaoProposal(
 	lockAmount uint64,
 	proposal []byte,
 	options ...rpc.Option,
-) (ids.ID, error) {
-	res := &api.JSONTxID{}
+) (ids.ID, ids.ID, error) {
+	res := &AddDaoProposalReply{}
 	err := c.requester.SendRequest(ctx, "addDaoProposal", &AddDaoProposalArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
 			UserPass:       user,
@@ -783,6 +793,29 @@ func (c *client) AddDaoProposal(
 		EndTime:    json.Uint64(endTime),
 		LockAmount: json.Uint64(lockAmount),
 		Proposal:   proposal,
+	}, res, options...)
+	return res.TxID, res.ProposalID, err
+}
+
+// AddDaoVote votes for a proposal.
+func (c *client) AddDaoVote(
+	ctx context.Context,
+	user api.UserPass,
+	from []string,
+	changeAddr string,
+	nodeID string,
+	daoProposalID ids.ID,
+	options ...rpc.Option,
+) (ids.ID, error) {
+	res := &api.JSONTxID{}
+	err := c.requester.SendRequest(ctx, "addDaoVote", &AddDaoVoteArgs{
+		JSONSpendHeader: api.JSONSpendHeader{
+			UserPass:       user,
+			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+		},
+		NodeID:        nodeID,
+		DaoProposalID: daoProposalID,
 	}, res, options...)
 	return res.TxID, err
 }
