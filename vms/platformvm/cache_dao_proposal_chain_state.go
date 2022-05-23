@@ -135,16 +135,24 @@ func (ds *daoProposalChainStateImpl) AddVote(daoVoteTx *Tx) daoProposalChainStat
 	newDS := &daoProposalChainStateImpl{
 		nextProposal:  ds.nextProposal,
 		proposals:     ds.proposals,
-		proposalsByID: ds.proposalsByID,
+		proposalsByID: make(map[ids.ID]*daoProposalImpl, len(ds.proposalsByID)),
 		addedVotes:    []*Tx{daoVoteTx},
 	}
 
 	switch tx := daoVoteTx.UnsignedTx.(type) {
 	case *UnsignedDaoVoteTx:
-		if proposal, exist := ds.proposalsByID[tx.ProposalID]; exist {
-			proposal.votes = append(proposal.votes, tx)
-		} else {
-			panic(fmt.Errorf("proposal: %s not found to insert vote into", tx.ProposalID.String()))
+		for pID, pro := range ds.proposalsByID {
+			if pID != tx.ProposalID {
+				newDS.proposalsByID[pID] = pro
+			} else {
+				newVotes := make([]*UnsignedDaoVoteTx, len(pro.votes)+1)
+				num := copy(newVotes, pro.votes)
+				newVotes[num] = tx
+				newDS.proposalsByID[pID] = &daoProposalImpl{
+					daoProposalTx: pro.daoProposalTx,
+					votes:         newVotes,
+				}
+			}
 		}
 	default:
 		panic(fmt.Errorf("expected proposal tx type but got %T", daoVoteTx.UnsignedTx))

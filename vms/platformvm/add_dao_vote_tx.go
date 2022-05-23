@@ -6,10 +6,12 @@ package platformvm
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/utils/crypto"
+	"github.com/chain4travel/caminogo/utils/timer/mockable"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 )
 
@@ -29,6 +31,9 @@ type UnsignedDaoVoteTx struct {
 
 	// The dap proposal to vote for
 	ProposalID ids.ID `serialize:"true" json:"proposalID"`
+
+	// Start time this TX will be placed, must be syncBound after now
+	Start int64 `serialize:"true" json:"startTime"`
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
@@ -82,6 +87,15 @@ func (tx *UnsignedDaoVoteTx) Execute(
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
+		// Ensure the proposed validator starts after the current time
+		startTime := tx.StartTime()
+		if !currentTimestamp.Before(startTime) {
+			return nil, nil, fmt.Errorf(
+				"daoVote start time (%s) at or before current timestamp (%s)",
+				startTime,
+				currentTimestamp,
+			)
+		}
 
 		// verify that the proposal is active and that we have not voted so far
 		if daoProposal, err := daoProposals.GetProposal(tx.ProposalID); err != nil {
@@ -117,6 +131,15 @@ func (tx *UnsignedDaoVoteTx) Execute(
 		); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
+
+		// Make sure the tx doesn't start too far in the future. This is done
+		// last to allow SemanticVerification to explicitly check for this
+		// error.
+		maxStartTime := vm.clock.Time().Add(maxFutureStartTime)
+		if startTime.After(maxStartTime) {
+			return nil, nil, errFutureStartTime
+		}
+
 	}
 
 	pendingStakers := parentState.PendingStakerChainState()
@@ -143,6 +166,11 @@ func (tx *UnsignedDaoVoteTx) InitiallyPrefersCommit(vm *VM) bool {
 	return true
 }
 
+// TimedTx Interface
+func (tx *UnsignedDaoVoteTx) StartTime() time.Time { return time.Unix(tx.Start, 0) }
+func (tx *UnsignedDaoVoteTx) EndTime() time.Time   { return mockable.MaxTime }
+func (tx *UnsignedDaoVoteTx) Weight() uint64       { return 0 }
+
 // newDaoVoteTx returns a new UnsignedDaoVoteTx
 func (vm *VM) newDaoVoteTx(
 	nodeID ids.ShortID, // The nodeID placing the proposal
@@ -165,6 +193,7 @@ func (vm *VM) newDaoVoteTx(
 		}},
 		NodeID:     nodeID,
 		ProposalID: proposalID,
+		Start:      vm.Clock().Time().Add(2 * syncBound).Unix(),
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
