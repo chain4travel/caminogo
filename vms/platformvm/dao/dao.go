@@ -20,6 +20,8 @@ var (
 	Codec codec.Manager
 )
 
+const MaxDaoProposalBytes = 1024
+
 const (
 	ProposalTypeAddValidator uint64 = iota
 	ProposalTypeNetwork
@@ -30,9 +32,6 @@ const (
 type DaoProposal struct {
 	// The ID of this proposal
 	ProposalID ids.ID `serialize:"true" json:"id"`
-
-	// The threshold of votes which has to be reached (nodeId)
-	Proposer ids.ShortID `serialize:"true" json:"proposer"`
 
 	// The ProposalType of this proposal
 	ProposalType uint64 `serialize:"true" json:"proposalType"`
@@ -73,15 +72,13 @@ func (d *DaoProposal) Due(currentTime time.Time) bool { return currentTime.After
 
 // Computes the id of this proposal
 func (d *DaoProposal) computeID() (ids.ID, error) {
-	data := append(d.Proposer.Bytes(), d.Data...)
-
 	toSerialize := [5]uint64{d.ProposalType, d.Wght, d.Start, d.End, uint64(d.Thresh)}
-	if typeBytes, err := Codec.Marshal(0, toSerialize); err != nil {
-		return ids.ID{}, err
+	if typeBytes, err := Codec.Marshal(0, toSerialize); err == nil {
+		typeBytes = append(typeBytes, d.Data...)
+		return hashing.ComputeHash256Array(typeBytes), nil
 	} else {
-		data = append(data, typeBytes...)
+		return ids.ID{}, err
 	}
-	return hashing.ComputeHash256Array(data), nil
 }
 
 // Initializes the DaoProposalID

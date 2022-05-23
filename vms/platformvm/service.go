@@ -1049,10 +1049,13 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 		args.Proposal = []byte{}
 	}
 
-	// In case we have an ValidatorProposal, no payload is allowed
+	// In case we have an ValidatorProposal, Payload must be a nodeid
 	if args.ProposalType == json.Uint64(dao.ProposalTypeAddValidator) {
-		if len(args.Proposal) > 0 {
-			return errProposalNotEmpty
+		if nID, err := ids.ShortFromPrefixedString(
+			string(args.Proposal),
+			constants.NodeIDPrefix,
+		); err == nil {
+			args.Proposal = nID.Bytes()
 		}
 	}
 
@@ -1089,7 +1092,6 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 
 	// Create the transaction
 	tx, id, err := service.vm.newDaoProposalTx(
-		service.vm.ctx.NodeID,     // Node ID
 		privKeys.Keys,             // Private keys
 		changeAddr,                // Change address
 		uint64(args.ProposalType), // proposal type

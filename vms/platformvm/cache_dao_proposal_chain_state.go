@@ -63,6 +63,7 @@ type daoProposalChainState interface {
 	// removed using AdvanceTimestampTxs.
 	GetNextProposal() (daoProposalTx *Tx, err error)
 	GetProposal(proposalID ids.ID) (daoProposal, error)
+	Exists(checkTx *UnsignedDaoProposalTx) *UnsignedDaoProposalTx
 
 	AddProposal(daoProposalTx *Tx) daoProposalChainState
 	ArchiveNextProposals(numToDelete int) (daoProposalChainState, error)
@@ -105,6 +106,19 @@ func (ds *daoProposalChainStateImpl) GetProposal(proposalID ids.ID) (daoProposal
 		return nil, database.ErrNotFound
 	}
 	return pro, nil
+}
+
+// Search in active proposals for an duplicate based on type and data
+// Return true if one is found, false if not or in case of type errors
+func (ds *daoProposalChainStateImpl) Exists(checkTx *UnsignedDaoProposalTx) *UnsignedDaoProposalTx {
+	for _, tx := range ds.proposals {
+		dpTx := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		if dpTx.DaoProposal.ProposalType == checkTx.DaoProposal.ProposalType &&
+			bytes.Equal(dpTx.DaoProposal.Data, checkTx.DaoProposal.Data) {
+			return dpTx
+		}
+	}
+	return nil
 }
 
 func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalChainState {

@@ -78,6 +78,7 @@ var (
 			},
 			DaoConfig: dao.Config{
 				ProposalTxFee:       units.MilliAvax,
+				VoteTxFee:           0,
 				MinProposalLock:     1 * units.Avax,
 				MinProposalDuration: 1 * time.Minute,
 				MaxProposalDuration: 24 * 7 * 31 * time.Hour,

@@ -60,6 +60,13 @@ func (tx *UnsignedDaoProposalTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("failed to verify DaoProposal: %w", err)
 	}
 
+	if len(tx.DaoProposal.Data) > dao.MaxDaoProposalBytes {
+		return fmt.Errorf("maximum allowed proposal size exeeded: %d > %d",
+			len(tx.DaoProposal.Data),
+			dao.MaxDaoProposalBytes,
+		)
+	}
+
 	// cache that this is valid
 	tx.syntacticallyVerified = true
 	return nil
@@ -128,12 +135,20 @@ func (tx *UnsignedDaoProposalTx) Execute(
 
 		// Early exit if one tries to vote for an existing validator
 		if tx.DaoProposal.ProposalType == dao.ProposalTypeAddValidator {
-			if _, err := currentStakers.GetValidator(tx.DaoProposal.Proposer); err == nil {
+			nodeID, err := ids.ToShortID(tx.DaoProposal.Data)
+			if err != nil {
+				return nil, nil, fmt.Errorf("proposal -> nodId failed: %w", err)
+			}
+			if _, err := currentStakers.GetValidator(nodeID); err == nil {
 				return nil, nil, errAlreadyValidator
 			}
-			if _, err := pendingStakers.GetValidator(tx.DaoProposal.Proposer); err == nil {
+			if _, err := pendingStakers.GetValidator(nodeID); err == nil {
 				return nil, nil, errAlreadyValidator
 			}
+		}
+
+		if prop := daoProposals.Exists(tx); prop != nil {
+			return nil, nil, fmt.Errorf("duplicate proposal found: %s", prop.ID().String())
 		}
 
 		// Verify the flowcheck
@@ -184,7 +199,6 @@ func (tx *UnsignedDaoProposalTx) Weight() uint64       { return tx.DaoProposal.W
 
 // NewDaoProposalTx returns a new UnsignedDaoProposalTx
 func (vm *VM) newDaoProposalTx(
-	nodeID ids.ShortID, // The nodeID placing the proposal
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 	proposalType, // The type of this proposal
@@ -210,7 +224,6 @@ func (vm *VM) newDaoProposalTx(
 			Outs:         unlockedOuts,
 		}},
 		DaoProposal: dao.DaoProposal{
-			Proposer:     nodeID,
 			Thresh:       uint32(thresh),
 			ProposalType: proposalType,
 			Start:        startTime,
