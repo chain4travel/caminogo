@@ -41,6 +41,9 @@ type UnsignedDaoProposalTx struct {
 // the addresses can be json marshalled into human readable format
 func (tx *UnsignedDaoProposalTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
+	for _, lock := range tx.Locks {
+		lock.InitCtx(ctx)
+	}
 }
 
 // SyntacticVerify returns nil if [tx] is valid

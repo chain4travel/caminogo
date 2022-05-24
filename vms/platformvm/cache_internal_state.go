@@ -1645,7 +1645,7 @@ func (st *internalStateImpl) loadPendingValidators() error {
 
 func (st *internalStateImpl) loadDao() error {
 	ds := &daoProposalChainStateImpl{
-		proposalsByID: make(map[ids.ID]*daoProposalImpl),
+		proposalsByID: make(map[ids.ID]*DaoProposalCacheImpl),
 	}
 
 	daoProposalIt := st.daoProposalList.NewIterator()
@@ -1666,7 +1666,7 @@ func (st *internalStateImpl) loadDao() error {
 		}
 
 		ds.proposals = append(ds.proposals, tx)
-		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &daoProposalImpl{
+		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &DaoProposalCacheImpl{
 			daoProposalTx: daoProposalTx,
 			votes:         make([]*UnsignedDaoVoteTx, 0),
 		}
@@ -1689,7 +1689,7 @@ func (st *internalStateImpl) loadDao() error {
 			return errWrongTxType
 		}
 
-		ds.proposalsByID[daoProposalArchiveTx.DaoProposal.ID()] = &daoProposalImpl{
+		ds.proposalsByID[daoProposalArchiveTx.DaoProposal.ID()] = &DaoProposalCacheImpl{
 			daoProposalTx: daoProposalArchiveTx,
 			votes:         make([]*UnsignedDaoVoteTx, 0),
 		}

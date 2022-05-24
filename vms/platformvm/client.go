@@ -227,6 +227,12 @@ type Client interface {
 		proposal []byte,
 		options ...rpc.Option,
 	) (ids.ID, ids.ID, error)
+	// GetDaoProposal returns information about a proposal
+	GetDaoProposal(
+		ctx context.Context,
+		daoProposalID ids.ID,
+		options ...rpc.Option,
+	) (*GetDaoProposalReply, error)
 	// AddDaoVote votes for a proposal.
 	AddDaoVote(
 		ctx context.Context,
@@ -795,6 +801,19 @@ func (c *client) AddDaoProposal(
 		Proposal:   proposal,
 	}, res, options...)
 	return res.TxID, res.ProposalID, err
+}
+
+// GetDaoProposal returns information about a proposal
+func (c *client) GetDaoProposal(
+	ctx context.Context,
+	daoProposalID ids.ID,
+	options ...rpc.Option,
+) (*GetDaoProposalReply, error) {
+	res := &GetDaoProposalReply{}
+	err := c.requester.SendRequest(ctx, "getDaoProposal", &GetDaoProposalArgs{
+		DaoProposalID: daoProposalID,
+	}, res, options...)
+	return res, err
 }
 
 // AddDaoVote votes for a proposal.

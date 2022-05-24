@@ -1117,6 +1117,37 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 	return errs.Err
 }
 
+// GetDaoProposalArgs are the arguments from GetDaoProposal
+type GetDaoProposalArgs struct {
+	DaoProposalID ids.ID `json:"daoProposalID"`
+}
+
+// GetDaoProposalReply is the response from GetDaoProposal
+type GetDaoProposalReply struct {
+	ProposalTx *UnsignedDaoProposalTx `json:"propsal"`
+	Votes      []*UnsignedDaoVoteTx   `json:"votes"`
+}
+
+// GetDaoProposal returns the dao proposal at provided proposalID.
+func (service *Service) GetDaoProposal(_ *http.Request, args *GetDaoProposalArgs, reply *GetDaoProposalReply) error {
+	service.vm.ctx.Log.Info(
+		"Platform: GetDaoProposal called with proposalID %s", args.DaoProposalID,
+	)
+
+	proposalCache := service.vm.internalState.DaoProposalChainState()
+	proposal, err := proposalCache.GetProposal(args.DaoProposalID)
+	if err != nil {
+		return fmt.Errorf("couldn't get dao proposal: %w", err)
+	}
+	reply.ProposalTx = proposal.DaoProposalTx()
+	reply.ProposalTx.InitCtx(service.vm.ctx)
+	reply.Votes = proposal.Votes()
+	for _, vote := range reply.Votes {
+		vote.InitCtx(service.vm.ctx)
+	}
+	return nil
+}
+
 /*
  ******************************************************
  *****************     Dao Vote     *******************
