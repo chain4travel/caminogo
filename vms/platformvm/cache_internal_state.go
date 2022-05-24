@@ -1711,11 +1711,11 @@ func (st *internalStateImpl) loadDao() error {
 		if !ok {
 			return errWrongTxType
 		}
-		if proposal, ok := ds.proposalsByID[daoVoteTx.ProposalID]; !ok {
+		proposal, ok := ds.proposalsByID[daoVoteTx.ProposalID]
+		if !ok {
 			return errDaoProposalNotFound
-		} else {
-			proposal.votes = append(proposal.votes, daoVoteTx)
 		}
+		proposal.votes = append(proposal.votes, daoVoteTx)
 	}
 	sortDaoProposalsByRemoval(ds.proposals)
 	ds.setNextProposal()

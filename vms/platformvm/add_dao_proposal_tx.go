@@ -30,7 +30,7 @@ type UnsignedDaoProposalTx struct {
 	BaseTx `serialize:"true"`
 
 	// Our Dao Proposal
-	DaoProposal dao.DaoProposal `serialize:"true" json:"daoProposal"`
+	DaoProposal dao.Proposal `serialize:"true" json:"daoProposal"`
 
 	// Where to send locked tokens when done voting
 	Locks []*avax.TransferableOutput `serialize:"true" json:"locks"`
@@ -226,7 +226,7 @@ func (vm *VM) newDaoProposalTx(
 			Ins:          ins,
 			Outs:         unlockedOuts,
 		}},
-		DaoProposal: dao.DaoProposal{
+		DaoProposal: dao.Proposal{
 			Thresh:       uint32(thresh),
 			ProposalType: proposalType,
 			Start:        startTime,

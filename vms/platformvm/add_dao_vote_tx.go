@@ -98,25 +98,30 @@ func (tx *UnsignedDaoVoteTx) Execute(
 		}
 
 		// verify that the proposal is active and that we have not voted so far
-		if daoProposal, err := daoProposals.GetProposal(tx.ProposalID); err != nil {
+		daoProposal, err := daoProposals.GetProposal(tx.ProposalID)
+		switch {
+		case err != nil:
 			return nil, nil, err
-		} else if !currentTimestamp.Before(daoProposal.DaoProposalTx().EndTime()) {
+		case !currentTimestamp.Before(daoProposal.DaoProposalTx().EndTime()):
 			return nil, nil, fmt.Errorf("proposal: %s is not active anymore", tx.ProposalID.String())
-		} else if len(daoProposal.Votes()) >= int(daoProposal.DaoProposalTx().DaoProposal.Thresh) {
+		case len(daoProposal.Votes()) >= int(daoProposal.DaoProposalTx().DaoProposal.Thresh):
 			return nil, nil, fmt.Errorf("proposal: %s already accepted", tx.ProposalID.String())
-		} else if daoProposal.Voted(tx.NodeID) {
+		case daoProposal.Voted(tx.NodeID):
 			return nil, nil, fmt.Errorf("node %s has already voted on proposal: %s", tx.NodeID.String(), tx.ProposalID.String())
 		}
 
 		// now verify that the caller is the addValidator of tx.nodeID
-		if validator, err := currentStakers.GetValidator(tx.NodeID); err != nil {
+		validator, err := currentStakers.GetValidator(tx.NodeID)
+		if err != nil {
 			return nil, nil, err
-		} else {
-			if ok, err := validator.VerifyCredsIntersection(vm, stx); err != nil {
-				return nil, nil, err
-			} else if !ok {
-				return nil, nil, errNotAddValidator
-			}
+		}
+
+		ok, err := validator.VerifyCredsIntersection(vm, stx)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !ok {
+			return nil, nil, errNotAddValidator
 		}
 
 		// Verify the flowcheck
@@ -139,7 +144,6 @@ func (tx *UnsignedDaoVoteTx) Execute(
 		if startTime.After(maxStartTime) {
 			return nil, nil, errFutureStartTime
 		}
-
 	}
 
 	pendingStakers := parentState.PendingStakerChainState()

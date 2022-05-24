@@ -267,7 +267,6 @@ daoProposalLoop:
 				Out:   out.Output(),
 			}
 			onCommitState.AddUTXO(utxo)
-			onAbortState.AddUTXO(utxo)
 		}
 	}
 	return onCommitState, onAbortState, nil

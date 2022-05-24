@@ -249,6 +249,7 @@ func isTimeoutError(err error) bool {
 	return iErr.Timeout()
 }
 
+//nolint:nolintlint,deadcode,unused
 // isSyscallError checks if an error is one of the given syscall.Errno codes
 func isSyscallError(err error, codes ...syscall.Errno) bool {
 	opErr, ok := err.(*net.OpError)

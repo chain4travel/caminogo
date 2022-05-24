@@ -223,15 +223,15 @@ func getNextDaoProposalChangeTime(ds DaoProposalState) (time.Time, error) {
 	earliest := mockable.MaxTime
 	currentChainState := ds.DaoProposalChainState()
 
-	if tx, err := currentChainState.GetNextProposal(); err != nil {
+	tx, err := currentChainState.GetNextProposal()
+	if err != nil {
 		return earliest, nil
-	} else {
-		if daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx); !ok {
-			return earliest, errWrongTxType
-		} else {
-			return daoProposalTx.EndTime(), nil
-		}
 	}
+
+	if daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx); ok {
+		return daoProposalTx.EndTime(), nil
+	}
+	return earliest, errWrongTxType
 }
 
 /*

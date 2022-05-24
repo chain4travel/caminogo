@@ -237,11 +237,11 @@ func (fx *Fx) GetPublicKeys(iTx, iCreds, iMap interface{}) error {
 	txHash := hashing.ComputeHash256(tx.UnsignedBytes())
 	for _, sig := range creds.Sigs {
 		if !result.Has(sig) {
-			if pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, sig[:]); err != nil {
+			pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, sig[:])
+			if err != nil {
 				return err
-			} else {
-				result.Set(sig, pk)
 			}
+			result.Set(sig, pk)
 		}
 	}
 	return nil

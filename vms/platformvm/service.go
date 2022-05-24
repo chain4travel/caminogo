@@ -78,7 +78,6 @@ var (
 	errMissingName                = errors.New("argument 'name' not given")
 	errMissingVMID                = errors.New("argument 'vmID' not given")
 	errMissingBlockchainID        = errors.New("argument 'blockchainID' not given")
-	errProposalNotEmpty           = errors.New("argument 'proposal' has to be empty for this type")
 	errInvalidProposalType        = errors.New("unknown proposaltype")
 )
 
@@ -1030,7 +1029,7 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 		args.StartTime = minAddStakerUnix
 		// If StartTime is not set, we allow passing relative duration
 		if args.EndTime <= json.Uint64(service.vm.Factory.DaoConfig.MaxProposalDuration) {
-			args.EndTime = args.StartTime + json.Uint64(args.EndTime)
+			args.EndTime = args.StartTime + args.EndTime
 		}
 	}
 
@@ -2412,17 +2411,17 @@ func (service *Service) GetStake(_ *http.Request, args *GetStakeArgs, response *
 	)
 	for i := 0; i < 3; i++ {
 		for _, tx := range stakers { // Iterates over current stakers
-			if stakedAmt, index, outs, err := service.getOutHelper(tx, addrs); err != nil {
+			stakedAmt, index, outs, err := service.getOutHelper(tx, addrs)
+			if err != nil {
 				return err
-			} else {
-				if totalStake, err = math.Add64(totalStake, stakedAmt); err != nil {
-					return err
-				}
-				if stakeParts[index], err = math.Add64(stakeParts[index], stakedAmt); err != nil {
-					return err
-				}
-				stakedOuts = append(stakedOuts, outs...)
 			}
+			if totalStake, err = math.Add64(totalStake, stakedAmt); err != nil {
+				return err
+			}
+			if stakeParts[index], err = math.Add64(stakeParts[index], stakedAmt); err != nil {
+				return err
+			}
+			stakedOuts = append(stakedOuts, outs...)
 		}
 		if i == 0 {
 			// Second loop with pending stakers

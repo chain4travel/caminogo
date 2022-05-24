@@ -29,7 +29,7 @@ const (
 )
 
 // Dao Proposal.
-type DaoProposal struct {
+type Proposal struct {
 	// The ID of this proposal
 	ProposalID ids.ID `serialize:"true" json:"id"`
 
@@ -53,46 +53,46 @@ type DaoProposal struct {
 }
 
 // ID returns the node ID of the validator
-func (d *DaoProposal) ID() ids.ID { return d.ProposalID }
+func (d *Proposal) ID() ids.ID { return d.ProposalID }
 
 // StartTime is the time that this validator will enter the validator set
-func (d *DaoProposal) StartTime() time.Time { return time.Unix(int64(d.Start), 0) }
+func (d *Proposal) StartTime() time.Time { return time.Unix(int64(d.Start), 0) }
 
 // EndTime is the time that this validator will leave the validator set
-func (d *DaoProposal) EndTime() time.Time { return time.Unix(int64(d.End), 0) }
+func (d *Proposal) EndTime() time.Time { return time.Unix(int64(d.End), 0) }
 
 // Duration is the amount of time that this validator will be in the validator set
-func (d *DaoProposal) Duration() time.Duration { return d.EndTime().Sub(d.StartTime()) }
+func (d *Proposal) Duration() time.Duration { return d.EndTime().Sub(d.StartTime()) }
 
 // Weight is this validator's weight when sampling
-func (d *DaoProposal) Weight() uint64 { return d.Wght }
+func (d *Proposal) Weight() uint64 { return d.Wght }
 
 // Weight is this validator's weight when sampling
-func (d *DaoProposal) Due(currentTime time.Time) bool { return currentTime.After(d.EndTime()) }
+func (d *Proposal) Due(currentTime time.Time) bool { return currentTime.After(d.EndTime()) }
 
 // Computes the id of this proposal
-func (d *DaoProposal) computeID() (ids.ID, error) {
+func (d *Proposal) computeID() (ids.ID, error) {
 	toSerialize := [5]uint64{d.ProposalType, d.Wght, d.Start, d.End, uint64(d.Thresh)}
-	if typeBytes, err := Codec.Marshal(0, toSerialize); err == nil {
+	typeBytes, err := Codec.Marshal(0, toSerialize)
+	if err == nil {
 		typeBytes = append(typeBytes, d.Data...)
 		return hashing.ComputeHash256Array(typeBytes), nil
-	} else {
-		return ids.ID{}, err
 	}
+	return ids.ID{}, err
 }
 
 // Initializes the DaoProposalID
-func (d *DaoProposal) InitializeID() error {
-	if id, err := d.computeID(); err != nil {
+func (d *Proposal) InitializeID() error {
+	id, err := d.computeID()
+	if err != nil {
 		return err
-	} else {
-		d.ProposalID = id
 	}
+	d.ProposalID = id
 	return nil
 }
 
 // Verify validates the start / end of the proposal
-func (d *DaoProposal) Verify() error {
+func (d *Proposal) Verify() error {
 	if id, err := d.computeID(); err != nil {
 		return errInvalidID
 	} else if id != d.ProposalID {
