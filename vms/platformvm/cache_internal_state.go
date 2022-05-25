@@ -34,6 +34,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/wrappers"
 	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 
 	safemath "github.com/chain4travel/caminogo/utils/math"
@@ -103,7 +104,9 @@ type InternalState interface {
 
 	AddDaoProposal(tx *Tx)
 	ArchiveDaoProposal(tx *Tx)
+
 	AddDaoVote(tx *Tx)
+	RemoveDaoVote(tx *Tx)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
@@ -198,6 +201,7 @@ type internalStateImpl struct {
 	addedDaoProposals     []*Tx
 	archivedDaoProposals  []*Tx
 	addedDaoVotes         []*Tx
+	removedDaoVotes       []*Tx
 	uptimes               map[ids.ShortID]*currentValidatorState // nodeID -> uptimes
 	updatedUptimes        map[ids.ShortID]struct{}               // nodeID -> nil
 
@@ -813,12 +817,16 @@ func (st *internalStateImpl) AddDaoProposal(tx *Tx) {
 	st.addedDaoProposals = append(st.addedDaoProposals, tx)
 }
 
+func (st *internalStateImpl) ArchiveDaoProposal(tx *Tx) {
+	st.archivedDaoProposals = append(st.archivedDaoProposals, tx)
+}
+
 func (st *internalStateImpl) AddDaoVote(tx *Tx) {
 	st.addedDaoVotes = append(st.addedDaoVotes, tx)
 }
 
-func (st *internalStateImpl) ArchiveDaoProposal(tx *Tx) {
-	st.archivedDaoProposals = append(st.archivedDaoProposals, tx)
+func (st *internalStateImpl) RemoveDaoVote(tx *Tx) {
+	st.removedDaoVotes = append(st.removedDaoVotes, tx)
 }
 
 func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids.ID) (map[ids.ShortID]*ValidatorWeightDiff, error) {
@@ -1348,8 +1356,17 @@ func (st *internalStateImpl) writeDao() error {
 		if err := st.daoProposalList.Delete(txID[:]); err != nil {
 			return err
 		}
-		if err := st.daoProposalArchiveList.Put(txID[:], nil); err != nil {
-			return err
+		// Historical list contains proposalID of voted proposals. Non-voted
+		// proposals has to be extracted from tx's / indexer if required
+		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		if !ok {
+			return errWrongTxType
+		}
+		proposalID := daoProposalTx.DaoProposal.ProposalID
+		if st.daoProposalChainState.GetProposalState(proposalID) == dao.ProposalStateVoted {
+			if err := st.daoProposalArchiveList.Put(proposalID[:], nil); err != nil {
+				return err
+			}
 		}
 	}
 	st.archivedDaoProposals = nil
@@ -1361,6 +1378,14 @@ func (st *internalStateImpl) writeDao() error {
 		}
 	}
 	st.addedDaoVotes = nil
+
+	for _, tx := range st.removedDaoVotes {
+		txID := tx.ID()
+		if err := st.daoVoteList.Delete(txID[:]); err != nil {
+			return err
+		}
+	}
+	st.removedDaoVotes = nil
 
 	return nil
 }
@@ -1668,31 +1693,20 @@ func (st *internalStateImpl) loadDao() error {
 		ds.proposals = append(ds.proposals, tx)
 		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &DaoProposalCacheImpl{
 			daoProposalTx: daoProposalTx,
-			votes:         make([]*UnsignedDaoVoteTx, 0),
+			votes:         make([]*Tx, 0),
 		}
 	}
 
 	daoProposalArchiveIt := st.daoProposalArchiveList.NewIterator()
 	defer daoProposalArchiveIt.Release()
 	for daoProposalArchiveIt.Next() {
-		txIDBytes := daoProposalArchiveIt.Key()
-		txID, err := ids.ToID(txIDBytes)
+		proposalIDBytes := daoProposalArchiveIt.Key()
+		proposalID, err := ids.ToID(proposalIDBytes)
 		if err != nil {
 			return err
 		}
-		tx, _, err := st.GetTx(txID)
-		if err != nil {
-			return err
-		}
-		daoProposalArchiveTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
-		if !ok {
-			return errWrongTxType
-		}
-
-		ds.proposalsByID[daoProposalArchiveTx.DaoProposal.ID()] = &DaoProposalCacheImpl{
-			daoProposalTx: daoProposalArchiveTx,
-			votes:         make([]*UnsignedDaoVoteTx, 0),
-		}
+		// Existant but nil proposals are voted
+		ds.proposalsByID[proposalID] = nil
 	}
 
 	daoVoteIt := st.daoVoteList.NewIterator()
@@ -1715,7 +1729,7 @@ func (st *internalStateImpl) loadDao() error {
 		if !ok {
 			return errDaoProposalNotFound
 		}
-		proposal.votes = append(proposal.votes, daoVoteTx)
+		proposal.votes = append(proposal.votes, tx)
 	}
 	sortDaoProposalsByRemoval(ds.proposals)
 	ds.setNextProposal()

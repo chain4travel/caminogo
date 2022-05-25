@@ -98,7 +98,7 @@ func (tx *UnsignedDaoVoteTx) Execute(
 		}
 
 		// verify that the proposal is active and that we have not voted so far
-		daoProposal, err := daoProposals.GetProposal(tx.ProposalID)
+		daoProposal, err := daoProposals.GetActiveProposal(tx.ProposalID)
 		switch {
 		case err != nil:
 			return nil, nil, err

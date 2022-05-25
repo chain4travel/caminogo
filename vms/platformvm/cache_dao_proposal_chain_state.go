@@ -12,6 +12,7 @@ import (
 	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/timer/mockable"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 )
 
 var (
@@ -19,29 +20,31 @@ var (
 	_ DaoProposalCache      = &DaoProposalCacheImpl{}
 )
 
+const strInvalidType = "expected proposal tx type but got %T"
+
 type DaoProposalCache interface {
 	DaoProposalTx() *UnsignedDaoProposalTx
-	Votes() []*UnsignedDaoVoteTx
+	Votes() []*Tx
 	Voted(nodeID ids.ShortID) bool
 }
 
 type DaoProposalCacheImpl struct {
 	daoProposalTx *UnsignedDaoProposalTx
-	// sorted in order of nodeId.
-	votes []*UnsignedDaoVoteTx
+	// Unsorted list of vote TX
+	votes []*Tx
 }
 
 func (d *DaoProposalCacheImpl) DaoProposalTx() *UnsignedDaoProposalTx {
 	return d.daoProposalTx
 }
 
-func (d *DaoProposalCacheImpl) Votes() []*UnsignedDaoVoteTx {
+func (d *DaoProposalCacheImpl) Votes() []*Tx {
 	return d.votes
 }
 
 func (d *DaoProposalCacheImpl) Voted(nodeID ids.ShortID) bool {
 	for _, vote := range d.votes {
-		if vote.NodeID == nodeID {
+		if vote.UnsignedTx.(*UnsignedDaoVoteTx).NodeID == nodeID {
 			return true
 		}
 	}
@@ -62,8 +65,13 @@ type daoProposalChainState interface {
 	// The NextProposal value returns the next DaoProposal that is going to be
 	// removed using AdvanceTimestampTxs.
 	GetNextProposal() (daoProposalTx *Tx, err error)
-	GetProposal(proposalID ids.ID) (DaoProposalCache, error)
+	GetActiveProposal(proposalID ids.ID) (DaoProposalCache, error)
+	// Check if proposal exists in the current active proposals
+	// using ProposalType and ProposalBytes for checking
 	Exists(checkTx *UnsignedDaoProposalTx) *UnsignedDaoProposalTx
+
+	// Returns the state of a proposal, voted, pending or unknown
+	GetProposalState(proposalID ids.ID) dao.ProposalState
 
 	AddProposal(daoProposalTx *Tx) daoProposalChainState
 	ArchiveNextProposals(numToDelete int) (daoProposalChainState, error)
@@ -82,15 +90,18 @@ type daoProposalChainState interface {
 type daoProposalChainStateImpl struct {
 	nextProposal *Tx
 
-	// proposalID -> proposal, contains archive proposals, too
+	// proposalID -> proposal, contains voted archive proposals, too
+	// Note that archive proposals are nil, but existant
 	proposalsByID map[ids.ID]*DaoProposalCacheImpl
 
 	// list of active proposals sorted by end time
 	proposals []*Tx
 
 	addedProposals    []*Tx
-	addedVotes        []*Tx
 	archivedProposals []*Tx
+
+	addedVotes   []*Tx
+	removedVotes []*Tx
 }
 
 func (ds *daoProposalChainStateImpl) GetNextProposal() (daoProposalTx *Tx, err error) {
@@ -100,9 +111,9 @@ func (ds *daoProposalChainStateImpl) GetNextProposal() (daoProposalTx *Tx, err e
 	return ds.nextProposal, nil
 }
 
-func (ds *daoProposalChainStateImpl) GetProposal(proposalID ids.ID) (DaoProposalCache, error) {
+func (ds *daoProposalChainStateImpl) GetActiveProposal(proposalID ids.ID) (DaoProposalCache, error) {
 	pro, exists := ds.proposalsByID[proposalID]
-	if !exists {
+	if !exists || pro == nil {
 		return nil, database.ErrNotFound
 	}
 	return pro, nil
@@ -119,6 +130,20 @@ func (ds *daoProposalChainStateImpl) Exists(checkTx *UnsignedDaoProposalTx) *Uns
 		}
 	}
 	return nil
+}
+
+func (ds *daoProposalChainStateImpl) GetProposalState(proposalID ids.ID) dao.ProposalState {
+	proposal, exists := ds.proposalsByID[proposalID]
+	switch {
+	case !exists:
+		return dao.ProposalStateUnknown
+	case proposal == nil:
+		return dao.ProposalStateVoted
+	case len(proposal.votes) >= int(proposal.daoProposalTx.DaoProposal.Thresh):
+		return dao.ProposalStateVoted
+	default:
+		return dao.ProposalStatePending
+	}
 }
 
 func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalChainState {
@@ -138,7 +163,7 @@ func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalC
 		}
 		newDS.proposalsByID[tx.DaoProposal.ID()] = &DaoProposalCacheImpl{daoProposalTx: tx}
 	default:
-		panic(fmt.Errorf("expected proposal tx type but got %T", daoProposalTx.UnsignedTx))
+		panic(fmt.Errorf(strInvalidType, daoProposalTx.UnsignedTx))
 	}
 
 	newDS.setNextProposal()
@@ -159,9 +184,9 @@ func (ds *daoProposalChainStateImpl) AddVote(daoVoteTx *Tx) daoProposalChainStat
 			if pID != tx.ProposalID {
 				newDS.proposalsByID[pID] = pro
 			} else {
-				newVotes := make([]*UnsignedDaoVoteTx, len(pro.votes)+1)
+				newVotes := make([]*Tx, len(pro.votes)+1)
 				num := copy(newVotes, pro.votes)
-				newVotes[num] = tx
+				newVotes[num] = daoVoteTx
 				newDS.proposalsByID[pID] = &DaoProposalCacheImpl{
 					daoProposalTx: pro.daoProposalTx,
 					votes:         newVotes,
@@ -169,7 +194,7 @@ func (ds *daoProposalChainStateImpl) AddVote(daoVoteTx *Tx) daoProposalChainStat
 			}
 		}
 	default:
-		panic(fmt.Errorf("expected proposal tx type but got %T", daoVoteTx.UnsignedTx))
+		panic(fmt.Errorf(strInvalidType, daoVoteTx.UnsignedTx))
 	}
 	return newDS
 }
@@ -180,9 +205,29 @@ func (ds *daoProposalChainStateImpl) ArchiveNextProposals(numToDelete int) (daoP
 	}
 
 	newDS := &daoProposalChainStateImpl{
-		proposalsByID:     ds.proposalsByID,
+		proposalsByID:     make(map[ids.ID]*DaoProposalCacheImpl, len(ds.proposalsByID)),
 		proposals:         ds.proposals[numToDelete:], // sorted in order of removal
 		archivedProposals: ds.proposals[:numToDelete],
+	}
+
+	// Make a copy of the map
+	for pID, pro := range ds.proposalsByID {
+		newDS.proposalsByID[pID] = pro
+	}
+	// nil or delete the history proposals
+	for _, archiveTx := range newDS.archivedProposals {
+		switch tx := archiveTx.UnsignedTx.(type) {
+		case *UnsignedDaoProposalTx:
+			pro := ds.proposalsByID[tx.DaoProposal.ProposalID]
+			newDS.removedVotes = append(newDS.removedVotes, pro.votes...)
+			if len(pro.votes) >= int(tx.DaoProposal.Thresh) {
+				newDS.proposalsByID[tx.DaoProposal.ProposalID] = nil
+			} else {
+				delete(newDS.proposalsByID, tx.DaoProposal.ProposalID)
+			}
+		default:
+			panic(fmt.Errorf(strInvalidType, archiveTx.UnsignedTx))
+		}
 	}
 	newDS.setNextProposal()
 	return newDS, nil
@@ -201,6 +246,9 @@ func (ds *daoProposalChainStateImpl) Apply(is InternalState) {
 	}
 	for _, vote := range ds.addedVotes {
 		is.AddDaoVote(vote)
+	}
+	for _, vote := range ds.removedVotes {
+		is.RemoveDaoVote(vote)
 	}
 	is.SetDaoProposalChainState(ds)
 
@@ -253,7 +301,7 @@ func (s innerSortProposalsByRemoval) Less(i, j int) bool {
 	case *UnsignedDaoProposalTx:
 		iEndTime = tx.DaoProposal.EndTime()
 	default:
-		panic(fmt.Errorf("expected dao tx type but got %T", iDel.UnsignedTx))
+		panic(fmt.Errorf(strInvalidType, iDel.UnsignedTx))
 	}
 
 	var (
@@ -263,7 +311,7 @@ func (s innerSortProposalsByRemoval) Less(i, j int) bool {
 	case *UnsignedDaoProposalTx:
 		jEndTime = tx.DaoProposal.EndTime()
 	default:
-		panic(fmt.Errorf("expected dao tx type but got %T", jDel.UnsignedTx))
+		panic(fmt.Errorf(strInvalidType, jDel.UnsignedTx))
 	}
 
 	if iEndTime.Before(jEndTime) {

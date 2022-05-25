@@ -1123,8 +1123,9 @@ type GetDaoProposalArgs struct {
 
 // GetDaoProposalReply is the response from GetDaoProposal
 type GetDaoProposalReply struct {
-	ProposalTx *UnsignedDaoProposalTx `json:"propsal"`
-	Votes      []*UnsignedDaoVoteTx   `json:"votes"`
+	ProposalTx *UnsignedDaoProposalTx `json:"proposal,omitempty"`
+	Votes      []*UnsignedDaoVoteTx   `json:"votes,omitempty"`
+	Status     string                 `json:"status"`
 }
 
 // GetDaoProposal returns the dao proposal at provided proposalID.
@@ -1134,16 +1135,17 @@ func (service *Service) GetDaoProposal(_ *http.Request, args *GetDaoProposalArgs
 	)
 
 	proposalCache := service.vm.internalState.DaoProposalChainState()
-	proposal, err := proposalCache.GetProposal(args.DaoProposalID)
-	if err != nil {
-		return fmt.Errorf("couldn't get dao proposal: %w", err)
+	proposal, err := proposalCache.GetActiveProposal(args.DaoProposalID)
+	if err == nil {
+		reply.ProposalTx = proposal.DaoProposalTx()
+		reply.ProposalTx.InitCtx(service.vm.ctx)
+		reply.Votes = make([]*UnsignedDaoVoteTx, len(proposal.Votes()))
+		for idx, vote := range proposal.Votes() {
+			vote.InitCtx(service.vm.ctx)
+			reply.Votes[idx] = vote.UnsignedTx.(*UnsignedDaoVoteTx)
+		}
 	}
-	reply.ProposalTx = proposal.DaoProposalTx()
-	reply.ProposalTx.InitCtx(service.vm.ctx)
-	reply.Votes = proposal.Votes()
-	for _, vote := range reply.Votes {
-		vote.InitCtx(service.vm.ctx)
-	}
+	reply.Status = proposalCache.GetProposalState(args.DaoProposalID).String()
 	return nil
 }
 

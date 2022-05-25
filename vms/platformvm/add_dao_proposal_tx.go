@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -129,11 +128,8 @@ func (tx *UnsignedDaoProposalTx) Execute(
 		}
 
 		// Ensure this proposal isn't already inserted
-		_, err := daoProposals.GetProposal(tx.DaoProposal.ID())
-		if err == nil {
+		if daoProposals.GetProposalState(tx.DaoProposal.ID()) != dao.ProposalStateUnknown {
 			return nil, nil, fmt.Errorf("%s proposal already exists", tx.DaoProposal.ID().Hex())
-		} else if err != database.ErrNotFound {
-			return nil, nil, fmt.Errorf("cannot search for existing proposals: %w", err)
 		}
 
 		// Early exit if one tries to vote for an existing validator

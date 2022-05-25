@@ -28,6 +28,25 @@ const (
 	ProposalTypeMax
 )
 
+type ProposalState int
+
+const (
+	ProposalStateUnknown ProposalState = iota
+	ProposalStatePending
+	ProposalStateVoted
+)
+
+func (p ProposalState) String() string {
+	switch p {
+	case ProposalStatePending:
+		return "Pending"
+	case ProposalStateVoted:
+		return "Voted"
+	default:
+		return "Unknown"
+	}
+}
+
 // Dao Proposal.
 type Proposal struct {
 	// The ID of this proposal
