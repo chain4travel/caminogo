@@ -91,7 +91,7 @@ type daoProposalChainStateImpl struct {
 	nextProposal *Tx
 
 	// proposalID -> proposal, contains voted archive proposals, too
-	// Note that archive proposals are nil, but existant
+	// Note that archive proposals are nil, but existent
 	proposalsByID map[ids.ID]*DaoProposalCacheImpl
 
 	// list of active proposals sorted by end time

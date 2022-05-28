@@ -1705,7 +1705,7 @@ func (st *internalStateImpl) loadDao() error {
 		if err != nil {
 			return err
 		}
-		// Existant but nil proposals are voted
+		// Existent but nil proposals are voted
 		ds.proposalsByID[proposalID] = nil
 	}
 
