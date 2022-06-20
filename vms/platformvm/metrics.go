@@ -50,7 +50,8 @@ type metrics struct {
 	numCreateSubnetTxs,
 	numExportTxs,
 	numImportTxs,
-	numRewardValidatorTxs prometheus.Counter
+	numRewardValidatorTxs,
+	numAddGlobalStakeTxs prometheus.Counter
 
 	validatorSetsCached     prometheus.Counter
 	validatorSetsCreated    prometheus.Counter
@@ -132,6 +133,7 @@ func (m *metrics) Initialize(
 	m.numExportTxs = newTxMetrics(namespace, "export")
 	m.numImportTxs = newTxMetrics(namespace, "import")
 	m.numRewardValidatorTxs = newTxMetrics(namespace, "reward_validator")
+	m.numAddGlobalStakeTxs = newTxMetrics(namespace, "add_global_stake")
 
 	m.validatorSetsCached = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -183,6 +185,7 @@ func (m *metrics) Initialize(
 		registerer.Register(m.numExportTxs),
 		registerer.Register(m.numImportTxs),
 		registerer.Register(m.numRewardValidatorTxs),
+		registerer.Register(m.numAddGlobalStakeTxs),
 
 		registerer.Register(m.validatorSetsCreated),
 		registerer.Register(m.validatorSetsCached),
@@ -243,6 +246,8 @@ func (m *metrics) AcceptTx(tx *Tx) error {
 		m.numExportTxs.Inc()
 	case *UnsignedRewardValidatorTx:
 		m.numRewardValidatorTxs.Inc()
+	case *UnsignedAddGlobalStakeTx:
+		m.numAddGlobalStakeTxs.Inc()
 	default:
 		return fmt.Errorf("%w: %T", errUnknownTxType, tx.UnsignedTx)
 	}

@@ -1200,6 +1200,98 @@ func (service *Service) AddDelegator(_ *http.Request, args *AddDelegatorArgs, re
 	return errs.Err
 }
 
+// AddGlobalStakeArgs are the arguments to AddGlobalStake
+type AddGlobalStakeArgs struct {
+	// User, password, from addrs, change addr
+	api.JSONSpendHeader
+	APIStaker
+	RewardAddress string `json:"rewardAddress"`
+}
+
+// AddGlobalStake creates and signs and issues a transaction to add a global stake
+func (service *Service) AddGlobalStake(_ *http.Request, args *AddGlobalStakeArgs, reply *api.JSONTxIDChangeAddr) error {
+	service.vm.ctx.Log.Debug("Platform: AddGlobalStake called")
+
+	now := service.vm.clock.Time()
+	minAddStakerTime := now.Add(minAddStakerDelay)
+	minAddStakerUnix := json.Uint64(minAddStakerTime.Unix())
+	maxAddStakerTime := now.Add(maxFutureStartTime)
+	maxAddStakerUnix := json.Uint64(maxAddStakerTime.Unix())
+
+	if args.StartTime == 0 {
+		args.StartTime = minAddStakerUnix
+	}
+
+	switch {
+	case args.RewardAddress == "":
+		return errNoRewardAddress
+	case args.StartTime < minAddStakerUnix:
+		return errStartTimeTooSoon
+	case args.StartTime > maxAddStakerUnix:
+		return errStartTimeTooLate
+	}
+
+	// Parse the reward address
+	rewardAddress, err := service.vm.ParseLocalAddress(args.RewardAddress)
+	if err != nil {
+		return fmt.Errorf("problem parsing 'rewardAddress': %w", err)
+	}
+
+	// Parse the from addresses
+	fromAddrs, err := avax.ParseLocalAddresses(service.vm, args.From)
+	if err != nil {
+		return err
+	}
+
+	user, err := keystore.NewUserFromKeystore(service.vm.ctx.Keystore, args.Username, args.Password)
+	if err != nil {
+		return err
+	}
+	defer user.Close()
+
+	privKeys, err := keystore.GetKeychain(user, fromAddrs)
+	if err != nil {
+		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
+	}
+
+	// Parse the change address. Assumes that if the user has no keys,
+	// this operation will fail so the change address can be anything.
+	if len(privKeys.Keys) == 0 {
+		return errNoKeys
+	}
+	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
+	if args.ChangeAddr != "" {
+		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
+		if err != nil {
+			return fmt.Errorf("couldn't parse changeAddr: %w", err)
+		}
+	}
+
+	// Create the transaction
+	tx, err := service.vm.newAddGlobalStakeTx(
+		args.weight(),          // Stake amount
+		uint64(args.StartTime), // Start time
+		uint64(args.EndTime),   // End time
+		rewardAddress,          // Reward Address
+		privKeys.Keys,          // Private keys
+		changeAddr,             // Change address
+	)
+	if err != nil {
+		return fmt.Errorf("couldn't create tx: %w", err)
+	}
+
+	reply.TxID = tx.ID()
+	reply.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
+
+	errs := wrappers.Errs{}
+	errs.Add(
+		err,
+		service.vm.blockBuilder.AddUnverifiedTx(tx),
+		user.Close(),
+	)
+	return errs.Err
+}
+
 // AddSubnetValidatorArgs are the arguments to AddSubnetValidator
 type AddSubnetValidatorArgs struct {
 	// User, password, from addrs, change addr
