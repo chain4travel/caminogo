@@ -193,6 +193,19 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 		return m.vm.newProposalBlock(preferredID, nextHeight, *rewardValidatorTx)
 	}
 
+	// Try building a proposal block that rewards a lock owner.
+	lockTxID, shouldReward, err := getLockToReward(preferredState)
+	if err != nil {
+		return nil, err
+	}
+	if shouldReward {
+		rewardLockTx, err := m.vm.newRewardLockTx(lockTxID)
+		if err != nil {
+			return nil, err
+		}
+		return m.vm.newProposalBlock(preferredID, nextHeight, *rewardLockTx)
+	}
+
 	// Try building a proposal block that advances the chain timestamp.
 	nextChainTime, shouldAdvanceTime, err := m.getNextChainTime(preferredState)
 	if err != nil {
@@ -328,15 +341,25 @@ func (m *blockBuilder) getStakerToReward(preferredState MutableState) (ids.ID, b
 }
 
 // getNextChainTime returns the timestamp for the next chain time and if the
-// local time is >= time of the next staker set change.
+// local time is >= time of the next chain time.
 func (m *blockBuilder) getNextChainTime(preferredState MutableState) (time.Time, bool, error) {
 	nextStakerChangeTime, err := getNextStakerChangeTime(preferredState)
 	if err != nil {
 		return time.Time{}, false, err
 	}
 
+	nextLocksChangeTime, err := getNextLockChangeTime(preferredState)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+
+	nextChainTime := nextStakerChangeTime
+	if nextLocksChangeTime.Before(nextStakerChangeTime) {
+		nextChainTime = nextLocksChangeTime
+	}
+
 	now := m.vm.clock.Time()
-	return nextStakerChangeTime, !now.Before(nextStakerChangeTime), nil
+	return nextChainTime, !now.Before(nextChainTime), nil
 }
 
 // dropTooEarlyMempoolProposalTxs drops mempool's validators whose start time is

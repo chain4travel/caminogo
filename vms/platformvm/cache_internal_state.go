@@ -167,6 +167,7 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
+	currentLocksChainState  currentLocksChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
@@ -694,6 +695,10 @@ func (st *internalStateImpl) CurrentStakerChainState() currentStakerChainState {
 
 func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
+}
+
+func (st *internalStateImpl) CurrentLocksChainState() currentLocksChainState { // TODO@evlekht the other lock chain state methods
+	return st.currentLocksChainState
 }
 
 func (st *internalStateImpl) SetCurrentStakerChainState(cs currentStakerChainState) {

@@ -214,12 +214,14 @@ currentStakerLoop:
 		return nil, nil, err
 	}
 
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers)
+	currentLockState := parentState.CurrentLocksChainState()
+
+	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers, currentLockState)
 	onCommitState.SetTimestamp(txTimestamp)
 	onCommitState.SetCurrentSupply(currentSupply)
 
 	// State doesn't change if this proposal is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, currentLockState)
 
 	return onCommitState, onAbortState, nil
 }

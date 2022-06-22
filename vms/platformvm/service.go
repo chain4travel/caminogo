@@ -1200,34 +1200,34 @@ func (service *Service) AddDelegator(_ *http.Request, args *AddDelegatorArgs, re
 	return errs.Err
 }
 
-// AddGlobalStakeArgs are the arguments to AddGlobalStake
-type AddGlobalStakeArgs struct {
+// AddLockArgs are the arguments to AddLock
+type AddLockArgs struct {
 	// User, password, from addrs, change addr
 	api.JSONSpendHeader
 	APIStaker
 	RewardAddress string `json:"rewardAddress"`
 }
 
-// AddGlobalStake creates and signs and issues a transaction to add a global stake
-func (service *Service) AddGlobalStake(_ *http.Request, args *AddGlobalStakeArgs, reply *api.JSONTxIDChangeAddr) error {
-	service.vm.ctx.Log.Debug("Platform: AddGlobalStake called")
+// AddLock creates and signs and issues a transaction to lock tockens
+func (service *Service) AddLock(_ *http.Request, args *AddLockArgs, reply *api.JSONTxIDChangeAddr) error {
+	service.vm.ctx.Log.Debug("Platform: AddLock called")
 
 	now := service.vm.clock.Time()
-	minAddStakerTime := now.Add(minAddStakerDelay)
-	minAddStakerUnix := json.Uint64(minAddStakerTime.Unix())
-	maxAddStakerTime := now.Add(maxFutureStartTime)
-	maxAddStakerUnix := json.Uint64(maxAddStakerTime.Unix())
+	minAddLockTime := now.Add(minAddStakerDelay)
+	minAddLockUnix := json.Uint64(minAddLockTime.Unix())
+	maxAddLockTime := now.Add(maxFutureStartTime)
+	maxAddLockUnix := json.Uint64(maxAddLockTime.Unix())
 
 	if args.StartTime == 0 {
-		args.StartTime = minAddStakerUnix
+		args.StartTime = minAddLockUnix
 	}
 
 	switch {
 	case args.RewardAddress == "":
 		return errNoRewardAddress
-	case args.StartTime < minAddStakerUnix:
+	case args.StartTime < minAddLockUnix:
 		return errStartTimeTooSoon
-	case args.StartTime > maxAddStakerUnix:
+	case args.StartTime > maxAddLockUnix:
 		return errStartTimeTooLate
 	}
 
@@ -1268,8 +1268,8 @@ func (service *Service) AddGlobalStake(_ *http.Request, args *AddGlobalStakeArgs
 	}
 
 	// Create the transaction
-	tx, err := service.vm.newAddGlobalStakeTx(
-		args.weight(),          // Stake amount
+	tx, err := service.vm.newAddLockTx(
+		args.weight(),          // lock amount
 		uint64(args.StartTime), // Start time
 		uint64(args.EndTime),   // End time
 		rewardAddress,          // Reward Address

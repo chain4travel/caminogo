@@ -88,6 +88,7 @@ func TestCreateSubnetTxAP3FeeChange(t *testing.T) {
 				vm.internalState,
 				vm.internalState.CurrentStakerChainState(),
 				vm.internalState.PendingStakerChainState(),
+				vm.internalState.CurrentLocksChainState(),
 			)
 			vs.SetTimestamp(test.time)
 

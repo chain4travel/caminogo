@@ -46,6 +46,7 @@ type UTXOState interface {
 type MutableState interface {
 	UTXOState
 	ValidatorState
+	LocksState
 
 	AddRewardUTXO(txID ids.ID, utxo *avax.UTXO)
 	GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error)
@@ -78,6 +79,7 @@ type versionedStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
+	currentLocksChainState  currentLocksChainState
 
 	timestamp time.Time
 
@@ -111,13 +113,14 @@ type utxoImpl struct {
 
 func newVersionedState(
 	ps MutableState,
-	current currentStakerChainState,
-	pending pendingStakerChainState,
+	currentStakerState currentStakerChainState,
+	pendingStakerState pendingStakerChainState,
+	currentLockState currentLocksChainState,
 ) VersionedState {
 	return &versionedStateImpl{
 		parentState:             ps,
-		currentStakerChainState: current,
-		pendingStakerChainState: pending,
+		currentStakerChainState: currentStakerState,
+		pendingStakerChainState: pendingStakerState,
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
 	}
@@ -302,6 +305,10 @@ func (vs *versionedStateImpl) CurrentStakerChainState() currentStakerChainState 
 
 func (vs *versionedStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return vs.pendingStakerChainState
+}
+
+func (st *versionedStateImpl) CurrentLocksChainState() currentLocksChainState { // TODO@evlekht the other lock chain state methods
+	return st.currentLocksChainState
 }
 
 func (vs *versionedStateImpl) SetBase(parentState MutableState) {

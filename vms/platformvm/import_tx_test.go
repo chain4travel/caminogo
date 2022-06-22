@@ -177,6 +177,7 @@ func TestNewImportTx(t *testing.T) {
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
+				preferredState.CurrentLocksChainState(),
 			)
 			fakedState.SetTimestamp(tt.timestamp)
 

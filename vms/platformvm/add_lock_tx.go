@@ -35,54 +35,54 @@ var (
 	_ TimedTx            = &UnsignedAddDelegatorTx{}
 )
 
-// UnsignedAddGlobalStakeTx is an unsigned addGlobalStakeTx
-type UnsignedAddGlobalStakeTx struct {
+// UnsignedAddLockTx is an unsigned addLockTx
+type UnsignedAddLockTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 
-	// Where to send staked tokens when done validating
-	Stake []*avax.TransferableOutput `serialize:"true" json:"stake"`
+	// Where to send locked tokens when they unlock
+	LockedAmount []*avax.TransferableOutput `serialize:"true" json:"stake"`
 
-	// Unix time this staking starts
+	// Unix time this lock starts
 	Start uint64 `serialize:"true" json:"startTime"`
 
-	// Unix time this staking finishes
+	// Unix time this lock finishes (unlocks)
 	End uint64 `serialize:"true" json:"endTime"`
 
 	Amount uint64 `serialize:"true" json:"amount"`
 
-	// Where to send staking rewards when done validating
+	// Where to send lock rewards when lock finished
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
-// [UnsignedAddDelegatorTx]. Also sets the [ctx] to the given [vm.ctx] so that
+// [UnsignedAddLockTx]. Also sets the [ctx] to the given [vm.ctx] so that
 // the addresses can be json marshalled into human readable format
-func (tx *UnsignedAddGlobalStakeTx) InitCtx(ctx *snow.Context) {
+func (tx *UnsignedAddLockTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
-	for _, out := range tx.Stake {
+	for _, out := range tx.LockedAmount {
 		out.FxID = secp256k1fx.ID
 		out.InitCtx(ctx)
 	}
 	tx.RewardsOwner.InitCtx(ctx)
 }
 
-// StartTime is the time that this validator will enter the validator set
-func (tx *UnsignedAddGlobalStakeTx) StartTime() time.Time { return time.Unix(int64(tx.Start), 0) }
+// StartTime is the time when this lock begins
+func (tx *UnsignedAddLockTx) StartTime() time.Time { return time.Unix(int64(tx.Start), 0) }
 
-// EndTime is the time that this validator will leave the validator set
-func (tx *UnsignedAddGlobalStakeTx) EndTime() time.Time { return time.Unix(int64(tx.End), 0) }
+// EndTime is the time when this lock ends (unlocks)
+func (tx *UnsignedAddLockTx) EndTime() time.Time { return time.Unix(int64(tx.End), 0) }
 
-// Duration is the amount of time that this validator will be in the validator set
-func (tx *UnsignedAddGlobalStakeTx) Duration() time.Duration { return tx.EndTime().Sub(tx.StartTime()) }
+// Duration is the amount of time that this lock will exist (EndTime - StartTime)
+func (tx *UnsignedAddLockTx) Duration() time.Duration { return tx.EndTime().Sub(tx.StartTime()) }
 
-// Weight of this global stake
-func (tx *UnsignedAddGlobalStakeTx) Weight() uint64 {
+// Amount of locked tokens
+func (tx *UnsignedAddLockTx) Weight() uint64 {
 	return tx.Amount
 }
 
 // SyntacticVerify returns nil iff [tx] is valid
-func (tx *UnsignedAddGlobalStakeTx) SyntacticVerify(ctx *snow.Context) error {
+func (tx *UnsignedAddLockTx) SyntacticVerify(ctx *snow.Context) error {
 	switch {
 	case tx == nil:
 		return errNilTx
@@ -94,26 +94,24 @@ func (tx *UnsignedAddGlobalStakeTx) SyntacticVerify(ctx *snow.Context) error {
 		return err
 	}
 	if err := verify.All(tx.RewardsOwner); err != nil {
-		return fmt.Errorf("failed to verify validator or rewards owner: %w", err)
+		return fmt.Errorf("failed to verify rewards owner: %w", err)
 	}
 
-	totalStakeWeight := uint64(0)
-	for _, out := range tx.Stake {
+	totalLockAmount := uint64(0)
+	for _, out := range tx.LockedAmount {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("output verification failed: %w", err)
 		}
-		newWeight, err := math.Add64(totalStakeWeight, out.Output().Amount())
+		newLockAmount, err := math.Add64(totalLockAmount, out.Output().Amount())
 		if err != nil {
 			return err
 		}
-		totalStakeWeight = newWeight
+		totalLockAmount = newLockAmount
 	}
 
 	switch {
-	case !avax.IsSortedTransferableOutputs(tx.Stake, Codec):
+	case !avax.IsSortedTransferableOutputs(tx.LockedAmount, Codec):
 		return errOutputsNotSorted
-		// case totalStakeWeight != tx.Validator.Wght:
-		// 	return fmt.Errorf("delegator weight %d is not equal to total stake weight %d", tx.Validator.Wght, totalStakeWeight)
 	}
 
 	// cache that this is valid
@@ -122,7 +120,7 @@ func (tx *UnsignedAddGlobalStakeTx) SyntacticVerify(ctx *snow.Context) error {
 }
 
 // Attempts to verify this transaction with the provided state.
-func (tx *UnsignedAddGlobalStakeTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
+func (tx *UnsignedAddLockTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
 	startTime := tx.StartTime()
 	maxLocalStartTime := vm.clock.Time().Add(maxFutureStartTime)
 	if startTime.After(maxLocalStartTime) {
@@ -139,7 +137,7 @@ func (tx *UnsignedAddGlobalStakeTx) SemanticVerify(vm *VM, parentState MutableSt
 }
 
 // Execute this transaction.
-func (tx *UnsignedAddGlobalStakeTx) Execute(
+func (tx *UnsignedAddLockTx) Execute(
 	vm *VM,
 	parentState MutableState,
 	stx *Tx,
@@ -155,35 +153,35 @@ func (tx *UnsignedAddGlobalStakeTx) Execute(
 
 	duration := tx.Duration()
 	switch {
-	case duration < vm.MinStakeDuration: // Ensure staking length is not too short
+	case duration < vm.MinStakeDuration: // Ensure locking length is not too short
 		return nil, nil, errStakeTooShort
-	case duration > vm.MaxStakeDuration: // Ensure staking length is not too long
+	case duration > vm.MaxStakeDuration: // Ensure locking length is not too long
 		return nil, nil, errStakeTooLong
-	case tx.Weight() < vm.MinDelegatorStake: // Ensure validator is staking at least the minimum amount
+	case tx.Weight() < vm.MinDelegatorStake: // Ensure user is locking at least the minimum amount
 		return nil, nil, errWeightTooSmall
 	}
 
-	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Stake))
+	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.LockedAmount))
 	copy(outs, tx.Outs)
-	copy(outs[len(tx.Outs):], tx.Stake)
+	copy(outs[len(tx.Outs):], tx.LockedAmount)
 
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
-		// Ensure the proposed validator starts after the current timestamp
-		validatorStartTime := tx.StartTime()
-		if !currentTimestamp.Before(validatorStartTime) {
+		// Ensure the lock starts after the current timestamp
+		lockStartTime := tx.StartTime()
+		if !currentTimestamp.Before(lockStartTime) {
 			return nil, nil, fmt.Errorf(
-				"chain timestamp (%s) not before validator's start time (%s)",
+				"chain timestamp (%s) not before lock's start time (%s)",
 				currentTimestamp,
-				validatorStartTime,
+				lockStartTime,
 			)
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil { // TODO@evlekht fee
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
 
@@ -191,13 +189,14 @@ func (tx *UnsignedAddGlobalStakeTx) Execute(
 		// last to allow SemanticVerification to explicitly check for this
 		// error.
 		maxStartTime := vm.clock.Time().Add(maxFutureStartTime)
-		if validatorStartTime.After(maxStartTime) {
+		if lockStartTime.After(maxStartTime) {
 			return nil, nil, errFutureStartTime
 		}
 	}
+	currentLockState := parentState.CurrentLocksChainState()
 
 	// Set up the state if this tx is committed
-	onCommitState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onCommitState := newVersionedState(parentState, currentStakers, pendingStakers, currentLockState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -206,7 +205,7 @@ func (tx *UnsignedAddGlobalStakeTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, currentLockState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -215,37 +214,37 @@ func (tx *UnsignedAddGlobalStakeTx) Execute(
 	return onCommitState, onAbortState, nil
 }
 
-// InitiallyPrefersCommit returns true if the global stake start time is
+// InitiallyPrefersCommit returns true if the lock start time is
 // after the current wall clock time
-func (tx *UnsignedAddGlobalStakeTx) InitiallyPrefersCommit(vm *VM) bool {
+func (tx *UnsignedAddLockTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.StartTime().After(vm.clock.Time())
 }
 
 // Creates a new transaction
-func (vm *VM) newAddGlobalStakeTx(
-	stakeAmt, // Amount the user stakes
-	startTime, // Unix time they start staking
-	endTime uint64, // Unix time they stop staking
+func (vm *VM) newAddLockTx(
+	lockAmount, // Amount the user locks
+	startTime, // Unix time the tokens lock
+	endTime uint64, // Unix time tokens unlock
 	rewardAddress ids.ShortID, // Address to send reward to, if applicable
-	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
+	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the locked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, stakeAmt, vm.AddStakerTxFee, changeAddr)
+	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, lockAmount, vm.AddStakerTxFee, changeAddr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 	// Create the tx
-	utx := &UnsignedAddGlobalStakeTx{
+	utx := &UnsignedAddLockTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
 			Ins:          ins,
 			Outs:         unlockedOuts,
 		}},
-		Start:  startTime,
-		End:    endTime,
-		Amount: stakeAmt,
-		Stake:  lockedOuts,
+		Start:        startTime,
+		End:          endTime,
+		Amount:       lockAmount,
+		LockedAmount: lockedOuts,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
@@ -258,30 +257,6 @@ func (vm *VM) newAddGlobalStakeTx(
 	}
 	return tx, utx.SyntacticVerify(vm.ctx)
 }
-
-// // CanDelegate returns if the [new] delegator can be added to a validator who
-// // has [current] and [pending] delegators. [currentStake] is the current amount
-// // of stake on the validator, include the [current] delegators. [maximumStake]
-// // is the maximum amount of stake that can be on the validator at any given
-// // time. It is assumed that the validator without adding [new] does not violate
-// // [maximumStake].
-// func CanDelegate(
-// 	current,
-// 	pending []*UnsignedAddDelegatorTx, // sorted by next start time first
-// 	new *UnsignedAddDelegatorTx,
-// 	currentStake,
-// 	maximumStake uint64,
-// ) (bool, error) {
-// 	maxStake, err := maxStakeAmount(current, pending, new.StartTime(), new.EndTime(), currentStake)
-// 	if err != nil {
-// 		return false, err
-// 	}
-// 	newMaxStake, err := math.Add64(maxStake, new.Validator.Wght)
-// 	if err != nil {
-// 		return false, err
-// 	}
-// 	return newMaxStake <= maximumStake, nil
-// }
 
 // // Return the maximum amount of stake on a node (including delegations) at any
 // // given time between [startTime] and [endTime] given that:
