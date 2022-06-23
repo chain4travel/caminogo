@@ -121,6 +121,7 @@ func newVersionedState(
 		parentState:             ps,
 		currentStakerChainState: currentStakerState,
 		pendingStakerChainState: pendingStakerState,
+		currentLocksChainState:  currentLockState,
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
 	}
@@ -343,4 +344,5 @@ func (vs *versionedStateImpl) Apply(is InternalState) {
 	}
 	vs.currentStakerChainState.Apply(is)
 	vs.pendingStakerChainState.Apply(is)
+	vs.currentLocksChainState.Apply(is)
 }

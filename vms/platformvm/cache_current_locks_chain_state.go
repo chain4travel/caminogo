@@ -15,6 +15,11 @@
 package platformvm
 
 import (
+	"bytes"
+	"fmt"
+	"sort"
+	"time"
+
 	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 )
@@ -23,11 +28,11 @@ var (
 	_ currentLocksChainState = &currentLocksChainStateImpl{}
 )
 
-type currentLocksChainState interface { // TODO@evlekht comments
-	// The NextStaker value returns the next staker that is going to be removed
-	// using a RewardValidatorTx. Therefore, only AddValidatorTxs and
-	// AddDelegatorTxs will be returned. AddSubnetValidatorTxs are removed using
-	// AdvanceTimestampTxs.
+const strInvalidType = "expected add lock tx type but got %T"
+
+type currentLocksChainState interface {
+	// GetNextLock returns the next AddLockTx that is going to be removed
+	// using a RewardLockTx.
 	GetNextLock() (addLockTx *Tx, potentialReward uint64, err error)
 
 	// UpdateStakers(
@@ -36,29 +41,30 @@ type currentLocksChainState interface { // TODO@evlekht comments
 	// 	addSubnetValidators []*Tx,
 	// 	numTxsToRemove int,
 	// ) (currentStakerChainState, error)
+
+	// DeleteNextLock returns currentLocksChainState after moving AddLockTx from locks to deletedLocks.
 	DeleteNextLock() (currentLocksChainState, error)
 
 	// Locks returns the existing token locks on the network sorted in order of the
 	// order of their future unlock.
 	Locks() []*Tx
 
-	// Apply(InternalState)
+	Apply(InternalState)
 }
 
-// currentStakerChainStateImpl is a copy on write implementation for versioning
+// currentLocksChainStateImpl is a copy on write implementation for versioning // TODO@evlekht
 // the validator set. None of the slices, maps, or pointers should be modified
 // after initialization.
-type currentLocksChainStateImpl struct { // TODO@evlekht fields
+type currentLocksChainStateImpl struct {
 	nextLockReward *validatorReward // TODO@evlekht ? rename type to something more unify and move its definition somewhere else ?
 
 	// txID -> tx
 	lockRewardsByTxID map[ids.ID]*validatorReward
 
-	// list of current locks in order of their removal from the validator
-	// set
+	// list of current locks in order of their removal from the locks set
 	locks []*Tx
 
-	// addedStakers []*validatorReward
+	addedLocks   []*validatorReward
 	deletedLocks []*Tx
 }
 
@@ -234,19 +240,19 @@ func (cs *currentLocksChainStateImpl) Locks() []*Tx {
 	return cs.locks
 }
 
-// func (cs *currentStakerChainStateImpl) Apply(is InternalState) {
-// 	for _, added := range cs.addedStakers {
-// 		is.AddCurrentStaker(added.addStakerTx, added.potentialReward)
-// 	}
-// 	for _, deleted := range cs.deletedStakers {
-// 		is.DeleteCurrentStaker(deleted)
-// 	}
-// 	is.SetCurrentStakerChainState(cs)
+func (cs *currentLocksChainStateImpl) Apply(is InternalState) {
+	for _, added := range cs.addedLocks {
+		is.AddCurrentLock(added.addStakerTx, added.potentialReward)
+	}
+	for _, deleted := range cs.deletedLocks {
+		is.DeleteCurrentLock(deleted)
+	}
+	is.SetCurrentLockChainState(cs)
 
-// 	// Validator changes should only be applied once.
-// 	cs.addedStakers = nil
-// 	cs.deletedStakers = nil
-// }
+	// lock changes should only be applied once.
+	cs.addedLocks = nil
+	cs.deletedLocks = nil
+}
 
 // func (cs *currentStakerChainStateImpl) ValidatorSet(subnetID ids.ID) (validators.Set, error) {
 // 	if subnetID == constants.PrimaryNetworkID {
@@ -297,7 +303,7 @@ func (cs *currentLocksChainStateImpl) Locks() []*Tx {
 // 	return staker.addStakerTx, staker.potentialReward, nil
 // }
 
-// setNextStaker to the next staker that will be removed using a
+// setNextStaker to the next staker that will be removed using a // TODO@evlekht comment
 // RewardValidatorTx.
 func (cs *currentLocksChainStateImpl) setNextLock() {
 	for _, tx := range cs.locks {
@@ -309,113 +315,59 @@ func (cs *currentLocksChainStateImpl) setNextLock() {
 	}
 }
 
-// type innerSortValidatorsByRemoval []*Tx
+/*
+ ******************************************************
+ ********************* Sorter *************************
+ ******************************************************
+ */
 
-// func (s innerSortValidatorsByRemoval) Less(i, j int) bool {
-// 	iDel := s[i]
-// 	jDel := s[j]
+type innerSortLocksByRemoval []*Tx
 
-// 	var (
-// 		iEndTime  time.Time
-// 		iPriority byte
-// 	)
-// 	switch tx := iDel.UnsignedTx.(type) {
-// 	case *UnsignedAddValidatorTx:
-// 		iEndTime = tx.EndTime()
-// 		iPriority = lowPriority
-// 	case *UnsignedAddDelegatorTx:
-// 		iEndTime = tx.EndTime()
-// 		iPriority = mediumPriority
-// 	case *UnsignedAddSubnetValidatorTx:
-// 		iEndTime = tx.EndTime()
-// 		iPriority = topPriority
-// 	default:
-// 		panic(fmt.Errorf("expected staker tx type but got %T", iDel.UnsignedTx))
-// 	}
+func (s innerSortLocksByRemoval) Less(i, j int) bool { // TODO@evlekht sort abstract interface objects, compare sort with validators
+	iDel := s[i]
+	jDel := s[j]
 
-// 	var (
-// 		jEndTime  time.Time
-// 		jPriority byte
-// 	)
-// 	switch tx := jDel.UnsignedTx.(type) {
-// 	case *UnsignedAddValidatorTx:
-// 		jEndTime = tx.EndTime()
-// 		jPriority = lowPriority
-// 	case *UnsignedAddDelegatorTx:
-// 		jEndTime = tx.EndTime()
-// 		jPriority = mediumPriority
-// 	case *UnsignedAddSubnetValidatorTx:
-// 		jEndTime = tx.EndTime()
-// 		jPriority = topPriority
-// 	default:
-// 		panic(fmt.Errorf("expected staker tx type but got %T", jDel.UnsignedTx))
-// 	}
+	var (
+		iEndTime time.Time
+	)
+	switch tx := iDel.UnsignedTx.(type) {
+	case *UnsignedAddLockTx:
+		iEndTime = tx.EndTime()
+	default:
+		panic(fmt.Errorf(strInvalidType, iDel.UnsignedTx))
+	}
 
-// 	if iEndTime.Before(jEndTime) {
-// 		return true
-// 	}
-// 	if jEndTime.Before(iEndTime) {
-// 		return false
-// 	}
+	var (
+		jEndTime time.Time
+	)
+	switch tx := jDel.UnsignedTx.(type) {
+	case *UnsignedAddLockTx:
+		jEndTime = tx.EndTime()
+	default:
+		panic(fmt.Errorf(strInvalidType, jDel.UnsignedTx))
+	}
 
-// 	// If the end times are the same, then we sort by the tx type. First we
-// 	// remove UnsignedAddSubnetValidatorTxs, then UnsignedAddDelegatorTx, then
-// 	// UnsignedAddValidatorTx.
-// 	if iPriority > jPriority {
-// 		return true
-// 	}
-// 	if iPriority < jPriority {
-// 		return false
-// 	}
+	if iEndTime.Before(jEndTime) {
+		return true
+	}
+	if jEndTime.Before(iEndTime) {
+		return false
+	}
 
-// 	// If the end times are the same, and the tx types are the same, then we
-// 	// sort by the txID.
-// 	iTxID := iDel.ID()
-// 	jTxID := jDel.ID()
-// 	return bytes.Compare(iTxID[:], jTxID[:]) == -1
-// }
+	// If the end times are the same, then we sort by the txID.
+	iTxID := iDel.ID()
+	jTxID := jDel.ID()
+	return bytes.Compare(iTxID[:], jTxID[:]) == -1
+}
 
-// func (s innerSortValidatorsByRemoval) Len() int {
-// 	return len(s)
-// }
+func (s innerSortLocksByRemoval) Len() int {
+	return len(s)
+}
 
-// func (s innerSortValidatorsByRemoval) Swap(i, j int) {
-// 	s[j], s[i] = s[i], s[j]
-// }
+func (s innerSortLocksByRemoval) Swap(i, j int) {
+	s[j], s[i] = s[i], s[j]
+}
 
-// func sortValidatorsByRemoval(s []*Tx) {
-// 	sort.Sort(innerSortValidatorsByRemoval(s))
-// }
-
-// type innerSortDelegatorsByRemoval []*UnsignedAddDelegatorTx
-
-// func (s innerSortDelegatorsByRemoval) Less(i, j int) bool {
-// 	iDel := s[i]
-// 	jDel := s[j]
-
-// 	iEndTime := iDel.EndTime()
-// 	jEndTime := jDel.EndTime()
-// 	if iEndTime.Before(jEndTime) {
-// 		return true
-// 	}
-// 	if jEndTime.Before(iEndTime) {
-// 		return false
-// 	}
-
-// 	// If the end times are the same, then we sort by the txID
-// 	iTxID := iDel.ID()
-// 	jTxID := jDel.ID()
-// 	return bytes.Compare(iTxID[:], jTxID[:]) == -1
-// }
-
-// func (s innerSortDelegatorsByRemoval) Len() int {
-// 	return len(s)
-// }
-
-// func (s innerSortDelegatorsByRemoval) Swap(i, j int) {
-// 	s[j], s[i] = s[i], s[j]
-// }
-
-// func sortDelegatorsByRemoval(s []*UnsignedAddDelegatorTx) {
-// 	sort.Sort(innerSortDelegatorsByRemoval(s))
-// }
+func sortLocksByRemoval(s []*Tx) {
+	sort.Sort(innerSortLocksByRemoval(s))
+}

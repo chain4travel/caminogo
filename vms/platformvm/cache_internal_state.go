@@ -55,6 +55,10 @@ var (
 	chainPrefix           = []byte("chain")
 	singletonPrefix       = []byte("singleton")
 
+	lockPrefix        = []byte("lock")
+	locksPrefix       = []byte("locks")
+	lockArchivePrefix = []byte("lockArchive")
+
 	timestampKey     = []byte("timestamp")
 	currentSupplyKey = []byte("current supply")
 	lastAcceptedKey  = []byte("last accepted")
@@ -95,8 +99,12 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
+	AddCurrentLock(tx *Tx, potentialReward uint64)
+	DeleteCurrentLock(tx *Tx)
+
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
+	SetCurrentLockChainState(currentLocksChainState)
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(ids.ID)
@@ -154,11 +162,18 @@ type InternalState interface {
  * | '-. subnetID
  * |   '-. list
  * |     '-- txID -> nil
- * '-. singletons
- *   |-- initializedKey -> nil
- *   |-- timestampKey -> timestamp
- *   |-- currentSupplyKey -> currentSupply
- *   '-- lastAcceptedKey -> lastAccepted
+ * |-. singletons
+ * | |-- initializedKey -> nil
+ * | |-- timestampKey -> timestamp
+ * | |-- currentSupplyKey -> currentSupply
+ * | '-- lastAcceptedKey -> lastAccepted
+ * '-. lock
+ *   |-. lock
+ *   | '-. list
+ *   |   '-- txID -> nil
+ *   '-. lockArchive
+ *     '-. list
+ *       '-- txID -> nil
  */
 type internalStateImpl struct {
 	vm *VM
@@ -174,6 +189,8 @@ type internalStateImpl struct {
 	deletedCurrentStakers []*Tx
 	addedPendingStakers   []*Tx
 	deletedPendingStakers []*Tx
+	addedLocks            []*validatorReward
+	deletedLocks          []*Tx
 	uptimes               map[ids.ShortID]*currentValidatorState // nodeID -> uptimes
 	updatedUptimes        map[ids.ShortID]struct{}               // nodeID -> nil
 
@@ -226,6 +243,12 @@ type internalStateImpl struct {
 	originalCurrentSupply, currentSupply uint64
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
+
+	lockDB            database.Database // TODO@evkekht is everything nescessary ?
+	lockBaseDB        database.Database
+	lockList          linkeddb.LinkedDB
+	lockArchiveBaseDB database.Database
+	lockArchiveList   linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -268,6 +291,10 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 	rewardUTXODB := prefixdb.New(rewardUTXOsPrefix, baseDB)
 	utxoDB := prefixdb.New(utxoPrefix, baseDB)
 	subnetBaseDB := prefixdb.New(subnetPrefix, baseDB)
+
+	lockDB := prefixdb.New(lockPrefix, baseDB)
+	lockBaseDB := prefixdb.New(locksPrefix, lockDB)
+	deletedLocksBaseDB := prefixdb.New(lockArchivePrefix, lockDB)
 	return &internalStateImpl{
 		vm: vm,
 
@@ -312,6 +339,12 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 		chainDB:     prefixdb.New(chainPrefix, baseDB),
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
+
+		lockDB:            lockDB,
+		lockBaseDB:        lockBaseDB,
+		lockArchiveBaseDB: deletedLocksBaseDB,
+		lockList:          linkeddb.NewDefault(lockBaseDB),
+		lockArchiveList:   linkeddb.NewDefault(deletedLocksBaseDB),
 	}
 }
 
@@ -709,6 +742,10 @@ func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainSta
 	st.pendingStakerChainState = ps
 }
 
+func (st *internalStateImpl) SetCurrentLockChainState(cs currentLocksChainState) {
+	st.currentLocksChainState = cs
+}
+
 func (st *internalStateImpl) GetUptime(nodeID ids.ShortID) (upDuration time.Duration, lastUpdated time.Time, err error) {
 	uptime, exists := st.uptimes[nodeID]
 	if !exists {
@@ -757,6 +794,17 @@ func (st *internalStateImpl) AddPendingStaker(tx *Tx) {
 
 func (st *internalStateImpl) DeletePendingStaker(tx *Tx) {
 	st.deletedPendingStakers = append(st.deletedPendingStakers, tx)
+}
+
+func (st *internalStateImpl) AddCurrentLock(tx *Tx, potentialReward uint64) {
+	st.addedLocks = append(st.addedLocks, &validatorReward{
+		addStakerTx:     tx,
+		potentialReward: potentialReward,
+	})
+}
+
+func (st *internalStateImpl) DeleteCurrentLock(tx *Tx) {
+	st.deletedLocks = append(st.deletedLocks, tx)
 }
 
 func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids.ID) (map[ids.ShortID]*ValidatorWeightDiff, error) {
@@ -842,6 +890,9 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
+	if err := st.writeLocks(); err != nil {
+		return nil, fmt.Errorf("failed to write locks with: %w", err)
+	}
 	return st.baseDB.CommitBatch()
 }
 
@@ -865,6 +916,9 @@ func (st *internalStateImpl) Close() error {
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
 		st.baseDB.Close(),
+		st.lockDB.Close(),
+		st.lockBaseDB.Close(),
+		st.lockArchiveBaseDB.Close(),
 	)
 	return errs.Err
 }
@@ -1266,6 +1320,26 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
+func (st *internalStateImpl) writeLocks() error {
+	for _, tx := range st.addedLocks {
+		txID := tx.addStakerTx.ID()
+		if err := st.lockList.Put(txID[:], nil); err != nil {
+			return err
+		}
+	}
+	st.addedLocks = nil
+
+	for _, tx := range st.deletedLocks {
+		txID := tx.ID()
+		if err := st.lockList.Delete(txID[:]); err != nil {
+			return err
+		}
+	}
+	st.deletedLocks = nil
+
+	return nil
+}
+
 func (st *internalStateImpl) load() error {
 	if err := st.loadSingletons(); err != nil {
 		return err
@@ -1273,7 +1347,10 @@ func (st *internalStateImpl) load() error {
 	if err := st.loadCurrentValidators(); err != nil {
 		return err
 	}
-	return st.loadPendingValidators()
+	if err := st.loadPendingValidators(); err != nil {
+		return err
+	}
+	return st.loadLocks()
 }
 
 func (st *internalStateImpl) loadSingletons() error {
@@ -1624,4 +1701,51 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 	}
 
 	return st.Commit()
+}
+
+func (st *internalStateImpl) loadLocks() error {
+	newCurrentLocksChainState := &currentLocksChainStateImpl{
+		lockRewardsByTxID: make(map[ids.ID]*validatorReward),
+	}
+
+	locksIterator := st.lockList.NewIterator()
+	defer locksIterator.Release()
+	for locksIterator.Next() {
+		txIDBytes := locksIterator.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		tx, _, err := st.GetTx(txID)
+		if err != nil {
+			return err
+		}
+		addLockTx, ok := tx.UnsignedTx.(*UnsignedAddLockTx)
+		if !ok {
+			return errWrongTxType
+		}
+
+		newCurrentLocksChainState.locks = append(newCurrentLocksChainState.locks, tx)
+		newCurrentLocksChainState.lockRewardsByTxID[addLockTx.ID()] = &validatorReward{
+			addStakerTx: tx,
+			// potentialReward: , // TODO@evlekht
+		}
+	}
+
+	lockArchiveIterator := st.lockArchiveList.NewIterator()
+	defer lockArchiveIterator.Release()
+	for lockArchiveIterator.Next() {
+		txIDBytes := locksIterator.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		newCurrentLocksChainState.lockRewardsByTxID[txID] = nil
+	}
+
+	sortLocksByRemoval(newCurrentLocksChainState.locks)
+	newCurrentLocksChainState.setNextLock()
+
+	st.currentLocksChainState = newCurrentLocksChainState
+	return nil
 }
