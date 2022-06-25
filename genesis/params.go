@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/constants"
+	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -44,6 +45,10 @@ type StakingConfig struct {
 	RewardConfig reward.Config `json:"rewardConfig"`
 }
 
+type LockConfig struct {
+	lock.Config
+}
+
 type TxFeeConfig struct {
 	// Transaction fee
 	TxFee uint64 `json:"txFee"`
@@ -58,6 +63,7 @@ type TxFeeConfig struct {
 type Params struct {
 	StakingConfig
 	TxFeeConfig
+	LockConfig
 }
 
 func GetTxFeeConfig(networkID uint32) TxFeeConfig {
@@ -79,5 +85,16 @@ func GetStakingConfig(networkID uint32) StakingConfig {
 		return ColumbusParams.StakingConfig
 	default:
 		return LocalParams.StakingConfig
+	}
+}
+
+func GetLockConfig(networkID uint32) LockConfig {
+	switch networkID {
+	case constants.CaminoID:
+		return CaminoParams.LockConfig
+	case constants.ColumbusID:
+		return ColumbusParams.LockConfig
+	default:
+		return LocalParams.LockConfig
 	}
 }

@@ -52,11 +52,11 @@ type currentLocksChainState interface {
 	Apply(InternalState)
 }
 
-// currentLocksChainStateImpl is a copy on write implementation for versioning // TODO@evlekht
-// the validator set. None of the slices, maps, or pointers should be modified
+// currentLocksChainStateImpl is a copy on write implementation for versioning
+// the locks set. None of the slices, maps, or pointers should be modified
 // after initialization.
 type currentLocksChainStateImpl struct {
-	nextLockReward *validatorReward // TODO@evlekht ? rename type to something more unify and move its definition somewhere else ?
+	nextLockReward *validatorReward // ?@evlekht ? rename type to something more unify and move its definition somewhere else ?
 
 	// txID -> tx
 	lockRewardsByTxID map[ids.ID]*validatorReward
@@ -303,8 +303,7 @@ func (cs *currentLocksChainStateImpl) Apply(is InternalState) {
 // 	return staker.addStakerTx, staker.potentialReward, nil
 // }
 
-// setNextStaker to the next staker that will be removed using a // TODO@evlekht comment
-// RewardValidatorTx.
+// setNextLock to the next lock that will be removed using a RewardLockTx.
 func (cs *currentLocksChainStateImpl) setNextLock() {
 	for _, tx := range cs.locks {
 		switch tx.UnsignedTx.(type) {
@@ -323,7 +322,7 @@ func (cs *currentLocksChainStateImpl) setNextLock() {
 
 type innerSortLocksByRemoval []*Tx
 
-func (s innerSortLocksByRemoval) Less(i, j int) bool { // TODO@evlekht sort abstract interface objects, compare sort with validators
+func (s innerSortLocksByRemoval) Less(i, j int) bool { // ?@evlekht sort abstract interface objects, compare sort with validators
 	iDel := s[i]
 	jDel := s[j]
 

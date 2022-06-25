@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/units"
+	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -74,6 +75,13 @@ var (
 				MinConsumptionRate: .10 * reward.PercentDenominator,
 				MintingPeriod:      365 * 24 * time.Hour,
 				SupplyCap:          1000 * units.MegaAvax,
+			},
+		},
+		LockConfig: LockConfig{
+			lock.Config{
+				MinLockDuration: time.Second * 10,
+				MaxLockDuration: 365 * 24 * time.Hour,
+				MinLockAmount:   1 * units.Avax,
 			},
 		},
 	}

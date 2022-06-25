@@ -35,8 +35,8 @@ var (
 	errDelegatorSubset = errors.New("delegator's time range must be a subset of the validator's time range")
 	errInvalidState    = errors.New("generated output isn't valid state")
 	errOverDelegated   = errors.New("validator would be over delegated")
-	// TODO@evlekht * I'd suggest to move all err vars to dedicated .go file,
-	// TODO@evlekht * cause sometimes they defined in one file, but used in many - will be easier to navigate
+	// ?@evlekht * I'd suggest to move all err vars to dedicated .go file,
+	// ?@evlekht * cause sometimes they defined in one file, but used in many - will be easier to navigate
 
 	_ UnsignedProposalTx = &UnsignedAddDelegatorTx{}
 	_ TimedTx            = &UnsignedAddDelegatorTx{}

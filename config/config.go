@@ -694,6 +694,10 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 	return config, nil
 }
 
+func getLockConfig(v *viper.Viper, networkID uint32) (genesis.LockConfig, error) {
+	return genesis.GetLockConfig(networkID), nil
+}
+
 func getTxFeeConfig(v *viper.Viper, networkID uint32) genesis.TxFeeConfig {
 	if !constants.IsActiveNetwork(networkID) {
 		return genesis.TxFeeConfig{
@@ -1065,6 +1069,12 @@ func GetNodeConfig(v *viper.Viper, buildDir string) (node.Config, error) {
 
 	// Staking
 	nodeConfig.StakingConfig, err = getStakingConfig(v, nodeConfig.NetworkID)
+	if err != nil {
+		return node.Config{}, err
+	}
+
+	// Lock
+	nodeConfig.LockConfig, err = getLockConfig(v, nodeConfig.NetworkID)
 	if err != nil {
 		return node.Config{}, err
 	}

@@ -730,7 +730,7 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
 }
 
-func (st *internalStateImpl) CurrentLocksChainState() currentLocksChainState { // TODO@evlekht the other lock chain state methods
+func (st *internalStateImpl) CurrentLocksChainState() currentLocksChainState {
 	return st.currentLocksChainState
 }
 

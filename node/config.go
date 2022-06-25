@@ -142,6 +142,7 @@ type Config struct {
 	IPConfig            `json:"ipConfig"`
 	StakingConfig       `json:"stakingConfig"`
 	genesis.TxFeeConfig `json:"txFeeConfig"`
+	genesis.LockConfig  `json:"lockConfig"`
 	BootstrapConfig     `json:"bootstrapConfig"`
 	DatabaseConfig      `json:"databaseConfig"`
 

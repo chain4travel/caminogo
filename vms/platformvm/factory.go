@@ -89,6 +89,15 @@ type Factory struct {
 
 	// Time of the AP5 network upgrade
 	ApricotPhase5Time time.Time
+
+	// MinLockDuration is the minimum amount of lock duration
+	MinLockDuration time.Duration
+
+	// MaxLockDuration is the maximum amount of lock duration
+	MaxLockDuration time.Duration
+
+	// MinLockAmount, in nAVAX, is the minimum amount of tokens that can be locked
+	MinLockAmount uint64
 }
 
 // New returns a new instance of the Platform Chain

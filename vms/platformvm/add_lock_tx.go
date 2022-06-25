@@ -153,12 +153,12 @@ func (tx *UnsignedAddLockTx) Execute(
 
 	duration := tx.Duration()
 	switch {
-	case duration < vm.MinStakeDuration: // Ensure locking length is not too short
-		return nil, nil, errStakeTooShort
-	case duration > vm.MaxStakeDuration: // Ensure locking length is not too long
-		return nil, nil, errStakeTooLong
-	case tx.Weight() < vm.MinDelegatorStake: // Ensure user is locking at least the minimum amount
-		return nil, nil, errWeightTooSmall
+	case duration < vm.MinLockDuration: // Ensure locking length is not too short
+		return nil, nil, errStakeTooShort // TODO@evlekht change err
+	case duration > vm.MaxLockDuration: // Ensure locking length is not too long
+		return nil, nil, errStakeTooLong // TODO@evlekht change err
+	case tx.Weight() < vm.MinLockAmount: // Ensure user is locking at least the minimum amount
+		return nil, nil, errWeightTooSmall // TODO@evlekht change err
 	}
 
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.LockedAmount))

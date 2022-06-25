@@ -308,7 +308,7 @@ func (vs *versionedStateImpl) PendingStakerChainState() pendingStakerChainState 
 	return vs.pendingStakerChainState
 }
 
-func (st *versionedStateImpl) CurrentLocksChainState() currentLocksChainState { // TODO@evlekht the other lock chain state methods
+func (st *versionedStateImpl) CurrentLocksChainState() currentLocksChainState {
 	return st.currentLocksChainState
 }
 

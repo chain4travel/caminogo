@@ -36,7 +36,7 @@ var (
 // block, the reward out will be created owned by with locked tokens owner
 // and tokens will unlock.
 //
-// If this transaction is accepted and the next block accepted is an Abort // TODO@evlekht confirm with team
+// If this transaction is accepted and the next block accepted is an Abort // ?@evlekht confirm with team
 // block, the locked tokens will unlock, but no reward out will be created
 type UnsignedRewardLockTx struct {
 	avax.Metadata
@@ -59,9 +59,7 @@ func (tx *UnsignedRewardLockTx) SemanticVerify(vm *VM, parentState MutableState,
 
 // Execute this transaction.
 //
-// The current validating set must have at least one member. // TODO@evlekht correct the description comment
-// The next validator to be removed must be the validator specified in this block.
-// The next validator to be removed must be have an end time equal to the current
+// The next lock to be removed must be have an end time equal to the current
 // chain timestamp.
 func (tx *UnsignedRewardLockTx) Execute(
 	vm *VM,
@@ -149,7 +147,7 @@ func (tx *UnsignedRewardLockTx) Execute(
 		}
 
 		// Provide the reward here
-		if lockReward > 0 { // TODO@evlekht may be wrap into function - its used in validator rewards
+		if lockReward > 0 { // ?@evlekht may be wrap into function - its used in validator rewards
 			outIntf, err := vm.fx.CreateOutput(lockReward, uLockTx.RewardsOwner)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create output: %w", err)
