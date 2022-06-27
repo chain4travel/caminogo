@@ -79,8 +79,8 @@ func (tx *UnsignedRewardLockTx) Execute(
 		return nil, nil, errWrongNumberOfCredentials
 	}
 
-	currentLocksState := parentState.CurrentLocksChainState()
-	lockTx, lockReward, err := currentLocksState.GetNextLock()
+	lockState := parentState.LockChainState()
+	lockTx, lockReward, err := lockState.GetNextLock()
 	switch {
 	case err == database.ErrNotFound:
 		return nil, nil, fmt.Errorf("failed to get next lock stop time: %w", err)
@@ -111,18 +111,18 @@ func (tx *UnsignedRewardLockTx) Execute(
 		)
 	}
 
-	newlyCurrentLocksState, err := currentLocksState.DeleteNextLock()
+	newlyLockState, err := lockState.DeleteNextLock()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	newlyCurrentStakerState := parentState.CurrentStakerChainState()
+	currentStakerState := parentState.CurrentStakerChainState()
 	pendingStakerState := parentState.PendingStakerChainState()
 
-	onCommitState := newVersionedState(parentState, newlyCurrentStakerState, pendingStakerState, newlyCurrentLocksState)
-	onAbortState := newVersionedState(parentState, newlyCurrentStakerState, pendingStakerState, newlyCurrentLocksState)
+	onCommitState := newVersionedState(parentState, currentStakerState, pendingStakerState, newlyLockState)
+	onAbortState := newVersionedState(parentState, currentStakerState, pendingStakerState, newlyLockState)
 
-	// If the reward is aborted, then the current supply should be decreased.
+	// If the reward is aborted, then the current supply should be decreased. // ?@evlekht
 	currentSupply := onAbortState.GetCurrentSupply()
 	newSupply, err := math.Sub64(currentSupply, lockReward)
 	if err != nil {
@@ -133,7 +133,7 @@ func (tx *UnsignedRewardLockTx) Execute(
 	switch uLockTx := lockTx.UnsignedTx.(type) {
 	case *UnsignedAddLockTx:
 		// Refund the stake here
-		for i, out := range uLockTx.LockedAmount {
+		for i, out := range uLockTx.LockedOuts {
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        tx.TxID,
@@ -160,7 +160,7 @@ func (tx *UnsignedRewardLockTx) Execute(
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uLockTx.Outs) + len(uLockTx.LockedAmount)),
+					OutputIndex: uint32(len(uLockTx.Outs) + len(uLockTx.LockedOuts)),
 				},
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out:   out,

@@ -101,7 +101,7 @@ func (sb *StandardBlock) Verify() error {
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
-		parentState.CurrentLocksChainState(),
+		parentState.LockChainState(),
 	)
 
 	// clear inputs so that multiple [Verify] calls can be made

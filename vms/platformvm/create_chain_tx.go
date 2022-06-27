@@ -111,7 +111,7 @@ func (tx *UnsignedCreateChainTx) SemanticVerify(vm *VM, parentState MutableState
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
-		parentState.CurrentLocksChainState(),
+		parentState.LockChainState(),
 	)
 	_, err := tx.Execute(vm, vs, stx)
 	return err

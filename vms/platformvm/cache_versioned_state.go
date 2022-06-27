@@ -46,7 +46,7 @@ type UTXOState interface {
 type MutableState interface {
 	UTXOState
 	ValidatorState
-	LocksState
+	LockState
 
 	AddRewardUTXO(txID ids.ID, utxo *avax.UTXO)
 	GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error)
@@ -79,7 +79,7 @@ type versionedStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
-	currentLocksChainState  currentLocksChainState
+	lockChainState          lockChainState
 
 	timestamp time.Time
 
@@ -115,13 +115,13 @@ func newVersionedState(
 	ps MutableState,
 	currentStakerState currentStakerChainState,
 	pendingStakerState pendingStakerChainState,
-	currentLockState currentLocksChainState,
+	lockState lockChainState,
 ) VersionedState {
 	return &versionedStateImpl{
 		parentState:             ps,
 		currentStakerChainState: currentStakerState,
 		pendingStakerChainState: pendingStakerState,
-		currentLocksChainState:  currentLockState,
+		lockChainState:          lockState,
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
 	}
@@ -308,8 +308,8 @@ func (vs *versionedStateImpl) PendingStakerChainState() pendingStakerChainState 
 	return vs.pendingStakerChainState
 }
 
-func (st *versionedStateImpl) CurrentLocksChainState() currentLocksChainState {
-	return st.currentLocksChainState
+func (st *versionedStateImpl) LockChainState() lockChainState {
+	return st.lockChainState
 }
 
 func (vs *versionedStateImpl) SetBase(parentState MutableState) {
@@ -344,5 +344,5 @@ func (vs *versionedStateImpl) Apply(is InternalState) {
 	}
 	vs.currentStakerChainState.Apply(is)
 	vs.pendingStakerChainState.Apply(is)
-	vs.currentLocksChainState.Apply(is)
+	vs.lockChainState.Apply(is)
 }

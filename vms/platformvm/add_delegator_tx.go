@@ -275,9 +275,9 @@ func (tx *UnsignedAddDelegatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	currentLockState := parentState.CurrentLocksChainState()
+	lockState := parentState.LockChainState()
 
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, currentLockState)
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -286,7 +286,7 @@ func (tx *UnsignedAddDelegatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, currentLockState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS

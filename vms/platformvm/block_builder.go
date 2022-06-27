@@ -194,11 +194,9 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 	}
 
 	// Try building a proposal block that rewards a lock owner.
-	lockTxID, shouldReward, err := getLockToReward(preferredState)
-	if err != nil {
+	if lockTxID, shouldReward, err := getLockToReward(preferredState); err != nil {
 		return nil, err
-	}
-	if shouldReward {
+	} else if shouldReward {
 		rewardLockTx, err := m.vm.newRewardLockTx(lockTxID)
 		if err != nil {
 			return nil, err
@@ -277,7 +275,17 @@ func (m *blockBuilder) ResetTimer() {
 		return
 	}
 
-	_, shouldAdvanceTime, err := m.getNextChainTime(preferredState)
+	_, shouldReward, err = getLockToReward(preferredState)
+	if err != nil {
+		m.vm.ctx.Log.Error("failed to fetch next lock to reward with %s", err)
+		return
+	}
+	if shouldReward {
+		m.notifyBlockReady()
+		return
+	}
+
+	nextChainTime, shouldAdvanceTime, err := m.getNextChainTime(preferredState)
 	if err != nil {
 		m.vm.ctx.Log.Error("failed to fetch next chain time with %s", err)
 		return
@@ -293,14 +301,8 @@ func (m *blockBuilder) ResetTimer() {
 		return
 	}
 
-	now := m.vm.clock.Time()
-	nextStakerChangeTime, err := getNextStakerChangeTime(preferredState)
-	if err != nil {
-		m.vm.ctx.Log.Error("couldn't get next staker change time: %s", err)
-		return
-	}
-	waitTime := nextStakerChangeTime.Sub(now)
-	m.vm.ctx.Log.Debug("next scheduled event is at %s (%s in the future)", nextStakerChangeTime, waitTime)
+	waitTime := nextChainTime.Sub(m.vm.clock.Time())
+	m.vm.ctx.Log.Debug("next scheduled event is at %s (%s in the future)", nextChainTime, waitTime)
 
 	// Wake up when it's time to add/remove the next validator
 	m.timer.SetTimeoutIn(waitTime)

@@ -18,21 +18,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/timer/mockable"
 )
 
-type LocksState interface {
-	CurrentLocksChainState() currentLocksChainState
-	// PendingStakerChainState() pendingStakerChainState
+type LockState interface {
+	LockChainState() lockChainState
 }
 
 // getNextLockChangeTime returns the next time that a locked tokens should unlock
-func getNextLockChangeTime(locksState LocksState) (time.Time, error) {
+func getNextLockChangeTime(locksState LockState) (time.Time, error) {
 	earliest := mockable.MaxTime
-	currentLocksState := locksState.CurrentLocksChainState()
-	if currentLocks := currentLocksState.Locks(); len(currentLocks) > 0 {
-		nextLock := currentLocks[0]
+	lockState := locksState.LockChainState()
+	if lock := lockState.Locks(); len(lock) > 0 {
+		nextLock := lock[0]
 		lockTx, ok := nextLock.UnsignedTx.(TimedTx)
 		if !ok {
 			return time.Time{}, errWrongTxType
@@ -48,14 +48,18 @@ func getNextLockChangeTime(locksState LocksState) (time.Time, error) {
 // getLockToReward return the staker txID to remove from the primary network
 // staking set, if one exists.
 func getLockToReward(preferredState MutableState) (ids.ID, bool, error) {
+	println("getLockToReward")
 	currentChainTimestamp := preferredState.GetTimestamp()
 	if !currentChainTimestamp.Before(mockable.MaxTime) {
 		return ids.Empty, false, errEndOfTime
 	}
 
-	currentLocksState := preferredState.CurrentLocksChainState()
-	tx, _, err := currentLocksState.GetNextLock()
-	if err != nil {
+	lockState := preferredState.LockChainState()
+	tx, _, err := lockState.GetNextLock()
+	switch {
+	case err == database.ErrNotFound: // *@evlekht not sure about this place
+		return ids.Empty, false, nil
+	case err != nil:
 		return ids.Empty, false, err
 	}
 
