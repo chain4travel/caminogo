@@ -38,13 +38,6 @@ type lockChainState interface {
 	// using a RewardLockTx.
 	GetNextLock() (addLockTx *Tx, potentialReward uint64, err error)
 
-	// UpdateStakers(
-	// 	addValidators []*validatorReward,
-	// 	addDelegators []*validatorReward,
-	// 	addSubnetValidators []*Tx,
-	// 	numTxsToRemove int,
-	// ) (currentStakerChainState, error)
-
 	// DeleteNextLock returns lockChainState after moving AddLockTx from locks to deletedLocks.
 	DeleteNextLock() (lockChainState, error)
 
@@ -71,38 +64,34 @@ type lockChainStateImpl struct {
 	deletedLocks []*Tx
 }
 
-func (cs *lockChainStateImpl) AddLock(addLockTx *Tx) lockChainState {
+func (cs *lockChainStateImpl) AddLock(tx *Tx) lockChainState {
 	newCS := &lockChainStateImpl{
 		lockRewardsByTxID: make(map[ids.ID]*validatorReward, len(cs.lockRewardsByTxID)+1),
 		locks:             make([]*Tx, len(cs.locks)+1),
-		addedLocks:        []*validatorReward{{addLockTx, 0}}, // TODO@evlekht all lock rewards in other files too
+		addedLocks:        []*validatorReward{{tx, 0}},
 	}
 	copy(newCS.locks, cs.locks)
-	newCS.locks[len(cs.locks)] = addLockTx
+	newCS.locks[len(cs.locks)] = tx
 	sortLocksByRemoval(newCS.locks)
 
-	switch addLockTx.UnsignedTx.(type) {
+	switch tx.UnsignedTx.(type) {
 	case *UnsignedAddLockTx:
+		newCS.addedLocks[0].potentialReward = 100
 	default:
-		panic(fmt.Errorf("expected lock tx type but got %T", addLockTx.UnsignedTx))
+		panic(fmt.Errorf("expected lock tx type but got %T", tx.UnsignedTx))
 	}
 
 	for txID, lockReward := range cs.lockRewardsByTxID {
 		newCS.lockRewardsByTxID[txID] = lockReward
 	}
-	newCS.lockRewardsByTxID[addLockTx.ID()] = newCS.addedLocks[0]
+	newCS.lockRewardsByTxID[tx.ID()] = newCS.addedLocks[0]
 
 	newCS.setNextLock()
 
 	return newCS
 }
 
-// type validatorReward struct {
-// 	addStakerTx     *Tx
-// 	potentialReward uint64
-// }
-
-func (cs *lockChainStateImpl) GetNextLock() (addLockTx *Tx, potentialReward uint64, err error) {
+func (cs *lockChainStateImpl) GetNextLock() (tx *Tx, potentialReward uint64, err error) {
 	if cs.nextLockReward == nil {
 		return nil, 0, database.ErrNotFound
 	}

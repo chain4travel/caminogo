@@ -169,7 +169,7 @@ type InternalState interface {
  * '-. lock
  *   '-. lock
  *     '-. list
- *       '-- txID -> nil
+ *       '-- txID -> potential reward
  */
 type internalStateImpl struct {
 	vm *VM
@@ -1313,7 +1313,13 @@ func (st *internalStateImpl) writeSingletons() error {
 func (st *internalStateImpl) writeLocks() error {
 	for _, tx := range st.addedLocks {
 		txID := tx.addStakerTx.ID()
-		if err := st.lockList.Put(txID[:], nil); err != nil {
+
+		rewardBytes, err := GenesisCodec.Marshal(CodecVersion, tx.potentialReward)
+		if err != nil {
+			return err
+		}
+
+		if err := st.lockList.Put(txID[:], rewardBytes); err != nil {
 			return err
 		}
 	}
@@ -1608,6 +1614,48 @@ func (st *internalStateImpl) loadPendingValidators() error {
 	return nil
 }
 
+func (st *internalStateImpl) loadLocks() error {
+	newLockChainState := &lockChainStateImpl{
+		lockRewardsByTxID: make(map[ids.ID]*validatorReward),
+	}
+
+	locksIterator := st.lockList.NewIterator()
+	defer locksIterator.Release()
+	for locksIterator.Next() {
+		txIDBytes := locksIterator.Key()
+		txID, err := ids.ToID(txIDBytes)
+		if err != nil {
+			return err
+		}
+		tx, _, err := st.GetTx(txID)
+		if err != nil {
+			return err
+		}
+		addLockTx, ok := tx.UnsignedTx.(*UnsignedAddLockTx)
+		if !ok {
+			return errWrongTxType
+		}
+
+		rewardBytes := locksIterator.Value()
+		var potentialReward uint64
+		if _, err := GenesisCodec.Unmarshal(rewardBytes, &potentialReward); err != nil {
+			return err
+		}
+
+		newLockChainState.locks = append(newLockChainState.locks, tx)
+		newLockChainState.lockRewardsByTxID[addLockTx.ID()] = &validatorReward{
+			addStakerTx:     tx,
+			potentialReward: potentialReward,
+		}
+	}
+
+	sortLocksByRemoval(newLockChainState.locks)
+	newLockChainState.setNextLock()
+
+	st.lockChainState = newLockChainState
+	return nil
+}
+
 func (st *internalStateImpl) shouldInit() (bool, error) {
 	has, err := st.singletonDB.Has(initializedKey)
 	return !has, err
@@ -1691,40 +1739,4 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 	}
 
 	return st.Commit()
-}
-
-func (st *internalStateImpl) loadLocks() error {
-	newLockChainState := &lockChainStateImpl{
-		lockRewardsByTxID: make(map[ids.ID]*validatorReward),
-	}
-
-	locksIterator := st.lockList.NewIterator()
-	defer locksIterator.Release()
-	for locksIterator.Next() {
-		txIDBytes := locksIterator.Key()
-		txID, err := ids.ToID(txIDBytes)
-		if err != nil {
-			return err
-		}
-		tx, _, err := st.GetTx(txID)
-		if err != nil {
-			return err
-		}
-		addLockTx, ok := tx.UnsignedTx.(*UnsignedAddLockTx)
-		if !ok {
-			return errWrongTxType
-		}
-
-		newLockChainState.locks = append(newLockChainState.locks, tx)
-		newLockChainState.lockRewardsByTxID[addLockTx.ID()] = &validatorReward{
-			addStakerTx: tx,
-			// potentialReward: , // TODO@evlekht
-		}
-	}
-
-	sortLocksByRemoval(newLockChainState.locks)
-	newLockChainState.setNextLock()
-
-	st.lockChainState = newLockChainState
-	return nil
 }

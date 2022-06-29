@@ -77,6 +77,7 @@ func init() {
 			c.RegisterType(&StakeableLockOut{}),
 
 			c.RegisterType(&UnsignedAddLockTx{}),
+			c.RegisterType(&UnsignedRewardLockTx{}),
 		)
 	}
 	errs.Add(

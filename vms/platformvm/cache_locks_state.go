@@ -48,13 +48,13 @@ func getNextLockChangeTime(locksState LockState) (time.Time, error) {
 // getLockToReward return the staker txID to remove from the primary network
 // staking set, if one exists.
 func getLockToReward(preferredState MutableState) (ids.ID, bool, error) {
-	println("getLockToReward")
 	currentChainTimestamp := preferredState.GetTimestamp()
 	if !currentChainTimestamp.Before(mockable.MaxTime) {
 		return ids.Empty, false, errEndOfTime
 	}
 
 	lockState := preferredState.LockChainState()
+
 	tx, _, err := lockState.GetNextLock()
 	switch {
 	case err == database.ErrNotFound: // *@evlekht not sure about this place

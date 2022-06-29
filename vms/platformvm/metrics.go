@@ -51,7 +51,8 @@ type metrics struct {
 	numExportTxs,
 	numImportTxs,
 	numRewardValidatorTxs,
-	numAddLockTxs prometheus.Counter
+	numAddLockTxs,
+	numRewardLockTx prometheus.Counter
 
 	validatorSetsCached     prometheus.Counter
 	validatorSetsCreated    prometheus.Counter
@@ -134,6 +135,7 @@ func (m *metrics) Initialize(
 	m.numImportTxs = newTxMetrics(namespace, "import")
 	m.numRewardValidatorTxs = newTxMetrics(namespace, "reward_validator")
 	m.numAddLockTxs = newTxMetrics(namespace, "add_lock")
+	m.numRewardLockTx = newTxMetrics(namespace, "reward_lock")
 
 	m.validatorSetsCached = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -186,6 +188,7 @@ func (m *metrics) Initialize(
 		registerer.Register(m.numImportTxs),
 		registerer.Register(m.numRewardValidatorTxs),
 		registerer.Register(m.numAddLockTxs),
+		registerer.Register(m.numRewardLockTx),
 
 		registerer.Register(m.validatorSetsCreated),
 		registerer.Register(m.validatorSetsCached),
@@ -248,6 +251,8 @@ func (m *metrics) AcceptTx(tx *Tx) error {
 		m.numRewardValidatorTxs.Inc()
 	case *UnsignedAddLockTx:
 		m.numAddLockTxs.Inc()
+	case *UnsignedRewardLockTx:
+		m.numRewardLockTx.Inc()
 	default:
 		return fmt.Errorf("%w: %T", errUnknownTxType, tx.UnsignedTx)
 	}
