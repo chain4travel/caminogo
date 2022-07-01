@@ -131,7 +131,7 @@ pendingStakerLoop:
 				break pendingStakerLoop
 			}
 
-			r := vm.rewards.Calculate(
+			r := vm.stackingRewardCalculator.Calculate(
 				staker.Validator.Duration(),
 				staker.Validator.Wght,
 				currentSupply,
@@ -151,7 +151,7 @@ pendingStakerLoop:
 				break pendingStakerLoop
 			}
 
-			r := vm.rewards.Calculate(
+			r := vm.stackingRewardCalculator.Calculate(
 				staker.Validator.Duration(),
 				staker.Validator.Wght,
 				currentSupply,

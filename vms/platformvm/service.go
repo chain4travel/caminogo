@@ -1221,7 +1221,7 @@ func (service *Service) AddLock(_ *http.Request, args *AddLockArgs, reply *api.J
 	if args.StartTime == 0 {
 		args.StartTime = minAddLockUnix
 		// If StartTime is not set, we allow passing relative duration
-		if args.EndTime <= json.Uint64(service.vm.MaxLockDuration) {
+		if args.EndTime <= json.Uint64(service.vm.LockConfig.MaxLockDuration) {
 			args.EndTime = args.StartTime + args.EndTime
 		}
 	}

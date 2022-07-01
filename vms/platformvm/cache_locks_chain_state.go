@@ -32,7 +32,7 @@ const strInvalidType = "expected add lock tx type but got %T"
 
 type lockChainState interface {
 	// AddLock returns lockChainState after moving AddLockTx from locks to deletedLocks.
-	AddLock(addLockTx *Tx) lockChainState
+	AddLock(addLockTx *Tx, potentialReward uint64) lockChainState
 
 	// GetNextLock returns the next AddLockTx that is going to be removed
 	// using a RewardLockTx.
@@ -64,7 +64,7 @@ type lockChainStateImpl struct {
 	deletedLocks []*Tx
 }
 
-func (cs *lockChainStateImpl) AddLock(tx *Tx) lockChainState {
+func (cs *lockChainStateImpl) AddLock(tx *Tx, potentialReward uint64) lockChainState {
 	newCS := &lockChainStateImpl{
 		lockRewardsByTxID: make(map[ids.ID]*validatorReward, len(cs.lockRewardsByTxID)+1),
 		locks:             make([]*Tx, len(cs.locks)+1),
@@ -76,7 +76,7 @@ func (cs *lockChainStateImpl) AddLock(tx *Tx) lockChainState {
 
 	switch tx.UnsignedTx.(type) {
 	case *UnsignedAddLockTx:
-		newCS.addedLocks[0].potentialReward = 100
+		newCS.addedLocks[0].potentialReward = potentialReward
 	default:
 		panic(fmt.Errorf("expected lock tx type but got %T", tx.UnsignedTx))
 	}

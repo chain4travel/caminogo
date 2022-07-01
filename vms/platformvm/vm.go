@@ -47,6 +47,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/wrappers"
 	"github.com/chain4travel/caminogo/version"
 	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
@@ -100,7 +101,8 @@ type VM struct {
 
 	uptimeManager uptime.Manager
 
-	rewards reward.Calculator
+	stackingRewardCalculator reward.Calculator
+	lockRewardCalculator     lock.Calculator
 
 	// The context of this vm
 	ctx       *snow.Context
@@ -192,7 +194,8 @@ func (vm *VM) Initialize(
 		)
 	}
 	vm.network = newNetwork(vm.ApricotPhase4Time, appSender, vm)
-	vm.rewards = reward.NewCalculator(vm.RewardConfig)
+	vm.stackingRewardCalculator = reward.NewCalculator(vm.RewardConfig)
+	vm.lockRewardCalculator = lock.NewCalculator(vm.LockConfig)
 
 	is, err := NewMeteredInternalState(vm, vm.dbManager.Current().Database, genesisBytes, registerer)
 	if err != nil {

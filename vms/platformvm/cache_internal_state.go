@@ -1691,7 +1691,7 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 		stakeDuration := tx.Validator.Duration()
 		currentSupply := st.GetCurrentSupply()
 
-		r := st.vm.rewards.Calculate(
+		r := st.vm.stackingRewardCalculator.Calculate(
 			stakeDuration,
 			stakeAmount,
 			currentSupply,

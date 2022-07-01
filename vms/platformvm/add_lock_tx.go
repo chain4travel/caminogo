@@ -153,11 +153,11 @@ func (tx *UnsignedAddLockTx) Execute(
 
 	duration := tx.Duration()
 	switch {
-	case duration < vm.MinLockDuration: // Ensure locking length is not too short
+	case duration < vm.LockConfig.MinLockDuration: // Ensure locking length is not too short
 		return nil, nil, errStakeTooShort // TODO@evlekht change err
-	case duration > vm.MaxLockDuration: // Ensure locking length is not too long
+	case duration > vm.LockConfig.MaxLockDuration: // Ensure locking length is not too long
 		return nil, nil, errStakeTooLong // TODO@evlekht change err
-	case tx.Weight() < vm.MinLockAmount: // Ensure user is locking at least the minimum amount
+	case tx.Amount < vm.LockConfig.MinLockAmount: // Ensure user is locking at least the minimum amount
 		return nil, nil, errWeightTooSmall // TODO@evlekht change err
 	}
 
@@ -194,7 +194,7 @@ func (tx *UnsignedAddLockTx) Execute(
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 	lockState := parentState.LockChainState()
-	newlyLockState := lockState.AddLock(stx)
+	newlyLockState := lockState.AddLock(stx, vm.lockRewardCalculator.CalculateReward(tx.Duration(), tx.Amount))
 
 	// Set up the state if this tx is committed
 	onCommitState := newVersionedState(parentState, currentStakers, pendingStakers, newlyLockState)

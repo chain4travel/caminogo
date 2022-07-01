@@ -147,6 +147,7 @@ var (
 				MinLockDuration: time.Second * 10,
 				MaxLockDuration: 365 * 24 * time.Hour,
 				MinLockAmount:   1 * units.Avax,
+				RewardRate:      0.2 * lock.PercentDenominator,
 			},
 		},
 	}
