@@ -22,7 +22,7 @@ linters:
     - goconst
     - gocritic
     - gofmt
-    - gofumpt
+    # - gofumpt
     - goimports
     - revive
     - gosec
