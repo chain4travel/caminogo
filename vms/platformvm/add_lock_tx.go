@@ -33,8 +33,8 @@ var (
 	errLockTooLong        = errors.New("locking period is too long")
 	errLockAmountTooSmall = errors.New("amount of this lock is too low")
 
-	_ UnsignedProposalTx = &UnsignedAddDelegatorTx{}
-	_ TimedTx            = &UnsignedAddDelegatorTx{}
+	_ UnsignedProposalTx = &UnsignedAddLockTx{}
+	_ TimedTx            = &UnsignedAddLockTx{}
 )
 
 // UnsignedAddLockTx is an unsigned addLockTx
