@@ -22,7 +22,6 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/uptime"
 	"github.com/chain4travel/caminogo/snow/validators"
-	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -45,6 +44,9 @@ type Factory struct {
 
 	// Fee that must be burned by every create staker transaction
 	AddStakerTxFee uint64
+
+	// Fee that must be burned by every create staker transaction
+	AddLockTxFee uint64
 
 	// Fee that is burned by every non-state creating transaction
 	TxFee uint64
@@ -80,7 +82,7 @@ type Factory struct {
 	MaxStakeDuration time.Duration
 
 	// Config for the minting function
-	RewardConfig reward.Config
+	StakingRewardConfig reward.StakingRewardConfig
 
 	// Time of the AP3 network upgrade
 	ApricotPhase3Time time.Time
@@ -92,7 +94,10 @@ type Factory struct {
 	ApricotPhase5Time time.Time
 
 	// Config for the token lock and reward
-	LockConfig lock.Config
+	LockRewardConfig reward.LockRewardConfig
+
+	// MinLockAmount, in nAVAX, is the minimum amount of tokens that can be locked
+	MinLockAmount uint64
 }
 
 // New returns a new instance of the Platform Chain

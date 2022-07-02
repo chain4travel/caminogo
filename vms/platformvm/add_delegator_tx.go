@@ -36,7 +36,7 @@ var (
 	errInvalidState    = errors.New("generated output isn't valid state")
 	errOverDelegated   = errors.New("validator would be over delegated")
 	// ?@evlekht * I'd suggest to move all err vars to dedicated .go file,
-	// ?@evlekht * cause sometimes they defined in one file, but used in many - will be easier to navigate
+	// ?@evlekht * cause sometimes they defined in one file (specific tx for example), but used in many - will be easier to navigate
 
 	_ UnsignedProposalTx = &UnsignedAddDelegatorTx{}
 	_ TimedTx            = &UnsignedAddDelegatorTx{}

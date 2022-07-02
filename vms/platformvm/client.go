@@ -215,6 +215,18 @@ type Client interface {
 	GetBlock(ctx context.Context, blockID ids.ID, options ...rpc.Option) ([]byte, error)
 	// GetConfiguration returns genesis information of the primary network
 	GetConfiguration(ctx context.Context) (*GetConfigurationReply, error)
+	// AddLock issues a transaction to lock tokens and returns the txID
+	AddLock(
+		ctx context.Context,
+		user api.UserPass,
+		from []string,
+		changeAddr,
+		rewardAddress string,
+		lockAmount,
+		startTime,
+		endTime uint64,
+		options ...rpc.Option,
+	) (ids.ID, error)
 }
 
 // Client implementation for interacting with the P Chain endpoint
@@ -746,4 +758,32 @@ func (c *client) GetConfiguration(ctx context.Context) (*GetConfigurationReply, 
 	res := &GetConfigurationReply{}
 	err := c.requester.SendRequest(ctx, "getConfiguration", struct{}{}, res)
 	return res, err
+}
+
+func (c *client) AddLock(
+	ctx context.Context,
+	user api.UserPass,
+	from []string,
+	changeAddr,
+	rewardAddress string,
+	lockAmount,
+	startTime,
+	endTime uint64,
+	options ...rpc.Option,
+) (ids.ID, error) {
+	res := &api.JSONTxID{}
+	jsonStakeAmount := json.Uint64(lockAmount)
+	err := c.requester.SendRequest(ctx, "addLock", &AddLockArgs{
+		JSONSpendHeader: api.JSONSpendHeader{
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
+		},
+		APIStaker: APIStaker{
+			StakeAmount: &jsonStakeAmount,
+			StartTime:   json.Uint64(startTime),
+			EndTime:     json.Uint64(endTime),
+		},
+		RewardAddress: rewardAddress,
+	}, res, options...)
+	return res.TxID, err
 }

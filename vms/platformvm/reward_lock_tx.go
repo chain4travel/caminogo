@@ -36,7 +36,7 @@ var (
 // block, the reward out will be created owned by with locked tokens owner
 // and tokens will unlock.
 //
-// If this transaction is accepted and the next block accepted is an Abort // ?@evlekht confirm with team
+// If this transaction is accepted and the next block accepted is an Abort
 // block, the locked tokens will unlock, but no reward out will be created
 type UnsignedRewardLockTx struct {
 	avax.Metadata
@@ -111,32 +111,6 @@ func (tx *UnsignedRewardLockTx) Execute(
 		)
 	}
 
-	// if vm.bootstrapped.GetValue() {
-	// 	currentTimestamp := parentState.GetTimestamp()
-	// 	// Ensure the lock starts after the current timestamp
-	// 	lockStartTime := tx.StartTime()
-	// 	if !currentTimestamp.Before(lockStartTime) {
-	// 		return nil, nil, fmt.Errorf(
-	// 			"chain timestamp (%s) not before lock's start time (%s)",
-	// 			currentTimestamp,
-	// 			lockStartTime,
-	// 		)
-	// 	}
-
-	// 	// Verify the flowcheck
-	// 	if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil { // TODO@evlekht fee
-	// 		return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
-	// 	}
-
-	// 	// Make sure the tx doesn't start too far in the future. This is done
-	// 	// last to allow SemanticVerification to explicitly check for this
-	// 	// error.
-	// 	maxStartTime := vm.clock.Time().Add(maxFutureStartTime)
-	// 	if lockStartTime.After(maxStartTime) {
-	// 		return nil, nil, errFutureStartTime
-	// 	}
-	// }
-
 	newlyLockState, err := lockState.DeleteNextLock()
 	if err != nil {
 		return nil, nil, err
@@ -148,7 +122,7 @@ func (tx *UnsignedRewardLockTx) Execute(
 	onCommitState := newVersionedState(parentState, currentStakerState, pendingStakerState, newlyLockState)
 	onAbortState := newVersionedState(parentState, currentStakerState, pendingStakerState, newlyLockState)
 
-	// If the reward is aborted, then the current supply should be decreased. // ?@evlekht
+	// If the reward is aborted, then the current supply should be decreased.
 	currentSupply := onAbortState.GetCurrentSupply()
 	newSupply, err := math.Sub64(currentSupply, lockReward)
 	if err != nil {
@@ -196,7 +170,7 @@ func (tx *UnsignedRewardLockTx) Execute(
 			onCommitState.AddRewardUTXO(tx.TxID, utxo)
 		}
 	default:
-		return nil, nil, errShouldBeDSValidator // TODO@evlekht change err ?
+		return nil, nil, errWrongTxType
 	}
 
 	return onCommitState, onAbortState, nil

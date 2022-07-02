@@ -29,7 +29,7 @@ const (
 	defaultMinValidatorStake = 5 * units.MilliAvax
 )
 
-var defaultConfig = Config{
+var defaultConfig = StakingRewardConfig{
 	MaxConsumptionRate: .12 * PercentDenominator,
 	MinConsumptionRate: .10 * PercentDenominator,
 	MintingPeriod:      365 * 24 * time.Hour,
@@ -37,7 +37,7 @@ var defaultConfig = Config{
 }
 
 func TestLongerDurationBonus(t *testing.T) {
-	c := NewCalculator(defaultConfig)
+	c := NewCalculatorForStakeReward(defaultConfig)
 	shortDuration := 24 * time.Hour
 	totalDuration := 365 * 24 * time.Hour
 	shortBalance := units.KiloAvax
@@ -57,7 +57,7 @@ func TestLongerDurationBonus(t *testing.T) {
 }
 
 func TestRewards(t *testing.T) {
-	c := NewCalculator(defaultConfig)
+	c := NewCalculatorForStakeReward(defaultConfig)
 	tests := []struct {
 		duration       time.Duration
 		stakeAmount    uint64

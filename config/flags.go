@@ -261,12 +261,14 @@ func addNodeFlags(fs *flag.FlagSet) {
 	// Maximum Stake Duration
 	fs.Duration(MaxStakeDurationKey, genesis.LocalParams.MaxStakeDuration, "Maximum staking duration")
 	// Stake Reward Configs
-	fs.Uint64(StakeMaxConsumptionRateKey, genesis.LocalParams.RewardConfig.MaxConsumptionRate, "Maximum consumption rate of the remaining tokens to mint in the staking function")
-	fs.Uint64(StakeMinConsumptionRateKey, genesis.LocalParams.RewardConfig.MinConsumptionRate, "Minimum consumption rate of the remaining tokens to mint in the staking function")
-	fs.Duration(StakeMintingPeriodKey, genesis.LocalParams.RewardConfig.MintingPeriod, "Consumption period of the staking function")
-	fs.Uint64(StakeSupplyCapKey, genesis.LocalParams.RewardConfig.SupplyCap, "Supply cap of the staking function")
+	fs.Uint64(StakeMaxConsumptionRateKey, genesis.LocalParams.StakingRewardConfig.MaxConsumptionRate, "Maximum consumption rate of the remaining tokens to mint in the staking function")
+	fs.Uint64(StakeMinConsumptionRateKey, genesis.LocalParams.StakingRewardConfig.MinConsumptionRate, "Minimum consumption rate of the remaining tokens to mint in the staking function")
+	fs.Duration(StakeMintingPeriodKey, genesis.LocalParams.StakingRewardConfig.MintingPeriod, "Consumption period of the staking function")
+	fs.Uint64(StakeSupplyCapKey, genesis.LocalParams.StakingRewardConfig.SupplyCap, "Supply cap of the staking function")
 	// Subnets
 	fs.String(WhitelistedSubnetsKey, "", "Whitelist of subnets to validate")
+
+	// ?@evlekht add flags for lock config ?
 
 	// Bootstrapping
 	fs.String(BootstrapIPsKey, "", "Comma separated list of bootstrap peer ips to connect to. Example: 127.0.0.1:9630,127.0.0.1:9631")

@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	encodingJson "encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -466,13 +467,22 @@ func (service *Service) GetUTXOs(_ *http.Request, args *GetUTXOsArgs, response *
 
 	response.UTXOs = make([]string, len(utxos))
 	for i, utxo := range utxos {
-		bytes, err := Codec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
-		}
-		response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+		if args.Encoding == formatting.JSON {
+			utxo.Out.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize utxo: %w", err)
+			}
+			response.UTXOs[i] = string(bytes)
+		} else {
+			bytes, err := Codec.Marshal(CodecVersion, utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+			}
 		}
 	}
 
@@ -984,7 +994,7 @@ func (service *Service) SampleValidators(_ *http.Request, args *SampleValidators
  */
 
 // AddValidatorArgs are the arguments to AddValidator
-type AddValidatorArgs struct {
+type AddValidatorArgs struct { // ?@evlekht clean up args ?
 	// User, password, from addrs, change addr
 	api.JSONSpendHeader
 	APIStaker
@@ -1221,7 +1231,7 @@ func (service *Service) AddLock(_ *http.Request, args *AddLockArgs, reply *api.J
 	if args.StartTime == 0 {
 		args.StartTime = minAddLockUnix
 		// If StartTime is not set, we allow passing relative duration
-		if args.EndTime <= json.Uint64(service.vm.LockConfig.MaxLockDuration) {
+		if args.EndTime <= json.Uint64(service.vm.LockRewardConfig.MaxLockDuration) {
 			args.EndTime = args.StartTime + args.EndTime
 		}
 	}
@@ -2517,10 +2527,10 @@ func (service *Service) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	reply.MinDelegationFee = json.Uint32(service.vm.MinDelegationFee)
 	reply.MinDelegatorStake = json.Uint64(service.vm.MinDelegatorStake)
 
-	reply.MinConsumptionRate = json.Uint64(service.vm.RewardConfig.MinConsumptionRate)
-	reply.MaxConsumptionRate = json.Uint64(service.vm.RewardConfig.MaxConsumptionRate)
+	reply.MinConsumptionRate = json.Uint64(service.vm.StakingRewardConfig.MinConsumptionRate)
+	reply.MaxConsumptionRate = json.Uint64(service.vm.StakingRewardConfig.MaxConsumptionRate)
 
-	reply.SupplyCap = json.Uint64(service.vm.RewardConfig.SupplyCap)
+	reply.SupplyCap = json.Uint64(service.vm.StakingRewardConfig.SupplyCap)
 
 	return nil
 }

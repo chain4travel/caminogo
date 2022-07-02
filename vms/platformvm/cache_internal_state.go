@@ -240,7 +240,7 @@ type internalStateImpl struct {
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
 
-	lockDB     database.Database // TODO@evkekht is everything nescessary ?
+	lockDB     database.Database // ?@evkekht is everything nescessary ? will wait till claimRewardTx is implemented
 	lockBaseDB database.Database
 	lockList   linkeddb.LinkedDB
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/units"
-	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -61,6 +60,8 @@ var (
 			CreateAssetTxFee:      units.MilliAvax,
 			CreateSubnetTxFee:     100 * units.MilliAvax,
 			CreateBlockchainTxFee: 100 * units.MilliAvax,
+			AddStakerTxFee:        0,
+			AddLockTxFee:          0,
 		},
 		StakingConfig: StakingConfig{
 			UptimeRequirement: .8, // 80%
@@ -70,7 +71,7 @@ var (
 			MinDelegationFee:  20000, // 2%
 			MinStakeDuration:  24 * time.Hour,
 			MaxStakeDuration:  365 * 24 * time.Hour,
-			RewardConfig: reward.Config{
+			StakingRewardConfig: reward.StakingRewardConfig{
 				MaxConsumptionRate: .12 * reward.PercentDenominator,
 				MinConsumptionRate: .10 * reward.PercentDenominator,
 				MintingPeriod:      365 * 24 * time.Hour,
@@ -78,12 +79,12 @@ var (
 			},
 		},
 		LockConfig: LockConfig{
-			lock.Config{
+			LockRewardConfig: reward.LockRewardConfig{
 				MinLockDuration: time.Second * 10,
 				MaxLockDuration: 365 * 24 * time.Hour,
-				MinLockAmount:   1 * units.Avax,
-				RewardRate:      0.2 * lock.PercentDenominator,
+				RewardRate:      0.2 * reward.PercentDenominator,
 			},
+			MinLockAmount: 1 * units.Avax,
 		},
 	}
 )

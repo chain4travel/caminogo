@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/constants"
-	"github.com/chain4travel/caminogo/vms/platformvm/lock"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
@@ -41,12 +40,16 @@ type StakingConfig struct {
 	// MaxStakeDuration is the maximum amount of time a validator can validate
 	// for in a single period.
 	MaxStakeDuration time.Duration `json:"maxStakeDuration"`
-	// RewardConfig is the config for the reward function.
-	RewardConfig reward.Config `json:"rewardConfig"`
+	// StakingRewardConfig is the config for the reward function.
+	StakingRewardConfig reward.StakingRewardConfig `json:"stakingRewardConfig"`
 }
 
 type LockConfig struct {
-	lock.Config
+	// LockRewardConfig is the config for the reward function.
+	LockRewardConfig reward.LockRewardConfig `json:"lockRewardConfig"`
+
+	// MinLockAmount, in nAVAX, is the minimum amount of tokens that can be locked
+	MinLockAmount uint64 `json:"minLockAmount"`
 }
 
 type TxFeeConfig struct {
@@ -58,6 +61,10 @@ type TxFeeConfig struct {
 	CreateSubnetTxFee uint64 `json:"createSubnetTxFee"`
 	// Transaction fee for create blockchain transactions
 	CreateBlockchainTxFee uint64 `json:"createBlockchainTxFee"`
+	// Fee that must be burned by every create staker transaction
+	AddStakerTxFee uint64 `json:"addStakerTxFee"`
+	// Fee that must be burned by every create lock transaction
+	AddLockTxFee uint64 `json:"addLockTxFee"`
 }
 
 type Params struct {

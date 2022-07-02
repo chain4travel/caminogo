@@ -29,7 +29,9 @@ import (
 )
 
 var (
-	// errInvalidState = errors.New("generated output isn't valid state")
+	errLockTooShort       = errors.New("locking period is too short")
+	errLockTooLong        = errors.New("locking period is too long")
+	errLockAmountTooSmall = errors.New("amount of this lock is too low")
 
 	_ UnsignedProposalTx = &UnsignedAddDelegatorTx{}
 	_ TimedTx            = &UnsignedAddDelegatorTx{}
@@ -153,12 +155,12 @@ func (tx *UnsignedAddLockTx) Execute(
 
 	duration := tx.Duration()
 	switch {
-	case duration < vm.LockConfig.MinLockDuration: // Ensure locking length is not too short
-		return nil, nil, errStakeTooShort // TODO@evlekht change err
-	case duration > vm.LockConfig.MaxLockDuration: // Ensure locking length is not too long
-		return nil, nil, errStakeTooLong // TODO@evlekht change err
-	case tx.Amount < vm.LockConfig.MinLockAmount: // Ensure user is locking at least the minimum amount
-		return nil, nil, errWeightTooSmall // TODO@evlekht change err
+	case duration < vm.LockRewardConfig.MinLockDuration: // Ensure locking length is not too short
+		return nil, nil, errLockTooShort
+	case duration > vm.LockRewardConfig.MaxLockDuration: // Ensure locking length is not too long
+		return nil, nil, errLockTooLong
+	case tx.Amount < vm.MinLockAmount: // Ensure user is locking at least the minimum amount
+		return nil, nil, errLockAmountTooSmall
 	}
 
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.LockedOuts))
@@ -178,7 +180,7 @@ func (tx *UnsignedAddLockTx) Execute(
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil { // TODO@evlekht fee
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddLockTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
 
@@ -230,7 +232,7 @@ func (vm *VM) newAddLockTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the locked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, lockAmount, vm.AddStakerTxFee, changeAddr)
+	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, lockAmount, vm.AddLockTxFee, changeAddr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

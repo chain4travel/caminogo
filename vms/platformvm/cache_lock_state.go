@@ -57,7 +57,7 @@ func getLockToReward(preferredState MutableState) (ids.ID, bool, error) {
 
 	tx, _, err := lockState.GetNextLock()
 	switch {
-	case err == database.ErrNotFound: // *@evlekht not sure about this place
+	case err == database.ErrNotFound:
 		return ids.Empty, false, nil
 	case err != nil:
 		return ids.Empty, false, err

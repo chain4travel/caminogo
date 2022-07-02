@@ -1,16 +1,16 @@
 // Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package lock
+package reward
 
 import (
 	"math/big"
 	"time"
 )
 
-var _ Calculator = &calculator{}
+var _ CalculatorSimple = &calculator{}
 
-type Calculator interface {
+type CalculatorSimple interface {
 	CalculateReward(lockedDuration time.Duration, lockedAmount uint64) uint64
 }
 
@@ -19,7 +19,7 @@ type calculator struct {
 	mintingPeriodDenominator *big.Int
 }
 
-func NewCalculator(c Config) Calculator {
+func NewCalculatorForLockReward(c LockRewardConfig) CalculatorSimple {
 	return &calculator{
 		// c.MaxLockDuration * percentDenominator
 		mintingPeriodDenominator: new(big.Int).Mul(new(big.Int).SetUint64(uint64(c.MaxLockDuration)), bigPercentDenominator),

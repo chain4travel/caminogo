@@ -8,21 +8,21 @@ import (
 	"time"
 )
 
-var _ Calculator = &calculator{}
+var _ CalculatorWithSupply = &calculatorForStaking{}
 
-type Calculator interface {
+type CalculatorWithSupply interface {
 	Calculate(stakedDuration time.Duration, stakedAmount, currentSupply uint64) uint64
 }
 
-type calculator struct {
+type calculatorForStaking struct {
 	maxSubMinConsumptionRate *big.Int
 	minConsumptionRate       *big.Int
 	mintingPeriod            *big.Int
 	supplyCap                uint64
 }
 
-func NewCalculator(c Config) Calculator {
-	return &calculator{
+func NewCalculatorForStakeReward(c StakingRewardConfig) CalculatorWithSupply {
+	return &calculatorForStaking{
 		maxSubMinConsumptionRate: new(big.Int).SetUint64(c.MaxConsumptionRate - c.MinConsumptionRate),
 		minConsumptionRate:       new(big.Int).SetUint64(c.MinConsumptionRate),
 		mintingPeriod:            new(big.Int).SetUint64(uint64(c.MintingPeriod)),
@@ -37,7 +37,7 @@ func NewCalculator(c Config) Calculator {
 // PortionOfStakingDuration = StakingDuration / MaximumStakingDuration
 // MintingRate = MinMintingRate + MaxSubMinMintingRate * PortionOfStakingDuration
 // Reward = RemainingSupply * PortionOfExistingSupply * MintingRate * PortionOfStakingDuration
-func (c *calculator) Calculate(stakedDuration time.Duration, stakedAmount, currentSupply uint64) uint64 {
+func (c *calculatorForStaking) Calculate(stakedDuration time.Duration, stakedAmount, currentSupply uint64) uint64 {
 	bigStakedDuration := new(big.Int).SetUint64(uint64(stakedDuration))
 	bigStakedAmount := new(big.Int).SetUint64(stakedAmount)
 	bigCurrentSupply := new(big.Int).SetUint64(currentSupply)
@@ -45,7 +45,7 @@ func (c *calculator) Calculate(stakedDuration time.Duration, stakedAmount, curre
 	adjustedConsumptionRateNumerator := new(big.Int).Mul(c.maxSubMinConsumptionRate, bigStakedDuration)
 	adjustedMinConsumptionRateNumerator := new(big.Int).Mul(c.minConsumptionRate, c.mintingPeriod)
 	adjustedConsumptionRateNumerator.Add(adjustedConsumptionRateNumerator, adjustedMinConsumptionRateNumerator)
-	adjustedConsumptionRateDenominator := new(big.Int).Mul(c.mintingPeriod, consumptionRateDenominator)
+	adjustedConsumptionRateDenominator := new(big.Int).Mul(c.mintingPeriod, bigPercentDenominator)
 
 	reward := new(big.Int).SetUint64(c.supplyCap - currentSupply)
 	reward.Mul(reward, adjustedConsumptionRateNumerator)

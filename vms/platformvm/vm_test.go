@@ -69,7 +69,7 @@ var (
 	defaultMinStakingDuration = 24 * time.Hour
 	defaultMaxStakingDuration = 365 * 24 * time.Hour
 
-	defaultRewardConfig = reward.Config{
+	defaultRewardConfig = reward.StakingRewardConfig{
 		MaxConsumptionRate: .12 * reward.PercentDenominator,
 		MinConsumptionRate: .10 * reward.PercentDenominator,
 		MintingPeriod:      365 * 24 * time.Hour,
@@ -342,7 +342,7 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 		ApricotPhase3Time:      defaultValidateEndTime,
 		ApricotPhase4Time:      defaultValidateEndTime,
 		ApricotPhase5Time:      defaultValidateEndTime,
@@ -420,7 +420,7 @@ func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan commo
 		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	baseDBManager := manager.NewMemDB(version.DefaultVersion1_0_0)
@@ -1729,7 +1729,7 @@ func TestRestartPartiallyAccepted(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 	firstVM.clock.Set(defaultGenesisTime)
 	firstCtx := defaultContext()
@@ -1811,7 +1811,7 @@ func TestRestartPartiallyAccepted(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	secondVM.clock.Set(defaultGenesisTime)
@@ -1851,7 +1851,7 @@ func TestRestartFullyAccepted(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	firstVM.clock.Set(defaultGenesisTime)
@@ -1928,7 +1928,7 @@ func TestRestartFullyAccepted(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	secondVM.clock.Set(defaultGenesisTime)
@@ -1974,7 +1974,7 @@ func TestBootstrapPartiallyAccepted(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	vm.clock.Set(defaultGenesisTime)
@@ -2258,7 +2258,7 @@ func TestUnverifiedParent(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	vm.clock.Set(defaultGenesisTime)
@@ -2413,7 +2413,7 @@ func TestUnverifiedParentPanic(t *testing.T) {
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
-		RewardConfig:           defaultRewardConfig,
+		StakingRewardConfig:    defaultRewardConfig,
 	}}
 
 	vm.clock.Set(defaultGenesisTime)

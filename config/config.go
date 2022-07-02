@@ -667,10 +667,10 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 		config.MinDelegatorStake = v.GetUint64(MinDelegatorStakeKey)
 		config.MinStakeDuration = v.GetDuration(MinStakeDurationKey)
 		config.MaxStakeDuration = v.GetDuration(MaxStakeDurationKey)
-		config.RewardConfig.MaxConsumptionRate = v.GetUint64(StakeMaxConsumptionRateKey)
-		config.RewardConfig.MinConsumptionRate = v.GetUint64(StakeMinConsumptionRateKey)
-		config.RewardConfig.MintingPeriod = v.GetDuration(StakeMintingPeriodKey)
-		config.RewardConfig.SupplyCap = v.GetUint64(StakeSupplyCapKey)
+		config.StakingRewardConfig.MaxConsumptionRate = v.GetUint64(StakeMaxConsumptionRateKey)
+		config.StakingRewardConfig.MinConsumptionRate = v.GetUint64(StakeMinConsumptionRateKey)
+		config.StakingRewardConfig.MintingPeriod = v.GetDuration(StakeMintingPeriodKey)
+		config.StakingRewardConfig.SupplyCap = v.GetUint64(StakeSupplyCapKey)
 		config.MinDelegationFee = v.GetUint32(MinDelegatorFeeKey)
 		switch {
 		case config.UptimeRequirement < 0 || config.UptimeRequirement > 1:
@@ -683,9 +683,9 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 			return node.StakingConfig{}, errInvalidMinStakeDuration
 		case config.MaxStakeDuration < config.MinStakeDuration:
 			return node.StakingConfig{}, errMinStakeDurationAboveMax
-		case config.RewardConfig.MaxConsumptionRate < config.RewardConfig.MinConsumptionRate:
+		case config.StakingRewardConfig.MaxConsumptionRate < config.StakingRewardConfig.MinConsumptionRate:
 			return node.StakingConfig{}, errStakeMaxConsumptionBelowMin
-		case config.RewardConfig.MintingPeriod < config.MaxStakeDuration:
+		case config.StakingRewardConfig.MintingPeriod < config.MaxStakeDuration:
 			return node.StakingConfig{}, errStakeMintingPeriodBelowMin
 		}
 	} else {
@@ -695,6 +695,7 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 }
 
 func getLockConfig(v *viper.Viper, networkID uint32) (genesis.LockConfig, error) {
+	// ?@evlekht checks like in getStakingConfig ?
 	return genesis.GetLockConfig(networkID), nil
 }
 

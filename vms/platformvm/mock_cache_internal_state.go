@@ -86,6 +86,18 @@ func (mr *MockInternalStateMockRecorder) AddCurrentStaker(tx, potentialReward in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddCurrentStaker", reflect.TypeOf((*MockInternalState)(nil).AddCurrentStaker), tx, potentialReward)
 }
 
+// AddLock mocks base method.
+func (m *MockInternalState) AddLock(tx *Tx, potentialReward uint64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddLock", tx, potentialReward)
+}
+
+// AddLock indicates an expected call of AddLock.
+func (mr *MockInternalStateMockRecorder) AddLock(tx, potentialReward interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLock", reflect.TypeOf((*MockInternalState)(nil).AddLock), tx, potentialReward)
+}
+
 // AddPendingStaker mocks base method.
 func (m *MockInternalState) AddPendingStaker(tx *Tx) {
 	m.ctrl.T.Helper()
@@ -213,6 +225,18 @@ func (m *MockInternalState) DeleteCurrentStaker(tx *Tx) {
 func (mr *MockInternalStateMockRecorder) DeleteCurrentStaker(tx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCurrentStaker", reflect.TypeOf((*MockInternalState)(nil).DeleteCurrentStaker), tx)
+}
+
+// DeleteLock mocks base method.
+func (m *MockInternalState) DeleteLock(tx *Tx) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteLock", tx)
+}
+
+// DeleteLock indicates an expected call of DeleteLock.
+func (mr *MockInternalStateMockRecorder) DeleteLock(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLock", reflect.TypeOf((*MockInternalState)(nil).DeleteLock), tx)
 }
 
 // DeletePendingStaker mocks base method.
@@ -418,6 +442,20 @@ func (mr *MockInternalStateMockRecorder) GetValidatorWeightDiffs(height, subnetI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidatorWeightDiffs", reflect.TypeOf((*MockInternalState)(nil).GetValidatorWeightDiffs), height, subnetID)
 }
 
+// LockChainState mocks base method.
+func (m *MockInternalState) LockChainState() lockChainState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChainState")
+	ret0, _ := ret[0].(lockChainState)
+	return ret0
+}
+
+// LockChainState indicates an expected call of LockChainState.
+func (mr *MockInternalStateMockRecorder) LockChainState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChainState", reflect.TypeOf((*MockInternalState)(nil).LockChainState))
+}
+
 // PendingStakerChainState mocks base method.
 func (m *MockInternalState) PendingStakerChainState() pendingStakerChainState {
 	m.ctrl.T.Helper()
@@ -478,6 +516,18 @@ func (m *MockInternalState) SetLastAccepted(arg0 ids.ID) {
 func (mr *MockInternalStateMockRecorder) SetLastAccepted(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLastAccepted", reflect.TypeOf((*MockInternalState)(nil).SetLastAccepted), arg0)
+}
+
+// SetLockChainState mocks base method.
+func (m *MockInternalState) SetLockChainState(arg0 lockChainState) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetLockChainState", arg0)
+}
+
+// SetLockChainState indicates an expected call of SetLockChainState.
+func (mr *MockInternalStateMockRecorder) SetLockChainState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLockChainState", reflect.TypeOf((*MockInternalState)(nil).SetLockChainState), arg0)
 }
 
 // SetPendingStakerChainState mocks base method.

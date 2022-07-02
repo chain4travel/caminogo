@@ -11,11 +11,11 @@ import (
 // PercentDenominator is the denominator used to calculate percentages
 const PercentDenominator = 1_000_000
 
-// consumptionRateDenominator is the magnitude offset used to emulate
+// bigPercentDenominator is the magnitude offset used to emulate
 // floating point fractions.
-var consumptionRateDenominator = new(big.Int).SetUint64(PercentDenominator)
+var bigPercentDenominator = new(big.Int).SetUint64(PercentDenominator)
 
-type Config struct {
+type StakingRewardConfig struct {
 	// MaxConsumptionRate is the rate to allocate funds if the validator's stake
 	// duration is equal to [MintingPeriod]
 	MaxConsumptionRate uint64 `json:"maxConsumptionRate"`
@@ -31,4 +31,14 @@ type Config struct {
 	// SupplyCap is the target value that the reward calculation should be
 	// asymptotic to.
 	SupplyCap uint64 `json:"supplyCap"`
+}
+
+type LockRewardConfig struct {
+	// MinLockDuration is the minimum amount of lock duration
+	MinLockDuration time.Duration `json:"minLockDuration"`
+	// MaxLockDuration is the maximum amount of lock duration
+	MaxLockDuration time.Duration `json:"maxLockDuration"`
+	// RewardRate is the fraction of the locked token tokens that is allocated to the owner
+	// after unlock multiplied by some PercentDenominator
+	RewardRate uint64 `json:"rewardFraction"` // ?@evlekht probably, desciption is bad ?
 }
