@@ -150,6 +150,7 @@ func TestBenchlistAdd(t *testing.T) {
 	// Advance the time
 	b.lock.Lock()
 	now = now.Add(minimumFailingDuration)
+	b.clock.Set(now)
 	b.lock.Unlock()
 
 	// Register another failure
