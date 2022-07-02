@@ -23,7 +23,7 @@ func NewCalculatorForLockReward(c LockRewardConfig) CalculatorSimple {
 	return &calculator{
 		// c.MaxLockDuration * percentDenominator
 		mintingPeriodDenominator: new(big.Int).Mul(new(big.Int).SetUint64(uint64(c.MaxLockDuration)), bigPercentDenominator),
-		rewardRateNominator:      new(big.Int).SetUint64(uint64(c.RewardRate)),
+		rewardRateNominator:      new(big.Int).SetUint64(c.RewardRate),
 	}
 }
 

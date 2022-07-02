@@ -694,9 +694,9 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 	return config, nil
 }
 
-func getLockConfig(v *viper.Viper, networkID uint32) (genesis.LockConfig, error) {
+func getLockConfig(networkID uint32) genesis.LockConfig {
 	// ?@evlekht checks like in getStakingConfig ?
-	return genesis.GetLockConfig(networkID), nil
+	return genesis.GetLockConfig(networkID)
 }
 
 func getTxFeeConfig(v *viper.Viper, networkID uint32) genesis.TxFeeConfig {
@@ -1075,10 +1075,7 @@ func GetNodeConfig(v *viper.Viper, buildDir string) (node.Config, error) {
 	}
 
 	// Lock
-	nodeConfig.LockConfig, err = getLockConfig(v, nodeConfig.NetworkID)
-	if err != nil {
-		return node.Config{}, err
-	}
+	nodeConfig.LockConfig = getLockConfig(nodeConfig.NetworkID)
 
 	// Whitelisted Subnets
 	nodeConfig.WhitelistedSubnets, err = getWhitelistedSubnets(v)

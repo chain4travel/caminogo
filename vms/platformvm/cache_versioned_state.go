@@ -308,8 +308,8 @@ func (vs *versionedStateImpl) PendingStakerChainState() pendingStakerChainState 
 	return vs.pendingStakerChainState
 }
 
-func (st *versionedStateImpl) LockChainState() lockChainState {
-	return st.lockChainState
+func (vs *versionedStateImpl) LockChainState() lockChainState {
+	return vs.lockChainState
 }
 
 func (vs *versionedStateImpl) SetBase(parentState MutableState) {

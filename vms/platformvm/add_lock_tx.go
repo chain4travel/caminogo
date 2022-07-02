@@ -111,8 +111,7 @@ func (tx *UnsignedAddLockTx) SyntacticVerify(ctx *snow.Context) error {
 		totalLockAmount = newLockAmount
 	}
 
-	switch {
-	case !avax.IsSortedTransferableOutputs(tx.LockedOuts, Codec):
+	if !avax.IsSortedTransferableOutputs(tx.LockedOuts, Codec) {
 		return errOutputsNotSorted
 	}
 
