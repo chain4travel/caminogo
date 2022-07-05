@@ -74,7 +74,7 @@ var (
 	errStartTimeTooEarly = errors.New("start time is before the current chain time")
 	errStartAfterEndTime = errors.New("start time is after the end time")
 	errWrongCacheType    = errors.New("unexpectedly cached type")
-	errFutureStartTime   = fmt.Errorf("attempt to start staking more than %s ahead of the current chain time", maxFutureStartTime)
+	errFutureStartTime   = fmt.Errorf("attempt to start timed tx more than %s ahead of the current chain time", maxFutureStartTime)
 
 	_ block.ChainVM        = &VM{}
 	_ validators.Connector = &VM{}

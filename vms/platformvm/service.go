@@ -994,7 +994,7 @@ func (service *Service) SampleValidators(_ *http.Request, args *SampleValidators
  */
 
 // AddValidatorArgs are the arguments to AddValidator
-type AddValidatorArgs struct { // ?@evlekht clean up args ?
+type AddValidatorArgs struct {
 	// User, password, from addrs, change addr
 	api.JSONSpendHeader
 	APIStaker
@@ -1211,7 +1211,7 @@ func (service *Service) AddDelegator(_ *http.Request, args *AddDelegatorArgs, re
 }
 
 // AddLockArgs are the arguments to AddLock
-type AddLockArgs struct {
+type AddLockArgs struct { // ?@evlekht clean up args ?
 	// User, password, from addrs, change addr
 	api.JSONSpendHeader
 	APIStaker

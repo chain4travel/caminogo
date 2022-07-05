@@ -108,7 +108,11 @@ func (tx *UnsignedAddLockTx) SyntacticVerify(ctx *snow.Context) error {
 		if err != nil {
 			return err
 		}
-		totalLockAmount = newLockAmount
+		totalLockAmount += newLockAmount
+	}
+
+	if tx.Amount != totalLockAmount {
+		return fmt.Errorf("locked amount and locket outs amount doesn't match")
 	}
 
 	if !avax.IsSortedTransferableOutputs(tx.LockedOuts, Codec) {

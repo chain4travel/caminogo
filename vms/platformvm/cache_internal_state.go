@@ -166,7 +166,7 @@ type InternalState interface {
  * | |-- timestampKey -> timestamp
  * | |-- currentSupplyKey -> currentSupply
  * | '-- lastAcceptedKey -> lastAccepted
- * '-. lock
+ * '-. locks
  *   '-. lock
  *     '-. list
  *       '-- txID -> potential reward
