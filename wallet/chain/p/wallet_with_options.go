@@ -80,18 +80,6 @@ func (w *walletWithOptions) IssueAddSubnetValidatorTx(
 	)
 }
 
-func (w *walletWithOptions) IssueAddDelegatorTx(
-	validator *platformvm.Validator,
-	rewardsOwner *secp256k1fx.OutputOwners,
-	options ...common.Option,
-) (ids.ID, error) {
-	return w.Wallet.IssueAddDelegatorTx(
-		validator,
-		rewardsOwner,
-		common.UnionOptions(w.options, options)...,
-	)
-}
-
 func (w *walletWithOptions) IssueCreateChainTx(
 	subnetID ids.ID,
 	genesis []byte,

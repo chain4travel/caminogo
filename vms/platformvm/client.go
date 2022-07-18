@@ -89,23 +89,9 @@ type Client interface {
 		stakeAmount,
 		startTime,
 		endTime uint64,
-		delegationFeeRate float32,
 		options ...rpc.Option,
 	) (ids.ID, error)
-	// AddDelegator issues a transaction to add a delegator to the primary network
-	// and returns the txID
-	AddDelegator(
-		ctx context.Context,
-		user api.UserPass,
-		from []string,
-		changeAddr string,
-		rewardAddress,
-		nodeID string,
-		stakeAmount,
-		startTime,
-		endTime uint64,
-		options ...rpc.Option,
-	) (ids.ID, error)
+
 	// AddSubnetValidator issues a transaction to add validator [nodeID] to subnet
 	// with ID [subnetID] and returns the txID
 	AddSubnetValidator(
@@ -368,7 +354,7 @@ func (c *client) GetPendingValidators(
 		SubnetID: subnetID,
 		NodeIDs:  nodeIDsStr,
 	}, res, options...)
-	return res.Validators, res.Delegators, err
+	return res.Validators, nil, err
 }
 
 func (c *client) GetCurrentSupply(ctx context.Context, options ...rpc.Option) (uint64, error) {
@@ -396,7 +382,6 @@ func (c *client) AddValidator(
 	stakeAmount,
 	startTime,
 	endTime uint64,
-	delegationFeeRate float32,
 	options ...rpc.Option,
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
@@ -412,8 +397,7 @@ func (c *client) AddValidator(
 			StartTime:   json.Uint64(startTime),
 			EndTime:     json.Uint64(endTime),
 		},
-		RewardAddress:     rewardAddress,
-		DelegationFeeRate: json.Float32(delegationFeeRate),
+		RewardAddress: rewardAddress,
 	}, res, options...)
 	return res.TxID, err
 }
@@ -678,7 +662,7 @@ func (c *client) GetStake(ctx context.Context, addrs []string, options ...rpc.Op
 func (c *client) GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, uint64, error) {
 	res := new(GetMinStakeReply)
 	err := c.requester.SendRequest(ctx, "getMinStake", struct{}{}, res, options...)
-	return uint64(res.MinValidatorStake), uint64(res.MinDelegatorStake), err
+	return uint64(res.MinValidatorStake), 0, err
 }
 
 func (c *client) GetTotalStake(ctx context.Context, options ...rpc.Option) (uint64, error) {

@@ -78,19 +78,6 @@ type Wallet interface {
 		options ...common.Option,
 	) (ids.ID, error)
 
-	// IssueAddDelegatorTx creates, signs, and issues a new delegator to a
-	// validator on the primary network.
-	//
-	// - [validator] specifies all the details of the delegation period such as
-	//   the startTime, endTime, stake weight, and validator's nodeID.
-	// - [rewardsOwner] specifies the owner of all the rewards this delegator
-	//   may accrue at the end of its delegation period.
-	IssueAddDelegatorTx(
-		validator *platformvm.Validator,
-		rewardsOwner *secp256k1fx.OutputOwners,
-		options ...common.Option,
-	) (ids.ID, error)
-
 	// IssueCreateChainTx creates, signs, and issues a new chain in the named
 	// subnet.
 	//
@@ -208,18 +195,6 @@ func (w *wallet) IssueAddSubnetValidatorTx(
 	options ...common.Option,
 ) (ids.ID, error) {
 	utx, err := w.builder.NewAddSubnetValidatorTx(validator, options...)
-	if err != nil {
-		return ids.Empty, err
-	}
-	return w.IssueUnsignedTx(utx, options...)
-}
-
-func (w *wallet) IssueAddDelegatorTx(
-	validator *platformvm.Validator,
-	rewardsOwner *secp256k1fx.OutputOwners,
-	options ...common.Option,
-) (ids.ID, error) {
-	utx, err := w.builder.NewAddDelegatorTx(validator, rewardsOwner, options...)
 	if err != nil {
 		return ids.Empty, err
 	}

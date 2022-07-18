@@ -71,7 +71,6 @@ var (
 	errAuthPasswordTooWeak           = errors.New("API auth password is not strong enough")
 	errInvalidUptimeRequirement      = errors.New("uptime requirement must be in the range [0, 1]")
 	errMinValidatorStakeAboveMax     = errors.New("minimum validator stake can't be greater than maximum validator stake")
-	errInvalidDelegationFee          = errors.New("delegation fee must be in the range [0, 1,000,000]")
 	errInvalidMinStakeDuration       = errors.New("min stake duration must be > 0")
 	errMinStakeDurationAboveMax      = errors.New("max stake duration can't be less than min stake duration")
 	errStakeMaxConsumptionBelowMin   = errors.New("stake max consumption can't be less than min stake consumption")
@@ -664,21 +663,17 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 		config.UptimeRequirement = v.GetFloat64(UptimeRequirementKey)
 		config.MinValidatorStake = v.GetUint64(MinValidatorStakeKey)
 		config.MaxValidatorStake = v.GetUint64(MaxValidatorStakeKey)
-		config.MinDelegatorStake = v.GetUint64(MinDelegatorStakeKey)
 		config.MinStakeDuration = v.GetDuration(MinStakeDurationKey)
 		config.MaxStakeDuration = v.GetDuration(MaxStakeDurationKey)
 		config.RewardConfig.MaxConsumptionRate = v.GetUint64(StakeMaxConsumptionRateKey)
 		config.RewardConfig.MinConsumptionRate = v.GetUint64(StakeMinConsumptionRateKey)
 		config.RewardConfig.MintingPeriod = v.GetDuration(StakeMintingPeriodKey)
 		config.RewardConfig.SupplyCap = v.GetUint64(StakeSupplyCapKey)
-		config.MinDelegationFee = v.GetUint32(MinDelegatorFeeKey)
 		switch {
 		case config.UptimeRequirement < 0 || config.UptimeRequirement > 1:
 			return node.StakingConfig{}, errInvalidUptimeRequirement
 		case config.MinValidatorStake > config.MaxValidatorStake:
 			return node.StakingConfig{}, errMinValidatorStakeAboveMax
-		case config.MinDelegationFee > 1_000_000:
-			return node.StakingConfig{}, errInvalidDelegationFee
 		case config.MinStakeDuration <= 0:
 			return node.StakingConfig{}, errInvalidMinStakeDuration
 		case config.MaxStakeDuration < config.MinStakeDuration:

@@ -59,7 +59,6 @@ func (a Allocation) Unparse(networkID uint32) (UnparsedAllocation, error) {
 type Staker struct {
 	NodeID        ids.ShortID `json:"nodeID"`
 	RewardAddress ids.ShortID `json:"rewardAddress"`
-	DelegationFee uint32      `json:"delegationFee"`
 }
 
 func (s Staker) Unparse(networkID uint32) (UnparsedStaker, error) {
@@ -71,7 +70,6 @@ func (s Staker) Unparse(networkID uint32) (UnparsedStaker, error) {
 	return UnparsedStaker{
 		NodeID:        s.NodeID.PrefixedString(constants.NodeIDPrefix),
 		RewardAddress: avaxAddr,
-		DelegationFee: s.DelegationFee,
 	}, err
 }
 

@@ -95,7 +95,6 @@ var (
 
 	defaultMinValidatorStake = 5 * units.MilliAvax
 	defaultMaxValidatorStake = 500 * units.MilliAvax
-	defaultMinDelegatorStake = 1 * units.MilliAvax
 
 	// amount all genesis validators have in defaultVM
 	defaultBalance = 100 * defaultMinValidatorStake
@@ -221,7 +220,6 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 				Amount:  json.Uint64(defaultWeight),
 				Address: addr,
 			}},
-			DelegationFee: reward.PercentDenominator,
 		}
 	}
 
@@ -296,7 +294,6 @@ func BuildGenesisTestWithArgs(t *testing.T, args *BuildGenesisArgs) (*BuildGenes
 				Amount:  json.Uint64(defaultWeight),
 				Address: addr,
 			}},
-			DelegationFee: reward.PercentDenominator,
 		}
 	}
 
@@ -339,7 +336,6 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 		CreateBlockchainTxFee:  100 * defaultTxFee,
 		MinValidatorStake:      defaultMinValidatorStake,
 		MaxValidatorStake:      defaultMaxValidatorStake,
-		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
 		RewardConfig:           defaultRewardConfig,
@@ -417,7 +413,6 @@ func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan commo
 		TxFee:                  defaultTxFee,
 		MinValidatorStake:      defaultMinValidatorStake,
 		MaxValidatorStake:      defaultMaxValidatorStake,
-		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
 		RewardConfig:           defaultRewardConfig,
@@ -586,7 +581,6 @@ func TestAddValidatorCommit(t *testing.T) {
 		uint64(endTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	)
@@ -663,7 +657,6 @@ func TestInvalidAddValidatorCommit(t *testing.T) {
 		uint64(endTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	)
@@ -719,7 +712,6 @@ func TestAddValidatorReject(t *testing.T) {
 		uint64(endTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	)
@@ -795,7 +787,6 @@ func TestAddValidatorInvalidNotReissued(t *testing.T) {
 		uint64(endTime.Unix()),
 		repeatNodeID,
 		repeatNodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	)
@@ -2522,7 +2513,6 @@ func TestRejectedStateRegressionInvalidValidatorTimestamp(t *testing.T) {
 		uint64(newValidatorEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty,
 	)
@@ -2749,7 +2739,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 		uint64(newValidatorEndTime0.Unix()),
 		nodeID0,
 		nodeID0,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty,
 	)
@@ -2936,7 +2925,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 		uint64(newValidatorEndTime1.Unix()),
 		nodeID1,
 		nodeID1,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[1]},
 		ids.ShortEmpty,
 	)

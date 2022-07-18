@@ -85,18 +85,6 @@ func (b *builderWithOptions) NewAddSubnetValidatorTx(
 	)
 }
 
-func (b *builderWithOptions) NewAddDelegatorTx(
-	validator *platformvm.Validator,
-	rewardsOwner *secp256k1fx.OutputOwners,
-	options ...common.Option,
-) (*platformvm.UnsignedAddDelegatorTx, error) {
-	return b.Builder.NewAddDelegatorTx(
-		validator,
-		rewardsOwner,
-		common.UnionOptions(b.options, options)...,
-	)
-}
-
 func (b *builderWithOptions) NewCreateChainTx(
 	subnetID ids.ID,
 	genesis []byte,

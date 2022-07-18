@@ -29,11 +29,6 @@ type StakingConfig struct {
 	// Maximum stake, in nAVAX, allowed to be placed on a single validator in
 	// the primary network
 	MaxValidatorStake uint64 `json:"maxValidatorStake"`
-	// Minimum stake, in nAVAX, that can be delegated on the primary network
-	MinDelegatorStake uint64 `json:"minDelegatorStake"`
-	// Minimum delegation fee, in the range [0, 1000000], that can be charged
-	// for delegation on the primary network.
-	MinDelegationFee uint32 `json:"minDelegationFee"`
 	// MinStakeDuration is the minimum amount of time a validator can validate
 	// for in a single period.
 	MinStakeDuration time.Duration `json:"minStakeDuration"`

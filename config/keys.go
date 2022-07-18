@@ -19,8 +19,6 @@ const (
 	UptimeRequirementKey                               = "uptime-requirement"
 	MinValidatorStakeKey                               = "min-validator-stake"
 	MaxValidatorStakeKey                               = "max-validator-stake"
-	MinDelegatorStakeKey                               = "min-delegator-stake"
-	MinDelegatorFeeKey                                 = "min-delegation-fee"
 	MinStakeDurationKey                                = "min-stake-duration"
 	MaxStakeDurationKey                                = "max-stake-duration"
 	StakeMaxConsumptionRateKey                         = "stake-max-consumption-rate"

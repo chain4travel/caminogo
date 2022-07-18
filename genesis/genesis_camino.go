@@ -65,8 +65,6 @@ var (
 			UptimeRequirement: .8, // 80%
 			MinValidatorStake: 2 * units.KiloAvax,
 			MaxValidatorStake: 3 * units.MegaAvax,
-			MinDelegatorStake: 25 * units.Avax,
-			MinDelegationFee:  20000, // 2%
 			MinStakeDuration:  14 * 24 * time.Hour,
 			MaxStakeDuration:  365 * 24 * time.Hour,
 			RewardConfig: reward.Config{

@@ -93,19 +93,6 @@ type Builder interface {
 		options ...common.Option,
 	) (*platformvm.UnsignedAddSubnetValidatorTx, error)
 
-	// NewAddDelegatorTx creates a new delegator to a validator on the primary
-	// network.
-	//
-	// - [validator] specifies all the details of the delegation period such as
-	//   the startTime, endTime, stake weight, and validator's nodeID.
-	// - [rewardsOwner] specifies the owner of all the rewards this delegator
-	//   may accrue at the end of its delegation period.
-	NewAddDelegatorTx(
-		validator *platformvm.Validator,
-		rewardsOwner *secp256k1fx.OutputOwners,
-		options ...common.Option,
-	) (*platformvm.UnsignedAddDelegatorTx, error)
-
 	// NewCreateChainTx creates a new chain in the named subnet.
 	//
 	// - [subnetID] specifies the subnet to launch the chain in.
@@ -261,7 +248,6 @@ func (b *builder) NewAddValidatorTx(
 		Validator:    *validator,
 		Stake:        stakeOutputs,
 		RewardsOwner: rewardsOwner,
-		Shares:       shares,
 	}, nil
 }
 
@@ -294,36 +280,6 @@ func (b *builder) NewAddSubnetValidatorTx(
 		}},
 		Validator:  *validator,
 		SubnetAuth: subnetAuth,
-	}, nil
-}
-
-func (b *builder) NewAddDelegatorTx(
-	validator *platformvm.Validator,
-	rewardsOwner *secp256k1fx.OutputOwners,
-	options ...common.Option,
-) (*platformvm.UnsignedAddDelegatorTx, error) {
-	toBurn := map[ids.ID]uint64{}
-	toStake := map[ids.ID]uint64{
-		b.backend.AVAXAssetID(): validator.Wght,
-	}
-	ops := common.NewOptions(options)
-	inputs, baseOutputs, stakeOutputs, err := b.spend(toBurn, toStake, ops)
-	if err != nil {
-		return nil, err
-	}
-
-	ids.SortShortIDs(rewardsOwner.Addrs)
-	return &platformvm.UnsignedAddDelegatorTx{
-		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    b.backend.NetworkID(),
-			BlockchainID: constants.PlatformChainID,
-			Ins:          inputs,
-			Outs:         baseOutputs,
-			Memo:         ops.Memo(),
-		}},
-		Validator:    *validator,
-		Stake:        stakeOutputs,
-		RewardsOwner: rewardsOwner,
 	}, nil
 }
 
