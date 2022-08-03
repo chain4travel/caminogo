@@ -16,17 +16,13 @@ package avm
 
 import (
 	"bytes"
+	json2 "encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
-
-	json2 "encoding/json"
-
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/chains/atomic"
@@ -48,6 +44,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/nftfx"
 	"github.com/chain4travel/caminogo/vms/propertyfx"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
 var testChangeAddr = ids.GenerateTestShortID()
@@ -2063,19 +2061,50 @@ func TestGetAssetDescription(t *testing.T) {
 
 	avaxAssetID := genesisTx.ID()
 
-	reply := GetAssetDescriptionReply{}
-	err := s.GetAssetDescription(nil, &GetAssetDescriptionArgs{
-		AssetID: avaxAssetID.String(),
-	}, &reply)
-	if err != nil {
-		t.Fatal(err)
+	type args struct {
+		in0   *http.Request
+		args  *GetAssetDescriptionArgs
+		reply *GetAssetDescriptionReply
 	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		want    []string
+	}{
+		{
+			name: "With given assetId",
+			args: args{
+				in0:   nil,
+				reply: &GetAssetDescriptionReply{},
+				args: &GetAssetDescriptionArgs{
+					AssetID: avaxAssetID.String(),
+				},
+			},
+			want: []string{"AVAX", "SYMB", avaxAssetID.String()},
+		},
+		{
+			name: "Without assetId",
+			args: args{
+				in0:   nil,
+				reply: &GetAssetDescriptionReply{},
+				args: &GetAssetDescriptionArgs{
+					AssetID: avaxAssetID.String(),
+				},
+			},
+			want: []string{"AVAX", "SYMB", vm.feeAssetID.String()},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := s.GetAssetDescription(tt.args.in0, tt.args.args, tt.args.reply); (err != nil) != tt.wantErr {
+				t.Fatal(err)
+			}
 
-	if reply.Name != "AVAX" {
-		t.Fatalf("Wrong name returned from GetAssetDescription %s", reply.Name)
-	}
-	if reply.Symbol != "SYMB" {
-		t.Fatalf("Wrong name returned from GetAssetDescription %s", reply.Symbol)
+			assert.Equal(t, tt.want[0], tt.args.reply.Name, "Wrong name returned from GetAssetDescription %s", tt.args.reply.Name)
+			assert.Equal(t, tt.want[1], tt.args.reply.Symbol, "Wrong symbol returned from GetAssetDescription %s", tt.args.reply.Symbol)
+			assert.Equal(t, tt.want[2], tt.args.reply.AssetID.String())
+		})
 	}
 }
 
