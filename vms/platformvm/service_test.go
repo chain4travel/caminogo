@@ -470,6 +470,180 @@ func TestGetBalance(t *testing.T) {
 
 // Test method GetStake
 // ? @jax i should not just blindly comment this out, it tests removing a stake as a whole including a delegation
+func TestGetStake(t *testing.T) {
+	assert := assert.New(t)
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		err := service.vm.Shutdown()
+		assert.NoError(err)
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	// Ensure GetStake is correct for each of the genesis validators
+	genesis, _ := defaultGenesis()
+	addrsStrs := []string{}
+	for i, validator := range genesis.Validators {
+		addr := fmt.Sprintf("P-%s", validator.RewardOwner.Addresses[0])
+		addrsStrs = append(addrsStrs, addr)
+		args := GetStakeArgs{
+			api.JSONAddresses{
+				Addresses: []string{addr},
+			},
+			formatting.Hex,
+		}
+		response := GetStakeReply{}
+		err := service.GetStake(nil, &args, &response)
+		assert.NoError(err)
+		assert.EqualValues(uint64(defaultWeight), uint64(response.Staked))
+		assert.Len(response.Outputs, 1)
+		// Unmarshal into an output
+		outputBytes, err := formatting.Decode(args.Encoding, response.Outputs[0])
+		assert.NoError(err)
+		var output avax.TransferableOutput
+		_, err = Codec.Unmarshal(outputBytes, &output)
+		assert.NoError(err)
+		out, ok := output.Out.(*secp256k1fx.TransferOutput)
+		assert.True(ok)
+		assert.EqualValues(out.Amount(), defaultWeight)
+		assert.EqualValues(out.Threshold, 1)
+		assert.Len(out.Addrs, 1)
+		assert.Equal(keys[i].PublicKey().Address(), out.Addrs[0])
+		assert.EqualValues(out.Locktime, 0)
+	}
+
+	// Make sure this works for multiple addresses
+	args := GetStakeArgs{
+		api.JSONAddresses{
+			Addresses: addrsStrs,
+		},
+		formatting.Hex,
+	}
+	response := GetStakeReply{}
+	err := service.GetStake(nil, &args, &response)
+	assert.NoError(err)
+	assert.EqualValues(len(genesis.Validators)*defaultWeight, response.Staked)
+	assert.Len(response.Outputs, len(genesis.Validators))
+	for _, outputStr := range response.Outputs {
+		outputBytes, err := formatting.Decode(args.Encoding, outputStr)
+		assert.NoError(err)
+		var output avax.TransferableOutput
+		_, err = Codec.Unmarshal(outputBytes, &output)
+		assert.NoError(err)
+		out, ok := output.Out.(*secp256k1fx.TransferOutput)
+		assert.True(ok)
+		assert.EqualValues(defaultWeight, out.Amount())
+		assert.EqualValues(out.Threshold, 1)
+		assert.EqualValues(out.Locktime, 0)
+		assert.Len(out.Addrs, 1)
+	}
+
+	oldStake := uint64(defaultWeight)
+
+	// Make sure this works for pending stakers
+	// Add a pending staker
+	stakeAmt := service.vm.MinValidatorStake + 54321
+	pendingStakerNodeID := ids.GenerateTestShortID()
+	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
+	tx, err := service.vm.newAddValidatorTx(
+		stakeAmt,
+		uint64(defaultGenesisTime.Unix()),
+		pendingStakerEndTime,
+		pendingStakerNodeID,
+		ids.GenerateTestShortID(),
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		keys[0].PublicKey().Address(), // change addr
+	)
+	assert.NoError(err)
+
+	service.vm.internalState.AddPendingStaker(tx)
+	service.vm.internalState.AddTx(tx, status.Committed)
+	err = service.vm.internalState.Commit()
+	assert.NoError(err)
+	err = service.vm.internalState.(*internalStateImpl).loadPendingValidators()
+	assert.NoError(err)
+
+	// Make sure the new staked amount includes the stake (old stake + stakeAmt)
+	addr, _ := service.vm.FormatLocalAddress(keys[0].PublicKey().Address())
+	args.Addresses = []string{addr}
+	err = service.GetStake(nil, &args, &response)
+	assert.NoError(err)
+	assert.EqualValues(oldStake+stakeAmt, uint64(response.Staked))
+	assert.Len(response.Outputs, 2)
+	outputs := make([]avax.TransferableOutput, 2)
+	// Unmarshal
+	for i := range outputs {
+		outputBytes, err := formatting.Decode(args.Encoding, response.Outputs[i])
+		assert.NoError(err)
+		_, err = Codec.Unmarshal(outputBytes, &outputs[i])
+		assert.NoError(err)
+	}
+	// Make sure the stake amount is as expected
+	assert.EqualValues(stakeAmt+oldStake, outputs[0].Out.Amount()+outputs[1].Out.Amount())
+}
+
+// Test method GetCurrentValidators
+func TestGetCurrentValidators(t *testing.T) {
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	genesis, _ := defaultGenesis()
+
+	// Call getValidators
+	args := GetCurrentValidatorsArgs{SubnetID: constants.PrimaryNetworkID}
+	response := GetCurrentValidatorsReply{}
+
+	err := service.GetCurrentValidators(nil, &args, &response)
+	switch {
+	case err != nil:
+		t.Fatal(err)
+	case len(response.Validators) != len(genesis.Validators):
+		t.Fatalf("should be %d validators but are %d", len(genesis.Validators), len(response.Validators))
+	}
+
+	for _, vdr := range genesis.Validators {
+		found := false
+		for i := 0; i < len(response.Validators) && !found; i++ {
+			gotVdr, ok := response.Validators[i].(APIPrimaryValidator)
+			switch {
+			case !ok:
+				t.Fatal("expected APIPrimaryValidator")
+			case gotVdr.NodeID != vdr.NodeID:
+			case gotVdr.EndTime != vdr.EndTime:
+				t.Fatalf("expected end time of %s to be %v but got %v",
+					vdr.NodeID,
+					vdr.EndTime,
+					gotVdr.EndTime,
+				)
+			case gotVdr.StartTime != vdr.StartTime:
+				t.Fatalf("expected start time of %s to be %v but got %v",
+					vdr.NodeID,
+					vdr.StartTime,
+					gotVdr.StartTime,
+				)
+			case gotVdr.Weight != vdr.Weight:
+				t.Fatalf("expected weight of %s to be %v but got %v",
+					vdr.NodeID,
+					vdr.Weight,
+					gotVdr.Weight,
+				)
+			default:
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected validators to contain %s but didn't", vdr.NodeID)
+		}
+	}
+}
 
 func TestGetTimestamp(t *testing.T) {
 	assert := assert.New(t)
