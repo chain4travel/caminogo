@@ -142,7 +142,7 @@ func (tx *UnsignedCreateChainTx) Execute(
 	// Verify the flowcheck
 	timestamp := vs.GetTimestamp()
 	createBlockchainTxFee := vm.getCreateBlockchainTxFee(timestamp)
-	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, baseTxCreds, createBlockchainTxFee, vm.ctx.AVAXAssetID); err != nil {
+	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, baseTxCreds, createBlockchainTxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
 		return nil, err
 	}
 
@@ -190,7 +190,7 @@ func (vm *VM) newCreateChainTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createBlockchainTxFee := vm.getCreateBlockchainTxFee(timestamp)
-	ins, outs, _, signers, err := vm.stake(keys, 0, createBlockchainTxFee, changeAddr)
+	ins, outs, _, signers, err := vm.spend(keys, 0, createBlockchainTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

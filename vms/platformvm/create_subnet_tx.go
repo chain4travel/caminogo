@@ -99,7 +99,7 @@ func (tx *UnsignedCreateSubnetTx) Execute(
 	// Verify the flowcheck
 	timestamp := vs.GetTimestamp()
 	createSubnetTxFee := vm.getCreateSubnetTxFee(timestamp)
-	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, stx.Creds, createSubnetTxFee, vm.ctx.AVAXAssetID); err != nil {
+	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, stx.Creds, createSubnetTxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
 		return nil, err
 	}
 
@@ -124,7 +124,7 @@ func (vm *VM) newCreateSubnetTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createSubnetTxFee := vm.getCreateSubnetTxFee(timestamp)
-	ins, outs, _, signers, err := vm.stake(keys, 0, createSubnetTxFee, changeAddr)
+	ins, outs, _, signers, err := vm.spend(keys, 0, createSubnetTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

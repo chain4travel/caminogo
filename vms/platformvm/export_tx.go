@@ -81,7 +81,7 @@ func (tx *UnsignedExportTx) SyntacticVerify(ctx *snow.Context) error {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("output failed verification: %w", err)
 		}
-		if _, ok := out.Output().(*StakeableLockOut); ok {
+		if _, ok := out.Output().(*PChainOut); ok {
 			return errWrongLocktime
 		}
 	}
@@ -120,7 +120,7 @@ func (tx *UnsignedExportTx) Execute(
 	}
 
 	// Verify the flowcheck
-	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
+	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
 		return nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 	}
 
@@ -202,7 +202,7 @@ func (vm *VM) newExportTx(
 	if err != nil {
 		return nil, errOverflowExport
 	}
-	ins, outs, _, signers, err := vm.stake(keys, 0, toBurn, changeAddr)
+	ins, outs, _, signers, err := vm.spend(keys, 0, toBurn, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

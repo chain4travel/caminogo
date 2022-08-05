@@ -222,7 +222,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, baseTxCreds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, baseTxCreds, vm.TxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
 			return nil, nil, err
 		}
 
@@ -271,7 +271,7 @@ func (vm *VM) newAddSubnetValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to use for adding the validator
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, outs, _, signers, err := vm.stake(keys, 0, vm.TxFee, changeAddr)
+	ins, outs, _, signers, err := vm.spend(keys, 0, vm.TxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

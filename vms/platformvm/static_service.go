@@ -217,8 +217,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			},
 		}
 		if apiUTXO.Locktime > args.Time {
-			utxo.Out = &StakeableLockOut{
-				Locktime:        uint64(apiUTXO.Locktime),
+			utxo.Out = &PChainOut{
+				State:           PUTXOStateDeposited, // TODO@      deposite      uint64(apiUTXO.Locktime)
 				TransferableOut: utxo.Out.(avax.TransferableOut),
 			}
 		}
@@ -256,8 +256,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				},
 			}
 			if apiUTXO.Locktime > args.Time {
-				utxo.Out = &StakeableLockOut{
-					Locktime:        uint64(apiUTXO.Locktime),
+				utxo.Out = &PChainOut{
+					State:           PUTXOStateDepositedAndBonded, // TODO@      deposite/&bond ?     uint64(apiUTXO.Locktime)
 					TransferableOut: utxo.Out,
 				}
 			}

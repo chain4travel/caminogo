@@ -230,13 +230,14 @@ func (service *Service) GetBalance(_ *http.Request, args *GetBalanceRequest, res
 	currentTime := service.vm.clock.Unix()
 
 	unlocked := uint64(0)
-	lockedStakeable := uint64(0)
-	lockedNotStakeable := uint64(0)
+	deposited := uint64(0)
+	depositedAndBonded := uint64(0)
+	bonded := uint64(0)
 
 utxoFor:
 	for _, utxo := range utxos {
 		switch out := utxo.Out.(type) {
-		case *secp256k1fx.TransferOutput:
+		case *secp256k1fx.TransferOutput: // TODO@ probably we should stop using this on p-chain
 			if out.Locktime <= currentTime {
 				newBalance, err := math.Add64(unlocked, out.Amount())
 				if err != nil {
@@ -244,37 +245,52 @@ utxoFor:
 				}
 				unlocked = newBalance
 			} else {
-				newBalance, err := math.Add64(lockedNotStakeable, out.Amount())
+				newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 				if err != nil {
 					return errNotStakeableOverflow
 				}
-				lockedNotStakeable = newBalance
+				depositedAndBonded = newBalance
 			}
-		case *StakeableLockOut:
+		case *PChainOut:
 			innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
 			switch {
 			case !ok:
 				service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T",
 					out.TransferableOut)
 				continue utxoFor
-			case innerOut.Locktime > currentTime:
-				newBalance, err := math.Add64(lockedNotStakeable, out.Amount())
+			case innerOut.Locktime > currentTime: // TODO@ we should agree that locktime here is always 0
+				newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 				if err != nil {
 					return errLockedNotStakeableOverflow
 				}
-				lockedNotStakeable = newBalance
-			case out.Locktime <= currentTime:
-				newBalance, err := math.Add64(unlocked, out.Amount())
-				if err != nil {
-					return errUnlockedOverflow
-				}
-				unlocked = newBalance
+				depositedAndBonded = newBalance
 			default:
-				newBalance, err := math.Add64(lockedStakeable, out.Amount())
-				if err != nil {
-					return errUnlockedStakeableOverflow
+				switch out.State {
+				case PUTXOStateTransferable:
+					newBalance, err := math.Add64(unlocked, out.Amount())
+					if err != nil {
+						return errUnlockedOverflow
+					}
+					unlocked = newBalance
+				case PUTXOStateBonded:
+					newBalance, err := math.Add64(bonded, out.Amount())
+					if err != nil {
+						return errUnlockedOverflow // TODO@
+					}
+					bonded = newBalance
+				case PUTXOStateDeposited:
+					newBalance, err := math.Add64(deposited, out.Amount())
+					if err != nil {
+						return errUnlockedStakeableOverflow
+					}
+					deposited = newBalance
+				case PUTXOStateDepositedAndBonded:
+					newBalance, err := math.Add64(depositedAndBonded, out.Amount())
+					if err != nil {
+						return errNotStakeableOverflow
+					}
+					depositedAndBonded = newBalance
 				}
-				lockedStakeable = newBalance
 			}
 		default:
 			continue utxoFor
@@ -283,7 +299,7 @@ utxoFor:
 		response.UTXOIDs = append(response.UTXOIDs, &utxo.UTXOID)
 	}
 
-	lockedBalance, err := math.Add64(lockedStakeable, lockedNotStakeable)
+	lockedBalance, err := math.Add64(deposited, depositedAndBonded)
 	if err != nil {
 		return errLockedOverflow
 	}
@@ -294,8 +310,9 @@ utxoFor:
 
 	response.Balance = json.Uint64(balance)
 	response.Unlocked = json.Uint64(unlocked)
-	response.LockedStakeable = json.Uint64(lockedStakeable)
-	response.LockedNotStakeable = json.Uint64(lockedNotStakeable)
+	response.LockedStakeable = json.Uint64(deposited)
+	response.LockedNotStakeable = json.Uint64(depositedAndBonded)
+	// response.UnlockedNotStakeable = json.Uint64(bonded)
 	return nil
 }
 
@@ -2087,7 +2104,7 @@ func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []av
 			continue
 		}
 		out := stake.Out
-		if lockedOut, ok := out.(*StakeableLockOut); ok {
+		if lockedOut, ok := out.(*PChainOut); ok {
 			// This output can only be used for staking until [stakeOnlyUntil]
 			out = lockedOut.TransferableOut
 		}

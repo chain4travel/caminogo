@@ -73,8 +73,8 @@ func init() {
 			c.RegisterType(&UnsignedAdvanceTimeTx{}),
 			c.RegisterType(&UnsignedRewardValidatorTx{}),
 
-			c.RegisterType(&StakeableLockIn{}),
-			c.RegisterType(&StakeableLockOut{}),
+			c.RegisterType(&PChainIn{}),
+			c.RegisterType(&PChainOut{}),
 		)
 	}
 	errs.Add(

@@ -34,24 +34,42 @@ var (
 	errCantSign                     = errors.New("can't sign")
 )
 
-// stake the provided amount while deducting the provided fee.
+type spendMode uint8
+
+const (
+	spendModeBond spendMode = iota
+	spendModeDeposite
+	spendModeUnbond
+	spendModeUndeposit
+)
+
+func (mode spendMode) isValid() bool {
+	switch mode {
+	case spendModeDeposite, spendModeBond, spendModeUndeposit, spendModeUnbond:
+		return true
+	}
+	return false
+}
+
+// spend the provided amount while deducting the provided fee. // TODO@ rename
 // Arguments:
 // - [keys] are the owners of the funds
 // - [amount] is the amount of funds that are trying to be staked
-// - [fee] is the amount of AVAX that should be burned
+// - [fee] is the amount of AVAX that should be burned // TODO@ rename
 // - [changeAddr] is the address that change, if there is any, is sent to
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
 // - [returnedOutputs] the outputs that should be immediately returned to the
 //                     UTXO set
-// - [stakedOutputs] the outputs that should be locked for the duration of the
+// - [stakedOutputs] the outputs that should be locked for the duration of the // TODO@ rename
 //                   staking period
 // - [signers] the proof of ownership of the funds being moved
-func (vm *VM) stake(
+func (vm *VM) spend( // TODO@ rename
 	keys []*crypto.PrivateKeySECP256K1R,
 	amount uint64,
 	fee uint64,
 	changeAddr ids.ShortID,
+	spendMode spendMode,
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // returnedOutputs
@@ -59,6 +77,10 @@ func (vm *VM) stake(
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
+	if !spendMode.isValid() {
+		return nil, nil, nil, nil, fmt.Errorf("") // TODO@
+	}
+
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
 	for _, key := range keys {
 		addrs.Add(key.PublicKey().Address())
@@ -93,15 +115,10 @@ func (vm *VM) stake(
 			continue // We only care about staking AVAX, so ignore other assets
 		}
 
-		out, ok := utxo.Out.(*StakeableLockOut)
-		if !ok {
-			// This output isn't locked, so it will be handled during the next
+		out, ok := utxo.Out.(*PChainOut)
+		if !ok || canBeSpended(out.State, spendMode, false) && out.IsLocked() {
+			// This output isn't locked, so it will be handled during the next // TODO@
 			// iteration of the UTXO set
-			continue
-		}
-		if out.Locktime <= now {
-			// This output is no longer locked, so it will be handled during the
-			// next iteration of the UTXO set
 			continue
 		}
 
@@ -137,8 +154,8 @@ func (vm *VM) stake(
 		ins = append(ins, &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
-			In: &StakeableLockIn{
-				Locktime:       out.Locktime,
+			In: &PChainIn{
+				State:          out.State,
 				TransferableIn: in,
 			},
 		})
@@ -146,8 +163,8 @@ func (vm *VM) stake(
 		// Add the output to the staked outputs
 		stakedOuts = append(stakedOuts, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-			Out: &StakeableLockOut{
-				Locktime: out.Locktime,
+			Out: &PChainOut{
+				State: stateAfterSpending(out.State, spendMode),
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt:          amountToStake,
 					OutputOwners: inner.OutputOwners,
@@ -160,8 +177,8 @@ func (vm *VM) stake(
 			// Some of it must be returned
 			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &StakeableLockOut{
-					Locktime: out.Locktime,
+				Out: &PChainOut{
+					State: out.State,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingValue,
 						OutputOwners: inner.OutputOwners,
@@ -190,15 +207,22 @@ func (vm *VM) stake(
 		}
 
 		out := utxo.Out
-		inner, ok := out.(*StakeableLockOut)
-		if ok {
-			if inner.Locktime > now {
-				// This output is currently locked, so this output can't be
+		spendedOutState := PUTXOStateTransferable
+
+		if inner, ok := out.(*PChainOut); ok {
+			if !canBeSpended(inner.State, spendMode, true) {
+				// This output is currently locked, so this output can't be // TODO@
 				// burned. Additionally, it may have already been consumed
 				// above. Regardless, we skip to the next UTXO
+
+				// This output is currently staked, so this output can't be // TODO@
+				// staked again. We skip to the next UTXO
+
+				// unknown state // TODO@
 				continue
 			}
 			out = inner.TransferableOut
+			spendedOutState = inner.State
 		}
 
 		inIntf, inSigners, err := kc.Spend(out, now)
@@ -243,12 +267,15 @@ func (vm *VM) stake(
 			// Some of this input was put for staking
 			stakedOuts = append(stakedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: amountToStake,
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
+				Out: &PChainOut{
+					State: stateAfterSpending(spendedOutState, spendMode),
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt: amountToStake,
+						OutputOwners: secp256k1fx.OutputOwners{
+							Locktime:  0,
+							Threshold: 1,
+							Addrs:     []ids.ShortID{changeAddr},
+						},
 					},
 				},
 			})
@@ -343,6 +370,7 @@ func (vm *VM) semanticVerifySpend(
 	creds []verify.Verifiable,
 	feeAmount uint64,
 	feeAssetID ids.ID,
+	spendMode spendMode,
 ) error {
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
@@ -357,7 +385,7 @@ func (vm *VM) semanticVerifySpend(
 		utxos[index] = utxo
 	}
 
-	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
+	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID, spendMode)
 }
 
 // Verify that [tx] is semantically valid.
@@ -374,7 +402,12 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	creds []verify.Verifiable,
 	feeAmount uint64,
 	feeAssetID ids.ID,
+	spendMode spendMode,
 ) error {
+	if !spendMode.isValid() {
+		return fmt.Errorf("") // TODO@
+	}
+
 	if len(ins) != len(creds) {
 		return fmt.Errorf(
 			"there are %d inputs but %d credentials. Should be same number",
@@ -395,17 +428,9 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 	}
 
-	// Time this transaction is being verified
-	now := uint64(vm.clock.Time().Unix())
-
-	// Track the amount of unlocked transfers
-	unlockedProduced := feeAmount
-	unlockedConsumed := uint64(0)
-
-	// Track the amount of locked transfers and their owners
-	// locktime -> ownerID -> amount
-	lockedProduced := make(map[uint64]map[ids.ID]uint64)
-	lockedConsumed := make(map[uint64]map[ids.ID]uint64)
+	// ownerID -> PUTXOState -> amount
+	consumed := make(map[ids.ID]map[PUTXOState]uint64)
+	produced := make(map[ids.ID]map[PUTXOState]uint64)
 
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
@@ -417,64 +442,59 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return errAssetIDMismatch
 		}
 
-		out := utxo.Out
-		locktime := uint64(0)
+		spendedOut := utxo.Out
+		spendedOutState := PUTXOStateTransferable
 		// Set [locktime] to this UTXO's locktime, if applicable
-		if inner, ok := out.(*StakeableLockOut); ok {
-			out = inner.TransferableOut
-			locktime = inner.Locktime
+		if inner, ok := spendedOut.(*PChainOut); ok {
+			spendedOut = inner.TransferableOut
+			spendedOutState = inner.State
 		}
 
 		in := input.In
-		// The UTXO says it's locked until [locktime], but this input, which
-		// consumes it, is not locked even though [locktime] hasn't passed. This
-		// is invalid.
-		if inner, ok := in.(*StakeableLockIn); now < locktime && !ok {
-			return errLockedFundsNotMarkedAsLocked
+
+		// Unwrapping input if it's needed. Checking that input state == consumed output state.
+		// ok == false means that input isn't PChainIn, so its PUTXOStateTransferable by default
+		if inner, ok := in.(*PChainIn); !ok && spendedOutState != PUTXOStateTransferable {
+			return errLockedFundsNotMarkedAsLocked // TODO@
 		} else if ok {
-			if inner.Locktime != locktime {
-				// This input is locked, but its locktime is wrong
-				return errWrongLocktime
+			if inner.State != spendedOutState {
+				return errWrongLocktime // TODO@
 			}
 			in = inner.TransferableIn
 		}
 
 		// Verify that this tx's credentials allow [in] to be spent
-		if err := vm.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
+		if err := vm.fx.VerifyTransfer(tx, in, creds[index], spendedOut); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 
 		amount := in.Amount()
 
-		if now >= locktime {
-			newUnlockedConsumed, err := math.Add64(unlockedConsumed, amount)
-			if err != nil {
-				return err
-			}
-			unlockedConsumed = newUnlockedConsumed
-			continue
-		}
-
-		owned, ok := out.(Owned)
+		// getting spended out owners
+		owned, ok := spendedOut.(Owned)
 		if !ok {
 			return errUnknownOwners
 		}
-		owner := owned.Owners()
-		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
+		spendedOutOwner := owned.Owners()
+
+		// getting spended out ownerID
+		ownerBytes, err := Codec.Marshal(CodecVersion, spendedOutOwner)
 		if err != nil {
 			return fmt.Errorf("couldn't marshal owner: %w", err)
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
-		owners, ok := lockedConsumed[locktime]
+
+		// TODO@ comment
+		consumedFromOwner, ok := consumed[ownerID]
 		if !ok {
-			owners = make(map[ids.ID]uint64)
-			lockedConsumed[locktime] = owners
+			consumedFromOwner = make(map[PUTXOState]uint64)
+			consumed[ownerID] = consumedFromOwner
 		}
-		newAmount, err := math.Add64(owners[ownerID], amount)
+		newAmount, err := math.Add64(consumedFromOwner[spendedOutState], amount)
 		if err != nil {
 			return err
 		}
-		owners[ownerID] = newAmount
+		consumedFromOwner[spendedOutState] = newAmount
 	}
 
 	for _, out := range outs {
@@ -482,77 +502,134 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return errAssetIDMismatch
 		}
 
-		output := out.Output()
-		locktime := uint64(0)
+		producedOut := out.Output()
+		producedOutState := PUTXOStateTransferable
 		// Set [locktime] to this output's locktime, if applicable
-		if inner, ok := output.(*StakeableLockOut); ok {
-			output = inner.TransferableOut
-			locktime = inner.Locktime
+		if inner, ok := producedOut.(*PChainOut); ok {
+			producedOut = inner.TransferableOut
+			producedOutState = inner.State
 		}
 
-		amount := output.Amount()
+		amount := producedOut.Amount()
 
-		if locktime == 0 {
-			newUnlockedProduced, err := math.Add64(unlockedProduced, amount)
-			if err != nil {
-				return err
-			}
-			unlockedProduced = newUnlockedProduced
-			continue
-		}
-
-		owned, ok := output.(Owned)
+		// getting prdoduced out owners
+		owned, ok := producedOut.(Owned)
 		if !ok {
 			return errUnknownOwners
 		}
 		owner := owned.Owners()
+
+		// getting spended out ownerID
 		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
 		if err != nil {
 			return fmt.Errorf("couldn't marshal owner: %w", err)
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
-		owners, ok := lockedProduced[locktime]
+
+		// TODO@ comment
+		producedForOwner, ok := produced[ownerID]
 		if !ok {
-			owners = make(map[ids.ID]uint64)
-			lockedProduced[locktime] = owners
+			producedForOwner = make(map[PUTXOState]uint64)
+			produced[ownerID] = producedForOwner
 		}
-		newAmount, err := math.Add64(owners[ownerID], amount)
+		newAmount, err := math.Add64(producedForOwner[producedOutState], amount)
 		if err != nil {
 			return err
 		}
-		owners[ownerID] = newAmount
+		producedForOwner[producedOutState] = newAmount
 	}
 
-	// Make sure that for each locktime, tokens produced <= tokens consumed
-	for locktime, producedAmounts := range lockedProduced {
-		consumedAmounts := lockedConsumed[locktime]
-		for ownerID, producedAmount := range producedAmounts {
-			consumedAmount := consumedAmounts[ownerID]
+	// deposite:   PUTXOStateTransferable       reduced => PUTXOStateDeposited          increased
+	// deposite:   PUTXOStateBonded             reduced => PUTXOStateDepositedAndBonded increased
+	// bond:       PUTXOStateTransferable       reduced => PUTXOStateBonded             increased
+	// bond:       PUTXOStateDeposited          reduced => PUTXOStateDepositedAndBonded increased
+	// undeposite: PUTXOStateDeposited          reduced => PUTXOStateTransferable       increased
+	// undeposite: PUTXOStateDepositedAndBonded reduced => PUTXOStateBonded             increased
+	// unbond:     PUTXOStateBonded             reduced => PUTXOStateTransferable       increased
+	// unbond:     PUTXOStateDepositedAndBonded reduced => PUTXOStateDeposited          increased
 
-			if producedAmount > consumedAmount {
-				increase := producedAmount - consumedAmount
-				if increase > unlockedConsumed {
-					return fmt.Errorf(
-						"address %s produces %d unlocked and consumes %d unlocked for locktime %d",
-						ownerID,
-						increase,
-						unlockedConsumed,
-						locktime,
-					)
-				}
-				unlockedConsumed -= increase
+	// deposite:   PUTXOStateTransferable       abs diff >= PUTXOStateDeposited          abs diff
+	// deposite:   PUTXOStateBonded             abs diff >= PUTXOStateDepositedAndBonded abs diff
+	// bond:       PUTXOStateTransferable       abs diff >= PUTXOStateBonded             abs diff
+	// bond:       PUTXOStateDeposited          abs diff >= PUTXOStateDepositedAndBonded abs diff
+	// undeposite: PUTXOStateDeposited          abs diff >= PUTXOStateTransferable       abs diff
+	// undeposite: PUTXOStateDepositedAndBonded abs diff >= PUTXOStateBonded             abs diff
+	// unbond:     PUTXOStateBonded             abs diff >= PUTXOStateTransferable       abs diff
+	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
+
+	// TODO@ add owners check, we can't transfer here
+
+	for ownerID, consumedFromOwner := range consumed {
+		producedForOwner := produced[ownerID] // TODO@ can it be nil?
+
+		switch spendMode {
+		case spendModeDeposite:
+			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
+				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
+				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
+				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
+				return fmt.Errorf("") // TODO@
+			}
+
+			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
+			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
+			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
+			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
+
+			if !(transferableDiff >= depositedDiff || bondedDiff >= depositedAndBondedDiff) {
+				return fmt.Errorf("") // TODO@
+			}
+		case spendModeBond:
+			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
+				consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
+				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded] ||
+				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
+				return fmt.Errorf("") // TODO@
+			}
+
+			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
+			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
+			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
+			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
+
+			if !(transferableDiff >= bondedDiff || depositedDiff >= depositedAndBondedDiff) {
+				return fmt.Errorf("") // TODO@
+			}
+		case spendModeUndeposit:
+			if !(consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
+				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
+				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
+				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded]) {
+				return fmt.Errorf("") // TODO@
+			}
+
+			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
+			depositedAndBondedDiff := consumedFromOwner[PUTXOStateDepositedAndBonded] - producedForOwner[PUTXOStateDepositedAndBonded]
+			transferableDiff := producedForOwner[PUTXOStateTransferable] - consumedFromOwner[PUTXOStateTransferable]
+			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
+
+			if !(depositedDiff >= transferableDiff || depositedAndBondedDiff >= bondedDiff) {
+				return fmt.Errorf("") // TODO@
+			}
+		case spendModeUnbond:
+			if !(consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
+				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
+				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
+				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited]) {
+				return fmt.Errorf("") // TODO@
+			}
+
+			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
+			depositedAndBondedDiff := consumedFromOwner[PUTXOStateDepositedAndBonded] - producedForOwner[PUTXOStateDepositedAndBonded]
+			transferableDiff := producedForOwner[PUTXOStateTransferable] - consumedFromOwner[PUTXOStateTransferable]
+			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
+
+			if !(bondedDiff >= transferableDiff || depositedAndBondedDiff >= depositedDiff) {
+				return fmt.Errorf("") // TODO@
 			}
 		}
 	}
 
-	// More unlocked tokens produced than consumed. Invalid.
-	if unlockedProduced > unlockedConsumed {
-		return fmt.Errorf(
-			"tx produces more unlocked (%d) than it consumes (%d)",
-			unlockedProduced,
-			unlockedConsumed,
-		)
-	}
 	return nil
 }
 
@@ -584,4 +661,33 @@ func produceOutputs(
 			Out:   out.Output(),
 		})
 	}
+}
+
+func canBeSpended(utxoState PUTXOState, spendMode spendMode, forFee bool) bool {
+	switch spendMode {
+	case spendModeDeposite:
+		return utxoState&PUTXOStateDeposited == 0 && (!forFee || utxoState == PUTXOStateTransferable)
+	case spendModeBond:
+		return utxoState&PUTXOStateBonded == 0 && (!forFee || utxoState == PUTXOStateTransferable)
+	case spendModeUndeposit:
+		return !forFee && utxoState&PUTXOStateDeposited == 1 || forFee && utxoState&PUTXOStateBonded == 0
+	case spendModeUnbond:
+		return !forFee && utxoState&PUTXOStateBonded == 1 || forFee && utxoState&PUTXOStateDeposited == 0
+	}
+	return false
+}
+
+// stateAfterSpending will only work for correct utxoState that can be spended with correct spendMode
+func stateAfterSpending(utxoState PUTXOState, spendMode spendMode) PUTXOState {
+	switch spendMode {
+	case spendModeDeposite:
+		return utxoState & PUTXOStateDeposited
+	case spendModeBond:
+		return utxoState & PUTXOStateBonded
+	case spendModeUndeposit:
+		return utxoState ^ PUTXOStateDeposited
+	case spendModeUnbond:
+		return utxoState ^ PUTXOStateBonded
+	}
+	return 0
 }

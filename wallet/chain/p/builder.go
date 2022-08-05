@@ -552,8 +552,9 @@ func (b *builder) getBalance(
 	// Iterate over the UTXOs
 	for _, utxo := range utxos {
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.StakeableLockOut); ok {
-			if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
+		if lockedOut, ok := outIntf.(*platformvm.PChainOut); ok {
+			// if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
+			if !options.AllowStakeableLocked() {
 				// This output is currently locked, so this output can't be
 				// burned.
 				continue
@@ -631,17 +632,17 @@ func (b *builder) spend(
 		}
 
 		outIntf := utxo.Out
-		lockedOut, ok := outIntf.(*platformvm.StakeableLockOut)
+		lockedOut, ok := outIntf.(*platformvm.PChainOut)
 		if !ok {
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
 			continue
 		}
-		if minIssuanceTime >= lockedOut.Locktime {
-			// This output isn't locked, so it will be handled during the next
-			// iteration of the UTXO set
-			continue
-		}
+		// if minIssuanceTime >= lockedOut.Locktime {
+		// 	// This output isn't locked, so it will be handled during the next
+		// 	// iteration of the UTXO set
+		// 	continue
+		// }
 
 		out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
 		if !ok {
@@ -657,8 +658,8 @@ func (b *builder) spend(
 		inputs = append(inputs, &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  utxo.Asset,
-			In: &platformvm.StakeableLockIn{
-				Locktime: lockedOut.Locktime,
+			In: &platformvm.PChainIn{
+				// Locktime: lockedOut.Locktime,
 				TransferableIn: &secp256k1fx.TransferInput{
 					Amt: out.Amt,
 					Input: secp256k1fx.Input{
@@ -677,8 +678,8 @@ func (b *builder) spend(
 		// Add the output to the staked outputs
 		stakeOutputs = append(stakeOutputs, &avax.TransferableOutput{
 			Asset: utxo.Asset,
-			Out: &platformvm.StakeableLockOut{
-				Locktime: lockedOut.Locktime,
+			Out: &platformvm.PChainOut{
+				// Locktime: lockedOut.Locktime,
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt:          amountToStake,
 					OutputOwners: out.OutputOwners,
@@ -691,8 +692,8 @@ func (b *builder) spend(
 			// This input had extra value, so some of it must be returned
 			changeOutputs = append(changeOutputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
-				Out: &platformvm.StakeableLockOut{
-					Locktime: lockedOut.Locktime,
+				Out: &platformvm.PChainOut{
+					// Locktime: lockedOut.Locktime,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingAmount,
 						OutputOwners: out.OutputOwners,
@@ -715,12 +716,12 @@ func (b *builder) spend(
 		}
 
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.StakeableLockOut); ok {
-			if lockedOut.Locktime > minIssuanceTime {
-				// This output is currently locked, so this output can't be
-				// burned.
-				continue
-			}
+		if lockedOut, ok := outIntf.(*platformvm.PChainOut); ok {
+			// if lockedOut.Locktime > minIssuanceTime {
+			// 	// This output is currently locked, so this output can't be
+			// 	// burned.
+			// 	continue
+			// }
 			outIntf = lockedOut.TransferableOut
 		}
 
