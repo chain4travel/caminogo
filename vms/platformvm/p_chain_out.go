@@ -35,6 +35,17 @@ const (
 	PUTXOStateDepositedAndBonded PUTXOState = 0b11
 )
 
+var pUTXOStateStrings = map[PUTXOState]string{
+	PUTXOStateBonded:             "bonded",
+	PUTXOStateDeposited:          "deposited",
+	PUTXOStateDepositedAndBonded: "depositedAndBonded",
+	PUTXOStateTransferable:       "transferable",
+}
+
+func (s PUTXOState) String() string {
+	return pUTXOStateStrings[s]
+}
+
 type PChainOut struct {
 	State                PUTXOState `serialize:"true" json:"state"`
 	avax.TransferableOut `serialize:"true" json:"output"`

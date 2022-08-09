@@ -28,11 +28,11 @@ import (
 )
 
 var (
-	errLockedFundsNotMarkedAsLocked = errors.New("locked funds not marked as locked")
-	errWrongLocktime                = errors.New("wrong locktime reported")
-	errUnknownSpendMode             = errors.New("unknown spend mode")
-	errUnknownOwners                = errors.New("unknown owners")
-	errCantSign                     = errors.New("can't sign")
+	errWrongLocktime    = errors.New("wrong locktime reported")
+	errWrongInputState  = errors.New("wrong input state")
+	errUnknownSpendMode = errors.New("unknown spend mode")
+	errUnknownOwners    = errors.New("unknown owners")
+	errCantSign         = errors.New("can't sign")
 )
 
 type spendMode uint8
@@ -116,7 +116,7 @@ func (vm *VM) spend(
 		}
 
 		out, ok := utxo.Out.(*PChainOut)
-		if !ok || canBeSpended(out.State, spendMode, false) && out.IsLocked() {
+		if !ok || !out.IsLocked() || !canBeSpended(out.State, spendMode, false) {
 			// This output isn't locked or can't be spended with that spendMode,
 			// so it will be handled during the next iteration of the UTXO set
 			continue
@@ -455,10 +455,10 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		// Unwrapping input if it's needed. Checking that input state == consumed output state.
 		// ok == false means that input isn't PChainIn, so its PUTXOStateTransferable by default
 		if inner, ok := in.(*PChainIn); !ok && spendedOutState != PUTXOStateTransferable {
-			return errLockedFundsNotMarkedAsLocked // TODO@
+			return errWrongInputState
 		} else if ok {
 			if inner.State != spendedOutState {
-				return errWrongLocktime // TODO@
+				return errWrongInputState
 			}
 			in = inner.TransferableIn
 		}
@@ -679,9 +679,9 @@ func canBeSpended(utxoState PUTXOState, spendMode spendMode, burn bool) bool {
 func stateAfterSpending(utxoState PUTXOState, spendMode spendMode) PUTXOState {
 	switch spendMode {
 	case spendModeDeposite:
-		return utxoState & PUTXOStateDeposited
+		return utxoState | PUTXOStateDeposited
 	case spendModeBond:
-		return utxoState & PUTXOStateBonded
+		return utxoState | PUTXOStateBonded
 	case spendModeUndeposit:
 		return utxoState ^ PUTXOStateDeposited
 	case spendModeUnbond:
