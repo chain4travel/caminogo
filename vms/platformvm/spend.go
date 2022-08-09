@@ -30,6 +30,7 @@ import (
 var (
 	errLockedFundsNotMarkedAsLocked = errors.New("locked funds not marked as locked")
 	errWrongLocktime                = errors.New("wrong locktime reported")
+	errUnknownSpendMode             = errors.New("unknown spend mode")
 	errUnknownOwners                = errors.New("unknown owners")
 	errCantSign                     = errors.New("can't sign")
 )
@@ -51,20 +52,19 @@ func (mode spendMode) isValid() bool {
 	return false
 }
 
-// spend the provided amount while deducting the provided fee. // TODO@ rename
+// spend the provided amount while deducting the provided fee.
 // Arguments:
 // - [keys] are the owners of the funds
-// - [amount] is the amount of funds that are trying to be staked
-// - [fee] is the amount of AVAX that should be burned // TODO@ rename
+// - [amount] is the amount of funds that are trying to be spended (changed their state)
+// - [fee] is the amount of AVAX that should be burned
 // - [changeAddr] is the address that change, if there is any, is sent to
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
 // - [returnedOutputs] the outputs that should be immediately returned to the
 //                     UTXO set
-// - [stakedOutputs] the outputs that should be locked for the duration of the // TODO@ rename
-//                   staking period
+// - [createdOutputs] the outputs that was created as result of spending
 // - [signers] the proof of ownership of the funds being moved
-func (vm *VM) spend( // TODO@ rename
+func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
 	amount uint64,
 	fee uint64,
@@ -73,12 +73,12 @@ func (vm *VM) spend( // TODO@ rename
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // returnedOutputs
-	[]*avax.TransferableOutput, // stakedOutputs
+	[]*avax.TransferableOutput, // createdOutputs
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
 	if !spendMode.isValid() {
-		return nil, nil, nil, nil, fmt.Errorf("") // TODO@
+		return nil, nil, nil, nil, errUnknownSpendMode
 	}
 
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
@@ -97,17 +97,17 @@ func (vm *VM) spend( // TODO@ rename
 
 	ins := []*avax.TransferableInput{}
 	returnedOuts := []*avax.TransferableOutput{}
-	stakedOuts := []*avax.TransferableOutput{}
+	createdOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
-	// Amount of AVAX that has been staked
-	amountStaked := uint64(0)
+	// Amount of AVAX that has been spended
+	amountSpended := uint64(0)
 
 	// Consume locked UTXOs
 	for _, utxo := range utxos {
-		// If we have consumed more AVAX than we are trying to stake, then we
+		// If we have consumed more AVAX than we are trying to spend, then we
 		// have no need to consume more locked AVAX
-		if amountStaked >= amount {
+		if amountSpended >= amount {
 			break
 		}
 
@@ -117,8 +117,8 @@ func (vm *VM) spend( // TODO@ rename
 
 		out, ok := utxo.Out.(*PChainOut)
 		if !ok || canBeSpended(out.State, spendMode, false) && out.IsLocked() {
-			// This output isn't locked, so it will be handled during the next // TODO@
-			// iteration of the UTXO set
+			// This output isn't locked or can't be spended with that spendMode,
+			// so it will be handled during the next iteration of the UTXO set
 			continue
 		}
 
@@ -142,13 +142,13 @@ func (vm *VM) spend( // TODO@ rename
 		// The remaining value is initially the full value of the input
 		remainingValue := in.Amount()
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			amount-amountStaked, // Amount we still need to stake
-			remainingValue,      // Amount available to stake
+		// Spend any value that should be spended
+		amountToSpend := math.Min64(
+			amount-amountSpended, // Amount we still need to spend
+			remainingValue,       // Amount available to spend
 		)
-		amountStaked += amountToStake
-		remainingValue -= amountToStake
+		amountSpended += amountToSpend
+		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
@@ -160,20 +160,20 @@ func (vm *VM) spend( // TODO@ rename
 			},
 		})
 
-		// Add the output to the staked outputs
-		stakedOuts = append(stakedOuts, &avax.TransferableOutput{
+		// Add the output to the created outputs
+		createdOuts = append(createdOuts, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &PChainOut{
 				State: stateAfterSpending(out.State, spendMode),
 				TransferableOut: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
+					Amt:          amountToSpend,
 					OutputOwners: inner.OutputOwners,
 				},
 			},
 		})
 
 		if remainingValue > 0 {
-			// This input provided more value than was needed to be locked.
+			// This input provided more value than was needed to be spended.
 			// Some of it must be returned
 			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -195,10 +195,10 @@ func (vm *VM) spend( // TODO@ rename
 	amountBurned := uint64(0)
 
 	for _, utxo := range utxos {
-		// If we have consumed more AVAX than we are trying to stake, and we
+		// If we have consumed more AVAX than we are trying to spend, and we
 		// have burned more AVAX then we need to, then we have no need to
 		// consume more AVAX
-		if amountBurned >= fee && amountStaked >= amount {
+		if amountBurned >= fee && amountSpended >= amount {
 			break
 		}
 
@@ -248,13 +248,13 @@ func (vm *VM) spend( // TODO@ rename
 		amountBurned += amountToBurn
 		remainingValue -= amountToBurn
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			amount-amountStaked, // Amount we still need to stake
-			remainingValue,      // Amount available to stake
+		// Spend any value that should be spended
+		amountToSpend := math.Min64(
+			amount-amountSpended, // Amount we still need to spend
+			remainingValue,       // Amount available to spend
 		)
-		amountStaked += amountToStake
-		remainingValue -= amountToStake
+		amountSpended += amountToSpend
+		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
@@ -263,14 +263,14 @@ func (vm *VM) spend( // TODO@ rename
 			In:     in,
 		})
 
-		if amountToStake > 0 {
-			// Some of this input was put for staking
-			stakedOuts = append(stakedOuts, &avax.TransferableOutput{
+		if amountToSpend > 0 {
+			// Some of this input was put for spending
+			createdOuts = append(createdOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &PChainOut{
 					State: stateAfterSpending(spendedOutState, spendMode),
 					TransferableOut: &secp256k1fx.TransferOutput{
-						Amt: amountToStake,
+						Amt: amountToSpend,
 						OutputOwners: secp256k1fx.OutputOwners{
 							Locktime:  0,
 							Threshold: 1,
@@ -300,17 +300,17 @@ func (vm *VM) spend( // TODO@ rename
 		signers = append(signers, inSigners)
 	}
 
-	if amountBurned < fee || amountStaked < amount {
+	if amountBurned < fee || amountSpended < amount {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"provided keys have balance (unlocked, locked) (%d, %d) but need (%d, %d)",
-			amountBurned, amountStaked, fee, amount)
+			amountBurned, amountSpended, fee, amount)
 	}
 
 	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
 	avax.SortTransferableOutputs(returnedOuts, Codec)    // sort outputs
-	avax.SortTransferableOutputs(stakedOuts, Codec)      // sort outputs
+	avax.SortTransferableOutputs(createdOuts, Codec)     // sort outputs
 
-	return ins, returnedOuts, stakedOuts, signers, nil
+	return ins, returnedOuts, createdOuts, signers, nil
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
@@ -405,7 +405,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	spendMode spendMode,
 ) error {
 	if !spendMode.isValid() {
-		return fmt.Errorf("") // TODO@
+		return errUnknownSpendMode
 	}
 
 	if len(ins) != len(creds) {
@@ -557,8 +557,6 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	// unbond:     PUTXOStateBonded             abs diff >= PUTXOStateTransferable       abs diff
 	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
 
-	// TODO@ add owners check, we can't transfer here
-
 	for ownerID, consumedFromOwner := range consumed {
 		producedForOwner := produced[ownerID] // TODO@ can it be nil?
 
@@ -663,16 +661,16 @@ func produceOutputs(
 	}
 }
 
-func canBeSpended(utxoState PUTXOState, spendMode spendMode, forFee bool) bool {
+func canBeSpended(utxoState PUTXOState, spendMode spendMode, burn bool) bool {
 	switch spendMode {
 	case spendModeDeposite:
-		return utxoState&PUTXOStateDeposited == 0 && (!forFee || utxoState == PUTXOStateTransferable)
+		return utxoState&PUTXOStateDeposited == 0 && (!burn || utxoState == PUTXOStateTransferable)
 	case spendModeBond:
-		return utxoState&PUTXOStateBonded == 0 && (!forFee || utxoState == PUTXOStateTransferable)
+		return utxoState&PUTXOStateBonded == 0 && (!burn || utxoState == PUTXOStateTransferable)
 	case spendModeUndeposit:
-		return !forFee && utxoState&PUTXOStateDeposited == 1 || forFee && utxoState&PUTXOStateBonded == 0
+		return !burn && utxoState&PUTXOStateDeposited == 1 || burn && utxoState&PUTXOStateBonded == 0
 	case spendModeUnbond:
-		return !forFee && utxoState&PUTXOStateBonded == 1 || forFee && utxoState&PUTXOStateDeposited == 0
+		return !burn && utxoState&PUTXOStateBonded == 1 || burn && utxoState&PUTXOStateDeposited == 0
 	}
 	return false
 }
