@@ -102,7 +102,7 @@ func (vm *VM) spend(
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
-	//TODO@clean loops
+
 	// Consume locked UTXOs
 	for _, utxo := range utxos {
 		// If we have consumed more AVAX than we are trying to spend, then we
@@ -487,7 +487,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
 
-		// TODO@ comment
+		// storing amount that was consumed in specific state from owner
 		consumedFromOwner, ok := consumed[ownerID]
 		if !ok {
 			consumedFromOwner = make(map[PUTXOState]uint64)
@@ -529,7 +529,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
 
-		// TODO@ comment
+		// storing amount that was produced in specific state for owner
 		producedForOwner, ok := produced[ownerID]
 		if !ok {
 			producedForOwner = make(map[PUTXOState]uint64)

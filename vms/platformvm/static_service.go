@@ -48,10 +48,10 @@ type StaticService struct{}
 
 // APIUTXO is a UTXO on the Platform Chain that exists at the chain's genesis.
 type APIUTXO struct {
-	Locktime json.Uint64 `json:"locktime"`
-	Amount   json.Uint64 `json:"amount"`
-	Address  string      `json:"address"`
-	Message  string      `json:"message"`
+	State   json.Uint64 `json:"state"`
+	Amount  json.Uint64 `json:"amount"`
+	Address string      `json:"address"`
+	Message string      `json:"message"`
 }
 
 // APIStaker is the representation of a staker sent via APIs.
@@ -216,9 +216,9 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				},
 			},
 		}
-		if apiUTXO.Locktime > args.Time {
+		if utxoState := PUTXOState(apiUTXO.State); utxoState != PUTXOStateTransferable { // TODO@ is this OK?
 			utxo.Out = &PChainOut{
-				State:           PUTXOStateDeposited, // TODO@      deposite      uint64(apiUTXO.Locktime)
+				State:           utxoState,
 				TransferableOut: utxo.Out.(avax.TransferableOut),
 			}
 		}
@@ -255,9 +255,9 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 					},
 				},
 			}
-			if apiUTXO.Locktime > args.Time {
+			if utxoState := PUTXOState(apiUTXO.State); utxoState != PUTXOStateTransferable { // TODO@ is this OK?
 				utxo.Out = &PChainOut{
-					State:           PUTXOStateDepositedAndBonded, // TODO@      deposite/&bond ?     uint64(apiUTXO.Locktime)
+					State:           utxoState,
 					TransferableOut: utxo.Out,
 				}
 			}
@@ -378,9 +378,9 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 type innerSortAPIUTXO []APIUTXO
 
 func (xa innerSortAPIUTXO) Less(i, j int) bool {
-	if xa[i].Locktime < xa[j].Locktime {
+	if xa[i].State < xa[j].State {
 		return true
-	} else if xa[i].Locktime > xa[j].Locktime {
+	} else if xa[i].State > xa[j].State {
 		return false
 	}
 

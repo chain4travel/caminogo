@@ -21,8 +21,8 @@ import (
 )
 
 var (
-	errInvalidLocktime      = errors.New("invalid locktime")
-	errNestedStakeableLocks = errors.New("shouldn't nest stakeable locks")
+	errInvalidPUTXOState = errors.New("invalid pUTXO state")
+	errNestedPUTXO       = errors.New("shouldn't nest pUTXO")
 )
 
 type PUTXOState uint8
@@ -60,10 +60,10 @@ func (o *PChainOut) Addresses() [][]byte {
 
 func (o *PChainOut) Verify() error {
 	if o.State < PUTXOStateTransferable || o.State > PUTXOStateDepositedAndBonded {
-		return errInvalidLocktime // TODO@
+		return errInvalidPUTXOState
 	}
 	if _, nested := o.TransferableOut.(*PChainOut); nested {
-		return errNestedStakeableLocks // TODO@
+		return errNestedPUTXO
 	}
 	return o.TransferableOut.Verify()
 }
@@ -79,10 +79,10 @@ type PChainIn struct {
 
 func (s *PChainIn) Verify() error {
 	if s.State < PUTXOStateTransferable || s.State > PUTXOStateDepositedAndBonded {
-		return errInvalidLocktime // TODO@
+		return errInvalidPUTXOState
 	}
 	if _, nested := s.TransferableIn.(*PChainIn); nested {
-		return errNestedStakeableLocks // TODO@
+		return errNestedPUTXO
 	}
 	return s.TransferableIn.Verify()
 }

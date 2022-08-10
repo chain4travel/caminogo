@@ -188,8 +188,8 @@ func (s *signer) getSigners(ctx stdcontext.Context, sourceChainID ids.ID, ins []
 		}
 
 		outIntf := utxo.Out
-		if stakeableOut, ok := outIntf.(*platformvm.PChainOut); ok {
-			outIntf = stakeableOut.TransferableOut
+		if pOut, ok := outIntf.(*platformvm.PChainOut); ok {
+			outIntf = pOut.TransferableOut
 		}
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
