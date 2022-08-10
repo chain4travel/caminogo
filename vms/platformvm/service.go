@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	encodingJson "encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -482,13 +483,22 @@ func (service *Service) GetUTXOs(_ *http.Request, args *GetUTXOsArgs, response *
 
 	response.UTXOs = make([]string, len(utxos))
 	for i, utxo := range utxos {
-		bytes, err := Codec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
-		}
-		response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+		if args.Encoding == formatting.JSON {
+			utxo.Out.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i] = string(bytes)
+		} else {
+			bytes, err := Codec.Marshal(CodecVersion, utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+			}
 		}
 	}
 
