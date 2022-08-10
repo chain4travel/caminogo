@@ -361,10 +361,10 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						Locktime: json.Uint64(unlock.Locktime),
-						Amount:   json.Uint64(unlock.Amount),
-						Address:  addr,
-						Message:  msgStr,
+						State:   json.Uint64(platformvm.PUTXOStateTransferable), // TODO@evlekht must be changed with deposit&reward PR
+						Amount:  json.Uint64(unlock.Amount),
+						Address: addr,
+						Message: msgStr,
 					},
 				)
 				amount += unlock.Amount
@@ -397,10 +397,10 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					Locktime: json.Uint64(unlock.Locktime),
-					Amount:   json.Uint64(unlock.Amount),
-					Address:  addr,
-					Message:  msgStr,
+					State:   json.Uint64(platformvm.PUTXOStateBonded), // TODO@evlekht must be changed with deposit&reward or staking&bonding PR
+					Amount:  json.Uint64(unlock.Amount),
+					Address: addr,
+					Message: msgStr,
 				})
 				amount += unlock.Amount
 			}
