@@ -262,8 +262,6 @@ func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
 func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	hrp := constants.GetHRP(config.NetworkID)
 
-	amount := uint64(0)
-
 	// Specify the genesis state of the AVM
 	avmArgs := avm.BuildGenesisArgs{
 		NetworkID: json.Uint32(config.NetworkID),
@@ -296,7 +294,6 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				Address: addr,
 			})
 			memoBytes = append(memoBytes, allocation.ETHAddr.Bytes()...)
-			amount += allocation.InitialAmount
 		}
 
 		var err error
@@ -361,13 +358,15 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						State:   json.Uint64(platformvm.PUTXOStateTransferable), // TODO@evlekht must be changed with deposit&reward PR
+						// ! while we don't have deposite & unlock & reward system
+						// ! there is no possibility to track locktime of allocations
+						// ! so they will stay deposited forever (for now)
+						State:   json.Uint64(platformvm.PUTXOStateDeposited),
 						Amount:  json.Uint64(unlock.Amount),
 						Address: addr,
 						Message: msgStr,
 					},
 				)
-				amount += unlock.Amount
 			}
 		}
 	}
@@ -397,12 +396,14 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					State:   json.Uint64(platformvm.PUTXOStateBonded), // TODO@evlekht must be changed with deposit&reward or staking&bonding PR
+					// ! while we don't have deposite & unlock & reward system
+					// ! there is no possibility to track locktime of allocations
+					// ! so they will stay deposited forever (for now)
+					State:   json.Uint64(platformvm.PUTXOStateDeposited),
 					Amount:  json.Uint64(unlock.Amount),
 					Address: addr,
 					Message: msgStr,
 				})
-				amount += unlock.Amount
 			}
 		}
 
@@ -419,6 +420,11 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					Threshold: 1,
 					Addresses: []string{destAddrStr},
 				},
+				// !@evlekht Not sure that all this utxos should be staked:
+				// !@evlekht looks like it works shitty for us.
+				// !@evlekht It will stake all utxos from locked alloctions for address
+				// !@evlekht from initial stakers, not just 2000 (or other const) amount of CAM.
+				// !@evlekht Should be taken care of in staking PR.
 				Staked:             utxos,
 				ExactDelegationFee: &delegationFee,
 			},
