@@ -201,26 +201,24 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			return err
 		}
 
+		// TODO@ verify utxo state? make spendMode verifiable?
 		utxo := avax.UTXO{
 			UTXOID: avax.UTXOID{
 				TxID:        ids.Empty,
 				OutputIndex: uint32(i),
 			},
 			Asset: avax.Asset{ID: args.AvaxAssetID},
-			Out: &secp256k1fx.TransferOutput{
-				Amt: uint64(apiUTXO.Amount),
-				OutputOwners: secp256k1fx.OutputOwners{
-					Locktime:  0,
-					Threshold: 1,
-					Addrs:     []ids.ShortID{addrID},
+			Out: &PChainOut{
+				State: PUTXOState(apiUTXO.State),
+				TransferableOut: &secp256k1fx.TransferOutput{
+					Amt: uint64(apiUTXO.Amount),
+					OutputOwners: secp256k1fx.OutputOwners{
+						Locktime:  0,
+						Threshold: 1,
+						Addrs:     []ids.ShortID{addrID},
+					},
 				},
 			},
-		}
-		if utxoState := PUTXOState(apiUTXO.State); utxoState != PUTXOStateTransferable { // TODO@ is this OK?
-			utxo.Out = &PChainOut{
-				State:           utxoState,
-				TransferableOut: utxo.Out.(avax.TransferableOut),
-			}
 		}
 		messageBytes, err := formatting.Decode(args.Encoding, apiUTXO.Message)
 		if err != nil {
@@ -244,22 +242,20 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				return err
 			}
 
+			// TODO@ verify utxo state? should be bonded! make spendMode verifiable?
 			utxo := &avax.TransferableOutput{
 				Asset: avax.Asset{ID: args.AvaxAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: uint64(apiUTXO.Amount),
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{addrID},
+				Out: &PChainOut{
+					State: PUTXOState(apiUTXO.State),
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt: uint64(apiUTXO.Amount),
+						OutputOwners: secp256k1fx.OutputOwners{
+							Locktime:  0,
+							Threshold: 1,
+							Addrs:     []ids.ShortID{addrID},
+						},
 					},
 				},
-			}
-			if utxoState := PUTXOState(apiUTXO.State); utxoState != PUTXOStateTransferable { // TODO@ is this OK?
-				utxo.Out = &PChainOut{
-					State:           utxoState,
-					TransferableOut: utxo.Out,
-				}
 			}
 			stake[i] = utxo
 
