@@ -28,8 +28,11 @@ var (
 type PUTXOState uint8
 
 const (
-	// TODO@ we should use PUTXO with PUTXOStateTransferable instead of secp256k1fx.TransferOutput on P-chain or remove this state
-	PUTXOStateTransferable       PUTXOState = 0b00 // TODO@ rename
+	// ?@ we should use PUTXO with PUTXOStateTransferable
+	// ?@ instead of secp256k1fx.TransferOutput on P-chain or remove this state
+
+	// ?@ rename ? unlocked/free ? there is no such thing as transfer on p-chain
+	PUTXOStateTransferable       PUTXOState = 0b00
 	PUTXOStateDeposited          PUTXOState = 0b01
 	PUTXOStateBonded             PUTXOState = 0b10
 	PUTXOStateDepositedAndBonded PUTXOState = 0b11
