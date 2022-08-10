@@ -698,9 +698,9 @@ func stateAfterSpending(utxoState PUTXOState, spendMode spendMode) PUTXOState {
 	case spendModeBond:
 		return utxoState | PUTXOStateBonded
 	case spendModeUndeposit:
-		return utxoState ^ PUTXOStateDeposited
+		return utxoState &^ PUTXOStateDeposited
 	case spendModeUnbond:
-		return utxoState ^ PUTXOStateBonded
+		return utxoState &^ PUTXOStateBonded
 	}
 	return 0
 }
