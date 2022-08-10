@@ -28,11 +28,12 @@ import (
 )
 
 var (
-	errWrongLocktime    = errors.New("wrong locktime reported")
-	errWrongInputState  = errors.New("wrong input state")
-	errUnknownSpendMode = errors.New("unknown spend mode")
-	errUnknownOwners    = errors.New("unknown owners")
-	errCantSign         = errors.New("can't sign")
+	errWrongLocktime     = errors.New("wrong locktime reported")
+	errWrongInputState   = errors.New("wrong input state")
+	errUnknownSpendMode  = errors.New("unknown spend mode")
+	errUnknownOwnersType = errors.New("unknown owners")
+	errUnknownOwners     = errors.New("owner of produced utxo isn't presented in consumed utxo owners")
+	errCantSign          = errors.New("can't sign")
 )
 
 type spendMode uint8
@@ -342,7 +343,7 @@ func (vm *VM) authorize(
 	// Make sure the owners of the subnet match the provided keys
 	owner, ok := subnet.Owner.(*secp256k1fx.OutputOwners)
 	if !ok {
-		return nil, nil, errUnknownOwners
+		return nil, nil, errUnknownOwnersType
 	}
 
 	// Add the keys to a keychain
@@ -476,7 +477,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		// getting spended out owners
 		owned, ok := spendedOut.(Owned)
 		if !ok {
-			return errUnknownOwners
+			return errUnknownOwnersType
 		}
 		spendedOutOwner := owned.Owners()
 
@@ -518,7 +519,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		// getting prdoduced out owners
 		owned, ok := producedOut.(Owned)
 		if !ok {
-			return errUnknownOwners
+			return errUnknownOwnersType
 		}
 		owner := owned.Owners()
 
@@ -561,7 +562,10 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
 
 	for ownerID, consumedFromOwner := range consumed {
-		producedForOwner := produced[ownerID] // TODO@ can it be nil?
+		producedForOwner := produced[ownerID]
+		if producedForOwner == nil {
+			return errUnknownOwners
+		}
 
 		switch spendMode {
 		case spendModeDeposite:
@@ -569,7 +573,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 
 			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
@@ -578,14 +582,14 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
 
 			if !(transferableDiff >= depositedDiff || bondedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 		case spendModeBond:
 			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 
 			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
@@ -594,14 +598,14 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
 
 			if !(transferableDiff >= bondedDiff || depositedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 		case spendModeUndeposit:
 			if !(consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
 				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded]) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 
 			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
@@ -610,14 +614,14 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
 
 			if !(depositedDiff >= transferableDiff || depositedAndBondedDiff >= bondedDiff) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 		case spendModeUnbond:
 			if !(consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
 				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited]) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 
 			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
@@ -626,7 +630,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
 
 			if !(bondedDiff >= transferableDiff || depositedAndBondedDiff >= depositedDiff) {
-				return fmt.Errorf("") // TODO@
+				return fmt.Errorf("") // TODO@ err
 			}
 		}
 	}
