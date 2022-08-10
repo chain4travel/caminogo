@@ -297,6 +297,20 @@ func (mr *MockInternalStateMockRecorder) GetLastAccepted() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAccepted", reflect.TypeOf((*MockInternalState)(nil).GetLastAccepted))
 }
 
+// GetLockRuleOfferByID mocks base method.
+func (m *MockInternalState) GetLockRuleOfferByID(id ids.ID) *LockRuleOffer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLockRuleOfferByID", id)
+	ret0, _ := ret[0].(*LockRuleOffer)
+	return ret0
+}
+
+// GetLockRuleOfferByID indicates an expected call of GetLockRuleOfferByID.
+func (mr *MockInternalStateMockRecorder) GetLockRuleOfferByID(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLockRuleOfferByID", reflect.TypeOf((*MockInternalState)(nil).GetLockRuleOfferByID), id)
+}
+
 // GetLockRuleOffers mocks base method.
 func (m *MockInternalState) GetLockRuleOffers() []*LockRuleOffer {
 	m.ctrl.T.Helper()

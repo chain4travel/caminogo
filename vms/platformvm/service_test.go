@@ -867,3 +867,22 @@ func TestGetGenesisLockRuleOffers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, lockRuleOffersReply, expectedReply)
 }
+
+func TestGetGenesisLockRuleOfferById(t *testing.T) {
+	err := genesisLockRuleOffer.Initialize()
+	if err != nil {
+		assert.NoError(t, err)
+	}
+	expectedReply := LockRuleOffer{
+		id:                    genesisLockRuleOffer.ID(),
+		InterestRateNominator: genesisLockRuleOffer.InterestRateNominator,
+		Start:                 genesisLockRuleOffer.Start,
+		End:                   genesisLockRuleOffer.End,
+		MinAmount:             genesisLockRuleOffer.MinAmount,
+		Duration:              genesisLockRuleOffer.Duration,
+	}
+
+	service := defaultService(t)
+	lockRuleOfferReply := service.vm.internalState.GetLockRuleOfferByID(genesisLockRuleOffer.ID())
+	assert.Equal(t, *lockRuleOfferReply, expectedReply)
+}

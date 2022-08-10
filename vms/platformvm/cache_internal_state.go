@@ -106,6 +106,7 @@ type InternalState interface {
 	AddBlock(block Block)
 
 	GetLockRuleOffers() []*LockRuleOffer
+	GetLockRuleOfferByID(id ids.ID) *LockRuleOffer
 
 	Abort()
 	Commit() error
