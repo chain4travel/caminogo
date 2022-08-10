@@ -469,7 +469,6 @@ func TestGetBalance(t *testing.T) {
 }
 
 // Test method GetStake
-// ? @jax i should not just blindly comment this out, it tests removing a stake as a whole including a delegation
 func TestGetStake(t *testing.T) {
 	assert := assert.New(t)
 	service := defaultService(t)
