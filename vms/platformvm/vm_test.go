@@ -21,9 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/chains"
 	"github.com/chain4travel/caminogo/chains/atomic"
@@ -74,6 +73,16 @@ var (
 		MinConsumptionRate: .10 * reward.PercentDenominator,
 		MintingPeriod:      365 * 24 * time.Hour,
 		SupplyCap:          720 * units.MegaAvax,
+	}
+
+	defaultLockRuleOffers = []APILockRuleOffers{
+		{
+			InterestRate: 0.1,
+			Start:        1659342978,
+			End:          1672516799,
+			MinAmount:    0,
+			Duration:     60,
+		},
 	}
 
 	// AVAX asset ID in tests
@@ -226,14 +235,15 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 	}
 
 	buildGenesisArgs := BuildGenesisArgs{
-		Encoding:      formatting.Hex,
-		NetworkID:     json.Uint32(testNetworkID),
-		AvaxAssetID:   avaxAssetID,
-		UTXOs:         genesisUTXOs,
-		Validators:    genesisValidators,
-		Chains:        nil,
-		Time:          json.Uint64(defaultGenesisTime.Unix()),
-		InitialSupply: json.Uint64(360 * units.MegaAvax),
+		Encoding:       formatting.Hex,
+		NetworkID:      json.Uint32(testNetworkID),
+		AvaxAssetID:    avaxAssetID,
+		UTXOs:          genesisUTXOs,
+		Validators:     genesisValidators,
+		Chains:         nil,
+		LockRuleOffers: defaultLockRuleOffers,
+		Time:           json.Uint64(defaultGenesisTime.Unix()),
+		InitialSupply:  json.Uint64(360 * units.MegaAvax),
 	}
 
 	buildGenesisResponse := BuildGenesisReply{}

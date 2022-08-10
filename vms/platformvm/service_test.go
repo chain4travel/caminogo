@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/api"
@@ -61,6 +60,14 @@ var (
 		0xbf, 0xc1, 0x2a, 0xdc, 0x09, 0x3c, 0x9b, 0x51,
 		0x12, 0x4f, 0x0d, 0xc5, 0x4a, 0xc7, 0xa7, 0x66,
 		0xb2, 0xbc, 0x5c, 0xcf, 0x55, 0x8d, 0x80, 0x27,
+	}
+
+	genesisLockRuleOffer = LockRuleOffer{
+		InterestRateNominator: uint64(0.1 * cjson.Float64(InterestRateDenominator)),
+		Start:                 1659342978,
+		End:                   1672516799,
+		MinAmount:             0,
+		Duration:              60,
 	}
 
 	// 3cb7d3842e8cee6a0ebd09f1fe884f6861e1b29c
@@ -834,4 +841,29 @@ func TestGetBlock(t *testing.T) {
 			assert.Equal(t, test.encoding, response.Encoding)
 		})
 	}
+}
+
+func TestGetGenesisLockRuleOffers(t *testing.T) {
+	err := genesisLockRuleOffer.Initialize()
+	if err != nil {
+		assert.NoError(t, err)
+	}
+	expectedReply := GetLockRuleOffersReply{
+		Offers: []*APILockRuleOffers{
+			{
+				ID:           genesisLockRuleOffer.ID(),
+				InterestRate: cjson.Float64(genesisLockRuleOffer.InterestRateFloat64()),
+				Start:        cjson.Uint64(genesisLockRuleOffer.Start),
+				End:          cjson.Uint64(genesisLockRuleOffer.End),
+				MinAmount:    cjson.Uint64(genesisLockRuleOffer.MinAmount),
+				Duration:     cjson.Uint64(genesisLockRuleOffer.Duration),
+			},
+		},
+	}
+	service := defaultService(t)
+	service.vm.Clock().Set(time.Now())
+	lockRuleOffersReply := GetLockRuleOffersReply{}
+	err = service.GetLockRuleOffers(nil, nil, &lockRuleOffersReply)
+	assert.NoError(t, err)
+	assert.Equal(t, lockRuleOffersReply, expectedReply)
 }
