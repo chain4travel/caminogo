@@ -201,7 +201,11 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			return err
 		}
 
-		// TODO@ verify utxo state? make spendMode verifiable?
+		utxoState := PUTXOState(apiUTXO.State)
+		if err := utxoState.Verify(); err != nil {
+			return err
+		}
+
 		utxo := avax.UTXO{
 			UTXOID: avax.UTXOID{
 				TxID:        ids.Empty,
@@ -209,7 +213,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			},
 			Asset: avax.Asset{ID: args.AvaxAssetID},
 			Out: &PChainOut{
-				State: PUTXOState(apiUTXO.State),
+				State: utxoState,
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt: uint64(apiUTXO.Amount),
 					OutputOwners: secp256k1fx.OutputOwners{
@@ -242,11 +246,15 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				return err
 			}
 
-			// TODO@ verify utxo state? should be bonded! make spendMode verifiable?
+			utxoState := PUTXOState(apiUTXO.State)
+			if err := utxoState.Verify(); err != nil {
+				return err
+			}
+
 			utxo := &avax.TransferableOutput{
 				Asset: avax.Asset{ID: args.AvaxAssetID},
 				Out: &PChainOut{
-					State: PUTXOState(apiUTXO.State),
+					State: utxoState,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt: uint64(apiUTXO.Amount),
 						OutputOwners: secp256k1fx.OutputOwners{

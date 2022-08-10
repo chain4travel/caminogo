@@ -52,16 +52,15 @@ var spendModeStrings = map[spendMode]string{
 	spendModeUndeposit: "undeposite",
 }
 
-func (sm spendMode) String() string {
-	return spendModeStrings[sm]
+func (mode spendMode) String() string {
+	return spendModeStrings[mode]
 }
 
-func (mode spendMode) isValid() bool {
-	switch mode {
-	case spendModeDeposite, spendModeBond, spendModeUndeposit, spendModeUnbond:
-		return true
+func (mode spendMode) Verify() error {
+	if mode < spendModeBond || mode > spendModeUndeposit {
+		return errUnknownSpendMode
 	}
-	return false
+	return nil
 }
 
 // spend the provided amount while deducting the provided fee.
@@ -89,8 +88,8 @@ func (vm *VM) spend(
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
-	if !spendMode.isValid() {
-		return nil, nil, nil, nil, errUnknownSpendMode
+	if err := spendMode.Verify(); err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
@@ -419,8 +418,8 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	feeAssetID ids.ID,
 	spendMode spendMode,
 ) error {
-	if !spendMode.isValid() {
-		return errUnknownSpendMode
+	if err := spendMode.Verify(); err != nil {
+		return err
 	}
 
 	if len(ins) != len(creds) {
