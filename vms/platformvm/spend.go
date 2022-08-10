@@ -45,6 +45,17 @@ const (
 	spendModeUndeposit
 )
 
+var spendModeStrings = map[spendMode]string{
+	spendModeBond:      "bond",
+	spendModeDeposite:  "deposite",
+	spendModeUnbond:    "unbond",
+	spendModeUndeposit: "undeposite",
+}
+
+func (sm spendMode) String() string {
+	return spendModeStrings[sm]
+}
+
 func (mode spendMode) isValid() bool {
 	switch mode {
 	case spendModeDeposite, spendModeBond, spendModeUndeposit, spendModeUnbond:
@@ -573,7 +584,8 @@ func (vm *VM) semanticVerifySpendUTXOs(
 				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 
 			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
@@ -582,14 +594,16 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
 
 			if !(transferableDiff >= depositedDiff || bondedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 		case spendModeBond:
 			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 
 			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
@@ -598,14 +612,16 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
 
 			if !(transferableDiff >= bondedDiff || depositedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 		case spendModeUndeposit:
 			if !(consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
 				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded]) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 
 			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
@@ -614,14 +630,16 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
 
 			if !(depositedDiff >= transferableDiff || depositedAndBondedDiff >= bondedDiff) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 		case spendModeUnbond:
 			if !(consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
 				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited]) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 
 			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
@@ -630,7 +648,8 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
 
 			if !(bondedDiff >= transferableDiff || depositedAndBondedDiff >= depositedDiff) {
-				return fmt.Errorf("") // TODO@ err
+				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
+					ownerID, spendMode.String())
 			}
 		}
 	}
