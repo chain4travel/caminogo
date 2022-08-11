@@ -40,16 +40,16 @@ type spendMode uint8
 
 const (
 	spendModeBond spendMode = iota
-	spendModeDeposite
+	spendModeDeposit
 	spendModeUnbond
 	spendModeUndeposit
 )
 
 var spendModeStrings = map[spendMode]string{
 	spendModeBond:      "bond",
-	spendModeDeposite:  "deposite",
+	spendModeDeposit:   "deposit",
 	spendModeUnbond:    "unbond",
-	spendModeUndeposit: "undeposite",
+	spendModeUndeposit: "undeposit",
 }
 
 func (mode spendMode) String() string {
@@ -75,6 +75,7 @@ func (mode spendMode) Verify() error {
 //                     UTXO set
 // - [createdOutputs] the outputs that was created as result of spending
 // - [signers] the proof of ownership of the funds being moved
+// - [spendMode] in what way tokens will be spended (bonded / deposited / unbonded / undeposited)
 func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
 	totalAmountToSpend uint64,
@@ -375,6 +376,7 @@ func (vm *VM) authorize(
 // [db] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
+// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpend(
 	utxoDB UTXOGetter,
@@ -407,6 +409,7 @@ func (vm *VM) semanticVerifySpend(
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // [utxos[i]] is the UTXO being consumed by [ins[i]]
+// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpendUTXOs(
 	tx UnsignedTx,
@@ -553,21 +556,21 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		producedForOwner[producedOutState] = newAmount
 	}
 
-	// deposite:   PUTXOStateTransferable       reduced => PUTXOStateDeposited          increased
-	// deposite:   PUTXOStateBonded             reduced => PUTXOStateDepositedAndBonded increased
+	// deposit:   PUTXOStateTransferable       reduced => PUTXOStateDeposited          increased
+	// deposit:   PUTXOStateBonded             reduced => PUTXOStateDepositedAndBonded increased
 	// bond:       PUTXOStateTransferable       reduced => PUTXOStateBonded             increased
 	// bond:       PUTXOStateDeposited          reduced => PUTXOStateDepositedAndBonded increased
-	// undeposite: PUTXOStateDeposited          reduced => PUTXOStateTransferable       increased
-	// undeposite: PUTXOStateDepositedAndBonded reduced => PUTXOStateBonded             increased
+	// undeposit: PUTXOStateDeposited          reduced => PUTXOStateTransferable       increased
+	// undeposit: PUTXOStateDepositedAndBonded reduced => PUTXOStateBonded             increased
 	// unbond:     PUTXOStateBonded             reduced => PUTXOStateTransferable       increased
 	// unbond:     PUTXOStateDepositedAndBonded reduced => PUTXOStateDeposited          increased
 
-	// deposite:   PUTXOStateTransferable       abs diff >= PUTXOStateDeposited          abs diff
-	// deposite:   PUTXOStateBonded             abs diff >= PUTXOStateDepositedAndBonded abs diff
+	// deposit:   PUTXOStateTransferable       abs diff >= PUTXOStateDeposited          abs diff
+	// deposit:   PUTXOStateBonded             abs diff >= PUTXOStateDepositedAndBonded abs diff
 	// bond:       PUTXOStateTransferable       abs diff >= PUTXOStateBonded             abs diff
 	// bond:       PUTXOStateDeposited          abs diff >= PUTXOStateDepositedAndBonded abs diff
-	// undeposite: PUTXOStateDeposited          abs diff >= PUTXOStateTransferable       abs diff
-	// undeposite: PUTXOStateDepositedAndBonded abs diff >= PUTXOStateBonded             abs diff
+	// undeposit: PUTXOStateDeposited          abs diff >= PUTXOStateTransferable       abs diff
+	// undeposit: PUTXOStateDepositedAndBonded abs diff >= PUTXOStateBonded             abs diff
 	// unbond:     PUTXOStateBonded             abs diff >= PUTXOStateTransferable       abs diff
 	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
 
@@ -578,7 +581,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 
 		switch spendMode {
-		case spendModeDeposite:
+		case spendModeDeposit:
 			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
@@ -688,7 +691,7 @@ func produceOutputs(
 
 func canBeSpended(utxoState PUTXOState, spendMode spendMode) bool {
 	switch spendMode {
-	case spendModeDeposite:
+	case spendModeDeposit:
 		return utxoState&PUTXOStateDeposited == 0
 	case spendModeBond:
 		return utxoState&PUTXOStateBonded == 0
@@ -702,7 +705,7 @@ func canBeSpended(utxoState PUTXOState, spendMode spendMode) bool {
 
 func canBeBurned(utxoState PUTXOState, spendMode spendMode) bool {
 	switch spendMode {
-	case spendModeDeposite, spendModeBond:
+	case spendModeDeposit, spendModeBond:
 		return utxoState == PUTXOStateTransferable
 	case spendModeUndeposit:
 		return utxoState&PUTXOStateBonded == 0
@@ -715,7 +718,7 @@ func canBeBurned(utxoState PUTXOState, spendMode spendMode) bool {
 // stateAfterSpending will only work for correct utxoState that can be spended with correct spendMode
 func stateAfterSpending(utxoState PUTXOState, spendMode spendMode) PUTXOState {
 	switch spendMode {
-	case spendModeDeposite:
+	case spendModeDeposit:
 		return utxoState | PUTXOStateDeposited
 	case spendModeBond:
 		return utxoState | PUTXOStateBonded

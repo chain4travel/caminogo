@@ -358,7 +358,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						// ! while we don't have deposite & unlock & reward system
+						// ! while we don't have deposit & unlock & reward system
 						// ! there is no possibility to track locktime of allocations
 						// ! so they will stay deposited forever (for now)
 						State:   json.Uint64(platformvm.PUTXOStateDeposited),
@@ -396,7 +396,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					// ! while we don't have deposite & unlock & reward system
+					// ! while we don't have deposit & unlock & reward system
 					// ! there is no possibility to track locktime of allocations
 					// ! so they will stay deposited forever (for now)
 					State:   json.Uint64(platformvm.PUTXOStateDeposited),
