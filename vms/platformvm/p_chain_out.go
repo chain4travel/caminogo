@@ -45,8 +45,15 @@ var pUTXOStateStrings = map[PUTXOState]string{
 	PUTXOStateTransferable:       "transferable",
 }
 
-func (s PUTXOState) String() string {
-	return pUTXOStateStrings[s]
+func (state PUTXOState) String() string {
+	return pUTXOStateStrings[state]
+}
+
+func (state PUTXOState) Verify() error {
+	if state < PUTXOStateTransferable || state > PUTXOStateDepositedAndBonded {
+		return errInvalidPUTXOState
+	}
+	return nil
 }
 
 type PChainOut struct {
@@ -54,25 +61,25 @@ type PChainOut struct {
 	avax.TransferableOut `serialize:"true" json:"output"`
 }
 
-func (o *PChainOut) Addresses() [][]byte {
-	if addressable, ok := o.TransferableOut.(avax.Addressable); ok {
+func (out *PChainOut) Addresses() [][]byte {
+	if addressable, ok := out.TransferableOut.(avax.Addressable); ok {
 		return addressable.Addresses()
 	}
 	return nil
 }
 
-func (o *PChainOut) Verify() error {
-	if o.State < PUTXOStateTransferable || o.State > PUTXOStateDepositedAndBonded {
-		return errInvalidPUTXOState
+func (out *PChainOut) Verify() error {
+	if err := out.State.Verify(); err != nil {
+		return err
 	}
-	if _, nested := o.TransferableOut.(*PChainOut); nested {
+	if _, nested := out.TransferableOut.(*PChainOut); nested {
 		return errNestedPUTXO
 	}
-	return o.TransferableOut.Verify()
+	return out.TransferableOut.Verify()
 }
 
-func (o *PChainOut) IsLocked() bool {
-	return o.State != PUTXOStateTransferable
+func (out *PChainOut) IsLocked() bool {
+	return out.State != PUTXOStateTransferable
 }
 
 type PChainIn struct {
@@ -80,12 +87,12 @@ type PChainIn struct {
 	avax.TransferableIn `serialize:"true" json:"input"`
 }
 
-func (s *PChainIn) Verify() error {
-	if s.State < PUTXOStateTransferable || s.State > PUTXOStateDepositedAndBonded {
-		return errInvalidPUTXOState
+func (in *PChainIn) Verify() error {
+	if err := in.State.Verify(); err != nil {
+		return err
 	}
-	if _, nested := s.TransferableIn.(*PChainIn); nested {
+	if _, nested := in.TransferableIn.(*PChainIn); nested {
 		return errNestedPUTXO
 	}
-	return s.TransferableIn.Verify()
+	return in.TransferableIn.Verify()
 }

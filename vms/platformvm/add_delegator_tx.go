@@ -307,7 +307,7 @@ func (vm *VM) newAddDelegatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, unlockedOuts, lockedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
+	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -317,7 +317,7 @@ func (vm *VM) newAddDelegatorTx(
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
 			Ins:          ins,
-			Outs:         unlockedOuts,
+			Outs:         notBondedOuts,
 		}},
 		Validator: Validator{
 			NodeID: nodeID,
@@ -325,7 +325,7 @@ func (vm *VM) newAddDelegatorTx(
 			End:    endTime,
 			Wght:   stakeAmt,
 		},
-		Stake: lockedOuts,
+		Stake: bondedOuts,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,

@@ -358,7 +358,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						// ! while we don't have deposite & unlock & reward system
+						// ! while we don't have deposit & unlock & reward system
 						// ! there is no possibility to track locktime of allocations
 						// ! so they will stay deposited forever (for now)
 						State:   json.Uint64(platformvm.PUTXOStateDeposited),
@@ -396,7 +396,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					// ! while we don't have deposite & unlock & reward system
+					// ! while we don't have deposit & unlock & reward system
 					// ! there is no possibility to track locktime of allocations
 					// ! so they will stay deposited forever (for now)
 					State:   json.Uint64(platformvm.PUTXOStateDeposited),
@@ -420,11 +420,13 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					Threshold: 1,
 					Addresses: []string{destAddrStr},
 				},
+
 				// !@evlekht Not sure that all this utxos should be staked:
 				// !@evlekht looks like it works shitty for us.
-				// !@evlekht It will stake all utxos from locked alloctions for address
+				// !@evlekht It will stake all utxos from locked allocations for address
 				// !@evlekht from initial stakers, not just 2000 (or other const) amount of CAM.
 				// !@evlekht Should be taken care of in staking PR.
+
 				Staked:             utxos,
 				ExactDelegationFee: &delegationFee,
 			},

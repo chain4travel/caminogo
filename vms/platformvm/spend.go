@@ -40,28 +40,27 @@ type spendMode uint8
 
 const (
 	spendModeBond spendMode = iota
-	spendModeDeposite
+	spendModeDeposit
 	spendModeUnbond
 	spendModeUndeposit
 )
 
 var spendModeStrings = map[spendMode]string{
 	spendModeBond:      "bond",
-	spendModeDeposite:  "deposite",
+	spendModeDeposit:   "deposit",
 	spendModeUnbond:    "unbond",
-	spendModeUndeposit: "undeposite",
+	spendModeUndeposit: "undeposit",
 }
 
-func (sm spendMode) String() string {
-	return spendModeStrings[sm]
+func (mode spendMode) String() string {
+	return spendModeStrings[mode]
 }
 
-func (mode spendMode) isValid() bool {
-	switch mode {
-	case spendModeDeposite, spendModeBond, spendModeUndeposit, spendModeUnbond:
-		return true
+func (mode spendMode) Verify() error {
+	if mode < spendModeBond || mode > spendModeUndeposit {
+		return errUnknownSpendMode
 	}
-	return false
+	return nil
 }
 
 // spend the provided amount while deducting the provided fee.
@@ -76,6 +75,7 @@ func (mode spendMode) isValid() bool {
 //                     UTXO set
 // - [createdOutputs] the outputs that was created as result of spending
 // - [signers] the proof of ownership of the funds being moved
+// - [spendMode] in what way tokens will be spended (bonded / deposited / unbonded / undeposited)
 func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
 	totalAmountToSpend uint64,
@@ -84,13 +84,13 @@ func (vm *VM) spend(
 	spendMode spendMode,
 ) (
 	[]*avax.TransferableInput, // inputs
-	[]*avax.TransferableOutput, // returnedOutputs
-	[]*avax.TransferableOutput, // createdOutputs
+	[]*avax.TransferableOutput, // nonTransitionedOutputs
+	[]*avax.TransferableOutput, // transitionedOutputs
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
-	if !spendMode.isValid() {
-		return nil, nil, nil, nil, errUnknownSpendMode
+	if err := spendMode.Verify(); err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
@@ -108,8 +108,8 @@ func (vm *VM) spend(
 	now := uint64(vm.clock.Time().Unix())
 
 	ins := []*avax.TransferableInput{}
-	returnedOuts := []*avax.TransferableOutput{}
-	createdOuts := []*avax.TransferableOutput{}
+	nonTransitionedOuts := []*avax.TransferableOutput{}
+	transitionedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
 	// Amount of AVAX that has been spended
@@ -173,8 +173,8 @@ func (vm *VM) spend(
 			},
 		})
 
-		// Add the output to the created outputs
-		createdOuts = append(createdOuts, &avax.TransferableOutput{
+		// Add the output to the transitioned outputs
+		transitionedOuts = append(transitionedOuts, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &PChainOut{
 				State: stateAfterSpending(out.State, spendMode),
@@ -188,7 +188,7 @@ func (vm *VM) spend(
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
 			// Some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			nonTransitionedOuts = append(nonTransitionedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &PChainOut{
 					State: out.State,
@@ -272,7 +272,7 @@ func (vm *VM) spend(
 
 			if amountToSpend > 0 {
 				// Some of this input was put for spending
-				createdOuts = append(createdOuts, &avax.TransferableOutput{
+				transitionedOuts = append(transitionedOuts, &avax.TransferableOutput{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 					Out: &PChainOut{
 						State: stateAfterSpending(spendedOutState, spendMode),
@@ -298,7 +298,7 @@ func (vm *VM) spend(
 
 		if remainingValue > 0 {
 			// This input had extra value, so some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			nonTransitionedOuts = append(nonTransitionedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
 					Amt: remainingValue,
@@ -321,11 +321,11 @@ func (vm *VM) spend(
 			amountBurned, amountSpended, fee, totalAmountToSpend)
 	}
 
-	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(returnedOuts, Codec)    // sort outputs
-	avax.SortTransferableOutputs(createdOuts, Codec)     // sort outputs
+	avax.SortTransferableInputsWithSigners(ins, signers)     // sort inputs and keys
+	avax.SortTransferableOutputs(nonTransitionedOuts, Codec) // sort outputs
+	avax.SortTransferableOutputs(transitionedOuts, Codec)    // sort outputs
 
-	return ins, returnedOuts, createdOuts, signers, nil
+	return ins, nonTransitionedOuts, transitionedOuts, signers, nil
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
@@ -376,6 +376,7 @@ func (vm *VM) authorize(
 // [db] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
+// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpend(
 	utxoDB UTXOGetter,
@@ -408,6 +409,7 @@ func (vm *VM) semanticVerifySpend(
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // [utxos[i]] is the UTXO being consumed by [ins[i]]
+// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpendUTXOs(
 	tx UnsignedTx,
@@ -419,8 +421,8 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	feeAssetID ids.ID,
 	spendMode spendMode,
 ) error {
-	if !spendMode.isValid() {
-		return errUnknownSpendMode
+	if err := spendMode.Verify(); err != nil {
+		return err
 	}
 
 	if len(ins) != len(creds) {
@@ -554,24 +556,25 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		producedForOwner[producedOutState] = newAmount
 	}
 
-	// deposite:   PUTXOStateTransferable       reduced => PUTXOStateDeposited          increased
-	// deposite:   PUTXOStateBonded             reduced => PUTXOStateDepositedAndBonded increased
+	// deposit:   PUTXOStateTransferable       reduced => PUTXOStateDeposited          increased
+	// deposit:   PUTXOStateBonded             reduced => PUTXOStateDepositedAndBonded increased
 	// bond:       PUTXOStateTransferable       reduced => PUTXOStateBonded             increased
 	// bond:       PUTXOStateDeposited          reduced => PUTXOStateDepositedAndBonded increased
-	// undeposite: PUTXOStateDeposited          reduced => PUTXOStateTransferable       increased
-	// undeposite: PUTXOStateDepositedAndBonded reduced => PUTXOStateBonded             increased
+	// undeposit: PUTXOStateDeposited          reduced => PUTXOStateTransferable       increased
+	// undeposit: PUTXOStateDepositedAndBonded reduced => PUTXOStateBonded             increased
 	// unbond:     PUTXOStateBonded             reduced => PUTXOStateTransferable       increased
 	// unbond:     PUTXOStateDepositedAndBonded reduced => PUTXOStateDeposited          increased
 
-	// deposite:   PUTXOStateTransferable       abs diff >= PUTXOStateDeposited          abs diff
-	// deposite:   PUTXOStateBonded             abs diff >= PUTXOStateDepositedAndBonded abs diff
+	// deposit:   PUTXOStateTransferable       abs diff >= PUTXOStateDeposited          abs diff
+	// deposit:   PUTXOStateBonded             abs diff >= PUTXOStateDepositedAndBonded abs diff
 	// bond:       PUTXOStateTransferable       abs diff >= PUTXOStateBonded             abs diff
 	// bond:       PUTXOStateDeposited          abs diff >= PUTXOStateDepositedAndBonded abs diff
-	// undeposite: PUTXOStateDeposited          abs diff >= PUTXOStateTransferable       abs diff
-	// undeposite: PUTXOStateDepositedAndBonded abs diff >= PUTXOStateBonded             abs diff
+	// undeposit: PUTXOStateDeposited          abs diff >= PUTXOStateTransferable       abs diff
+	// undeposit: PUTXOStateDepositedAndBonded abs diff >= PUTXOStateBonded             abs diff
 	// unbond:     PUTXOStateBonded             abs diff >= PUTXOStateTransferable       abs diff
 	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
 
+	// TODO@evlekht take feeAmount into account in checks
 	for ownerID, consumedFromOwner := range consumed {
 		producedForOwner := produced[ownerID]
 		if producedForOwner == nil {
@@ -579,7 +582,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 
 		switch spendMode {
-		case spendModeDeposite:
+		case spendModeDeposit:
 			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
 				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
 				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
@@ -689,7 +692,7 @@ func produceOutputs(
 
 func canBeSpended(utxoState PUTXOState, spendMode spendMode) bool {
 	switch spendMode {
-	case spendModeDeposite:
+	case spendModeDeposit:
 		return utxoState&PUTXOStateDeposited == 0
 	case spendModeBond:
 		return utxoState&PUTXOStateBonded == 0
@@ -703,7 +706,7 @@ func canBeSpended(utxoState PUTXOState, spendMode spendMode) bool {
 
 func canBeBurned(utxoState PUTXOState, spendMode spendMode) bool {
 	switch spendMode {
-	case spendModeDeposite, spendModeBond:
+	case spendModeDeposit, spendModeBond:
 		return utxoState == PUTXOStateTransferable
 	case spendModeUndeposit:
 		return utxoState&PUTXOStateBonded == 0
@@ -716,7 +719,7 @@ func canBeBurned(utxoState PUTXOState, spendMode spendMode) bool {
 // stateAfterSpending will only work for correct utxoState that can be spended with correct spendMode
 func stateAfterSpending(utxoState PUTXOState, spendMode spendMode) PUTXOState {
 	switch spendMode {
-	case spendModeDeposite:
+	case spendModeDeposit:
 		return utxoState | PUTXOStateDeposited
 	case spendModeBond:
 		return utxoState | PUTXOStateBonded
