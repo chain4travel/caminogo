@@ -45,8 +45,8 @@ var pUTXOStateStrings = map[PUTXOState]string{
 	PUTXOStateTransferable:       "transferable",
 }
 
-func (s PUTXOState) String() string {
-	return pUTXOStateStrings[s]
+func (state PUTXOState) String() string {
+	return pUTXOStateStrings[state]
 }
 
 func (state PUTXOState) Verify() error {

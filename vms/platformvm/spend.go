@@ -84,8 +84,8 @@ func (vm *VM) spend(
 	spendMode spendMode,
 ) (
 	[]*avax.TransferableInput, // inputs
-	[]*avax.TransferableOutput, // returnedOutputs
-	[]*avax.TransferableOutput, // createdOutputs
+	[]*avax.TransferableOutput, // nonTransitionedOutputs
+	[]*avax.TransferableOutput, // transitionedOutputs
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
@@ -108,8 +108,8 @@ func (vm *VM) spend(
 	now := uint64(vm.clock.Time().Unix())
 
 	ins := []*avax.TransferableInput{}
-	returnedOuts := []*avax.TransferableOutput{}
-	createdOuts := []*avax.TransferableOutput{}
+	nonTransitionedOuts := []*avax.TransferableOutput{}
+	transitionedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
 	// Amount of AVAX that has been spended
@@ -173,8 +173,8 @@ func (vm *VM) spend(
 			},
 		})
 
-		// Add the output to the created outputs
-		createdOuts = append(createdOuts, &avax.TransferableOutput{
+		// Add the output to the transitioned outputs
+		transitionedOuts = append(transitionedOuts, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &PChainOut{
 				State: stateAfterSpending(out.State, spendMode),
@@ -188,7 +188,7 @@ func (vm *VM) spend(
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
 			// Some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			nonTransitionedOuts = append(nonTransitionedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &PChainOut{
 					State: out.State,
@@ -272,7 +272,7 @@ func (vm *VM) spend(
 
 			if amountToSpend > 0 {
 				// Some of this input was put for spending
-				createdOuts = append(createdOuts, &avax.TransferableOutput{
+				transitionedOuts = append(transitionedOuts, &avax.TransferableOutput{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 					Out: &PChainOut{
 						State: stateAfterSpending(spendedOutState, spendMode),
@@ -298,7 +298,7 @@ func (vm *VM) spend(
 
 		if remainingValue > 0 {
 			// This input had extra value, so some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			nonTransitionedOuts = append(nonTransitionedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
 					Amt: remainingValue,
@@ -321,11 +321,11 @@ func (vm *VM) spend(
 			amountBurned, amountSpended, fee, totalAmountToSpend)
 	}
 
-	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(returnedOuts, Codec)    // sort outputs
-	avax.SortTransferableOutputs(createdOuts, Codec)     // sort outputs
+	avax.SortTransferableInputsWithSigners(ins, signers)     // sort inputs and keys
+	avax.SortTransferableOutputs(nonTransitionedOuts, Codec) // sort outputs
+	avax.SortTransferableOutputs(transitionedOuts, Codec)    // sort outputs
 
-	return ins, returnedOuts, createdOuts, signers, nil
+	return ins, nonTransitionedOuts, transitionedOuts, signers, nil
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
@@ -574,6 +574,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	// unbond:     PUTXOStateBonded             abs diff >= PUTXOStateTransferable       abs diff
 	// unbond:     PUTXOStateDepositedAndBonded abs diff >= PUTXOStateDeposited          abs diff
 
+	// TODO@evlekht take feeAmount into account in checks
 	for ownerID, consumedFromOwner := range consumed {
 		producedForOwner := produced[ownerID]
 		if producedForOwner == nil {

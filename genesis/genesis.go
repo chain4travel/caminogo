@@ -420,11 +420,13 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					Threshold: 1,
 					Addresses: []string{destAddrStr},
 				},
+
 				// !@evlekht Not sure that all this utxos should be staked:
 				// !@evlekht looks like it works shitty for us.
-				// !@evlekht It will stake all utxos from locked alloctions for address
+				// !@evlekht It will stake all utxos from locked allocations for address
 				// !@evlekht from initial stakers, not just 2000 (or other const) amount of CAM.
 				// !@evlekht Should be taken care of in staking PR.
+
 				Staked:             utxos,
 				ExactDelegationFee: &delegationFee,
 			},
