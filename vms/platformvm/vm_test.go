@@ -18,13 +18,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/prometheus/client_golang/prometheus"
-
+	"github.com/chain4travel/caminogo/cache"
 	"github.com/chain4travel/caminogo/chains"
 	"github.com/chain4travel/caminogo/chains/atomic"
 	"github.com/chain4travel/caminogo/database"
@@ -35,10 +33,13 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/choices"
 	"github.com/chain4travel/caminogo/snow/consensus/snowball"
+	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/snow/engine/common/queue"
 	"github.com/chain4travel/caminogo/snow/engine/common/tracker"
+	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/snowman/bootstrap"
+	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
 	"github.com/chain4travel/caminogo/snow/networking/benchlist"
 	"github.com/chain4travel/caminogo/snow/networking/handler"
 	"github.com/chain4travel/caminogo/snow/networking/router"
@@ -59,10 +60,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
-
-	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
-	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
-	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -3069,5 +3068,56 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 
 		currentTimestamp := vm.internalState.GetTimestamp()
 		assert.Equal(newValidatorStartTime1.Unix(), currentTimestamp.Unix())
+	}
+}
+
+func TestGetValidatorSet(t *testing.T) {
+
+	vm, _, _ := defaultVM()
+	validatorSet, _ := vm.Validators.GetValidators(ids.Empty)
+	validatorsWithWeights := make(map[ids.ShortID]uint64)
+	for _, validator := range validatorSet.List() {
+		validatorsWithWeights[validator.ID()] = validator.Weight()
+	}
+
+	type args struct {
+		height   uint64
+		subnetID ids.ID
+	}
+	tests := []struct {
+		name          string
+		args          args
+		want          map[ids.ShortID]uint64
+		wantErr       bool
+		alreadyCached bool
+	}{
+		{name: "validator set not cached",
+			args: args{height: 0, subnetID: ids.Empty},
+			want: validatorsWithWeights,
+		},
+		{name: "validator set already cached",
+			args:          args{height: 0, subnetID: ids.Empty},
+			want:          validatorsWithWeights,
+			alreadyCached: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			if tt.alreadyCached {
+				cacher := &cache.LRU{Size: validatorSetsCacheSize}
+				cacher.Put(0, validatorSet)
+				vm.validatorSetCaches = map[ids.ID]cache.Cacher{ids.Empty: cacher}
+			}
+
+			got, err := vm.GetValidatorSet(tt.args.height, tt.args.subnetID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("VM.GetValidatorSet() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("VM.GetValidatorSet() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
