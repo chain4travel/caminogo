@@ -32,7 +32,7 @@ func NewSet(size int) Set {
 }
 
 func (ids *Set) init(size int) {
-	if *ids == nil {
+	if *ids == nil { // TODO@ look for use of sets, could use them more optimal, probably
 		if minSetSize > size {
 			size = minSetSize
 		}

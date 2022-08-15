@@ -72,9 +72,6 @@ func init() {
 
 			c.RegisterType(&UnsignedAdvanceTimeTx{}),
 			c.RegisterType(&UnsignedRewardValidatorTx{}),
-
-			c.RegisterType(&PChainIn{}),
-			c.RegisterType(&PChainOut{}),
 		)
 	}
 	errs.Add(

@@ -132,9 +132,10 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		return nil, nil, err
 	}
 
+	lockedOutsState := parentState.LockedOutputChainState()
 	pendingStakers := parentState.PendingStakerChainState()
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers)
-	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers)
+	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)
+	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)
 
 	// If the reward is aborted, then the current supply should be decreased.
 	currentSupply := onAbortState.GetCurrentSupply()
