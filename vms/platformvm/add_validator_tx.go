@@ -246,7 +246,11 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
+	lockedOutsState := parentState.LockedOutputChainState()
+
+	// TODO@ update locked outs state
+
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedOutsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -255,7 +259,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedOutsState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -270,7 +274,7 @@ func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.StartTime().After(vm.clock.Time())
 }
 
-// NewAddValidatorTx returns a new NewAddValidatorTx
+// NewAddValidatorTx returns a new addValidatorTx
 func (vm *VM) newAddValidatorTx(
 	stakeAmt, // Amount the validator stakes
 	startTime, // Unix time they start validating
@@ -281,6 +285,7 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
+	// TODO@ spend should set POut txID for bond
 	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
