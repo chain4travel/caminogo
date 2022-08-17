@@ -314,7 +314,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				End:    uint64(validator.EndTime),
 				Wght:   weight,
 			},
-			Stake:        stake,
+			Bond:         stake,
 			RewardsOwner: owner,
 			Shares:       delegationFee,
 		}}

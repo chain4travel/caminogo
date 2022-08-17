@@ -139,8 +139,8 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	case *UnsignedAddValidatorTx:
 		// Refund the stake here
 		// updating lock state for unbonded utxos
-		var updatedUTXOs []lockedUTXOState
 		bondedUTXOIDs := lockedUTXOsState.GetBondedUTXOs(stakerID)
+		var updatedUTXOs []lockedUTXOState // TODO opt with make
 		for utxoID := range *bondedUTXOIDs {
 			updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
 				utxoID: utxoID,
@@ -185,7 +185,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Stake)),
+					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Bond)),
 				},
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out:   out,

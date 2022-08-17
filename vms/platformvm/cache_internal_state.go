@@ -164,7 +164,7 @@ type InternalState interface {
  * | |-- currentSupplyKey -> currentSupply
  * | '-- lastAcceptedKey -> lastAccepted
  * '-. lockedUTXOs
- *   '-- uxoID -> { bondTxID, depositTxID }
+ *   '-- utxoID -> lockState { bondTxID, depositTxID }
  */
 type internalStateImpl struct {
 	vm *VM
@@ -173,7 +173,7 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
-	lockedOutputsChainState lockedUTXOsChainState
+	lockedUTXOsChainState   lockedUTXOsChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
@@ -233,9 +233,9 @@ type internalStateImpl struct {
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
 
-	updatedLockedOutputs []lockedUTXOState
-	lockedUTXOsDB        database.Database
-	lockedUTXOsList      linkeddb.LinkedDB
+	updatedLockedUTXOs []lockedUTXOState
+	lockedUTXOsDB      database.Database
+	lockedUTXOsList    linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -714,7 +714,7 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 }
 
 func (st *internalStateImpl) LockedUTXOsChainState() lockedUTXOsChainState {
-	return st.lockedOutputsChainState
+	return st.lockedUTXOsChainState
 }
 
 func (st *internalStateImpl) SetCurrentStakerChainState(cs currentStakerChainState) {
@@ -726,7 +726,7 @@ func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainSta
 }
 
 func (st *internalStateImpl) SetLockedUTXOsChainState(cs lockedUTXOsChainState) {
-	st.lockedOutputsChainState = cs
+	st.lockedUTXOsChainState = cs
 }
 
 func (st *internalStateImpl) GetUptime(nodeID ids.ShortID) (upDuration time.Duration, lastUpdated time.Time, err error) {
@@ -819,7 +819,7 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 }
 
 func (st *internalStateImpl) UpdateLockedUTXO(updatedUTXO lockedUTXOState) {
-	st.updatedLockedOutputs = append(st.updatedLockedOutputs, updatedUTXO)
+	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, updatedUTXO)
 }
 
 func (st *internalStateImpl) Abort() {
@@ -866,8 +866,8 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
-	if err := st.writeLockedOutputs(); err != nil {
-		return nil, fmt.Errorf("failed to write locked outputs with: %w", err)
+	if err := st.writeLockedUTXOs(); err != nil {
+		return nil, fmt.Errorf("failed to write locked utxos with: %w", err)
 	}
 
 	return st.baseDB.CommitBatch()
@@ -1294,13 +1294,18 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
-func (st *internalStateImpl) writeLockedOutputs() error {
-	for _, updatedUTXO := range st.updatedLockedOutputs {
-		if err := st.lockedUTXOsList.Put(updatedUTXO.utxoID[:], nil); err != nil { // TODO@
+func (st *internalStateImpl) writeLockedUTXOs() error {
+	for _, updatedUTXO := range st.updatedLockedUTXOs {
+		utxoLockStateBytes, err := GenesisCodec.Marshal(CodecVersion, updatedUTXO.lockState)
+		if err != nil {
+			return err
+		}
+
+		if err := st.lockedUTXOsList.Put(updatedUTXO.utxoID[:], utxoLockStateBytes); err != nil {
 			return err
 		}
 	}
-	st.updatedLockedOutputs = nil
+	st.updatedLockedUTXOs = nil
 	return nil
 }
 
@@ -1314,7 +1319,7 @@ func (st *internalStateImpl) load() error {
 	if err := st.loadPendingValidators(); err != nil {
 		return err
 	}
-	return st.loadLockedOutputs()
+	return st.loadLockedUTXOs()
 }
 
 func (st *internalStateImpl) loadSingletons() error {
@@ -1582,7 +1587,7 @@ func (st *internalStateImpl) loadPendingValidators() error {
 	return nil
 }
 
-func (st *internalStateImpl) loadLockedOutputs() error {
+func (st *internalStateImpl) loadLockedUTXOs() error {
 	cs := &lockedUTXOsChainStateImpl{
 		bonds:       make(map[ids.ID]*ids.Set),
 		deposits:    make(map[ids.ID]*ids.Set),
@@ -1630,7 +1635,7 @@ func (st *internalStateImpl) loadLockedOutputs() error {
 		return err
 	}
 
-	st.lockedOutputsChainState = cs
+	st.lockedUTXOsChainState = cs
 	return nil
 }
 

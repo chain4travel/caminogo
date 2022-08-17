@@ -237,9 +237,9 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	lockedOutsState := parentState.LockedUTXOsChainState()
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedOutsState)
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedUTXOsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -248,7 +248,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedOutsState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS

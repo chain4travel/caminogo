@@ -20,16 +20,14 @@ import (
 
 var _ lockedUTXOsChainState = &lockedUTXOsChainStateImpl{}
 
-// TODO@ serialize or json tags ?
 type lockedUTXOState struct {
 	utxoID ids.ID
 	lockState
 }
 
-// TODO@ serialize or json tags ?
 type lockState struct {
-	bondTxID    *ids.ID
-	depositTxID *ids.ID
+	bondTxID    *ids.ID `serialize:"true"`
+	depositTxID *ids.ID `serialize:"true"`
 }
 
 // lockedUTXOsChainState manages the set of stakers (both validators and

@@ -259,7 +259,7 @@ func (b *builder) NewAddValidatorTx(
 			Memo:         ops.Memo(),
 		}},
 		Validator:    *validator,
-		Stake:        stakeOutputs,
+		Bond:         stakeOutputs,
 		RewardsOwner: rewardsOwner,
 		Shares:       shares,
 	}, nil

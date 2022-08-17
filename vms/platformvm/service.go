@@ -2092,7 +2092,7 @@ func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []av
 	case *UnsignedAddDelegatorTx:
 		outs = staker.Stake
 	case *UnsignedAddValidatorTx:
-		outs = staker.Stake
+		outs = staker.Bond
 	case *UnsignedAddSubnetValidatorTx:
 		return 0, nil, nil
 	default:
