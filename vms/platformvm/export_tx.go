@@ -81,9 +81,6 @@ func (tx *UnsignedExportTx) SyntacticVerify(ctx *snow.Context) error {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("output failed verification: %w", err)
 		}
-		if _, ok := out.Output().(*PChainOut); ok {
-			return errWrongLocktime
-		}
 	}
 	if !avax.IsSortedTransferableOutputs(tx.ExportedOutputs, Codec) {
 		return errOutputsNotSorted

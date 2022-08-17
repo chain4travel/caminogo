@@ -1669,6 +1669,28 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 		if !ok {
 			return errWrongTxType
 		}
+		txID := tx.ID()
+		for i, bondedOut := range tx.Bond {
+			utxo := &avax.UTXO{
+				UTXOID: avax.UTXOID{
+					TxID:        txID,
+					OutputIndex: uint32(len(tx.Outs) + i),
+				},
+				Asset: avax.Asset{ID: st.vm.ctx.AVAXAssetID},
+				Out:   bondedOut.Output(),
+			}
+			st.AddUTXO(utxo)
+			st.UpdateLockedUTXO(lockedUTXOState{
+				utxoID: utxo.InputID(),
+				lockState: lockState{
+					bondTxID: &txID,
+					// ! @evlekht in current genesis implementation,
+					// ! allocation can only be staked or deposited.
+					// ! must be updated with deposit PR
+					depositTxID: nil,
+				},
+			})
+		}
 
 		stakeAmount := tx.Validator.Wght
 		stakeDuration := tx.Validator.Duration()

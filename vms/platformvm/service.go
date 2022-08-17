@@ -229,6 +229,7 @@ func (service *Service) GetBalance(_ *http.Request, args *GetBalanceRequest, res
 	}
 
 	currentTime := service.vm.clock.Unix()
+	lockedUTXOsState := service.vm.internalState.LockedUTXOsChainState()
 
 	unlocked := uint64(0)
 	deposited := uint64(0)
@@ -237,56 +238,48 @@ func (service *Service) GetBalance(_ *http.Request, args *GetBalanceRequest, res
 
 utxoFor:
 	for _, utxo := range utxos {
-		var out *secp256k1fx.TransferOutput
-		utxoState := PUTXOStateTransferable
-
-		switch inner := utxo.Out.(type) {
-		case *secp256k1fx.TransferOutput:
-			out = inner
-		case *PChainOut:
-			innerOut, ok := inner.TransferableOut.(*secp256k1fx.TransferOutput)
-			if !ok {
-				service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", inner.TransferableOut)
-				continue utxoFor
-			}
-			out = innerOut
-			utxoState = inner.State
-		default:
-			service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", inner)
+		out, ok := utxo.Out.(*secp256k1fx.TransferOutput)
+		if !ok {
+			service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", out) // TODO@ check T
 			continue utxoFor
 		}
 
 		if out.Locktime > currentTime {
-			// TODO@ we should agree that utxo locktime here is always 0
+			// ! @evlekht its OutputOwners.Locktime
+			// ! we should agree that utxo locktime here is always 0
 			service.vm.ctx.Log.Warn("Unexpected non-zero locktime in UTXO")
 			continue utxoFor
 		}
 
-		switch utxoState {
-		case PUTXOStateTransferable:
+		utxoLockState := lockedUTXOsState.GetUTXOLockState(utxo.InputID())
+
+		switch {
+		case utxoLockState == nil: // unlocked
 			newBalance, err := math.Add64(unlocked, out.Amount())
 			if err != nil {
 				return errUnlockedBalanceOverflow
 			}
 			unlocked = newBalance
-		case PUTXOStateBonded:
-			newBalance, err := math.Add64(bonded, out.Amount())
-			if err != nil {
-				return errBondedBalanceOverflow
-			}
-			bonded = newBalance
-		case PUTXOStateDeposited:
-			newBalance, err := math.Add64(deposited, out.Amount())
-			if err != nil {
-				return errDepositedBalanceOverflow
-			}
-			deposited = newBalance
-		case PUTXOStateDepositedAndBonded:
+		case utxoLockState.bondTxID != nil && utxoLockState.depositTxID != nil:
 			newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 			if err != nil {
 				return errDepositedAndBondedBalanceOverflow
 			}
 			depositedAndBonded = newBalance
+		case utxoLockState.bondTxID != nil:
+			newBalance, err := math.Add64(bonded, out.Amount())
+			if err != nil {
+				return errBondedBalanceOverflow
+			}
+			bonded = newBalance
+		case utxoLockState.depositTxID != nil:
+			newBalance, err := math.Add64(deposited, out.Amount())
+			if err != nil {
+				return errDepositedBalanceOverflow
+			}
+			deposited = newBalance
+		default:
+			// TODO@ unexpected case
 		}
 
 		response.UTXOIDs = append(response.UTXOIDs, &utxo.UTXOID)
@@ -2112,18 +2105,13 @@ func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []av
 		if stake.AssetID() != service.vm.ctx.AVAXAssetID {
 			continue
 		}
-		out := stake.Out
-		if lockedOut, ok := out.(*PChainOut); ok {
-			// This output can only be used for staking until [stakeOnlyUntil]
-			out = lockedOut.TransferableOut
-		}
-		secpOut, ok := out.(*secp256k1fx.TransferOutput)
+		out, ok := stake.Out.(*secp256k1fx.TransferOutput)
 		if !ok {
 			continue
 		}
 		// Check whether this output is owned by one of the given addresses
 		contains := false
-		for _, addr := range secpOut.Addrs {
+		for _, addr := range out.Addrs {
 			if addrs.Contains(addr) {
 				contains = true
 				break

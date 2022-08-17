@@ -36,7 +36,7 @@ type lockedUTXOsChainState interface {
 	UpdateUTXOs(updatedUTXOStates []lockedUTXOState) lockedUTXOsChainState
 	GetBondedUTXOs(bondTxID ids.ID) *ids.Set // TODO@ rename GetBondedUTXOIDs ?
 	GetDepositedUTXOs(depositTxID ids.ID) *ids.Set
-	GetUTXOLockState(utxoID ids.ID) lockState
+	GetUTXOLockState(utxoID ids.ID) *lockState
 
 	Apply(InternalState)
 }
@@ -60,8 +60,12 @@ func (cs *lockedUTXOsChainStateImpl) GetDepositedUTXOs(depositTxID ids.ID) *ids.
 	return cs.deposits[depositTxID]
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) lockState {
-	return cs.lockedUTXOs[utxoID]
+func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState {
+	utxoLockState, ok := cs.lockedUTXOs[utxoID]
+	if !ok {
+		return nil
+	}
+	return &utxoLockState
 }
 
 func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOState) lockedUTXOsChainState {

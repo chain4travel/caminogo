@@ -41,15 +41,11 @@ type spendMode uint8
 const (
 	spendModeBond spendMode = iota
 	spendModeDeposit
-	spendModeUnbond
-	spendModeUndeposit
 )
 
 var spendModeStrings = map[spendMode]string{
-	spendModeBond:      "bond",
-	spendModeDeposit:   "deposit",
-	spendModeUnbond:    "unbond",
-	spendModeUndeposit: "undeposit",
+	spendModeBond:    "bond",
+	spendModeDeposit: "deposit",
 }
 
 func (mode spendMode) String() string {
@@ -57,7 +53,7 @@ func (mode spendMode) String() string {
 }
 
 func (mode spendMode) Verify() error {
-	if mode < spendModeBond || mode > spendModeUndeposit {
+	if mode != spendModeBond && mode != spendModeDeposit {
 		return errUnknownSpendMode
 	}
 	return nil

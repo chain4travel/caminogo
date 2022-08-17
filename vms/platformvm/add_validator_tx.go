@@ -265,6 +265,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out:   bondedOut.Output(),
 		}
+		bondedUTXOs = append(bondedUTXOs, utxo)
 
 		// adding produced utxo to lock state
 		updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
@@ -344,7 +345,7 @@ func (vm *VM) newAddValidatorTx(
 			Wght:   bondAmt,
 		},
 		Bond:             bondedOuts,
-		BondInputIndexes: nil, // TODO@
+		BondInputIndexes: nil, // TODO@ get it from spending
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
