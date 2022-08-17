@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/chain4travel/caminogo/snow/uptime/mocks"
+	"github.com/stretchr/testify/mock"
 	"reflect"
 	"testing"
 	"time"
@@ -3118,6 +3120,52 @@ func TestGetValidatorSet(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("VM.GetValidatorSet() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestGetPercentConnected(t *testing.T) {
+	vm, _, _ := defaultVM()
+
+	// mock uptime manager
+	mockedManager := &mocks.Manager{}
+	vm.uptimeManager = mockedManager
+
+	type args struct {
+		subnetID ids.ID
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    float64
+		wantErr bool
+	}{
+		{name: "all (5) validators connected",
+			args: args{subnetID: ids.Empty},
+			want: 1,
+		},
+		{name: "1/5 validators disconnected",
+			args: args{subnetID: ids.Empty},
+			want: 0.8,
+		},
+		{name: "false subnet id",
+			args:    args{subnetID: ids.GenerateTestID()},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.want == 1 {
+				mockedManager.On("IsConnected", mock.AnythingOfType("ids.ShortID")).Return(true).Times(5)
+			} else if tt.want == 0.8 {
+				mockedManager.On("IsConnected", mock.AnythingOfType("ids.ShortID")).Return(true).Times(4)
+				mockedManager.On("IsConnected", mock.AnythingOfType("ids.ShortID")).Return(false).Times(1)
+			}
+			got, err := vm.getPercentConnected(tt.args.subnetID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("VM.GetPercentConnected() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			assert.Equalf(t, tt.want, got, "getPercentConnected(%v)", tt.args.subnetID)
 		})
 	}
 }
