@@ -1597,23 +1597,34 @@ func (st *internalStateImpl) loadLockedOutputs() error {
 		if err != nil {
 			return err
 		}
-		utxoLockStateBytes := lockedUTXOsIt.Value() // TODO@
 
-		cs.lockedUTXOs[utxoID] = lockState{} // TODO@
-
-		bond := cs.bonds[bondTxID]
-		if bond == nil {
-			bond = &ids.Set{}
-			cs.bonds[bondTxID] = bond
+		utxoLockStateBytes := lockedUTXOsIt.Value()
+		utxoLockState := lockState{}
+		if _, err := GenesisCodec.Unmarshal(utxoLockStateBytes, &utxoLockState); err != nil {
+			return err
 		}
-		bond.Add(utxoID)
 
-		deposit := cs.deposits[bondTxID]
-		if deposit == nil {
-			deposit = &ids.Set{}
-			cs.deposits[bondTxID] = deposit
+		cs.lockedUTXOs[utxoID] = utxoLockState
+
+		if utxoLockState.bondTxID != nil {
+			bondTxID := *utxoLockState.bondTxID
+			bond := cs.bonds[bondTxID]
+			if bond == nil {
+				bond = &ids.Set{}
+				cs.bonds[bondTxID] = bond
+			}
+			bond.Add(utxoID)
 		}
-		deposit.Add(utxoID)
+
+		if utxoLockState.bondTxID != nil {
+			depositTxID := *utxoLockState.depositTxID
+			deposit := cs.deposits[depositTxID]
+			if deposit == nil {
+				deposit = &ids.Set{}
+				cs.deposits[depositTxID] = deposit
+			}
+			deposit.Add(utxoID)
+		}
 	}
 	if err := lockedUTXOsIt.Error(); err != nil {
 		return err
