@@ -252,8 +252,9 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
 	// updating lock state for bonded utxos
-	var updatedUTXOs []lockedUTXOState // TODO@ opt with make
-	var bondedUTXOs []*avax.UTXO
+	bondedUTXOsCount := len(tx.Bond)
+	updatedUTXOs := make([]lockedUTXOState, bondedUTXOsCount)
+	bondedUTXOs := make([]*avax.UTXO, bondedUTXOsCount*2)
 	for i, bondedOut := range tx.Bond {
 		consumedUTXOID := tx.Ins[tx.BondInputIndexes[i]].InputID()
 		// produce new utxo
@@ -265,29 +266,33 @@ func (tx *UnsignedAddValidatorTx) Execute(
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out:   bondedOut.Output(),
 		}
-		bondedUTXOs = append(bondedUTXOs, utxo)
+		bondedUTXOs[i] = utxo
 
 		// adding produced utxo to lock state
-		updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
+		updatedUTXOs[i] = lockedUTXOState{
 			utxoID: utxo.InputID(),
 			lockState: lockState{
 				bondTxID:    &txID,
 				depositTxID: lockedUTXOsState.GetUTXOLockState(consumedUTXOID).depositTxID,
 			},
-		})
+		}
 
 		// removing consumed utxo from lock state
-		updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
+		updatedUTXOs[bondedUTXOsCount+i] = lockedUTXOState{
 			utxoID: consumedUTXOID,
 			lockState: lockState{
 				bondTxID:    nil,
 				depositTxID: nil,
 			},
-		})
+		}
 	}
 
-	newlyLockedUTXOsState := lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
+
+	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, newlyLockedUTXOsState)
 

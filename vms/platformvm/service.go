@@ -240,7 +240,7 @@ utxoFor:
 	for _, utxo := range utxos {
 		out, ok := utxo.Out.(*secp256k1fx.TransferOutput)
 		if !ok {
-			service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", out) // TODO@ check T
+			service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", out)
 			continue utxoFor
 		}
 
@@ -279,7 +279,8 @@ utxoFor:
 			}
 			deposited = newBalance
 		default:
-			// TODO@ unexpected case
+			service.vm.ctx.Log.Warn("Unexpected output lock state")
+			continue utxoFor
 		}
 
 		response.UTXOIDs = append(response.UTXOIDs, &utxo.UTXOID)

@@ -15,6 +15,8 @@
 package platformvm
 
 import (
+	"fmt"
+
 	"github.com/chain4travel/caminogo/ids"
 )
 
@@ -33,8 +35,8 @@ type lockState struct {
 // lockedUTXOsChainState manages the set of stakers (both validators and
 // delegators) that are slated to start staking in the future.
 type lockedUTXOsChainState interface {
-	UpdateUTXOs(updatedUTXOStates []lockedUTXOState) lockedUTXOsChainState
-	GetBondedUTXOs(bondTxID ids.ID) *ids.Set // TODO@ rename GetBondedUTXOIDs ?
+	UpdateUTXOs(updatedUTXOStates []lockedUTXOState) (lockedUTXOsChainState, error)
+	GetBondedUTXOs(bondTxID ids.ID) *ids.Set // ? @evlekht rename GetBondedUTXOIDs ?
 	GetDepositedUTXOs(depositTxID ids.ID) *ids.Set
 	GetUTXOLockState(utxoID ids.ID) *lockState
 
@@ -68,7 +70,7 @@ func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState 
 	return &utxoLockState
 }
 
-func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOState) lockedUTXOsChainState {
+func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOState) (lockedUTXOsChainState, error) {
 	newCS := &lockedUTXOsChainStateImpl{
 		bonds:        make(map[ids.ID]*ids.Set, len(cs.bonds)+1),
 		deposits:     make(map[ids.ID]*ids.Set, len(cs.deposits)+1),
@@ -89,9 +91,11 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 	}
 
 	for _, newLockedUTXO := range updatedUTXOStates {
-		lockedUTXOState := newCS.lockedUTXOs[newLockedUTXO.utxoID]
+		oldLockedUTXOState := newCS.lockedUTXOs[newLockedUTXO.utxoID]
 
-		if lockedUTXOState.bondTxID == nil && newLockedUTXO.bondTxID != nil {
+		// updating bond state
+		if oldLockedUTXOState.bondTxID == nil && newLockedUTXO.bondTxID != nil {
+			// bonding not-bonded utxo
 			bondTxID := *newLockedUTXO.bondTxID
 			bond := newCS.bonds[bondTxID]
 			if bond == nil {
@@ -100,18 +104,27 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 				newCS.bonds[bondTxID] = bond
 			}
 			bond.Add(newLockedUTXO.utxoID)
-		} else if lockedUTXOState.bondTxID != nil && newLockedUTXO.bondTxID == nil {
-			bondTxID := *lockedUTXOState.bondTxID
+		} else if oldLockedUTXOState.bondTxID != nil && newLockedUTXO.bondTxID == nil {
+			// unbonding bonded utxo
+			bondTxID := *oldLockedUTXOState.bondTxID
 			bond := newCS.bonds[bondTxID]
 			if bond == nil {
-				panic("") // TODO@
+				return nil, fmt.Errorf("old utxo lock state has not-nil bondTxID, but there is no such bond: %v",
+					bondTxID)
 			}
 			bond.Remove(newLockedUTXO.utxoID)
 		} else {
-			panic("") // TODO@
+			if oldLockedUTXOState.bondTxID == nil {
+				return nil, fmt.Errorf("Attempt to unbond not-bonded utxo (utxoID: %v)",
+					newLockedUTXO.utxoID)
+			}
+			return nil, fmt.Errorf("Attempt to bond bonded utxo (utxoID: %v, oldBondID: %v, newBondID: %v)",
+				newLockedUTXO.utxoID, oldLockedUTXOState.bondTxID, newLockedUTXO.bondTxID)
 		}
 
-		if lockedUTXOState.depositTxID == nil && newLockedUTXO.depositTxID != nil {
+		// updating deposit state
+		if oldLockedUTXOState.depositTxID == nil && newLockedUTXO.depositTxID != nil {
+			// depositing not-deposited utxo
 			depositTxID := *newLockedUTXO.depositTxID
 			deposit := newCS.deposits[depositTxID]
 			if deposit == nil {
@@ -120,18 +133,26 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 				newCS.deposits[depositTxID] = deposit
 			}
 			deposit.Add(newLockedUTXO.utxoID)
-		} else if lockedUTXOState.depositTxID != nil && newLockedUTXO.depositTxID == nil {
-			depositTxID := *lockedUTXOState.depositTxID
+		} else if oldLockedUTXOState.depositTxID != nil && newLockedUTXO.depositTxID == nil {
+			// undepositing deposited utxo
+			depositTxID := *oldLockedUTXOState.depositTxID
 			deposit := newCS.deposits[depositTxID]
 			if deposit == nil {
-				panic("") // TODO@
+				return nil, fmt.Errorf("old utxo lock state has not-nil depositTxID, but there is no such deposit: %v",
+					depositTxID)
 			}
 			deposit.Remove(newLockedUTXO.utxoID)
 		} else {
-			panic("") // TODO@
+			if oldLockedUTXOState.depositTxID == nil {
+				return nil, fmt.Errorf("Attempt to undeposit not-deposited utxo (utxoID: %v)",
+					newLockedUTXO.utxoID)
+			}
+			return nil, fmt.Errorf("Attempt to deposit deposited utxo (utxoID: %v, oldDepositID: %v, newDepositID: %v)",
+				newLockedUTXO.utxoID, oldLockedUTXOState.depositTxID, newLockedUTXO.depositTxID)
 		}
 
-		if newLockedUTXO.bondTxID != nil && newLockedUTXO.depositTxID != nil { // TODO@ may be == ?
+		// updating utxo lock state
+		if newLockedUTXO.bondTxID == nil && newLockedUTXO.depositTxID == nil {
 			delete(newCS.lockedUTXOs, newLockedUTXO.utxoID)
 		} else {
 			newCS.lockedUTXOs[newLockedUTXO.utxoID] = lockState{
@@ -141,7 +162,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 		}
 	}
 
-	return newCS
+	return newCS, nil
 }
 
 func (cs *lockedUTXOsChainStateImpl) Apply(is InternalState) {

@@ -316,7 +316,7 @@ func (vs *versionedStateImpl) SetBase(parentState MutableState) {
 	vs.parentState = parentState
 }
 
-func (vs *versionedStateImpl) Apply(is InternalState) { // TODO@
+func (vs *versionedStateImpl) Apply(is InternalState) {
 	is.SetTimestamp(vs.timestamp)
 	is.SetCurrentSupply(vs.currentSupply)
 	for _, subnet := range vs.addedSubnets {

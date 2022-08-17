@@ -151,7 +151,10 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 			})
 		}
 
-		lockedUTXOsState = lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+		lockedUTXOsState, err = lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedUTXOsState)
