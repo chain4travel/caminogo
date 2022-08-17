@@ -246,7 +246,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	lockedOutsState := parentState.LockedOutputChainState()
+	lockedOutsState := parentState.LockedUTXOsChainState()
 
 	// TODO@ update locked outs state
 

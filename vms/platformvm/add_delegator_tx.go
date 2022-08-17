@@ -273,7 +273,7 @@ func (tx *UnsignedAddDelegatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	lockedOutsState := parentState.LockedOutputChainState()
+	lockedOutsState := parentState.LockedUTXOsChainState()
 
 	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedOutsState)
 

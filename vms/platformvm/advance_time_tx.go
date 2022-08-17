@@ -214,7 +214,7 @@ currentStakerLoop:
 		return nil, nil, err
 	}
 
-	lockedOutsState := parentState.LockedOutputChainState()
+	lockedOutsState := parentState.LockedUTXOsChainState()
 
 	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers, lockedOutsState)
 	onCommitState.SetTimestamp(txTimestamp)

@@ -132,7 +132,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		return nil, nil, err
 	}
 
-	lockedOutsState := parentState.LockedOutputChainState()
+	lockedOutsState := parentState.LockedUTXOsChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)
 	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)

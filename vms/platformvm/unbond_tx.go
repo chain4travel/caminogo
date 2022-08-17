@@ -31,6 +31,8 @@ var (
 type UnsignedUnbondTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
+	// Describes the delegatee
+	BondTxID ids.ID `serialize:"true" json:"bondTxID"`
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
@@ -113,22 +115,37 @@ func (tx *UnsignedUnbondTx) Execute(
 	}
 
 	// Set up the state if this tx is committed
-	lockedOutsState := parentState.LockedOutputChainState()
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 
-	// TODO@ update locked outs state
+	txID := tx.ID()
 
-	onCommitState := newVersionedState(parentState, currentStakers, pendingStakers, lockedOutsState)
+	var updatedUTXOs []lockedUTXOState
+
+	// updating lock state for unbonded utxos
+	bondedUTXOIDs := lockedUTXOsState.GetBondedUTXOs(tx.BondTxID)
+	for utxoID := range *bondedUTXOIDs {
+		updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
+			utxoID: utxoID,
+			lockState: lockState{
+				bondTxID:    nil,
+				depositTxID: lockedUTXOsState.GetUTXOLockState(utxoID).depositTxID,
+			},
+		})
+	}
+
+	newlyLockedOutsState := lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+
+	onCommitState := newVersionedState(parentState, currentStakers, pendingStakers, newlyLockedOutsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	txID := tx.ID()
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedOutsState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -149,21 +166,18 @@ func (vm *VM) newUnbondTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	bondedUTXOIDs := vm.internalState.LockedOutputChainState().GetBondedUTXOs(bondTxID)
-	bondedUTXOs := make([]*avax.UTXO, bondedUTXOIDs.Len())
-	// TODO@ or just pass ids to spend and do the check; fee is problem
-	for bondedUTXOID := range *bondedUTXOIDs {
-		utxo, err := vm.internalState.GetUTXO(bondedUTXOID)
-		if err != nil {
-			return nil, nil // TODO@ err
-		}
-		bondedUTXOs = append(bondedUTXOs, utxo)
-	}
+	// bondedUTXOIDs := vm.internalState.LockedUTXOsChainState().GetBondedUTXOs(bondTxID)
+	// bondedUTXOs := make([]*avax.UTXO, bondedUTXOIDs.Len())
+	// // TODO@ or just pass ids to spend and do the check; fee is problem
+	// for bondedUTXOID := range *bondedUTXOIDs {
+	// 	utxo, err := vm.internalState.GetUTXO(bondedUTXOID)
+	// 	if err != nil {
+	// 		return nil, nil // TODO@ err
+	// 	}
+	// 	bondedUTXOs = append(bondedUTXOs, utxo)
+	// }
 
-	// TODO@ spend only bondedUTXOs
-	// TODO@ either get/calculate stakeAmt somewhere or go with custom spending
 	ins, bondedOuts, unbondedOuts, signers, err := vm.spend(keys, 0, vm.AddStakerTxFee, changeAddr, spendModeBond) // TODO@ fee
-	// ins, bondedOuts, unbondedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond) // TODO@ fee
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -175,8 +189,9 @@ func (vm *VM) newUnbondTx(
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
 			Ins:          ins,
-			Outs:         unbondedOuts,
+			Outs:         unbondedOuts, // TODO@ + bondedOuts
 		}},
+		BondTxID: bondTxID,
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {

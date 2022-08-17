@@ -96,11 +96,11 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
-	UpdateLockedOutput(updatedUTXO [3]*ids.ID)
+	UpdateLockedUTXO(updatedUTXO lockedUTXOState)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
-	SetLockedOutputsChainState(lockedOutputsChainState)
+	SetLockedUTXOsChainState(lockedUTXOsChainState)
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(ids.ID)
@@ -173,7 +173,7 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
-	lockedOutputsChainState lockedOutputsChainState
+	lockedOutputsChainState lockedUTXOsChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
@@ -233,7 +233,7 @@ type internalStateImpl struct {
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
 
-	updatedLockedOutputs [][3]*ids.ID
+	updatedLockedOutputs []lockedUTXOState
 	lockedUTXOsDB        database.Database
 	lockedUTXOsList      linkeddb.LinkedDB
 }
@@ -713,7 +713,7 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
 }
 
-func (st *internalStateImpl) LockedOutputChainState() lockedOutputsChainState {
+func (st *internalStateImpl) LockedUTXOsChainState() lockedUTXOsChainState {
 	return st.lockedOutputsChainState
 }
 
@@ -725,7 +725,7 @@ func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainSta
 	st.pendingStakerChainState = ps
 }
 
-func (st *internalStateImpl) SetLockedOutputsChainState(cs lockedOutputsChainState) {
+func (st *internalStateImpl) SetLockedUTXOsChainState(cs lockedUTXOsChainState) {
 	st.lockedOutputsChainState = cs
 }
 
@@ -818,7 +818,7 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 	return weightDiffs, nil
 }
 
-func (st *internalStateImpl) UpdateLockedOutput(updatedUTXO [3]*ids.ID) {
+func (st *internalStateImpl) UpdateLockedUTXO(updatedUTXO lockedUTXOState) {
 	st.updatedLockedOutputs = append(st.updatedLockedOutputs, updatedUTXO)
 }
 
@@ -1296,8 +1296,7 @@ func (st *internalStateImpl) writeSingletons() error {
 
 func (st *internalStateImpl) writeLockedOutputs() error {
 	for _, updatedUTXO := range st.updatedLockedOutputs {
-		utxoID := *updatedUTXO[0]
-		if err := st.lockedUTXOsList.Put(utxoID[:], nil); err != nil { // TODO@
+		if err := st.lockedUTXOsList.Put(updatedUTXO.utxoID[:], nil); err != nil { // TODO@
 			return err
 		}
 	}
@@ -1584,10 +1583,10 @@ func (st *internalStateImpl) loadPendingValidators() error {
 }
 
 func (st *internalStateImpl) loadLockedOutputs() error {
-	cs := &lockedOutputChainStateImpl{
+	cs := &lockedUTXOsChainStateImpl{
 		bonds:       make(map[ids.ID]*ids.Set),
 		deposits:    make(map[ids.ID]*ids.Set),
-		lockedUTXOs: make(map[ids.ID][2]*ids.ID),
+		lockedUTXOs: make(map[ids.ID]lockState),
 	}
 
 	lockedUTXOsIt := st.lockedUTXOsList.NewIterator()
@@ -1600,7 +1599,7 @@ func (st *internalStateImpl) loadLockedOutputs() error {
 		}
 		utxoLockStateBytes := lockedUTXOsIt.Value() // TODO@
 
-		cs.lockedUTXOs[utxoID] = [2]*ids.ID{} // TODO@
+		cs.lockedUTXOs[utxoID] = lockState{} // TODO@
 
 		bond := cs.bonds[bondTxID]
 		if bond == nil {
