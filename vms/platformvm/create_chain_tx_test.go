@@ -191,7 +191,7 @@ func TestCreateChainTxInsufficientControlSigs(t *testing.T) {
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
-		vm.internalState.LockedOutputChainState(),
+		vm.internalState.LockedUTXOsChainState(),
 	)
 
 	// Remove a signature
@@ -236,7 +236,7 @@ func TestCreateChainTxWrongControlSig(t *testing.T) {
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
-		vm.internalState.LockedOutputChainState(),
+		vm.internalState.LockedUTXOsChainState(),
 	)
 
 	// Replace a valid signature with one from another key
@@ -279,7 +279,7 @@ func TestCreateChainTxNoSuchSubnet(t *testing.T) {
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
-		vm.internalState.LockedOutputChainState(),
+		vm.internalState.LockedUTXOsChainState(),
 	)
 
 	tx.UnsignedTx.(*UnsignedCreateChainTx).SubnetID = ids.GenerateTestID()
@@ -317,7 +317,7 @@ func TestCreateChainTxValid(t *testing.T) {
 		vm.internalState,
 		vm.internalState.CurrentStakerChainState(),
 		vm.internalState.PendingStakerChainState(),
-		vm.internalState.LockedOutputChainState(),
+		vm.internalState.LockedUTXOsChainState(),
 	)
 
 	_, err = tx.UnsignedTx.(UnsignedDecisionTx).Execute(vm, vs, tx)
@@ -396,7 +396,7 @@ func TestCreateChainTxAP3FeeChange(t *testing.T) {
 				vm.internalState,
 				vm.internalState.CurrentStakerChainState(),
 				vm.internalState.PendingStakerChainState(),
-				vm.internalState.LockedOutputChainState(),
+				vm.internalState.LockedUTXOsChainState(),
 			)
 			vs.SetTimestamp(test.time)
 

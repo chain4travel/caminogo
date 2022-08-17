@@ -132,10 +132,33 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		return nil, nil, err
 	}
 
-	lockedOutsState := parentState.LockedOutputChainState()
 	pendingStakers := parentState.PendingStakerChainState()
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)
-	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedOutsState)
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
+
+	switch stakerTx.UnsignedTx.(type) {
+	case *UnsignedAddValidatorTx:
+		// Refund the stake here
+		// updating lock state for unbonded utxos
+		bondedUTXOIDs := lockedUTXOsState.GetBondedUTXOs(stakerID)
+		var updatedUTXOs []lockedUTXOState // TODO opt with make
+		for utxoID := range *bondedUTXOIDs {
+			updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
+				utxoID: utxoID,
+				lockState: lockState{
+					bondTxID:    nil,
+					depositTxID: lockedUTXOsState.GetUTXOLockState(utxoID).depositTxID,
+				},
+			})
+		}
+
+		lockedUTXOsState, err = lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedUTXOsState)
+	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, lockedUTXOsState)
 
 	// If the reward is aborted, then the current supply should be decreased.
 	currentSupply := onAbortState.GetCurrentSupply()
@@ -151,20 +174,6 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	)
 	switch uStakerTx := stakerTx.UnsignedTx.(type) {
 	case *UnsignedAddValidatorTx:
-		// Refund the stake here
-		for i, out := range uStakerTx.Stake {
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + i),
-				},
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out:   out.Output(),
-			}
-			onCommitState.AddUTXO(utxo)
-			onAbortState.AddUTXO(utxo)
-		}
-
 		// Provide the reward here
 		if stakerReward > 0 {
 			outIntf, err := vm.fx.CreateOutput(stakerReward, uStakerTx.RewardsOwner)
@@ -179,7 +188,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Stake)),
+					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Bond)),
 				},
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out:   out,

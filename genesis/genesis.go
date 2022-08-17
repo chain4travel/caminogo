@@ -358,10 +358,10 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						// ! while we don't have deposit & unlock & reward system
-						// ! there is no possibility to track locktime of allocations
-						// ! so they will stay deposited forever (for now)
-						State:   json.Uint64(platformvm.PUTXOStateDeposited),
+						// ! @evlekht while we don't have deposit & unlock & reward system
+						// ! there is no possibility to describe deposited allocations
+						// ! without even deposite rule offers.
+						// ! that will be covered by dedicated PRs
 						Amount:  json.Uint64(unlock.Amount),
 						Address: addr,
 						Message: msgStr,
@@ -396,10 +396,10 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					// ! while we don't have deposit & unlock & reward system
-					// ! there is no possibility to track locktime of allocations
-					// ! so they will stay deposited forever (for now)
-					State:   json.Uint64(platformvm.PUTXOStateDeposited),
+					// ! @evlekht while we don't have deposit & unlock & reward system
+					// ! there is no possibility to describe deposited allocations
+					// ! without even deposite rule offers.
+					// ! that will be covered by dedicated PRs
 					Amount:  json.Uint64(unlock.Amount),
 					Address: addr,
 					Message: msgStr,
@@ -421,11 +421,12 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					Addresses: []string{destAddrStr},
 				},
 
-				// !@evlekht Not sure that all this utxos should be staked:
-				// !@evlekht looks like it works shitty for us.
-				// !@evlekht It will stake all utxos from locked allocations for address
-				// !@evlekht from initial stakers, not just 2000 (or other const) amount of CAM.
-				// !@evlekht Should be taken care of in staking PR.
+				// ! @evlekht Not sure that all this utxos should be staked:
+				// ! Looks like it works shitty for us.
+				// ! It will stake all utxos from locked allocations for address
+				// ! from initial stakers, not just 2000 (or other const) amount of CAM.
+				// ! Should be taken care of in dedicated PR or left as it is, but
+				// ! then genesis json should be built accordingly.
 
 				Staked:             utxos,
 				ExactDelegationFee: &delegationFee,

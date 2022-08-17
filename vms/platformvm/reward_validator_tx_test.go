@@ -92,7 +92,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	}
 
 	// check that stake/reward is given back
-	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+	stakeOwners := toRemove.Bond[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
 
 	// Get old balances
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
@@ -171,7 +171,7 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	}
 
 	// check that stake/reward isn't given back
-	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+	stakeOwners := toRemove.Bond[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
 
 	// Get old balances
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)

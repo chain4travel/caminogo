@@ -259,7 +259,7 @@ func (b *builder) NewAddValidatorTx(
 			Memo:         ops.Memo(),
 		}},
 		Validator:    *validator,
-		Stake:        stakeOutputs,
+		Bond:         stakeOutputs,
 		RewardsOwner: rewardsOwner,
 		Shares:       shares,
 	}, nil
@@ -552,15 +552,14 @@ func (b *builder) getBalance(
 	// Iterate over the UTXOs
 	for _, utxo := range utxos {
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.PChainOut); ok {
-			// if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
-			if !options.AllowStakeableLocked() {
-				// This output is currently locked, so this output can't be
-				// burned.
-				continue
-			}
-			outIntf = lockedOut.TransferableOut
-		}
+		// ! @evlekht became unsupported
+		// if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
+		// 		// This output is currently locked, so this output can't be
+		// 		// burned.
+		// 		continue
+		// 	}
+		// 	outIntf = lockedOut.TransferableOut
+		// }
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 		if !ok {
@@ -620,88 +619,90 @@ func (b *builder) spend(
 		Addrs:     []ids.ShortID{addr},
 	})
 
+	// ! @evlekht there is no way to determine if output is locked without
+	// ! quering the chain state, so, unless we add that, we need to skip this loop
 	// Iterate over the locked UTXOs
-	for _, utxo := range utxos {
-		assetID := utxo.AssetID()
-		remainingAmountToStake := amountsToStake[assetID]
+	// for _, utxo := range utxos {
+	// 	assetID := utxo.AssetID()
+	// 	remainingAmountToStake := amountsToStake[assetID]
 
-		// If we have staked enough of the asset, then we have no need burn
-		// more.
-		if remainingAmountToStake == 0 {
-			continue
-		}
+	// 	// If we have staked enough of the asset, then we have no need burn
+	// 	// more.
+	// 	if remainingAmountToStake == 0 {
+	// 		continue
+	// 	}
 
-		outIntf := utxo.Out
-		lockedOut, ok := outIntf.(*platformvm.PChainOut)
-		if !ok {
-			// This output isn't locked, so it will be handled during the next
-			// iteration of the UTXO set
-			continue
-		}
-		// if minIssuanceTime >= lockedOut.Locktime {
-		// 	// This output isn't locked, so it will be handled during the next
-		// 	// iteration of the UTXO set
-		// 	continue
-		// }
+	// 	outIntf := utxo.Out
+	// 	lockedOut, ok := outIntf.(*platformvm.StakeableLockOut)
+	// 	if !ok {
+	// 		// This output isn't locked, so it will be handled during the next
+	// 		// iteration of the UTXO set
+	// 		continue
+	// 	}
+	// 	if minIssuanceTime >= lockedOut.Locktime {
+	// 		// This output isn't locked, so it will be handled during the next
+	// 		// iteration of the UTXO set
+	// 		continue
+	// 	}
 
-		out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
-		if !ok {
-			return nil, nil, nil, errUnknownOutputType
-		}
+	// 	out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
+	// 	if !ok {
+	// 		return nil, nil, nil, errUnknownOutputType
+	// 	}
 
-		inputSigIndices, ok := common.MatchOwners(&out.OutputOwners, addrs, minIssuanceTime)
-		if !ok {
-			// We couldn't spend this UTXO, so we skip to the next one
-			continue
-		}
+	// 	inputSigIndices, ok := common.MatchOwners(&out.OutputOwners, addrs, minIssuanceTime)
+	// 	if !ok {
+	// 		// We couldn't spend this UTXO, so we skip to the next one
+	// 		continue
+	// 	}
 
-		inputs = append(inputs, &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  utxo.Asset,
-			In: &platformvm.PChainIn{
-				// Locktime: lockedOut.Locktime,
-				TransferableIn: &secp256k1fx.TransferInput{
-					Amt: out.Amt,
-					Input: secp256k1fx.Input{
-						SigIndices: inputSigIndices,
-					},
-				},
-			},
-		})
+	// 	inputs = append(inputs, &avax.TransferableInput{
+	// 		UTXOID: utxo.UTXOID,
+	// 		Asset:  utxo.Asset,
+	// 		In: &platformvm.StakeableLockIn{
+	// 			Locktime: lockedOut.Locktime,
+	// 			TransferableIn: &secp256k1fx.TransferInput{
+	// 				Amt: out.Amt,
+	// 				Input: secp256k1fx.Input{
+	// 					SigIndices: inputSigIndices,
+	// 				},
+	// 			},
+	// 		},
+	// 	})
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			remainingAmountToStake, // Amount we still need to stake
-			out.Amt,                // Amount available to stake
-		)
+	// 	// Stake any value that should be staked
+	// 	amountToStake := math.Min64(
+	// 		remainingAmountToStake, // Amount we still need to stake
+	// 		out.Amt,                // Amount available to stake
+	// 	)
 
-		// Add the output to the staked outputs
-		stakeOutputs = append(stakeOutputs, &avax.TransferableOutput{
-			Asset: utxo.Asset,
-			Out: &platformvm.PChainOut{
-				// Locktime: lockedOut.Locktime,
-				TransferableOut: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
-					OutputOwners: out.OutputOwners,
-				},
-			},
-		})
+	// 	// Add the output to the staked outputs
+	// 	stakeOutputs = append(stakeOutputs, &avax.TransferableOutput{
+	// 		Asset: utxo.Asset,
+	// 		Out: &platformvm.StakeableLockOut{
+	// 			Locktime: lockedOut.Locktime,
+	// 			TransferableOut: &secp256k1fx.TransferOutput{
+	// 				Amt:          amountToStake,
+	// 				OutputOwners: out.OutputOwners,
+	// 			},
+	// 		},
+	// 	})
 
-		amountsToStake[assetID] -= amountToStake
-		if remainingAmount := out.Amt - amountToStake; remainingAmount > 0 {
-			// This input had extra value, so some of it must be returned
-			changeOutputs = append(changeOutputs, &avax.TransferableOutput{
-				Asset: utxo.Asset,
-				Out: &platformvm.PChainOut{
-					// Locktime: lockedOut.Locktime,
-					TransferableOut: &secp256k1fx.TransferOutput{
-						Amt:          remainingAmount,
-						OutputOwners: out.OutputOwners,
-					},
-				},
-			})
-		}
-	}
+	// 	amountsToStake[assetID] -= amountToStake
+	// 	if remainingAmount := out.Amt - amountToStake; remainingAmount > 0 {
+	// 		// This input had extra value, so some of it must be returned
+	// 		changeOutputs = append(changeOutputs, &avax.TransferableOutput{
+	// 			Asset: utxo.Asset,
+	// 			Out: &platformvm.StakeableLockOut{
+	// 				Locktime: lockedOut.Locktime,
+	// 				TransferableOut: &secp256k1fx.TransferOutput{
+	// 					Amt:          remainingAmount,
+	// 					OutputOwners: out.OutputOwners,
+	// 				},
+	// 			},
+	// 		})
+	// 	}
+	// }
 
 	// Iterate over the unlocked UTXOs
 	for _, utxo := range utxos {
@@ -716,14 +717,8 @@ func (b *builder) spend(
 		}
 
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.PChainOut); ok {
-			// if lockedOut.Locktime > minIssuanceTime {
-			// 	// This output is currently locked, so this output can't be
-			// 	// burned.
-			// 	continue
-			// }
-			outIntf = lockedOut.TransferableOut
-		}
+		// ! @evlekht there is no way to determine if output is locked without
+		// ! quering the chain state, so it currently will assume all outputs as unlocked
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 		if !ok {

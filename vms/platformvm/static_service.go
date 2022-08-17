@@ -48,7 +48,6 @@ type StaticService struct{}
 
 // APIUTXO is a UTXO on the Platform Chain that exists at the chain's genesis.
 type APIUTXO struct {
-	State   json.Uint64 `json:"state"`
 	Amount  json.Uint64 `json:"amount"`
 	Address string      `json:"address"`
 	Message string      `json:"message"`
@@ -201,26 +200,18 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			return err
 		}
 
-		utxoState := PUTXOState(apiUTXO.State)
-		if err := utxoState.Verify(); err != nil {
-			return err
-		}
-
 		utxo := avax.UTXO{
 			UTXOID: avax.UTXOID{
 				TxID:        ids.Empty,
 				OutputIndex: uint32(i),
 			},
 			Asset: avax.Asset{ID: args.AvaxAssetID},
-			Out: &PChainOut{
-				State: utxoState,
-				TransferableOut: &secp256k1fx.TransferOutput{
-					Amt: uint64(apiUTXO.Amount),
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{addrID},
-					},
+			Out: &secp256k1fx.TransferOutput{
+				Amt: uint64(apiUTXO.Amount),
+				OutputOwners: secp256k1fx.OutputOwners{
+					Locktime:  0,
+					Threshold: 1,
+					Addrs:     []ids.ShortID{addrID},
 				},
 			},
 		}
@@ -238,7 +229,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	validators := newTxHeapByEndTime()
 	for _, validator := range args.Validators {
 		weight := uint64(0)
-		stake := make([]*avax.TransferableOutput, len(validator.Staked))
+		bondedOuts := make([]*avax.TransferableOutput, len(validator.Staked))
 		sortAPIUTXOs(validator.Staked)
 		for i, apiUTXO := range validator.Staked {
 			addrID, err := bech32ToID(apiUTXO.Address)
@@ -246,26 +237,17 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				return err
 			}
 
-			utxoState := PUTXOState(apiUTXO.State)
-			if err := utxoState.Verify(); err != nil {
-				return err
-			}
-
-			utxo := &avax.TransferableOutput{
+			bondedOuts[i] = &avax.TransferableOutput{
 				Asset: avax.Asset{ID: args.AvaxAssetID},
-				Out: &PChainOut{
-					State: utxoState,
-					TransferableOut: &secp256k1fx.TransferOutput{
-						Amt: uint64(apiUTXO.Amount),
-						OutputOwners: secp256k1fx.OutputOwners{
-							Locktime:  0,
-							Threshold: 1,
-							Addrs:     []ids.ShortID{addrID},
-						},
+				Out: &secp256k1fx.TransferOutput{
+					Amt: uint64(apiUTXO.Amount),
+					OutputOwners: secp256k1fx.OutputOwners{
+						Locktime:  0,
+						Threshold: 1,
+						Addrs:     []ids.ShortID{addrID},
 					},
 				},
 			}
-			stake[i] = utxo
 
 			newWeight, err := safemath.Add64(weight, uint64(apiUTXO.Amount))
 			if err != nil {
@@ -314,7 +296,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				End:    uint64(validator.EndTime),
 				Wght:   weight,
 			},
-			Stake:        stake,
+			Bond:         bondedOuts,
 			RewardsOwner: owner,
 			Shares:       delegationFee,
 		}}
@@ -382,12 +364,6 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 type innerSortAPIUTXO []APIUTXO
 
 func (xa innerSortAPIUTXO) Less(i, j int) bool {
-	if xa[i].State < xa[j].State {
-		return true
-	} else if xa[i].State > xa[j].State {
-		return false
-	}
-
 	if xa[i].Amount < xa[j].Amount {
 		return true
 	} else if xa[i].Amount > xa[j].Amount {

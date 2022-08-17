@@ -52,8 +52,9 @@ type UnsignedAddValidatorTx struct {
 	BaseTx `serialize:"true"`
 	// Describes the delegatee
 	Validator Validator `serialize:"true" json:"validator"`
-	// Where to send staked tokens when done validating
-	Stake []*avax.TransferableOutput `serialize:"true" json:"stake"`
+	// Where to send bonded tokens when done validating
+	Bond             []*avax.TransferableOutput `serialize:"true" json:"stake"`
+	BondInputIndexes []int                      `serialize:"true" json:"bondInputIndexes"`
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 	// Fee this validator charges delegators as a percentage, times 10,000
@@ -66,7 +67,7 @@ type UnsignedAddValidatorTx struct {
 // the addresses can be json marshalled into human readable format
 func (tx *UnsignedAddValidatorTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
-	for _, out := range tx.Stake {
+	for _, out := range tx.Bond {
 		out.FxID = secp256k1fx.ID
 		out.InitCtx(ctx)
 	}
@@ -106,23 +107,23 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("failed to verify validator or rewards owner: %w", err)
 	}
 
-	totalStakeWeight := uint64(0)
-	for _, out := range tx.Stake {
+	totalBond := uint64(0)
+	for _, out := range tx.Bond {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("failed to verify output: %w", err)
 		}
-		newWeight, err := safemath.Add64(totalStakeWeight, out.Output().Amount())
+		newTotalBond, err := safemath.Add64(totalBond, out.Output().Amount())
 		if err != nil {
 			return err
 		}
-		totalStakeWeight = newWeight
+		totalBond = newTotalBond
 	}
 
 	switch {
-	case !avax.IsSortedTransferableOutputs(tx.Stake, Codec):
+	case !avax.IsSortedTransferableOutputs(tx.Bond, Codec):
 		return errOutputsNotSorted
-	case totalStakeWeight != tx.Validator.Wght:
-		return fmt.Errorf("validator weight %d is not equal to total stake weight %d", tx.Validator.Wght, totalStakeWeight)
+	case totalBond != tx.Validator.Wght:
+		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
 	}
 
 	// cache that this is valid
@@ -182,9 +183,9 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 
-	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Stake))
+	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
 	copy(outs, tx.Outs)
-	copy(outs[len(tx.Outs):], tx.Stake)
+	copy(outs[len(tx.Outs):], tx.Bond)
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
@@ -245,21 +246,66 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	}
 
 	// Set up the state if this tx is committed
+
+	txID := tx.ID()
+
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
+
+	// updating lock state for bonded utxos
+	bondedUTXOsCount := len(tx.Bond)
+	updatedUTXOs := make([]lockedUTXOState, bondedUTXOsCount)
+	bondedUTXOs := make([]*avax.UTXO, bondedUTXOsCount*2)
+	for i, bondedOut := range tx.Bond {
+		consumedUTXOID := tx.Ins[tx.BondInputIndexes[i]].InputID()
+		// produce new utxo
+		utxo := &avax.UTXO{
+			UTXOID: avax.UTXOID{
+				TxID:        txID,
+				OutputIndex: uint32(len(tx.Outs) + i),
+			},
+			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+			Out:   bondedOut.Output(),
+		}
+		bondedUTXOs[i] = utxo
+
+		// adding produced utxo to lock state
+		updatedUTXOs[i] = lockedUTXOState{
+			utxoID: utxo.InputID(),
+			lockState: lockState{
+				bondTxID:    &txID,
+				depositTxID: lockedUTXOsState.GetUTXOLockState(consumedUTXOID).depositTxID,
+			},
+		}
+
+		// removing consumed utxo from lock state
+		updatedUTXOs[bondedUTXOsCount+i] = lockedUTXOState{
+			utxoID: consumedUTXOID,
+			lockState: lockState{
+				bondTxID:    nil,
+				depositTxID: nil,
+			},
+		}
+	}
+
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	lockedOutsState := parentState.LockedOutputChainState()
 
-	// TODO@ update locked outs state
+	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedOutsState)
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, newlyLockedUTXOsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	txID := tx.ID()
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
+	for _, utxo := range bondedUTXOs {
+		onCommitState.AddUTXO(utxo)
+	}
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedOutsState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -276,7 +322,7 @@ func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 
 // NewAddValidatorTx returns a new addValidatorTx
 func (vm *VM) newAddValidatorTx(
-	stakeAmt, // Amount the validator stakes
+	bondAmt, // Amount the validator bonds
 	startTime, // Unix time they start validating
 	endTime uint64, // Unix time they stop validating
 	nodeID ids.ShortID, // ID of the node we want to validate with
@@ -285,8 +331,7 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	// TODO@ spend should set POut txID for bond
-	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
+	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, bondAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -302,9 +347,10 @@ func (vm *VM) newAddValidatorTx(
 			NodeID: nodeID,
 			Start:  startTime,
 			End:    endTime,
-			Wght:   stakeAmt,
+			Wght:   bondAmt,
 		},
-		Stake: bondedOuts,
+		Bond:             bondedOuts,
+		BondInputIndexes: nil, // TODO@ get it from spending
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,

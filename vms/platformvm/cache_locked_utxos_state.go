@@ -14,6 +14,6 @@
 
 package platformvm
 
-type LockedOutputState interface {
-	LockedOutputChainState() lockedOutputsChainState
+type LockedUTXOsState interface {
+	LockedUTXOsChainState() lockedUTXOsChainState
 }
