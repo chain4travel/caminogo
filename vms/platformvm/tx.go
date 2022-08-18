@@ -26,6 +26,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/vms/components/verify"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
 
@@ -85,6 +86,12 @@ type UnsignedProposalTx interface {
 		err error,
 	)
 	InitiallyPrefersCommit(vm *VM) bool
+}
+
+type UnsingedVotableTx interface {
+	UnsignedProposalTx
+
+	VerifyWithProposalContext(proposal dao.Proposal) error
 }
 
 // UnsignedAtomicTx is an unsigned operation that can be atomically accepted

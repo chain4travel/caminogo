@@ -243,11 +243,9 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 	}
 
-	daoProposals := parentState.DaoProposalChainState()
-
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(vm, parentState, currentStakers, newlyPendingStakers, daoProposals)
+	onCommitState := newVersionedStateWithNewStakerChainState(vm, parentState, currentStakers, newlyPendingStakers)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -256,7 +254,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
+	onAbortState := newVersionedStateWithNewStakerChainState(vm, parentState, currentStakers, pendingStakers)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS

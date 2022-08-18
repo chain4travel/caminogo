@@ -10,8 +10,8 @@ type Config struct {
 	ProposalTxFee uint64 `json:"proposalTxFee"`
 	// Fee that must be burned by every VoteProposal transaction
 	VoteTxFee uint64 `json:"voteTxFee"`
-	// Minimal lock amount to ba able to add a proposal
-	MinProposalLock uint64 `json:"minProposalLock"`
+	// How much Bond needs to be put up, to facilitate a Vote on a proposal
+	ProposalBondAmount uint64 `json:"proposalBondAmount"`
 	// Minimum duration a voting period has to be active
 	MinProposalDuration time.Duration `json:"minProposalDuration"`
 	// Maximum duration a voting period can be active

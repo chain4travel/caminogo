@@ -112,6 +112,20 @@ func (tx *UnsignedAdvanceTimeTx) Execute(
 		)
 	}
 
+	// Only allow timestamp to move forward as far as the time of next proposal end time
+	nextProposalChangeTime, err := getNextDaoProposalChangeTime(parentState)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if txTimestamp.After(nextProposalChangeTime) {
+		return nil, nil, fmt.Errorf(
+			"proposed timestamp (%s) later than next staker change time (%s)",
+			txTimestamp,
+			nextProposalChangeTime,
+		)
+	}
+
 	currentSupply := parentState.GetCurrentSupply()
 
 	pendingStakers := parentState.PendingStakerChainState()
@@ -182,6 +196,7 @@ pendingStakerLoop:
 		}
 	}
 
+	// ? @jax why do it like this? and not remove each one at a time
 	newlyPendingStakers := pendingStakers
 	if numToRemoveFromPending > 0 {
 		newlyPendingStakers = pendingStakers.DeleteStakers(numToRemoveFromPending)
@@ -231,6 +246,7 @@ daoProposalLoop:
 			if daoProposal.EndTime().After(txTimestamp) {
 				break daoProposalLoop
 			}
+			// TODO somewhere here we need to issue a ConcludeProposalTx
 			numDaoProposalsToArchive++
 		default:
 			return nil, nil, fmt.Errorf("expected validator but got %T", tx.UnsignedTx)
@@ -257,7 +273,7 @@ daoProposalLoop:
 		dtx := daoProposals.Proposals()[i]
 		// We don't need the OK check because we already verified
 		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoProposalTx)
-		for i, out := range daoProposalTx.Locks {
+		for i, out := range daoProposalTx.Bond {
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        daoProposalTx.ID(),

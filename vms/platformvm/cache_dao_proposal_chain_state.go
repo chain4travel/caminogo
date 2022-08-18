@@ -26,6 +26,7 @@ type DaoProposalCache interface {
 	DaoProposalTx() *UnsignedDaoProposalTx
 	Votes() []*Tx
 	Voted(nodeID ids.ShortID) bool
+	State() dao.ProposalState
 }
 
 type DaoProposalCacheImpl struct {
@@ -49,6 +50,11 @@ func (d *DaoProposalCacheImpl) Voted(nodeID ids.ShortID) bool {
 		}
 	}
 	return false
+}
+
+// TODO @jax make this return the current status
+func (d *DaoProposalCacheImpl) State() dao.ProposalState {
+	return dao.ProposalStateUnknown
 }
 
 /*
@@ -137,10 +143,10 @@ func (ds *daoProposalChainStateImpl) GetProposalState(proposalID ids.ID) dao.Pro
 	switch {
 	case !exists:
 		return dao.ProposalStateUnknown
-	case proposal == nil:
-		return dao.ProposalStateVoted
+	case proposal == nil: // ? @jax how will this ever arise? only if a key is set to nil but was not deleted
+		panic("nil proposal in ")
 	case len(proposal.votes) >= int(proposal.daoProposalTx.DaoProposal.Thresh):
-		return dao.ProposalStateVoted
+		return dao.ProposalStateAccepted
 	default:
 		return dao.ProposalStatePending
 	}

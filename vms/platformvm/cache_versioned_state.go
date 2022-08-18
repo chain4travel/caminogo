@@ -132,6 +132,23 @@ func newVersionedState(
 	}
 }
 
+func newVersionedStateWithNewStakerChainState(
+	vm *VM,
+	ps MutableState,
+	current currentStakerChainState,
+	pending pendingStakerChainState,
+) VersionedState {
+	return newVersionedState(vm, ps, current, pending, ps.DaoProposalChainState())
+}
+
+func newVersionedStateWithNewDaoState(
+	vm *VM,
+	ps MutableState,
+	dao daoProposalChainState,
+) VersionedState {
+	return newVersionedState(vm, ps, ps.CurrentStakerChainState(), ps.PendingStakerChainState(), dao)
+}
+
 func (vs *versionedStateImpl) GetTimestamp() time.Time {
 	return vs.timestamp
 }

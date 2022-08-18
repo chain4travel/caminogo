@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	errInvalidID              = errors.New("cannot build proposal id")
-	errWeightTooSmall         = errors.New("lock amount too small")
-	errStartTimeBeforeEndTime = errors.New("startTime must be before endTime")
+	errInvalidID                               = errors.New("cannot build proposal id")
+	errWeightTooSmall                          = errors.New("lock amount too small")
+	errStartTimeBeforeEndTime                  = errors.New("startTime must be before endTime")
+	errVotingDurrationForAddValidatorIncorrect = errors.New("the voting durration to propose a new validator must be 2 weeks")
 
 	Codec codec.Manager
 )
@@ -33,15 +34,24 @@ type ProposalState int
 const (
 	ProposalStateUnknown ProposalState = iota
 	ProposalStatePending
-	ProposalStateVoted
+	ProposalStateInProgress
+	ProposalStateAccepted
+	ProposalStateExecuted
+	ProposalStateRejected
 )
 
 func (p ProposalState) String() string {
 	switch p {
 	case ProposalStatePending:
 		return "Pending"
-	case ProposalStateVoted:
-		return "Voted"
+	case ProposalStateInProgress:
+		return "InProgress"
+	case ProposalStateAccepted:
+		return "Accepted"
+	case ProposalStateExecuted:
+		return "Executed"
+	case ProposalStateRejected:
+		return "Rejected"
 	default:
 		return "Unknown"
 	}
@@ -55,10 +65,8 @@ type Proposal struct {
 	// The ProposalType of this proposal
 	ProposalType uint64 `serialize:"true" json:"proposalType"`
 
-	// The weight of this proposal (aka locked amount)
-	Wght uint64 `serialize:"true" json:"weight"`
-
 	// The threshold of votes which has to be reached
+	// ! @jax this needs to be verifed, but in here we cant ask for current validator count
 	Thresh uint32 `serialize:"true" json:"threshold"`
 
 	// Unix time this proposal starts
@@ -83,15 +91,12 @@ func (d *Proposal) EndTime() time.Time { return time.Unix(int64(d.End), 0) }
 // Duration is the amount of time that this validator will be in the validator set
 func (d *Proposal) Duration() time.Duration { return d.EndTime().Sub(d.StartTime()) }
 
-// Weight is this validator's weight when sampling
-func (d *Proposal) Weight() uint64 { return d.Wght }
-
-// Weight is this validator's weight when sampling
+// Returns true one the proposal voting time has conlcueded
 func (d *Proposal) Due(currentTime time.Time) bool { return currentTime.After(d.EndTime()) }
 
 // Computes the id of this proposal
 func (d *Proposal) computeID() (ids.ID, error) {
-	toSerialize := [5]uint64{d.ProposalType, d.Wght, d.Start, d.End, uint64(d.Thresh)}
+	toSerialize := [5]uint64{d.ProposalType, d.Start, d.End, uint64(d.Thresh)}
 	typeBytes, err := Codec.Marshal(0, toSerialize)
 	if err == nil {
 		typeBytes = append(typeBytes, d.Data...)
@@ -120,8 +125,11 @@ func (d *Proposal) Verify() error {
 	if d.Start >= d.End {
 		return errStartTimeBeforeEndTime
 	}
-	if d.Wght == 0 {
-		return errWeightTooSmall
+	if d.ProposalType == ProposalTypeAddValidator {
+		if d.Duration() != 24*7*2*time.Hour { // two weeks
+			// TODO @JAX this should be in the verifyfucntion of the wrapped tx
+			return errVotingDurrationForAddValidatorIncorrect
+		}
 	}
 	return nil
 }

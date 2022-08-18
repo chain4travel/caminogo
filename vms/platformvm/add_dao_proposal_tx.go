@@ -32,7 +32,8 @@ type UnsignedDaoProposalTx struct {
 	DaoProposal dao.Proposal `serialize:"true" json:"daoProposal"`
 
 	// Where to send locked tokens when done voting
-	Locks []*avax.TransferableOutput `serialize:"true" json:"locks"`
+	// TODO @jax this needs to be changed to a PChainOut
+	Bond []*avax.TransferableOutput `serialize:"true" json:"bond"`
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
@@ -40,8 +41,8 @@ type UnsignedDaoProposalTx struct {
 // the addresses can be json marshalled into human readable format
 func (tx *UnsignedDaoProposalTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
-	for _, lock := range tx.Locks {
-		lock.InitCtx(ctx)
+	for _, bond := range tx.Bond {
+		bond.InitCtx(ctx)
 	}
 }
 
@@ -95,8 +96,16 @@ func (tx *UnsignedDaoProposalTx) Execute(
 		return nil, nil, err
 	}
 
-	if tx.DaoProposal.Wght < vm.DaoConfig.MinProposalLock {
-		return nil, nil, errWeightTooSmall
+	var totalTransferable uint64
+
+	for _, bond := range tx.Bond {
+		if bond.AssetID() == vm.ctx.AVAXAssetID { // only allow to use avax to bond
+			totalTransferable += bond.Out.Amount()
+		}
+	}
+
+	if totalTransferable < vm.DaoConfig.ProposalBondAmount {
+		return nil, nil, fmt.Errorf("provided tx Inputs to dont have enough transferable AVAX to bond")
 	}
 
 	duration := tx.DaoProposal.Duration()
@@ -111,9 +120,9 @@ func (tx *UnsignedDaoProposalTx) Execute(
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
 
-	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Locks))
+	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
 	copy(outs, tx.Outs)
-	copy(outs[len(tx.Outs):], tx.Locks)
+	copy(outs[len(tx.Outs):], tx.Bond)
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
@@ -133,6 +142,7 @@ func (tx *UnsignedDaoProposalTx) Execute(
 		}
 
 		// Early exit if one tries to vote for an existing validator
+		// this should be the verify block of the internal tx
 		if tx.DaoProposal.ProposalType == dao.ProposalTypeAddValidator {
 			nodeID, err := ids.ToShortID(tx.DaoProposal.Data)
 			if err != nil {
@@ -167,7 +177,7 @@ func (tx *UnsignedDaoProposalTx) Execute(
 	// Set up the state if this tx is committed
 	newlydaoProposals := daoProposals.AddProposal(stx)
 
-	onCommitState := newVersionedState(vm, parentState, currentStakers, pendingStakers, newlydaoProposals)
+	onCommitState := newVersionedStateWithNewDaoState(vm, parentState, newlydaoProposals)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -176,7 +186,7 @@ func (tx *UnsignedDaoProposalTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
+	onAbortState := newVersionedStateWithNewDaoState(vm, parentState, daoProposals)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -194,7 +204,8 @@ func (tx *UnsignedDaoProposalTx) InitiallyPrefersCommit(vm *VM) bool {
 // TimedTx Interface
 func (tx *UnsignedDaoProposalTx) StartTime() time.Time { return tx.DaoProposal.StartTime() }
 func (tx *UnsignedDaoProposalTx) EndTime() time.Time   { return tx.DaoProposal.EndTime() }
-func (tx *UnsignedDaoProposalTx) Weight() uint64       { return tx.DaoProposal.Weight() }
+
+// func (tx *UnsignedDaoProposalTx) Weight() uint64       { return tx.DaoProposal.Weight() }
 
 // NewDaoProposalTx returns a new UnsignedDaoProposalTx
 func (vm *VM) newDaoProposalTx(
@@ -227,10 +238,10 @@ func (vm *VM) newDaoProposalTx(
 			ProposalType: proposalType,
 			Start:        startTime,
 			End:          endTime,
-			Wght:         lockAmt,
-			Data:         proposal,
+			// Wght:         lockAmt,
+			Data: proposal,
 		},
-		Locks: lockedOuts,
+		// Locks: lockedOuts,
 	}
 	if err = utx.DaoProposal.InitializeID(); err != nil {
 		return nil, ids.ID{}, err
