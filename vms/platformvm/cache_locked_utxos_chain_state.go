@@ -23,17 +23,17 @@ import (
 
 var _ lockedUTXOsChainState = &lockedUTXOsChainStateImpl{}
 
-type lockState struct {
-	bondTxID    *ids.ID `serialize:"true"`
-	depositTxID *ids.ID `serialize:"true"`
+type utxoLockState struct {
+	BondTxID    *ids.ID
+	DepositTxID *ids.ID
 }
 
-func (ls lockState) isLocked() bool    { return ls.bondTxID != nil || ls.depositTxID != nil }
-func (ls lockState) isBonded() bool    { return ls.bondTxID != nil }
-func (ls lockState) isDeposited() bool { return ls.depositTxID != nil }
+func (ls utxoLockState) isLocked() bool    { return ls.BondTxID != nil || ls.DepositTxID != nil }
+func (ls utxoLockState) isBonded() bool    { return ls.BondTxID != nil }
+func (ls utxoLockState) isDeposited() bool { return ls.DepositTxID != nil }
 
 type lockedUTXOsChainState interface {
-	GetUTXOLockState(utxoID ids.ID) *lockState
+	GetUTXOLockState(utxoID ids.ID) *utxoLockState
 	UpdateAndProduceUTXOs(
 		inputs []*avax.TransferableInput,
 		inputIndexes []int,
@@ -53,14 +53,14 @@ type lockedUTXOsChainState interface {
 // the lock state of utxos. None of the slices, maps, or pointers should be modified
 // after initialization.
 type lockedUTXOsChainStateImpl struct {
-	bonds       map[ids.ID]ids.Set   // bondTx.ID -> bondedUTXO.ID -> nil
-	deposits    map[ids.ID]ids.Set   // depositTx.ID -> depositedUTXO.ID -> nil
-	lockedUTXOs map[ids.ID]lockState // lockedUTXO.ID -> { bondTx.ID, depositTx.ID }
+	bonds       map[ids.ID]ids.Set       // bondTx.ID -> bondedUTXO.ID -> nil
+	deposits    map[ids.ID]ids.Set       // depositTx.ID -> depositedUTXO.ID -> nil
+	lockedUTXOs map[ids.ID]utxoLockState // lockedUTXO.ID -> { bondTx.ID, depositTx.ID }
 
-	updatedUTXOs map[ids.ID]lockState // utxo.ID -> { bondTx.ID, depositTx.ID }
+	updatedUTXOs map[ids.ID]utxoLockState // utxo.ID -> { bondTx.ID, depositTx.ID }
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState {
+func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *utxoLockState {
 	utxoLockState, ok := cs.lockedUTXOs[utxoID]
 	if !ok {
 		return nil
@@ -69,11 +69,11 @@ func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState 
 }
 
 // TODO@ check for overlaps
-func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]lockState) (lockedUTXOsChainState, error) {
+func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]utxoLockState) (lockedUTXOsChainState, error) {
 	newCS := &lockedUTXOsChainStateImpl{
 		bonds:        make(map[ids.ID]ids.Set, len(cs.bonds)+1),
 		deposits:     make(map[ids.ID]ids.Set, len(cs.deposits)+1),
-		lockedUTXOs:  make(map[ids.ID]lockState, len(cs.lockedUTXOs)+1),
+		lockedUTXOs:  make(map[ids.ID]utxoLockState, len(cs.lockedUTXOs)+1),
 		updatedUTXOs: updatedUTXOStates,
 	}
 
@@ -91,18 +91,18 @@ func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]lo
 		oldLockedUTXOState := newCS.lockedUTXOs[newLockedUTXOID]
 
 		// updating bond state
-		if oldLockedUTXOState.bondTxID == nil && newLockedUTXO.bondTxID != nil {
+		if oldLockedUTXOState.BondTxID == nil && newLockedUTXO.BondTxID != nil {
 			// bonding not-bonded utxo
-			bondTxID := *newLockedUTXO.bondTxID
+			bondTxID := *newLockedUTXO.BondTxID
 			bond := newCS.bonds[bondTxID]
 			if bond == nil {
 				bond = ids.Set{}
 				newCS.bonds[bondTxID] = bond
 			}
 			bond.Add(newLockedUTXOID)
-		} else if oldLockedUTXOState.bondTxID != nil && newLockedUTXO.bondTxID == nil {
+		} else if oldLockedUTXOState.BondTxID != nil && newLockedUTXO.BondTxID == nil {
 			// unbonding bonded utxo
-			bondTxID := *oldLockedUTXOState.bondTxID
+			bondTxID := *oldLockedUTXOState.BondTxID
 			bond := newCS.bonds[bondTxID]
 			if bond == nil {
 				return nil, fmt.Errorf("old utxo lock state has not-nil bondTxID, but there is no such bond: %v",
@@ -110,27 +110,27 @@ func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]lo
 			}
 			bond.Remove(newLockedUTXOID)
 		} else {
-			if oldLockedUTXOState.bondTxID == nil {
+			if oldLockedUTXOState.BondTxID == nil {
 				return nil, fmt.Errorf("attempt to unbond not-bonded utxo (utxoID: %v)",
 					newLockedUTXOID)
 			}
 			return nil, fmt.Errorf("attempt to bond bonded utxo (utxoID: %v, oldBondID: %v, newBondID: %v)",
-				newLockedUTXOID, oldLockedUTXOState.bondTxID, newLockedUTXO.bondTxID)
+				newLockedUTXOID, oldLockedUTXOState.BondTxID, newLockedUTXO.BondTxID)
 		}
 
 		// updating deposit state
-		if oldLockedUTXOState.depositTxID == nil && newLockedUTXO.depositTxID != nil {
+		if oldLockedUTXOState.DepositTxID == nil && newLockedUTXO.DepositTxID != nil {
 			// depositing not-deposited utxo
-			depositTxID := *newLockedUTXO.depositTxID
+			depositTxID := *newLockedUTXO.DepositTxID
 			deposit := newCS.deposits[depositTxID]
 			if deposit == nil {
 				deposit = ids.Set{}
 				newCS.deposits[depositTxID] = deposit
 			}
 			deposit.Add(newLockedUTXOID)
-		} else if oldLockedUTXOState.depositTxID != nil && newLockedUTXO.depositTxID == nil {
+		} else if oldLockedUTXOState.DepositTxID != nil && newLockedUTXO.DepositTxID == nil {
 			// undepositing deposited utxo
-			depositTxID := *oldLockedUTXOState.depositTxID
+			depositTxID := *oldLockedUTXOState.DepositTxID
 			deposit := newCS.deposits[depositTxID]
 			if deposit == nil {
 				return nil, fmt.Errorf("old utxo lock state has not-nil depositTxID, but there is no such deposit: %v",
@@ -138,21 +138,21 @@ func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]lo
 			}
 			deposit.Remove(newLockedUTXOID)
 		} else {
-			if oldLockedUTXOState.depositTxID == nil {
+			if oldLockedUTXOState.DepositTxID == nil {
 				return nil, fmt.Errorf("attempt to undeposit not-deposited utxo (utxoID: %v)",
 					newLockedUTXOID)
 			}
 			return nil, fmt.Errorf("attempt to deposit deposited utxo (utxoID: %v, oldDepositID: %v, newDepositID: %v)",
-				newLockedUTXOID, oldLockedUTXOState.depositTxID, newLockedUTXO.depositTxID)
+				newLockedUTXOID, oldLockedUTXOState.DepositTxID, newLockedUTXO.DepositTxID)
 		}
 
 		// updating utxo lock state
-		if newLockedUTXO.bondTxID == nil && newLockedUTXO.depositTxID == nil {
+		if newLockedUTXO.BondTxID == nil && newLockedUTXO.DepositTxID == nil {
 			delete(newCS.lockedUTXOs, newLockedUTXOID)
 		} else {
-			newCS.lockedUTXOs[newLockedUTXOID] = lockState{
-				bondTxID:    newLockedUTXO.bondTxID,
-				depositTxID: newLockedUTXO.depositTxID,
+			newCS.lockedUTXOs[newLockedUTXOID] = utxoLockState{
+				BondTxID:    newLockedUTXO.BondTxID,
+				DepositTxID: newLockedUTXO.DepositTxID,
 			}
 		}
 	}
@@ -196,7 +196,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 	lockedUTXOsCount := len(lockedOuts)
 	notLockedUTXOsCount := len(notLockedOuts)
 	producedUTXOs := make([]*avax.UTXO, notLockedUTXOsCount+lockedUTXOsCount)
-	updatedUTXOLockStates := make(map[ids.ID]lockState, lockedUTXOsCount*2)
+	updatedUTXOLockStates := make(map[ids.ID]utxoLockState, lockedUTXOsCount*2)
 
 	// updating lock state for not locked utxos
 	outIndex := 0
@@ -216,21 +216,21 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 
 		// adding produced not locked utxo to lock state
 		if bond {
-			updatedUTXOLockStates[utxo.InputID()] = lockState{
-				bondTxID:    nil,
-				depositTxID: cs.GetUTXOLockState(consumedUTXOID).depositTxID,
+			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
+				BondTxID:    nil,
+				DepositTxID: cs.GetUTXOLockState(consumedUTXOID).DepositTxID,
 			}
 		} else {
-			updatedUTXOLockStates[utxo.InputID()] = lockState{
-				bondTxID:    cs.GetUTXOLockState(consumedUTXOID).bondTxID,
-				depositTxID: nil,
+			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
+				BondTxID:    cs.GetUTXOLockState(consumedUTXOID).BondTxID,
+				DepositTxID: nil,
 			}
 		}
 
 		// removing consumed utxo from lock state
-		updatedUTXOLockStates[consumedUTXOID] = lockState{
-			bondTxID:    nil,
-			depositTxID: nil,
+		updatedUTXOLockStates[consumedUTXOID] = utxoLockState{
+			BondTxID:    nil,
+			DepositTxID: nil,
 		}
 	}
 
@@ -251,22 +251,22 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 
 		// adding produced locked utxo to lock state
 		if bond {
-			updatedUTXOLockStates[utxo.InputID()] = lockState{
-				bondTxID:    &txID,
-				depositTxID: cs.GetUTXOLockState(consumedUTXOID).depositTxID,
+			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
+				BondTxID:    &txID,
+				DepositTxID: cs.GetUTXOLockState(consumedUTXOID).DepositTxID,
 			}
 		} else {
-			updatedUTXOLockStates[utxo.InputID()] = lockState{
-				bondTxID:    cs.GetUTXOLockState(consumedUTXOID).bondTxID,
-				depositTxID: &txID,
+			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
+				BondTxID:    cs.GetUTXOLockState(consumedUTXOID).BondTxID,
+				DepositTxID: &txID,
 			}
 		}
 
 		// removing consumed utxo from lock state
 		if _, ok := updatedUTXOLockStates[consumedUTXOID]; !ok {
-			updatedUTXOLockStates[consumedUTXOID] = lockState{
-				bondTxID:    nil,
-				depositTxID: nil,
+			updatedUTXOLockStates[consumedUTXOID] = utxoLockState{
+				BondTxID:    nil,
+				DepositTxID: nil,
 			}
 		}
 		outIndex++
@@ -282,11 +282,11 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 
 func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainState, error) {
 	bondedUTXOIDs := cs.bonds[bondTxID]
-	updatedUTXOLockStates := make(map[ids.ID]lockState, len(bondedUTXOIDs))
+	updatedUTXOLockStates := make(map[ids.ID]utxoLockState, len(bondedUTXOIDs))
 	for utxoID := range bondedUTXOIDs {
-		updatedUTXOLockStates[utxoID] = lockState{
-			bondTxID:    nil,
-			depositTxID: cs.GetUTXOLockState(utxoID).depositTxID,
+		updatedUTXOLockStates[utxoID] = utxoLockState{
+			BondTxID:    nil,
+			DepositTxID: cs.GetUTXOLockState(utxoID).DepositTxID,
 		}
 	}
 
@@ -302,11 +302,11 @@ func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainSt
 // ! most likely will be done with spending
 func (cs *lockedUTXOsChainStateImpl) Undeposit(depositTxID ids.ID) (lockedUTXOsChainState, error) {
 	depositedUTXOIDs := cs.deposits[depositTxID]
-	updatedUTXOLockStates := make(map[ids.ID]lockState, len(depositedUTXOIDs))
+	updatedUTXOLockStates := make(map[ids.ID]utxoLockState, len(depositedUTXOIDs))
 	for utxoID := range depositedUTXOIDs {
-		updatedUTXOLockStates[utxoID] = lockState{
-			bondTxID:    cs.GetUTXOLockState(utxoID).bondTxID,
-			depositTxID: nil,
+		updatedUTXOLockStates[utxoID] = utxoLockState{
+			BondTxID:    cs.GetUTXOLockState(utxoID).BondTxID,
+			DepositTxID: nil,
 		}
 	}
 

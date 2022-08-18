@@ -28,8 +28,6 @@ import (
 )
 
 var (
-	errWrongLocktime     = errors.New("wrong locktime reported")
-	errWrongInputState   = errors.New("wrong input state")
 	errUnknownSpendMode  = errors.New("unknown spend mode")
 	errUnknownOwnersType = errors.New("unknown owners")
 	errUnknownOwners     = errors.New("owner of produced utxo isn't presented in consumed utxo owners")
