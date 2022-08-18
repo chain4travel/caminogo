@@ -560,13 +560,13 @@ func (mr *MockInternalStateMockRecorder) UTXOIDs(addr, previous, limit interface
 }
 
 // UpdateLockedUTXO mocks base method.
-func (m *MockInternalState) UpdateLockedUTXO(updatedUTXO lockedUTXOState) {
+func (m *MockInternalState) UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateLockedUTXO", updatedUTXO)
+	m.ctrl.Call(m, "UpdateLockedUTXO", utxoID, utxoLockState)
 }
 
 // UpdateLockedUTXO indicates an expected call of UpdateLockedUTXO.
-func (mr *MockInternalStateMockRecorder) UpdateLockedUTXO(updatedUTXO interface{}) *gomock.Call {
+func (mr *MockInternalStateMockRecorder) UpdateLockedUTXO(utxoID, utxoLockState interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateLockedUTXO", reflect.TypeOf((*MockInternalState)(nil).UpdateLockedUTXO), updatedUTXO)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateLockedUTXO", reflect.TypeOf((*MockInternalState)(nil).UpdateLockedUTXO), utxoID, utxoLockState)
 }
