@@ -1589,8 +1589,8 @@ func (st *internalStateImpl) loadPendingValidators() error {
 
 func (st *internalStateImpl) loadLockedUTXOs() error {
 	cs := &lockedUTXOsChainStateImpl{
-		bonds:       make(map[ids.ID]*ids.Set),
-		deposits:    make(map[ids.ID]*ids.Set),
+		bonds:       make(map[ids.ID]ids.Set),
+		deposits:    make(map[ids.ID]ids.Set),
 		lockedUTXOs: make(map[ids.ID]lockState),
 	}
 
@@ -1615,7 +1615,7 @@ func (st *internalStateImpl) loadLockedUTXOs() error {
 			bondTxID := *utxoLockState.bondTxID
 			bond := cs.bonds[bondTxID]
 			if bond == nil {
-				bond = &ids.Set{}
+				bond = ids.Set{}
 				cs.bonds[bondTxID] = bond
 			}
 			bond.Add(utxoID)
@@ -1625,7 +1625,7 @@ func (st *internalStateImpl) loadLockedUTXOs() error {
 			depositTxID := *utxoLockState.depositTxID
 			deposit := cs.deposits[depositTxID]
 			if deposit == nil {
-				deposit = &ids.Set{}
+				deposit = ids.Set{}
 				cs.deposits[depositTxID] = deposit
 			}
 			deposit.Add(utxoID)
