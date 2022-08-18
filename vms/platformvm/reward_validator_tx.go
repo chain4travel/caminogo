@@ -141,7 +141,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		// updating lock state for unbonded utxos
 		bondedUTXOIDs := lockedUTXOsState.GetBondedUTXOs(stakerID)
 		var updatedUTXOs []lockedUTXOState // TODO opt with make
-		for utxoID := range *bondedUTXOIDs {
+		for utxoID := range bondedUTXOIDs {
 			updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
 				utxoID: utxoID,
 				lockState: lockState{

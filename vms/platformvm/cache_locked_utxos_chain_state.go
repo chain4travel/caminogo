@@ -36,8 +36,8 @@ type lockState struct {
 // delegators) that are slated to start staking in the future.
 type lockedUTXOsChainState interface {
 	UpdateUTXOs(updatedUTXOStates []lockedUTXOState) (lockedUTXOsChainState, error)
-	GetBondedUTXOs(bondTxID ids.ID) *ids.Set // ? @evlekht rename GetBondedUTXOIDs ?
-	GetDepositedUTXOs(depositTxID ids.ID) *ids.Set
+	GetBondedUTXOs(bondTxID ids.ID) ids.Set // ? @evlekht rename GetBondedUTXOIDs ?
+	GetDepositedUTXOs(depositTxID ids.ID) ids.Set
 	GetUTXOLockState(utxoID ids.ID) *lockState
 
 	Apply(InternalState)
@@ -47,18 +47,18 @@ type lockedUTXOsChainState interface {
 // the validator set. None of the slices, maps, or pointers should be modified
 // after initialization.
 type lockedUTXOsChainStateImpl struct {
-	bonds       map[ids.ID]*ids.Set  // bondTx.ID -> bondedUTXO.ID -> nil
-	deposits    map[ids.ID]*ids.Set  // depositTx.ID -> depositedUTXO.ID -> nil
+	bonds       map[ids.ID]ids.Set   // bondTx.ID -> bondedUTXO.ID -> nil
+	deposits    map[ids.ID]ids.Set   // depositTx.ID -> depositedUTXO.ID -> nil
 	lockedUTXOs map[ids.ID]lockState // lockedUTXO.ID -> { bondTx.ID, depositTx.ID }
 
 	updatedUTXOs []lockedUTXOState // { utxo.ID, bondTx.ID, depositTx.ID }
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetBondedUTXOs(bondTxID ids.ID) *ids.Set {
+func (cs *lockedUTXOsChainStateImpl) GetBondedUTXOs(bondTxID ids.ID) ids.Set {
 	return cs.bonds[bondTxID]
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetDepositedUTXOs(depositTxID ids.ID) *ids.Set {
+func (cs *lockedUTXOsChainStateImpl) GetDepositedUTXOs(depositTxID ids.ID) ids.Set {
 	return cs.deposits[depositTxID]
 }
 
@@ -72,8 +72,8 @@ func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState 
 
 func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOState) (lockedUTXOsChainState, error) {
 	newCS := &lockedUTXOsChainStateImpl{
-		bonds:        make(map[ids.ID]*ids.Set, len(cs.bonds)+1),
-		deposits:     make(map[ids.ID]*ids.Set, len(cs.deposits)+1),
+		bonds:        make(map[ids.ID]ids.Set, len(cs.bonds)+1),
+		deposits:     make(map[ids.ID]ids.Set, len(cs.deposits)+1),
 		lockedUTXOs:  make(map[ids.ID]lockState, len(cs.lockedUTXOs)+1),
 		updatedUTXOs: make([]lockedUTXOState, len(updatedUTXOStates)),
 	}
@@ -99,8 +99,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 			bondTxID := *newLockedUTXO.bondTxID
 			bond := newCS.bonds[bondTxID]
 			if bond == nil {
-				newSet := ids.NewSet(0) // TODO@
-				bond = &newSet
+				bond = ids.Set{}
 				newCS.bonds[bondTxID] = bond
 			}
 			bond.Add(newLockedUTXO.utxoID)
@@ -128,8 +127,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates []lockedUTXOS
 			depositTxID := *newLockedUTXO.depositTxID
 			deposit := newCS.deposits[depositTxID]
 			if deposit == nil {
-				newSet := ids.NewSet(0) // TODO@
-				deposit = &newSet
+				deposit = ids.Set{}
 				newCS.deposits[depositTxID] = deposit
 			}
 			deposit.Add(newLockedUTXO.utxoID)
