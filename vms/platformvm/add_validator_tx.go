@@ -251,45 +251,16 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
-	// updating lock state for bonded utxos
-	bondedUTXOsCount := len(tx.Bond)
-	updatedUTXOs := make([]lockedUTXOState, bondedUTXOsCount)
-	bondedUTXOs := make([]*avax.UTXO, bondedUTXOsCount*2)
-	for i, bondedOut := range tx.Bond {
-		consumedUTXOID := tx.Ins[tx.BondInputIndexes[i]].InputID()
-		// produce new utxo
-		utxo := &avax.UTXO{
-			UTXOID: avax.UTXOID{
-				TxID:        txID,
-				OutputIndex: uint32(len(tx.Outs) + i),
-			},
-			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-			Out:   bondedOut.Output(),
-		}
-		bondedUTXOs[i] = utxo
-
-		// adding produced utxo to lock state
-		updatedUTXOs[i] = lockedUTXOState{
-			utxoID: utxo.InputID(),
-			lockState: lockState{
-				bondTxID:    &txID,
-				depositTxID: lockedUTXOsState.GetUTXOLockState(consumedUTXOID).depositTxID,
-			},
-		}
-
-		// removing consumed utxo from lock state
-		updatedUTXOs[bondedUTXOsCount+i] = lockedUTXOState{
-			utxoID: consumedUTXOID,
-			lockState: lockState{
-				bondTxID:    nil,
-				depositTxID: nil,
-			},
-		}
-	}
-
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
 
-	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+	newlyLockedUTXOsState, utxos, err := lockedUTXOsState.UpdateAndProduceUTXOs(
+		tx.Ins,
+		tx.BondInputIndexes,
+		tx.Outs,
+		tx.Bond,
+		txID,
+		true,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -299,8 +270,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
-	for _, utxo := range bondedUTXOs {
+	for _, utxo := range utxos {
 		onCommitState.AddUTXO(utxo)
 	}
 
@@ -331,7 +301,7 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, bondAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
+	ins, notBondedOuts, bondedOuts, bondInputIndexes, signers, err := vm.spend(keys, bondAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -350,7 +320,7 @@ func (vm *VM) newAddValidatorTx(
 			Wght:   bondAmt,
 		},
 		Bond:             bondedOuts,
-		BondInputIndexes: nil, // TODO@ get it from spending
+		BondInputIndexes: bondInputIndexes,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,

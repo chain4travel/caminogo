@@ -309,7 +309,7 @@ func (vm *VM) newAddDelegatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, notBondedOuts, bondedOuts, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
+	ins, notBondedOuts, bondedOuts, _, signers, err := vm.spend(keys, stakeAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

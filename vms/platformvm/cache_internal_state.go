@@ -96,7 +96,7 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
-	UpdateLockedUTXO(updatedUTXO lockedUTXOState)
+	UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
@@ -818,8 +818,11 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 	return weightDiffs, nil
 }
 
-func (st *internalStateImpl) UpdateLockedUTXO(updatedUTXO lockedUTXOState) {
-	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, updatedUTXO)
+func (st *internalStateImpl) UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState) {
+	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, lockedUTXOState{
+		utxoID:    utxoID,
+		lockState: utxoLockState,
+	})
 }
 
 func (st *internalStateImpl) Abort() {
@@ -1294,6 +1297,11 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
+type lockedUTXOState struct {
+	utxoID ids.ID
+	lockState
+}
+
 func (st *internalStateImpl) writeLockedUTXOs() error {
 	for _, updatedUTXO := range st.updatedLockedUTXOs {
 		utxoLockStateBytes, err := GenesisCodec.Marshal(CodecVersion, updatedUTXO.lockState)
@@ -1680,16 +1688,15 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 				Out:   bondedOut.Output(),
 			}
 			st.AddUTXO(utxo)
-			st.UpdateLockedUTXO(lockedUTXOState{
-				utxoID: utxo.InputID(),
-				lockState: lockState{
+			st.UpdateLockedUTXO(
+				utxo.InputID(),
+				lockState{
 					bondTxID: &txID,
 					// ! @evlekht in current genesis implementation,
 					// ! allocation can only be staked or deposited.
 					// ! must be updated with deposit PR
 					depositTxID: nil,
-				},
-			})
+				})
 		}
 
 		stakeAmount := tx.Validator.Wght

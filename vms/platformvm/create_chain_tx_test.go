@@ -367,7 +367,7 @@ func TestCreateChainTxAP3FeeChange(t *testing.T) {
 				vm.ctx.Lock.Unlock()
 			}()
 
-			ins, outs, _, signers, err := vm.spend(keys, 0, test.fee, ids.ShortEmpty, spendModeBond)
+			ins, outs, _, _, signers, err := vm.spend(keys, 0, test.fee, ids.ShortEmpty, spendModeBond)
 			assert.NoError(err)
 
 			subnetAuth, subnetSigners, err := vm.authorize(vm.internalState, testSubnet1.ID(), keys)

@@ -135,23 +135,9 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	pendingStakers := parentState.PendingStakerChainState()
 	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
-	switch stakerTx.UnsignedTx.(type) {
-	case *UnsignedAddValidatorTx:
+	if _, ok := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx); ok {
 		// Refund the stake here
-		// updating lock state for unbonded utxos
-		bondedUTXOIDs := lockedUTXOsState.GetBondedUTXOs(stakerID)
-		var updatedUTXOs []lockedUTXOState // TODO opt with make
-		for utxoID := range bondedUTXOIDs {
-			updatedUTXOs = append(updatedUTXOs, lockedUTXOState{
-				utxoID: utxoID,
-				lockState: lockState{
-					bondTxID:    nil,
-					depositTxID: lockedUTXOsState.GetUTXOLockState(utxoID).depositTxID,
-				},
-			})
-		}
-
-		lockedUTXOsState, err = lockedUTXOsState.UpdateUTXOs(updatedUTXOs)
+		lockedUTXOsState, err = lockedUTXOsState.Unbond(stakerID)
 		if err != nil {
 			return nil, nil, err
 		}
