@@ -371,7 +371,6 @@ func (vm *VM) authorize(
 // [db] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
-// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpend(
 	utxoDB UTXOGetter,
@@ -381,7 +380,6 @@ func (vm *VM) semanticVerifySpend(
 	creds []verify.Verifiable,
 	feeAmount uint64,
 	feeAssetID ids.ID,
-	spendMode spendMode,
 ) error {
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
@@ -396,15 +394,13 @@ func (vm *VM) semanticVerifySpend(
 		utxos[index] = utxo
 	}
 
-	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID, spendMode)
+	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
 }
 
 // Verify that [tx] is semantically valid.
-// [db] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // [utxos[i]] is the UTXO being consumed by [ins[i]]
-// [spendMode] in what way tokens expected to be spended (bonded / deposited / unbonded / undeposited)
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpendUTXOs(
 	tx UnsignedTx,
@@ -414,12 +410,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	creds []verify.Verifiable,
 	feeAmount uint64,
 	feeAssetID ids.ID,
-	spendMode spendMode,
 ) error {
-	if err := spendMode.Verify(); err != nil {
-		return err
-	}
-
 	if len(ins) != len(creds) {
 		return fmt.Errorf(
 			"there are %d inputs but %d credentials. Should be same number",
@@ -440,9 +431,14 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 	}
 
-	// ownerID -> PUTXOState -> amount
-	consumed := make(map[ids.ID]map[PUTXOState]uint64)
-	produced := make(map[ids.ID]map[PUTXOState]uint64)
+	// Track the amount of unlocked transfers
+	unlockedProduced := feeAmount
+	unlockedConsumed := uint64(0)
+
+	// Track the amount of locked transfers and their owners
+	// locktime -> ownerID -> amount
+	lockedProduced := make(map[uint64]map[ids.ID]uint64)
+	lockedConsumed := make(map[uint64]map[ids.ID]uint64)
 
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
@@ -454,59 +450,42 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return errAssetIDMismatch
 		}
 
-		spendedOut := utxo.Out
-		spendedOutState := PUTXOStateTransferable
-		// Set [locktime] to this UTXO's locktime, if applicable
-		if inner, ok := spendedOut.(*PChainOut); ok {
-			spendedOut = inner.TransferableOut
-			spendedOutState = inner.State
-		}
-
-		in := input.In
-
-		// Unwrapping input if it's needed. Checking that input state == consumed output state.
-		// ok == false means that input isn't PChainIn, so its PUTXOStateTransferable by default
-		if inner, ok := in.(*PChainIn); !ok && spendedOutState != PUTXOStateTransferable {
-			return errWrongInputState
-		} else if ok {
-			if inner.State != spendedOutState {
-				return errWrongInputState
-			}
-			in = inner.TransferableIn
-		}
-
 		// Verify that this tx's credentials allow [in] to be spent
-		if err := vm.fx.VerifyTransfer(tx, in, creds[index], spendedOut); err != nil {
+		if err := vm.fx.VerifyTransfer(tx, input.In, creds[index], utxo.Out); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 
-		amount := in.Amount()
+		amount := input.In.Amount()
 
-		// getting spended out owners
-		owned, ok := spendedOut.(Owned)
-		if !ok {
-			return errUnknownOwnersType
+		if true {
+			newUnlockedConsumed, err := math.Add64(unlockedConsumed, amount)
+			if err != nil {
+				return err
+			}
+			unlockedConsumed = newUnlockedConsumed
+			continue
 		}
-		spendedOutOwner := owned.Owners()
 
-		// getting spended out ownerID
-		ownerBytes, err := Codec.Marshal(CodecVersion, spendedOutOwner)
+		owned, ok := utxo.Out.(Owned)
+		if !ok {
+			return errUnknownOwners
+		}
+		owner := owned.Owners()
+		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
 		if err != nil {
 			return fmt.Errorf("couldn't marshal owner: %w", err)
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
-
-		// storing amount that was consumed in specific state from owner
-		consumedFromOwner, ok := consumed[ownerID]
+		owners, ok := lockedConsumed[0]
 		if !ok {
-			consumedFromOwner = make(map[PUTXOState]uint64)
-			consumed[ownerID] = consumedFromOwner
+			owners = make(map[ids.ID]uint64)
+			lockedConsumed[0] = owners
 		}
-		newAmount, err := math.Add64(consumedFromOwner[spendedOutState], amount)
+		newAmount, err := math.Add64(owners[ownerID], amount)
 		if err != nil {
 			return err
 		}
-		consumedFromOwner[spendedOutState] = newAmount
+		owners[ownerID] = newAmount
 	}
 
 	for _, out := range outs {
@@ -514,133 +493,104 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return errAssetIDMismatch
 		}
 
-		producedOut := out.Output()
-		producedOutState := PUTXOStateTransferable
-		// Set [locktime] to this output's locktime, if applicable
-		if inner, ok := producedOut.(*PChainOut); ok {
-			producedOut = inner.TransferableOut
-			producedOutState = inner.State
+		output := out.Output()
+		amount := output.Amount()
+
+		if true {
+			newUnlockedProduced, err := math.Add64(unlockedProduced, amount)
+			if err != nil {
+				return err
+			}
+			unlockedProduced = newUnlockedProduced
+			continue
 		}
 
-		amount := producedOut.Amount()
-
-		// getting prdoduced out owners
-		owned, ok := producedOut.(Owned)
+		owned, ok := output.(Owned)
 		if !ok {
-			return errUnknownOwnersType
+			return errUnknownOwners
 		}
 		owner := owned.Owners()
-
-		// getting spended out ownerID
 		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
 		if err != nil {
 			return fmt.Errorf("couldn't marshal owner: %w", err)
 		}
 		ownerID := hashing.ComputeHash256Array(ownerBytes)
-
-		// storing amount that was produced in specific state for owner
-		producedForOwner, ok := produced[ownerID]
+		owners, ok := lockedProduced[0]
 		if !ok {
-			producedForOwner = make(map[PUTXOState]uint64)
-			produced[ownerID] = producedForOwner
+			owners = make(map[ids.ID]uint64)
+			lockedProduced[0] = owners
 		}
-		newAmount, err := math.Add64(producedForOwner[producedOutState], amount)
+		newAmount, err := math.Add64(owners[ownerID], amount)
 		if err != nil {
 			return err
 		}
-		producedForOwner[producedOutState] = newAmount
+		owners[ownerID] = newAmount
 	}
 
-	// deposit:  PUTXOStateTransferable  reduced   =>  PUTXOStateDeposited           increased
-	// deposit:  PUTXOStateBonded        reduced   =>  PUTXOStateDepositedAndBonded  increased
-	// bond:     PUTXOStateTransferable  reduced   =>  PUTXOStateBonded              increased
-	// bond:     PUTXOStateDeposited     reduced   =>  PUTXOStateDepositedAndBonded  increased
+	// Make sure that for each locktime, tokens produced <= tokens consumed
+	for locktime, producedAmounts := range lockedProduced {
+		consumedAmounts := lockedConsumed[locktime]
+		for ownerID, producedAmount := range producedAmounts {
+			consumedAmount := consumedAmounts[ownerID]
 
-	// deposit:  PUTXOStateTransferable  abs diff  >=  PUTXOStateDeposited           abs diff
-	// deposit:  PUTXOStateBonded        abs diff  >=  PUTXOStateDepositedAndBonded  abs diff
-	// bond:     PUTXOStateTransferable  abs diff  >=  PUTXOStateBonded              abs diff
-	// bond:     PUTXOStateDeposited     abs diff  >=  PUTXOStateDepositedAndBonded  abs diff
+			if producedAmount > consumedAmount {
+				increase := producedAmount - consumedAmount
+				if increase > unlockedConsumed {
+					return fmt.Errorf(
+						"address %s produces %d unlocked and consumes %d unlocked for locktime %d",
+						ownerID,
+						increase,
+						unlockedConsumed,
+						locktime,
+					)
+				}
+				unlockedConsumed -= increase
+			}
+		}
+	}
 
-	// TODO@evlekht take feeAmount into account in checks
-	for ownerID, consumedFromOwner := range consumed {
-		producedForOwner := produced[ownerID]
-		if producedForOwner == nil {
-			return errUnknownOwners
+	// More unlocked tokens produced than consumed. Invalid.
+	if unlockedProduced > unlockedConsumed {
+		return fmt.Errorf(
+			"tx produces more unlocked (%d) than it consumes (%d)",
+			unlockedProduced,
+			unlockedConsumed,
+		)
+	}
+	return nil
+}
+
+// Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction.
+// Arguments:
+// - [inputs] Inputs produces this outputs
+// - [inputIndexes] inputs[inputIndexes[i]] produce output[i]
+// - [outputs] outputs produced by [inputs]
+// Precondition: [tx] has already been syntactically verified
+func syntacticVerifyInputIndexes(
+	inputs []*avax.TransferableInput,
+	inputIndexes []int,
+	outputs []*avax.TransferableOutput,
+) error {
+	producedAmount := make(map[int]uint64, len(inputs))
+
+	for outputIndex, out := range outputs {
+		inputIndex := inputIndexes[outputIndex]
+
+		if inputs[inputIndex].AssetID() != out.AssetID() {
+			return fmt.Errorf("input[%d] assetID isn't equal to produced output[%d] assetID",
+				inputIndex, outputIndex)
 		}
 
-		switch spendMode {
-		case spendModeDeposit:
-			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
-				consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
-				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited] ||
-				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
+		newProducedAmount, err := math.Add64(producedAmount[inputIndex], out.Out.Amount())
+		if err != nil {
+			return err
+		}
+		producedAmount[inputIndex] = newProducedAmount
+	}
 
-			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
-			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
-			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
-			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
-
-			if !(transferableDiff >= depositedDiff || bondedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-		case spendModeBond:
-			if !(consumedFromOwner[PUTXOStateTransferable] >= producedForOwner[PUTXOStateTransferable] ||
-				consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
-				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded] ||
-				consumedFromOwner[PUTXOStateDepositedAndBonded] <= producedForOwner[PUTXOStateDepositedAndBonded]) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-
-			transferableDiff := consumedFromOwner[PUTXOStateTransferable] - producedForOwner[PUTXOStateTransferable]
-			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
-			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
-			depositedAndBondedDiff := producedForOwner[PUTXOStateDepositedAndBonded] - consumedFromOwner[PUTXOStateDepositedAndBonded]
-
-			if !(transferableDiff >= bondedDiff || depositedDiff >= depositedAndBondedDiff) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-		case spendModeUndeposit:
-			if !(consumedFromOwner[PUTXOStateDeposited] >= producedForOwner[PUTXOStateDeposited] ||
-				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
-				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
-				consumedFromOwner[PUTXOStateBonded] <= producedForOwner[PUTXOStateBonded]) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-
-			depositedDiff := consumedFromOwner[PUTXOStateDeposited] - producedForOwner[PUTXOStateDeposited]
-			depositedAndBondedDiff := consumedFromOwner[PUTXOStateDepositedAndBonded] - producedForOwner[PUTXOStateDepositedAndBonded]
-			transferableDiff := producedForOwner[PUTXOStateTransferable] - consumedFromOwner[PUTXOStateTransferable]
-			bondedDiff := producedForOwner[PUTXOStateBonded] - consumedFromOwner[PUTXOStateBonded]
-
-			if !(depositedDiff >= transferableDiff || depositedAndBondedDiff >= bondedDiff) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-		case spendModeUnbond:
-			if !(consumedFromOwner[PUTXOStateBonded] >= producedForOwner[PUTXOStateBonded] ||
-				consumedFromOwner[PUTXOStateDepositedAndBonded] >= producedForOwner[PUTXOStateDepositedAndBonded] ||
-				consumedFromOwner[PUTXOStateTransferable] <= producedForOwner[PUTXOStateTransferable] ||
-				consumedFromOwner[PUTXOStateDeposited] <= producedForOwner[PUTXOStateDeposited]) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
-
-			bondedDiff := consumedFromOwner[PUTXOStateBonded] - producedForOwner[PUTXOStateBonded]
-			depositedAndBondedDiff := consumedFromOwner[PUTXOStateDepositedAndBonded] - producedForOwner[PUTXOStateDepositedAndBonded]
-			transferableDiff := producedForOwner[PUTXOStateTransferable] - consumedFromOwner[PUTXOStateTransferable]
-			depositedDiff := producedForOwner[PUTXOStateDeposited] - consumedFromOwner[PUTXOStateDeposited]
-
-			if !(bondedDiff >= transferableDiff || depositedAndBondedDiff >= depositedDiff) {
-				return fmt.Errorf("to many consumed or produced tokens in specific state for owner %s in spendMode %s",
-					ownerID, spendMode.String())
-			}
+	for inputIndex, in := range inputs {
+		if in.In.Amount() < producedAmount[inputIndex] {
+			return fmt.Errorf("input[%d] produces more tokens than it consumes", inputIndex)
 		}
 	}
 

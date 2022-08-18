@@ -33,9 +33,6 @@ func (ls lockState) isBonded() bool    { return ls.bondTxID != nil }
 func (ls lockState) isDeposited() bool { return ls.depositTxID != nil }
 
 type lockedUTXOsChainState interface {
-	UpdateUTXOs(updatedUTXOStates map[ids.ID]lockState) (lockedUTXOsChainState, error)
-	GetBondedUTXOs(bondTxID ids.ID) ids.Set // ? @evlekht rename GetBondedUTXOIDs ?
-	GetDepositedUTXOs(depositTxID ids.ID) ids.Set
 	GetUTXOLockState(utxoID ids.ID) *lockState
 	UpdateAndProduceUTXOs(
 		inputs []*avax.TransferableInput,
@@ -46,6 +43,8 @@ type lockedUTXOsChainState interface {
 		bond bool,
 	) (lockedUTXOsChainState, []*avax.UTXO, error)
 	Unbond(bondTxID ids.ID) (lockedUTXOsChainState, error)
+	Undeposit(depositTxID ids.ID) (lockedUTXOsChainState, error)
+	SemanticVerifyLockInputs(inputs []*avax.TransferableInput, bond bool) error
 
 	Apply(InternalState)
 }
@@ -61,14 +60,6 @@ type lockedUTXOsChainStateImpl struct {
 	updatedUTXOs map[ids.ID]lockState // utxo.ID -> { bondTx.ID, depositTx.ID }
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetBondedUTXOs(bondTxID ids.ID) ids.Set {
-	return cs.bonds[bondTxID]
-}
-
-func (cs *lockedUTXOsChainStateImpl) GetDepositedUTXOs(depositTxID ids.ID) ids.Set {
-	return cs.deposits[depositTxID]
-}
-
 func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState {
 	utxoLockState, ok := cs.lockedUTXOs[utxoID]
 	if !ok {
@@ -78,7 +69,7 @@ func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *lockState 
 }
 
 // TODO@ check for overlaps
-func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates map[ids.ID]lockState) (lockedUTXOsChainState, error) {
+func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]lockState) (lockedUTXOsChainState, error) {
 	newCS := &lockedUTXOsChainStateImpl{
 		bonds:        make(map[ids.ID]ids.Set, len(cs.bonds)+1),
 		deposits:     make(map[ids.ID]ids.Set, len(cs.deposits)+1),
@@ -120,10 +111,10 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates map[ids.ID]lo
 			bond.Remove(newLockedUTXOID)
 		} else {
 			if oldLockedUTXOState.bondTxID == nil {
-				return nil, fmt.Errorf("Attempt to unbond not-bonded utxo (utxoID: %v)",
+				return nil, fmt.Errorf("attempt to unbond not-bonded utxo (utxoID: %v)",
 					newLockedUTXOID)
 			}
-			return nil, fmt.Errorf("Attempt to bond bonded utxo (utxoID: %v, oldBondID: %v, newBondID: %v)",
+			return nil, fmt.Errorf("attempt to bond bonded utxo (utxoID: %v, oldBondID: %v, newBondID: %v)",
 				newLockedUTXOID, oldLockedUTXOState.bondTxID, newLockedUTXO.bondTxID)
 		}
 
@@ -148,10 +139,10 @@ func (cs *lockedUTXOsChainStateImpl) UpdateUTXOs(updatedUTXOStates map[ids.ID]lo
 			deposit.Remove(newLockedUTXOID)
 		} else {
 			if oldLockedUTXOState.depositTxID == nil {
-				return nil, fmt.Errorf("Attempt to undeposit not-deposited utxo (utxoID: %v)",
+				return nil, fmt.Errorf("attempt to undeposit not-deposited utxo (utxoID: %v)",
 					newLockedUTXOID)
 			}
-			return nil, fmt.Errorf("Attempt to deposit deposited utxo (utxoID: %v, oldDepositID: %v, newDepositID: %v)",
+			return nil, fmt.Errorf("attempt to deposit deposited utxo (utxoID: %v, oldDepositID: %v, newDepositID: %v)",
 				newLockedUTXOID, oldLockedUTXOState.depositTxID, newLockedUTXO.depositTxID)
 		}
 
@@ -182,7 +173,7 @@ func (cs *lockedUTXOsChainStateImpl) Apply(is InternalState) {
 // Creates utxos from given outs and update lock state for them and for utxos consumed by inputs
 // Arguments:
 // - [inputs] Inputs that produced this outputs
-// - [inputIndexes] Indexes of inputs that produced outputs. First for notBondedOuts, then for bondedOuts
+// - [inputIndexes] Indexes of inputs that produced outputs. First for notLockedOuts, then for lockedOuts
 // - [notLockedOuts] Outputs that won't be locked
 // - [lockedOuts] Outputs that will be locked
 // - [txID] ID for transaction that produced this inputs and outputs
@@ -281,7 +272,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 		outIndex++
 	}
 
-	newlyLockedUTXOsState, err := cs.UpdateUTXOs(updatedUTXOLockStates)
+	newlyLockedUTXOsState, err := cs.updateUTXOs(updatedUTXOLockStates)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -290,7 +281,7 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 }
 
 func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainState, error) {
-	bondedUTXOIDs := cs.GetBondedUTXOs(bondTxID)
+	bondedUTXOIDs := cs.bonds[bondTxID]
 	updatedUTXOLockStates := make(map[ids.ID]lockState, len(bondedUTXOIDs))
 	for utxoID := range bondedUTXOIDs {
 		updatedUTXOLockStates[utxoID] = lockState{
@@ -299,7 +290,7 @@ func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainSt
 		}
 	}
 
-	newlyLockedUTXOsState, err := cs.UpdateUTXOs(updatedUTXOLockStates)
+	newlyLockedUTXOsState, err := cs.updateUTXOs(updatedUTXOLockStates)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +301,7 @@ func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainSt
 // ! @evlekht we'll also need more flexible method for graduall unlock
 // ! most likely will be done with spending
 func (cs *lockedUTXOsChainStateImpl) Undeposit(depositTxID ids.ID) (lockedUTXOsChainState, error) {
-	depositedUTXOIDs := cs.GetDepositedUTXOs(depositTxID)
+	depositedUTXOIDs := cs.deposits[depositTxID]
 	updatedUTXOLockStates := make(map[ids.ID]lockState, len(depositedUTXOIDs))
 	for utxoID := range depositedUTXOIDs {
 		updatedUTXOLockStates[utxoID] = lockState{
@@ -319,10 +310,28 @@ func (cs *lockedUTXOsChainStateImpl) Undeposit(depositTxID ids.ID) (lockedUTXOsC
 		}
 	}
 
-	newlyLockedUTXOsState, err := cs.UpdateUTXOs(updatedUTXOLockStates)
+	newlyLockedUTXOsState, err := cs.updateUTXOs(updatedUTXOLockStates)
 	if err != nil {
 		return nil, err
 	}
 
 	return newlyLockedUTXOsState, nil
+}
+
+// Verify that [inputs] are semantically valid for locking.
+// Arguments:
+// - [inputs] Inputs that will produce locked outs
+// - [bond] true if we'r bonding, false if depositing
+func (cs *lockedUTXOsChainStateImpl) SemanticVerifyLockInputs(
+	inputs []*avax.TransferableInput,
+	bond bool,
+) error {
+	for _, in := range inputs {
+		consumedUTXOLockState := cs.GetUTXOLockState(in.InputID())
+		if bond && consumedUTXOLockState.isBonded() ||
+			!bond && consumedUTXOLockState.isDeposited() {
+			return fmt.Errorf("utxo consumed for locking are already locked")
+		}
+	}
+	return nil
 }
