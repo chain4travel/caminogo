@@ -259,6 +259,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		tx.Outs,
 		tx.Bond,
 		txID,
+		true,
 	)
 	if err != nil {
 		return nil, nil, err
