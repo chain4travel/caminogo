@@ -33,7 +33,7 @@ func (ls utxoLockState) isBonded() bool    { return ls.BondTxID != nil }
 func (ls utxoLockState) isDeposited() bool { return ls.DepositTxID != nil }
 
 type lockedUTXOsChainState interface {
-	GetUTXOLockState(utxoID ids.ID) *utxoLockState
+	GetUTXOLockState(utxoID ids.ID) utxoLockState
 	UpdateAndProduceUTXOs(
 		inputs []*avax.TransferableInput,
 		inputIndexes []int,
@@ -60,12 +60,8 @@ type lockedUTXOsChainStateImpl struct {
 	updatedUTXOs map[ids.ID]utxoLockState // utxo.ID -> { bondTx.ID, depositTx.ID }
 }
 
-func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) *utxoLockState {
-	utxoLockState, ok := cs.lockedUTXOs[utxoID]
-	if !ok {
-		return nil
-	}
-	return &utxoLockState
+func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) utxoLockState {
+	return cs.lockedUTXOs[utxoID]
 }
 
 func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]utxoLockState) (lockedUTXOsChainState, error) {
@@ -211,11 +207,11 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 		if bond {
 			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
 				BondTxID:    nil,
-				DepositTxID: cs.GetUTXOLockState(consumedUTXOID).DepositTxID,
+				DepositTxID: cs.lockedUTXOs[consumedUTXOID].DepositTxID,
 			}
 		} else {
 			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
-				BondTxID:    cs.GetUTXOLockState(consumedUTXOID).BondTxID,
+				BondTxID:    cs.lockedUTXOs[consumedUTXOID].BondTxID,
 				DepositTxID: nil,
 			}
 		}
@@ -246,11 +242,11 @@ func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 		if bond {
 			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
 				BondTxID:    &txID,
-				DepositTxID: cs.GetUTXOLockState(consumedUTXOID).DepositTxID,
+				DepositTxID: cs.lockedUTXOs[consumedUTXOID].DepositTxID,
 			}
 		} else {
 			updatedUTXOLockStates[utxo.InputID()] = utxoLockState{
-				BondTxID:    cs.GetUTXOLockState(consumedUTXOID).BondTxID,
+				BondTxID:    cs.lockedUTXOs[consumedUTXOID].BondTxID,
 				DepositTxID: &txID,
 			}
 		}
@@ -279,7 +275,7 @@ func (cs *lockedUTXOsChainStateImpl) Unbond(bondTxID ids.ID) (lockedUTXOsChainSt
 	for utxoID := range bondedUTXOIDs {
 		updatedUTXOLockStates[utxoID] = utxoLockState{
 			BondTxID:    nil,
-			DepositTxID: cs.GetUTXOLockState(utxoID).DepositTxID,
+			DepositTxID: cs.lockedUTXOs[utxoID].DepositTxID,
 		}
 	}
 
@@ -298,7 +294,7 @@ func (cs *lockedUTXOsChainStateImpl) Undeposit(depositTxID ids.ID) (lockedUTXOsC
 	updatedUTXOLockStates := make(map[ids.ID]utxoLockState, len(depositedUTXOIDs))
 	for utxoID := range depositedUTXOIDs {
 		updatedUTXOLockStates[utxoID] = utxoLockState{
-			BondTxID:    cs.GetUTXOLockState(utxoID).BondTxID,
+			BondTxID:    cs.lockedUTXOs[utxoID].BondTxID,
 			DepositTxID: nil,
 		}
 	}
@@ -320,7 +316,7 @@ func (cs *lockedUTXOsChainStateImpl) SemanticVerifyLockInputs(
 	bond bool,
 ) error {
 	for _, in := range inputs {
-		consumedUTXOLockState := cs.GetUTXOLockState(in.InputID())
+		consumedUTXOLockState := cs.lockedUTXOs[in.InputID()]
 		if bond && consumedUTXOLockState.isBonded() ||
 			!bond && consumedUTXOLockState.isDeposited() {
 			return fmt.Errorf("utxo consumed for locking are already locked")
