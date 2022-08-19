@@ -20,16 +20,21 @@ var (
 	errVotingTooLong    = errors.New("voting period is too long")
 	errAlreadyValidator = errors.New("node is already a validator")
 
-	_ UnsignedProposalTx = &UnsignedDaoProposalTx{}
+	_ UnsignedProposalTx = &UnsignedDaoSubmitProposalTx{}
 )
 
-// UnsignedDaoProposalTx is an unsigned daoProposalTx
-type UnsignedDaoProposalTx struct {
+// UnsignedDaoSubmitProposalTx is an unsigned daoProposalTx
+type UnsignedDaoSubmitProposalTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 
 	// Our Dao Proposal
-	DaoProposal dao.Proposal `serialize:"true" json:"daoProposal"`
+	DaoProposal dao.Proposal `serialize:"true" json:"daoProposal"` // TODO maybe this should be a config
+
+	// ! @jax on the first iteration this will only contain one tx that is executed when the
+	// ! proposal was accepted
+	// Tx to exectue when proposal was accpeted
+	ProposedTx UnsingedVoteableTx // TODO maybe this should be a generic tx and then be checked at runtime *shrug*
 
 	// Where to send locked tokens when done voting
 	// TODO @jax this needs to be changed to a PChainOut
@@ -37,9 +42,9 @@ type UnsignedDaoProposalTx struct {
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
-// [UnsignedDaoProposalTx]. Also sets the [ctx] to the given [vm.ctx] so that
+// [UnsignedDaoSubmitProposalTx]. Also sets the [ctx] to the given [vm.ctx] so that
 // the addresses can be json marshalled into human readable format
-func (tx *UnsignedDaoProposalTx) InitCtx(ctx *snow.Context) {
+func (tx *UnsignedDaoSubmitProposalTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
 	for _, bond := range tx.Bond {
 		bond.InitCtx(ctx)
@@ -47,7 +52,7 @@ func (tx *UnsignedDaoProposalTx) InitCtx(ctx *snow.Context) {
 }
 
 // SyntacticVerify returns nil if [tx] is valid
-func (tx *UnsignedDaoProposalTx) SyntacticVerify(ctx *snow.Context) error {
+func (tx *UnsignedDaoSubmitProposalTx) SyntacticVerify(ctx *snow.Context) error {
 	switch {
 	case tx == nil:
 		return errNilTx
@@ -76,13 +81,17 @@ func (tx *UnsignedDaoProposalTx) SyntacticVerify(ctx *snow.Context) error {
 }
 
 // Attempts to verify this transaction with the provided state.
-func (tx *UnsignedDaoProposalTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
+func (tx *UnsignedDaoSubmitProposalTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
+
+	if err := tx.ProposedTx.VerifyWithProposalContext(parentState, tx.DaoProposal); err != nil {
+		return err
+	}
 	_, _, err := tx.Execute(vm, parentState, stx)
 	return err
 }
 
 // Execute this transaction.
-func (tx *UnsignedDaoProposalTx) Execute(
+func (tx *UnsignedDaoSubmitProposalTx) Execute(
 	vm *VM,
 	parentState MutableState,
 	stx *Tx,
@@ -197,18 +206,18 @@ func (tx *UnsignedDaoProposalTx) Execute(
 
 // InitiallyPrefersCommit returns true if this node thinks the vote
 // should be inserted. This is currently true, if there are no duplicates
-func (tx *UnsignedDaoProposalTx) InitiallyPrefersCommit(vm *VM) bool {
+func (tx *UnsignedDaoSubmitProposalTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.DaoProposal.StartTime().After(vm.clock.Time())
 }
 
 // TimedTx Interface
-func (tx *UnsignedDaoProposalTx) StartTime() time.Time { return tx.DaoProposal.StartTime() }
-func (tx *UnsignedDaoProposalTx) EndTime() time.Time   { return tx.DaoProposal.EndTime() }
+func (tx *UnsignedDaoSubmitProposalTx) StartTime() time.Time { return tx.DaoProposal.StartTime() }
+func (tx *UnsignedDaoSubmitProposalTx) EndTime() time.Time   { return tx.DaoProposal.EndTime() }
 
-// func (tx *UnsignedDaoProposalTx) Weight() uint64       { return tx.DaoProposal.Weight() }
+// func (tx *UnsignedDaoSubmitProposalTx) Weight() uint64       { return tx.DaoProposal.Weight() }
 
-// NewDaoProposalTx returns a new UnsignedDaoProposalTx
-func (vm *VM) newDaoProposalTx(
+// NewDaoProposalTx returns a new UnsignedDaoSubmitProposalTx
+func (vm *VM) newDaoSubmitProposalTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 	proposalType, // The type of this proposal
@@ -226,7 +235,7 @@ func (vm *VM) newDaoProposalTx(
 	thresh := (len(vm.internalState.CurrentStakerChainState().Stakers()) + 1) / 2
 
 	// Create the tx
-	utx := &UnsignedDaoProposalTx{
+	utx := &UnsignedDaoSubmitProposalTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,

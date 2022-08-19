@@ -242,7 +242,7 @@ currentStakerLoop:
 daoProposalLoop:
 	for _, tx := range daoProposals.Proposals() {
 		switch daoProposal := tx.UnsignedTx.(type) {
-		case *UnsignedDaoProposalTx:
+		case *UnsignedDaoSubmitProposalTx:
 			if daoProposal.EndTime().After(txTimestamp) {
 				break daoProposalLoop
 			}
@@ -272,7 +272,7 @@ daoProposalLoop:
 	for i := 0; i < numDaoProposalsToArchive; i++ {
 		dtx := daoProposals.Proposals()[i]
 		// We don't need the OK check because we already verified
-		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoProposalTx)
+		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
 		for i, out := range daoProposalTx.Bond {
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{

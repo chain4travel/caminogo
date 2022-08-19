@@ -79,7 +79,7 @@ func init() {
 			c.RegisterType(&StakeableLockIn{}),
 			c.RegisterType(&StakeableLockOut{}),
 
-			c.RegisterType(&UnsignedDaoProposalTx{}),
+			c.RegisterType(&UnsignedDaoSubmitProposalTx{}),
 			c.RegisterType(&UnsignedDaoVoteTx{}),
 		)
 	}

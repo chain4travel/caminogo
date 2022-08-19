@@ -26,6 +26,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
@@ -43,6 +44,7 @@ var (
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
+	_ UnsingedVoteableTx = &UnsignedAddValidatorTx{}
 )
 
 // UnsignedAddValidatorTx is an unsigned addValidatorTx
@@ -267,6 +269,14 @@ func (tx *UnsignedAddValidatorTx) Execute(
 // after the current wall clock time,
 func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.StartTime().After(vm.clock.Time())
+}
+
+func (tx *UnsignedAddValidatorTx) VerifyWithProposalContext(proposal dao.Proposal) error {
+	return nil
+}
+
+func (tx *UnsignedAddValidatorTx) RequiresAcceptedProposal() bool {
+	return true
 }
 
 // NewAddValidatorTx returns a new NewAddValidatorTx

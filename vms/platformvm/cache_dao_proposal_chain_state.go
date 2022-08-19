@@ -23,19 +23,19 @@ var (
 const strInvalidType = "expected proposal tx type but got %T"
 
 type DaoProposalCache interface {
-	DaoProposalTx() *UnsignedDaoProposalTx
+	DaoProposalTx() *UnsignedDaoSubmitProposalTx
 	Votes() []*Tx
 	Voted(nodeID ids.ShortID) bool
 	State() dao.ProposalState
 }
 
 type DaoProposalCacheImpl struct {
-	daoProposalTx *UnsignedDaoProposalTx
+	daoProposalTx *UnsignedDaoSubmitProposalTx
 	// Unsorted list of vote TX
 	votes []*Tx
 }
 
-func (d *DaoProposalCacheImpl) DaoProposalTx() *UnsignedDaoProposalTx {
+func (d *DaoProposalCacheImpl) DaoProposalTx() *UnsignedDaoSubmitProposalTx {
 	return d.daoProposalTx
 }
 
@@ -45,7 +45,7 @@ func (d *DaoProposalCacheImpl) Votes() []*Tx {
 
 func (d *DaoProposalCacheImpl) Voted(nodeID ids.ShortID) bool {
 	for _, vote := range d.votes {
-		if vote.UnsignedTx.(*UnsignedDaoVoteTx).NodeID == nodeID {
+		if vote.UnsignedTx.(*UnsingedDaoConcluteProposalTx).NodeID == nodeID {
 			return true
 		}
 	}
@@ -74,7 +74,7 @@ type daoProposalChainState interface {
 	GetActiveProposal(proposalID ids.ID) (DaoProposalCache, error)
 	// Check if proposal exists in the current active proposals
 	// using ProposalType and ProposalBytes for checking
-	Exists(checkTx *UnsignedDaoProposalTx) *UnsignedDaoProposalTx
+	Exists(checkTx *UnsignedDaoSubmitProposalTx) *UnsignedDaoSubmitProposalTx
 
 	// Returns the state of a proposal, voted, pending or unknown
 	GetProposalState(proposalID ids.ID) dao.ProposalState
@@ -127,9 +127,9 @@ func (ds *daoProposalChainStateImpl) GetActiveProposal(proposalID ids.ID) (DaoPr
 
 // Search in active proposals for an duplicate based on type and data
 // Return true if one is found, false if not or in case of type errors
-func (ds *daoProposalChainStateImpl) Exists(checkTx *UnsignedDaoProposalTx) *UnsignedDaoProposalTx {
+func (ds *daoProposalChainStateImpl) Exists(checkTx *UnsignedDaoSubmitProposalTx) *UnsignedDaoSubmitProposalTx {
 	for _, tx := range ds.proposals {
-		dpTx := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		dpTx := tx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
 		if dpTx.DaoProposal.ProposalType == checkTx.DaoProposal.ProposalType &&
 			bytes.Equal(dpTx.DaoProposal.Data, checkTx.DaoProposal.Data) {
 			return dpTx
@@ -162,7 +162,7 @@ func (ds *daoProposalChainStateImpl) AddProposal(daoProposalTx *Tx) daoProposalC
 	sortDaoProposalsByRemoval(newDS.proposals)
 
 	switch tx := daoProposalTx.UnsignedTx.(type) {
-	case *UnsignedDaoProposalTx:
+	case *UnsignedDaoSubmitProposalTx:
 		newDS.proposalsByID = make(map[ids.ID]*DaoProposalCacheImpl, len(ds.proposalsByID)+1)
 		for id, pro := range ds.proposalsByID {
 			newDS.proposalsByID[id] = pro
@@ -185,7 +185,7 @@ func (ds *daoProposalChainStateImpl) AddVote(daoVoteTx *Tx) daoProposalChainStat
 	}
 
 	switch tx := daoVoteTx.UnsignedTx.(type) {
-	case *UnsignedDaoVoteTx:
+	case *UnsingedDaoConcluteProposalTx:
 		for pID, pro := range ds.proposalsByID {
 			if pID != tx.ProposalID {
 				newDS.proposalsByID[pID] = pro
@@ -223,7 +223,7 @@ func (ds *daoProposalChainStateImpl) ArchiveNextProposals(numToDelete int) (daoP
 	// nil or delete the history proposals
 	for _, archiveTx := range newDS.archivedProposals {
 		switch tx := archiveTx.UnsignedTx.(type) {
-		case *UnsignedDaoProposalTx:
+		case *UnsignedDaoSubmitProposalTx:
 			pro := ds.proposalsByID[tx.DaoProposal.ProposalID]
 			newDS.removedVotes = append(newDS.removedVotes, pro.votes...)
 			if len(pro.votes) >= int(tx.DaoProposal.Thresh) {
@@ -282,7 +282,7 @@ func getNextDaoProposalChangeTime(ds DaoProposalState) (time.Time, error) {
 		return earliest, nil
 	}
 
-	if daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx); ok {
+	if daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoSubmitProposalTx); ok {
 		return daoProposalTx.EndTime(), nil
 	}
 	return earliest, errWrongTxType
@@ -304,7 +304,7 @@ func (s innerSortProposalsByRemoval) Less(i, j int) bool {
 		iEndTime time.Time
 	)
 	switch tx := iDel.UnsignedTx.(type) {
-	case *UnsignedDaoProposalTx:
+	case *UnsignedDaoSubmitProposalTx:
 		iEndTime = tx.DaoProposal.EndTime()
 	default:
 		panic(fmt.Errorf(strInvalidType, iDel.UnsignedTx))
@@ -314,7 +314,7 @@ func (s innerSortProposalsByRemoval) Less(i, j int) bool {
 		jEndTime time.Time
 	)
 	switch tx := jDel.UnsignedTx.(type) {
-	case *UnsignedDaoProposalTx:
+	case *UnsignedDaoSubmitProposalTx:
 		jEndTime = tx.DaoProposal.EndTime()
 	default:
 		panic(fmt.Errorf(strInvalidType, jDel.UnsignedTx))

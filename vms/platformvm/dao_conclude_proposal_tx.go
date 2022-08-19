@@ -8,67 +8,79 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/timer/mockable"
 	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 )
 
 var (
 	errNotAddValidator = errors.New("caller is not validator staker")
 
-	_ UnsignedProposalTx = &UnsignedDaoVoteTx{}
+	_ UnsignedProposalTx = &UnsingedDaoConcluteProposalTx{}
 )
 
-// UnsignedDaoVoteTx is an unsigned daoVoteTx
-type UnsignedDaoVoteTx struct {
-	// Metadata, inputs and outputs
-	BaseTx `serialize:"true"`
-
-	// The nodeID this vote counts for
-	NodeID ids.ShortID `serialize:"true" json:"nodeID"`
+// UnsingedDaoConcluteProposalTx is an unsigned daoVoteTx
+type UnsingedDaoConcluteProposalTx struct {
+	// Metadata
+	avax.Metadata
 
 	// The dap proposal to vote for
-	ProposalID ids.ID `serialize:"true" json:"proposalID"`
-
-	// Start time this TX will be placed, must be syncBound after now
-	Start int64 `serialize:"true" json:"startTime"`
+	TxID ids.ID `serialize:"true" json:"proposalID"` // TODO maybe this should be the tx id
 }
 
+// TODO @jax
+
+/*
+	baseline checks:
+	- does proposal exists
+	- is proposal concluded
+		- has it enough yes votes
+		- is it over e.g. is the timestamp after the endtime
+
+	- if timestamp.after(endtime) && votes < threshhold
+		- set status to rejected
+	- if votes >= treshold
+		- execute wrapped tx
+		- if wrapped tx failed to execute
+			- deduct tx fees anyway
+			- set proposal status to executionFailed
+
+	- deduct tx fees
+	- return bond
+	- do archive logic -> we dont give a shit about retrys
+
+*/
+
 // InitCtx sets the FxID fields in the inputs and outputs of this
-// [UnsignedDaoVoteTx]. Also sets the [ctx] to the given [vm.ctx] so that
+// [UnsingedDaoConcluteProposalTx]. Also sets the [ctx] to the given [vm.ctx] so that
 // the addresses can be json marshalled into human readable format
-func (tx *UnsignedDaoVoteTx) InitCtx(ctx *snow.Context) {
-	tx.BaseTx.InitCtx(ctx)
+func (tx *UnsingedDaoConcluteProposalTx) InitCtx(ctx *snow.Context) {
+	return //TODO needs investigation
 }
 
 // SyntacticVerify returns nil if [tx] is valid
-func (tx *UnsignedDaoVoteTx) SyntacticVerify(ctx *snow.Context) error {
+func (tx *UnsingedDaoConcluteProposalTx) SyntacticVerify(ctx *snow.Context) error {
 	switch {
 	case tx == nil:
 		return errNilTx
-	case tx.syntacticallyVerified: // already passed syntactic verification
-		return nil
 	}
 
-	if err := tx.BaseTx.SyntacticVerify(ctx); err != nil {
-		return fmt.Errorf("failed to verify BaseTx: %w", err)
-	}
-
-	// cache that this is valid
-	tx.syntacticallyVerified = true
+	// TODO does this rly need syntactic checks?
 	return nil
 }
 
 // Attempts to verify this transaction with the provided state.
-func (tx *UnsignedDaoVoteTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
+func (tx *UnsingedDaoConcluteProposalTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
 	_, _, err := tx.Execute(vm, parentState, stx)
 	return err
 }
 
 // Execute this transaction.
-func (tx *UnsignedDaoVoteTx) Execute(
+func (tx *UnsingedDaoConcluteProposalTx) Execute(
 	vm *VM,
 	parentState MutableState,
 	stx *Tx,
@@ -83,10 +95,52 @@ func (tx *UnsignedDaoVoteTx) Execute(
 	}
 
 	daoProposals := parentState.DaoProposalChainState()
-	currentStakers := parentState.CurrentStakerChainState()
+
+	proposalTx, err := daoProposals.GetNextProposal()
+	if err == database.ErrNotFound {
+		return nil, nil, fmt.Errorf("failed to get next proposal: %v", err)
+	} else if err != nil {
+		return nil, nil, err
+	}
+
+	proposalTxID := proposalTx.ID()
+	if proposalTxID != tx.TxID {
+		return nil, nil, fmt.Errorf(
+			"attempting to concolude proposal: %s. Should be removing %s",
+			tx.TxID,
+			proposalTxID,
+		)
+	}
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
+		proposalState := daoProposals.GetProposalState(proposalTxID)
+		switch proposalState {
+
+		// case dao.ProposalStateInProgress
+		case dao.ProposalStatePending, dao.ProposalStateExecuted, dao.ProposalStateExecutionFailed, dao.ProposalStateRejected:
+		default:
+			return nil, nil, fmt.Errorf("proposal \"%s\" cannot be concluded while in %s state", proposalState)
+		}
+
+		votableTx, ok := proposalTx.UnsignedTx.(UnsingedVoteableTx)
+		if !ok {
+			return nil, nil, fmt.Errorf("proposedTx is not a VoteableTx")
+		}
+
+		innerOnCommitState, innerOnAbortState, err := votableTx.Execute(vm, parentState, stx)
+		var newParentState MutableState
+		if err != nil {
+			vm.Logger().Info("Failed to execute proposedTx for proposal \"%s\": %v", tx.TxID, err)
+			newParentState = innerOnAbortState
+		} else {
+			newParentState = innerOnCommitState
+		}
+
+		// ? should we do this? we dont have any tx yet, that modify
+		// ? proposals besides this one. this is only relevant if a proposal
+		daoProposals = newParentState.DaoProposalChainState()
+
 		// Ensure the proposed validator starts after the current time
 		startTime := tx.StartTime()
 		if !currentTimestamp.Before(startTime) {
@@ -166,16 +220,16 @@ func (tx *UnsignedDaoVoteTx) Execute(
 
 // InitiallyPrefersCommit returns true if this node thinks the vote
 // should be inserted.
-func (tx *UnsignedDaoVoteTx) InitiallyPrefersCommit(vm *VM) bool {
+func (tx *UnsingedDaoConcluteProposalTx) InitiallyPrefersCommit(vm *VM) bool {
 	return true
 }
 
 // TimedTx Interface
-func (tx *UnsignedDaoVoteTx) StartTime() time.Time { return time.Unix(tx.Start, 0) }
-func (tx *UnsignedDaoVoteTx) EndTime() time.Time   { return mockable.MaxTime }
-func (tx *UnsignedDaoVoteTx) Weight() uint64       { return 0 }
+func (tx *UnsingedDaoConcluteProposalTx) StartTime() time.Time { return time.Unix(tx.Start, 0) }
+func (tx *UnsingedDaoConcluteProposalTx) EndTime() time.Time   { return mockable.MaxTime }
+func (tx *UnsingedDaoConcluteProposalTx) Weight() uint64       { return 0 }
 
-// newDaoVoteTx returns a new UnsignedDaoVoteTx
+// newDaoVoteTx returns a new UnsingedDaoConcluteProposalTx
 func (vm *VM) newDaoVoteTx(
 	nodeID ids.ShortID, // The nodeID placing the proposal
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
@@ -188,7 +242,7 @@ func (vm *VM) newDaoVoteTx(
 	}
 
 	// Create the tx
-	utx := &UnsignedDaoVoteTx{
+	utx := &UnsingedDaoConcluteProposalTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,

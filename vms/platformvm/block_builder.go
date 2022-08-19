@@ -126,6 +126,16 @@ func (m *blockBuilder) AddUnverifiedTx(tx *Tx) error {
 		return err
 	}
 
+	// TODO also check if the tx is a votable tx and requires a valid proposal
+
+	/*
+		votableTx, ok := tx.UnsingedTx.(UnsingedVoteableTx)
+		if ok && votableTx.RequiresAcceptedProposal() {
+			return fmt.Errorf("votableTx cannot be executed outside of a ConcludeProposalTx")
+		}
+
+	*/
+
 	if err := m.AddVerifiedTx(tx); err != nil {
 		return err
 	}
@@ -185,6 +195,7 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if shouldReward {
 		rewardValidatorTx, err := m.vm.newRewardValidatorTx(stakerTxID)
 		if err != nil {
@@ -192,6 +203,23 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 		}
 		return m.vm.newProposalBlock(preferredID, nextHeight, *rewardValidatorTx)
 	}
+
+	// TODO @Jax
+	/*
+		proposalTxID, shouldConclude, err := m.getProposalsToConclude(preferedState)
+		if err != nil {
+			return nil, err
+		}
+
+		if shouldConcluce {
+			acceptedTx, err := m.vm.getWrappedProposalTx(proposalTxID)
+			if err != nil {
+				return nil, err
+			}
+			return m.vm.newProposalBlock(preferredID, nextHeight, *acceptedTx)
+		}
+
+	*/
 
 	// Try building a proposal block that advances the chain timestamp.
 	nextChainTime, waitTime, err := m.getNextChainTime(preferredState)

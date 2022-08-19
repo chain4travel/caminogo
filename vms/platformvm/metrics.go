@@ -249,7 +249,7 @@ func (m *metrics) AcceptTx(tx *Tx) error {
 		m.numExportTxs.Inc()
 	case *UnsignedRewardValidatorTx:
 		m.numRewardValidatorTxs.Inc()
-	case *UnsignedDaoProposalTx:
+	case *UnsignedDaoSubmitProposalTx:
 		m.numDaoProposalTxs.Inc()
 	case *UnsignedDaoVoteTx:
 		m.numDaoVoteTxs.Inc()

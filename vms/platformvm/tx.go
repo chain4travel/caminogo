@@ -88,10 +88,11 @@ type UnsignedProposalTx interface {
 	InitiallyPrefersCommit(vm *VM) bool
 }
 
-type UnsingedVotableTx interface {
+type UnsingedVoteableTx interface {
 	UnsignedProposalTx
 
-	VerifyWithProposalContext(proposal dao.Proposal) error
+	RequiresAcceptedProposal() bool
+	VerifyWithProposalContext(parentState MutableState, proposal dao.Proposal) error
 }
 
 // UnsignedAtomicTx is an unsigned operation that can be atomically accepted

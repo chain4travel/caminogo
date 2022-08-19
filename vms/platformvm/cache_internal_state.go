@@ -1358,7 +1358,7 @@ func (st *internalStateImpl) writeDao() error {
 		}
 		// Historical list contains proposalID of voted proposals. Non-voted
 		// proposals has to be extracted from tx's / indexer if required
-		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
 		if !ok {
 			return errWrongTxType
 		}
@@ -1685,7 +1685,7 @@ func (st *internalStateImpl) loadDao() error {
 		if err != nil {
 			return err
 		}
-		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoProposalTx)
+		daoProposalTx, ok := tx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
 		if !ok {
 			return errWrongTxType
 		}

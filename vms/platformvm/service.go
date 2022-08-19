@@ -1123,9 +1123,9 @@ type GetDaoProposalArgs struct {
 
 // GetDaoProposalReply is the response from GetDaoProposal
 type GetDaoProposalReply struct {
-	ProposalTx *UnsignedDaoProposalTx `json:"proposal,omitempty"`
-	Votes      []*UnsignedDaoVoteTx   `json:"votes,omitempty"`
-	Status     string                 `json:"status"`
+	ProposalTx *UnsignedDaoSubmitProposalTx `json:"proposal,omitempty"`
+	Votes      []*UnsignedDaoVoteTx         `json:"votes,omitempty"`
+	Status     string                       `json:"status"`
 }
 
 // GetDaoProposal returns the dao proposal at provided proposalID.
@@ -2331,7 +2331,7 @@ func (service *Service) getOutHelper(tx *Tx, addrs ids.ShortSet) (uint64, int, [
 	case *UnsignedAddDelegatorTx:
 		outs = tx.Stake
 		outIndex = 1
-	case *UnsignedDaoProposalTx:
+	case *UnsignedDaoSubmitProposalTx:
 		outs = tx.Locks
 		outIndex = 2
 	case *UnsignedAddSubnetValidatorTx:

@@ -35,7 +35,7 @@ const (
 	ProposalStateUnknown ProposalState = iota
 	ProposalStatePending
 	ProposalStateInProgress
-	ProposalStateAccepted
+	ProposalStateExecutionFailed
 	ProposalStateExecuted
 	ProposalStateRejected
 )
@@ -46,8 +46,8 @@ func (p ProposalState) String() string {
 		return "Pending"
 	case ProposalStateInProgress:
 		return "InProgress"
-	case ProposalStateAccepted:
-		return "Accepted"
+	case ProposalStateExecutionFailed:
+		return "ExecutionFailed"
 	case ProposalStateExecuted:
 		return "Executed"
 	case ProposalStateRejected:
@@ -68,6 +68,9 @@ type Proposal struct {
 	// The threshold of votes which has to be reached
 	// ! @jax this needs to be verifed, but in here we cant ask for current validator count
 	Thresh uint32 `serialize:"true" json:"threshold"`
+
+	// // Wrapped Tx
+	// WrappedTx platformvm.Tx
 
 	// Unix time this proposal starts
 	Start uint64 `serialize:"true" json:"startTime"`

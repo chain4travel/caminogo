@@ -95,6 +95,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		return nil, nil, errWrongNumberOfCredentials
 	}
 
+	// dertiedemann: this works? even if the parent state is a not a validator state
 	currentStakers := parentState.CurrentStakerChainState()
 	stakerTx, stakerReward, err := currentStakers.GetNextStaker()
 	if err == database.ErrNotFound {
