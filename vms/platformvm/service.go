@@ -260,19 +260,19 @@ utxoFor:
 				return errUnlockedBalanceOverflow
 			}
 			unlocked = newBalance
-		case utxoLockState.bondTxID != nil && utxoLockState.depositTxID != nil:
+		case utxoLockState.BondTxID != nil && utxoLockState.DepositTxID != nil:
 			newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 			if err != nil {
 				return errDepositedAndBondedBalanceOverflow
 			}
 			depositedAndBonded = newBalance
-		case utxoLockState.bondTxID != nil:
+		case utxoLockState.BondTxID != nil:
 			newBalance, err := math.Add64(bonded, out.Amount())
 			if err != nil {
 				return errBondedBalanceOverflow
 			}
 			bonded = newBalance
-		case utxoLockState.depositTxID != nil:
+		case utxoLockState.DepositTxID != nil:
 			newBalance, err := math.Add64(deposited, out.Amount())
 			if err != nil {
 				return errDepositedBalanceOverflow

@@ -560,7 +560,7 @@ func (mr *MockInternalStateMockRecorder) UTXOIDs(addr, previous, limit interface
 }
 
 // UpdateLockedUTXO mocks base method.
-func (m *MockInternalState) UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState) {
+func (m *MockInternalState) UpdateLockedUTXO(utxoID ids.ID, utxoLockState utxoLockState) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateLockedUTXO", utxoID, utxoLockState)
 }

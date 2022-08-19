@@ -155,7 +155,7 @@ func (tx *UnsignedImportTx) Execute(
 		copy(ins, tx.Ins)
 		copy(ins[len(tx.Ins):], tx.ImportedInputs)
 
-		if err := vm.semanticVerifySpendUTXOs(tx, utxos, ins, tx.Outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
+		if err := vm.semanticVerifySpendUTXOs(tx, utxos, ins, tx.Outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, err
 		}
 	}

@@ -100,7 +100,7 @@ func (tx *UnsignedCreateSubnetTx) Execute(
 	// Verify the flowcheck
 	timestamp := vs.GetTimestamp()
 	createSubnetTxFee := vm.getCreateSubnetTxFee(timestamp)
-	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, stx.Creds, createSubnetTxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
+	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, tx.Outs, stx.Creds, createSubnetTxFee, vm.ctx.AVAXAssetID); err != nil {
 		return nil, err
 	}
 

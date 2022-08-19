@@ -126,6 +126,13 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
 	}
 
+	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
+	copy(outs, tx.Outs)
+	copy(outs[len(tx.Outs):], tx.Bond)
+	if err := syntacticVerifyInputIndexes(tx.Ins, tx.BondInputIndexes, outs); err != nil {
+		return err
+	}
+
 	// cache that this is valid
 	tx.syntacticallyVerified = true
 	return nil
@@ -182,6 +189,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
 	copy(outs, tx.Outs)
@@ -232,8 +240,12 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID, spendModeBond); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
+		}
+
+		if err := lockedUTXOsState.SemanticVerifyLockInputs(tx.Ins, true); err != nil {
+			return nil, nil, fmt.Errorf("failed semanticVerifyLock: %w", err)
 		}
 
 		// Make sure the tx doesn't start too far in the future. This is done
@@ -248,8 +260,6 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	// Set up the state if this tx is committed
 
 	txID := tx.ID()
-
-	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
 

@@ -96,7 +96,7 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
-	UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState)
+	UpdateLockedUTXO(utxoID ids.ID, utxoLockState utxoLockState)
 
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
@@ -818,11 +818,17 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 	return weightDiffs, nil
 }
 
-func (st *internalStateImpl) UpdateLockedUTXO(utxoID ids.ID, utxoLockState lockState) {
-	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, lockedUTXOState{
-		utxoID:    utxoID,
-		lockState: utxoLockState,
-	})
+func (st *internalStateImpl) UpdateLockedUTXO(utxoID ids.ID, utxoLockState utxoLockState) {
+	lockedUTXOState := lockedUTXOState{
+		utxoID: utxoID,
+	}
+	if utxoLockState.BondTxID != nil {
+		lockedUTXOState.BondTxID = *utxoLockState.BondTxID
+	}
+	if utxoLockState.DepositTxID != nil {
+		lockedUTXOState.DepositTxID = *utxoLockState.DepositTxID
+	}
+	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, lockedUTXOState)
 }
 
 func (st *internalStateImpl) Abort() {
@@ -1299,17 +1305,34 @@ func (st *internalStateImpl) writeSingletons() error {
 
 type lockedUTXOState struct {
 	utxoID ids.ID
-	lockState
+	// GenesisCodec can't serialize nil, so we can't use fields
+	// BondTxID, DepositTxID *ids.ID
+	BondTxID    ids.ID `serialize:"true"`
+	DepositTxID ids.ID `serialize:"true"`
+}
+
+func (ls lockedUTXOState) bondTxID() *ids.ID {
+	if ls.BondTxID == ids.Empty {
+		return nil
+	}
+	return &ls.BondTxID
+}
+
+func (ls lockedUTXOState) depositTxID() *ids.ID {
+	if ls.DepositTxID == ids.Empty {
+		return nil
+	}
+	return &ls.DepositTxID
 }
 
 func (st *internalStateImpl) writeLockedUTXOs() error {
-	for _, updatedUTXO := range st.updatedLockedUTXOs {
-		utxoLockStateBytes, err := GenesisCodec.Marshal(CodecVersion, updatedUTXO.lockState)
+	for _, updatedLockedUTXO := range st.updatedLockedUTXOs {
+		utxoLockStateBytes, err := GenesisCodec.Marshal(CodecVersion, updatedLockedUTXO)
 		if err != nil {
 			return err
 		}
 
-		if err := st.lockedUTXOsList.Put(updatedUTXO.utxoID[:], utxoLockStateBytes); err != nil {
+		if err := st.lockedUTXOsList.Put(updatedLockedUTXO.utxoID[:], utxoLockStateBytes); err != nil {
 			return err
 		}
 	}
@@ -1599,7 +1622,7 @@ func (st *internalStateImpl) loadLockedUTXOs() error {
 	cs := &lockedUTXOsChainStateImpl{
 		bonds:       make(map[ids.ID]ids.Set),
 		deposits:    make(map[ids.ID]ids.Set),
-		lockedUTXOs: make(map[ids.ID]lockState),
+		lockedUTXOs: make(map[ids.ID]utxoLockState),
 	}
 
 	lockedUTXOsIt := st.lockedUTXOsList.NewIterator()
@@ -1612,15 +1635,21 @@ func (st *internalStateImpl) loadLockedUTXOs() error {
 		}
 
 		utxoLockStateBytes := lockedUTXOsIt.Value()
-		utxoLockState := lockState{}
-		if _, err := GenesisCodec.Unmarshal(utxoLockStateBytes, &utxoLockState); err != nil {
+		lockedUTXOState := lockedUTXOState{}
+		if _, err := GenesisCodec.Unmarshal(utxoLockStateBytes, &lockedUTXOState); err != nil {
 			return err
 		}
 
-		cs.lockedUTXOs[utxoID] = utxoLockState
+		bondTxIDPtr := lockedUTXOState.bondTxID()
+		depositTxIDPtr := lockedUTXOState.depositTxID()
 
-		if utxoLockState.bondTxID != nil {
-			bondTxID := *utxoLockState.bondTxID
+		cs.lockedUTXOs[utxoID] = utxoLockState{
+			BondTxID:    bondTxIDPtr,
+			DepositTxID: depositTxIDPtr,
+		}
+
+		if bondTxIDPtr != nil {
+			bondTxID := *bondTxIDPtr
 			bond := cs.bonds[bondTxID]
 			if bond == nil {
 				bond = ids.Set{}
@@ -1629,8 +1658,8 @@ func (st *internalStateImpl) loadLockedUTXOs() error {
 			bond.Add(utxoID)
 		}
 
-		if utxoLockState.bondTxID != nil {
-			depositTxID := *utxoLockState.depositTxID
+		if depositTxIDPtr != nil {
+			depositTxID := *depositTxIDPtr
 			deposit := cs.deposits[depositTxID]
 			if deposit == nil {
 				deposit = ids.Set{}
@@ -1690,12 +1719,12 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 			st.AddUTXO(utxo)
 			st.UpdateLockedUTXO(
 				utxo.InputID(),
-				lockState{
-					bondTxID: &txID,
+				utxoLockState{
+					BondTxID: &txID,
 					// ! @evlekht in current genesis implementation,
 					// ! allocation can only be staked or deposited.
 					// ! must be updated with deposit PR
-					depositTxID: nil,
+					DepositTxID: nil,
 				})
 		}
 
