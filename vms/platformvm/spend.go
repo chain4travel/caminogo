@@ -128,15 +128,11 @@ func (vm *VM) spend(
 			continue // We only care about staking AVAX, so ignore other assets
 		}
 
-		utxoLockState := lockedUTXOState.GetUTXOLockState(utxo.InputID())
-
-		if !utxoLockState.isLocked() {
+		if utxoLockState := lockedUTXOState.GetUTXOLockState(utxo.InputID()); !utxoLockState.isLocked() {
 			// This output isn't locked, so it will be handled
 			// during the next iteration of the UTXO set
 			continue
-		}
-
-		if spendMode == spendModeBond && utxoLockState.isBonded() ||
+		} else if spendMode == spendModeBond && utxoLockState.isBonded() ||
 			spendMode == spendModeDeposit && utxoLockState.isDeposited() {
 			// This output can't be spended with that spendMode
 			continue
@@ -220,9 +216,7 @@ func (vm *VM) spend(
 			continue // We only care about burning AVAX, so ignore other assets
 		}
 
-		utxoLockState := lockedUTXOState.GetUTXOLockState(utxo.InputID())
-
-		if utxoLockState.isLocked() {
+		if utxoLockState := lockedUTXOState.GetUTXOLockState(utxo.InputID()); utxoLockState.isLocked() {
 			// This output is currently locked, so this output can't be
 			// burned. Additionally, it may have already been consumed
 			// above. Regardless, we skip to the next UTXO

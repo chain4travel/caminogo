@@ -254,32 +254,32 @@ utxoFor:
 		utxoLockState := lockedUTXOsState.GetUTXOLockState(utxo.InputID())
 
 		switch {
-		case utxoLockState == nil: // unlocked
+		case !utxoLockState.isLocked():
 			newBalance, err := math.Add64(unlocked, out.Amount())
 			if err != nil {
 				return errUnlockedBalanceOverflow
 			}
 			unlocked = newBalance
-		case utxoLockState.BondTxID != nil && utxoLockState.DepositTxID != nil:
+		case utxoLockState.isBonded() && utxoLockState.isDeposited():
 			newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 			if err != nil {
 				return errDepositedAndBondedBalanceOverflow
 			}
 			depositedAndBonded = newBalance
-		case utxoLockState.BondTxID != nil:
+		case utxoLockState.isBonded():
 			newBalance, err := math.Add64(bonded, out.Amount())
 			if err != nil {
 				return errBondedBalanceOverflow
 			}
 			bonded = newBalance
-		case utxoLockState.DepositTxID != nil:
+		case utxoLockState.isDeposited():
 			newBalance, err := math.Add64(deposited, out.Amount())
 			if err != nil {
 				return errDepositedBalanceOverflow
 			}
 			deposited = newBalance
 		default:
-			service.vm.ctx.Log.Warn("Unexpected output lock state")
+			service.vm.ctx.Log.Warn("Unexpected utxo lock state")
 			continue utxoFor
 		}
 
