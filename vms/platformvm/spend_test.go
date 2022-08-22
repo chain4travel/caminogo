@@ -201,7 +201,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 					Out: &secp256k1fx.TransferOutput{
-						Amt: 1,
+						Amt: 2,
 					},
 				},
 			},
@@ -209,7 +209,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 					In: &secp256k1fx.TransferInput{
-						Amt: 1,
+						Amt: 2,
 					},
 				},
 			},
@@ -222,7 +222,6 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				},
 			},
 			creds: []verify.Verifiable{
-				&secp256k1fx.Credential{},
 				&secp256k1fx.Credential{},
 			},
 			fee:       1,
