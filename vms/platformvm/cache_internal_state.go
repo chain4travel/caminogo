@@ -1332,7 +1332,8 @@ func (st *internalStateImpl) writeLockedUTXOs() error {
 			return err
 		}
 
-		if err := st.lockedUTXOsList.Put(updatedLockedUTXO.utxoID[:], utxoLockStateBytes); err != nil {
+		utxoID := updatedLockedUTXO.utxoID
+		if err := st.lockedUTXOsList.Put(utxoID[:], utxoLockStateBytes); err != nil {
 			return err
 		}
 	}
