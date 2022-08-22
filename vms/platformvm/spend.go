@@ -63,14 +63,14 @@ func (mode spendMode) Verify() error {
 // - [totalAmountToSpend] is the amount of funds that are trying to be spended (changed their state)
 // - [totalAmountToBurn] is the amount of AVAX that should be burned
 // - [changeAddr] is the address that change, if there is any, is sent to
-// - [spendMode] in what way tokens will be spended (bonded / deposited / unbonded / undeposited)
+// - [spendMode] in what way tokens will be spended (bonded / deposited)
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
 // - [returnedOutputs] the outputs that should be immediately returned to the
 //                     UTXO set
-// - [createdOutputs] the outputs that was created as result of spending
-// - [createdOutputs] the outputs that was created as result of spending
-// - [producedOutInputIndexes] input indexes that produced outputs // output[i] produced by inputs[indexes[i]]
+// - [notLockedOuts] the outputs produced as result of spending and should be counted as not locked
+// - [lockedOuts] the outputs produced as result of spending and should be counted as locked
+// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]]). First for not locked outs, then for locked
 // - [signers] the proof of ownership of the funds being moved
 func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
@@ -107,7 +107,7 @@ func (vm *VM) spend(
 	now := uint64(vm.clock.Time().Unix())
 
 	ins := []*avax.TransferableInput{}
-	nonLockedOuts := []*avax.TransferableOutput{}
+	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 	notLockedOutInIndexes := []int{}
@@ -187,7 +187,7 @@ func (vm *VM) spend(
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
 			// Some of it must be returned
-			nonLockedOuts = append(nonLockedOuts, &avax.TransferableOutput{
+			notLockedOuts = append(notLockedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
 					Amt:          remainingValue,
@@ -280,7 +280,7 @@ func (vm *VM) spend(
 
 		if remainingValue > 0 {
 			// This input had extra value, so some of it must be returned
-			nonLockedOuts = append(nonLockedOuts, &avax.TransferableOutput{
+			notLockedOuts = append(notLockedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
 					Amt: remainingValue,
@@ -305,14 +305,14 @@ func (vm *VM) spend(
 	}
 
 	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(nonLockedOuts, Codec)   // sort outputs
+	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
 	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
 
 	outInIndexes := make([]int, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
 	copy(outInIndexes, lockedOutInIndexes)
 	copy(outInIndexes[len(notLockedOutInIndexes):], lockedOutInIndexes)
 
-	return ins, nonLockedOuts, lockedOuts, outInIndexes, signers, nil
+	return ins, notLockedOuts, lockedOuts, outInIndexes, signers, nil
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
