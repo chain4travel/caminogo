@@ -53,8 +53,8 @@ type UnsignedAddValidatorTx struct {
 	// Describes the delegatee
 	Validator Validator `serialize:"true" json:"validator"`
 	// Where to send bonded tokens when done validating
-	Bond             []*avax.TransferableOutput `serialize:"true" json:"stake"`
-	BondInputIndexes []int                      `serialize:"true" json:"bondInputIndexes"`
+	Bond         []*avax.TransferableOutput `serialize:"true" json:"stake"`
+	InputIndexes []int                      `serialize:"true" json:"bondInputIndexes"`
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 	// Fee this validator charges delegators as a percentage, times 10,000
@@ -129,7 +129,7 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
 	copy(outs, tx.Outs)
 	copy(outs[len(tx.Outs):], tx.Bond)
-	if err := syntacticVerifyInputIndexes(tx.Ins, tx.BondInputIndexes, outs); err != nil {
+	if err := syntacticVerifyInputIndexes(tx.Ins, tx.InputIndexes, outs); err != nil {
 		return err
 	}
 
@@ -265,7 +265,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	newlyLockedUTXOsState, utxos, err := lockedUTXOsState.UpdateAndProduceUTXOs(
 		tx.Ins,
-		tx.BondInputIndexes,
+		tx.InputIndexes,
 		tx.Outs,
 		tx.Bond,
 		txID,
@@ -311,7 +311,7 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, notBondedOuts, bondedOuts, bondInputIndexes, signers, err := vm.spend(keys, bondAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
+	ins, notBondedOuts, bondedOuts, inputIndexes, signers, err := vm.spend(keys, bondAmt, vm.AddStakerTxFee, changeAddr, spendModeBond)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -329,8 +329,8 @@ func (vm *VM) newAddValidatorTx(
 			End:    endTime,
 			Wght:   bondAmt,
 		},
-		Bond:             bondedOuts,
-		BondInputIndexes: bondInputIndexes,
+		Bond:         bondedOuts,
+		InputIndexes: inputIndexes,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
