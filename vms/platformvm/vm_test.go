@@ -125,8 +125,8 @@ func init() {
 	factory := crypto.FactorySECP256K1R{}
 	for _, key := range []string{
 		"24jUJ9vZexUM6expyMcT48LBx27k1m7xpraoV62oSQAHdziao5",
-		"2MMvUMsxx6zsHSNXJdFD8yc5XkancvwyKPwpw4xUK3TCGDuNBY",
 		"cxb7KpGWhDMALTjNNSJ7UQkkomPesyWAPUaWRGdyeBNzR6f35",
+		"2MMvUMsxx6zsHSNXJdFD8yc5XkancvwyKPwpw4xUK3TCGDuNBY",
 		"ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN",
 		"2RWLv6YVEXDiWLpaCbXhhqxtLbnFaKQsWPSSMSPhpWo47uJAeV",
 	} {
@@ -513,11 +513,13 @@ func TestGenesis(t *testing.T) {
 		utxos, err := avax.GetAllUTXOs(vm.internalState, addrs)
 		if err != nil {
 			t.Fatal("couldn't find UTXO")
-		} else if len(utxos) != 1 {
-			t.Fatal("expected each address to have one UTXO")
-		} else if out, ok := utxos[0].Out.(*secp256k1fx.TransferOutput); !ok {
+		} else if len(utxos) != 2 {
+			t.Fatal("expected each address to have two UTXOs")
+		} else if _, ok := utxos[0].Out.(*secp256k1fx.TransferOutput); !ok {
 			t.Fatal("expected utxo output to be type *secp256k1fx.TransferOutput")
-		} else if out.Amount() != uint64(utxo.Amount) {
+		} else if out1, ok := utxos[1].Out.(*secp256k1fx.TransferOutput); !ok {
+			t.Fatal("expected utxo output to be type *secp256k1fx.TransferOutput")
+		} else if out1.Amount() != uint64(utxo.Amount) && out1.Amount() != uint64(defaultWeight) {
 			id := keys[0].PublicKey().Address()
 			hrp := constants.NetworkIDToHRP[testNetworkID]
 			addr, err := formatting.FormatBech32(hrp, id.Bytes())
@@ -525,11 +527,11 @@ func TestGenesis(t *testing.T) {
 				t.Fatal(err)
 			}
 			if utxo.Address == addr { // Address that paid tx fee to create testSubnet1 has less tokens
-				if out.Amount() != uint64(utxo.Amount)-vm.TxFee {
-					t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount)-vm.TxFee, out.Amount())
+				if out1.Amount() != uint64(utxo.Amount)-vm.TxFee {
+					t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount)-vm.TxFee, out1.Amount())
 				}
 			} else {
-				t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount), out.Amount())
+				t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount), out1.Amount())
 			}
 		}
 	}
