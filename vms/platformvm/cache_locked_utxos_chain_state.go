@@ -36,7 +36,7 @@ type lockedUTXOsChainState interface {
 	GetUTXOLockState(utxoID ids.ID) utxoLockState
 	UpdateAndProduceUTXOs(
 		inputs []*avax.TransferableInput,
-		inputIndexes []int,
+		inputIndexes []uint64,
 		bondedOuts []*avax.TransferableOutput,
 		notBondedOuts []*avax.TransferableOutput,
 		txID ids.ID,
@@ -172,7 +172,7 @@ func (cs *lockedUTXOsChainStateImpl) Apply(is InternalState) {
 // - [producedUTXOs] utxos with produced outputs
 func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 	inputs []*avax.TransferableInput,
-	inputIndexes []int,
+	inputIndexes []uint64,
 	notLockedOuts []*avax.TransferableOutput,
 	lockedOuts []*avax.TransferableOutput,
 	txID ids.ID,

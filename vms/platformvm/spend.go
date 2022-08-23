@@ -82,7 +82,7 @@ func (vm *VM) spend(
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // nonTransitionedOutputs
 	[]*avax.TransferableOutput, // transitionedOutputs
-	[]int, // lockedOutInIndexes
+	[]uint64, // lockedOutInIndexes
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
@@ -110,8 +110,8 @@ func (vm *VM) spend(
 	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	notLockedOutInIndexes := []int{}
-	lockedOutInIndexes := []int{}
+	notLockedOutInIndexes := []uint64{}
+	lockedOutInIndexes := []uint64{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -182,7 +182,7 @@ func (vm *VM) spend(
 				OutputOwners: innerOut.OutputOwners,
 			},
 		})
-		lockedOutInIndexes = append(lockedOutInIndexes, inputIndex)
+		lockedOutInIndexes = append(lockedOutInIndexes, uint64(inputIndex))
 
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
@@ -194,7 +194,7 @@ func (vm *VM) spend(
 					OutputOwners: innerOut.OutputOwners,
 				},
 			})
-			notLockedOutInIndexes = append(notLockedOutInIndexes, inputIndex)
+			notLockedOutInIndexes = append(notLockedOutInIndexes, uint64(inputIndex))
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -275,7 +275,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			lockedOutInIndexes = append(lockedOutInIndexes, inputIndex)
+			lockedOutInIndexes = append(lockedOutInIndexes, uint64(inputIndex))
 		}
 
 		if remainingValue > 0 {
@@ -291,7 +291,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			notLockedOutInIndexes = append(notLockedOutInIndexes, inputIndex)
+			notLockedOutInIndexes = append(notLockedOutInIndexes, uint64(inputIndex))
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -308,7 +308,7 @@ func (vm *VM) spend(
 	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
 	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
 
-	outInIndexes := make([]int, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
+	outInIndexes := make([]uint64, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
 	copy(outInIndexes, lockedOutInIndexes)
 	copy(outInIndexes[len(notLockedOutInIndexes):], lockedOutInIndexes)
 
@@ -560,7 +560,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 // Precondition: [tx] has already been syntactically verified
 func syntacticVerifyInputIndexes(
 	inputs []*avax.TransferableInput,
-	inputIndexes []int,
+	inputIndexes []uint64,
 	outputs []*avax.TransferableOutput,
 ) error {
 	producedAmount := make(map[int]uint64, len(inputs))
@@ -573,11 +573,11 @@ func syntacticVerifyInputIndexes(
 				inputIndex, outputIndex)
 		}
 
-		newProducedAmount, err := math.Add64(producedAmount[inputIndex], out.Out.Amount())
+		newProducedAmount, err := math.Add64(producedAmount[int(inputIndex)], out.Out.Amount())
 		if err != nil {
 			return err
 		}
-		producedAmount[inputIndex] = newProducedAmount
+		producedAmount[int(inputIndex)] = newProducedAmount
 	}
 
 	for inputIndex, in := range inputs {
