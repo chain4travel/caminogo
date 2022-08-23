@@ -82,7 +82,7 @@ func (vm *VM) spend(
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // nonTransitionedOutputs
 	[]*avax.TransferableOutput, // transitionedOutputs
-	[]int, // lockedOutInIndexes
+	[]uint8, // lockedOutInIndexes
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
@@ -110,8 +110,8 @@ func (vm *VM) spend(
 	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	notLockedOutInIndexes := []int{}
-	lockedOutInIndexes := []int{}
+	notLockedOutInIndexes := []uint8{}
+	lockedOutInIndexes := []uint8{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -172,7 +172,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := len(ins) - 1
+		inputIndex := uint8(len(ins) - 1) // TODO@ uint8 cast safe ?
 
 		// Add the output to the transitioned outputs
 		lockedOuts = append(lockedOuts, &avax.TransferableOutput{
@@ -260,7 +260,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := len(ins) - 1
+		inputIndex := uint8(len(ins) - 1) // TODO@ uint8 cast safe ?
 
 		if amountToSpend > 0 {
 			// Some of this input was put for spending
@@ -308,7 +308,7 @@ func (vm *VM) spend(
 	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
 	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
 
-	outInIndexes := make([]int, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
+	outInIndexes := make([]uint8, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
 	copy(outInIndexes, lockedOutInIndexes)
 	copy(outInIndexes[len(notLockedOutInIndexes):], lockedOutInIndexes)
 
@@ -560,10 +560,10 @@ func (vm *VM) semanticVerifySpendUTXOs(
 // Precondition: [tx] has already been syntactically verified
 func syntacticVerifyInputIndexes(
 	inputs []*avax.TransferableInput,
-	inputIndexes []int,
+	inputIndexes []uint8,
 	outputs []*avax.TransferableOutput,
 ) error {
-	producedAmount := make(map[int]uint64, len(inputs))
+	producedAmount := make(map[uint8]uint64, len(inputs))
 
 	for outputIndex, out := range outputs {
 		inputIndex := inputIndexes[outputIndex]
@@ -581,7 +581,7 @@ func syntacticVerifyInputIndexes(
 	}
 
 	for inputIndex, in := range inputs {
-		if in.In.Amount() < producedAmount[inputIndex] {
+		if in.In.Amount() < producedAmount[uint8(inputIndex)] { // TODO@ uint8 cast safe ?
 			return fmt.Errorf("input[%d] produces more tokens than it consumes", inputIndex)
 		}
 	}
