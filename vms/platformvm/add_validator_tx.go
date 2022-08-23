@@ -54,7 +54,7 @@ type UnsignedAddValidatorTx struct {
 	Validator Validator `serialize:"true" json:"validator"`
 	// Where to send bonded tokens when done validating
 	Bond         []*avax.TransferableOutput `serialize:"true" json:"stake"`
-	InputIndexes []uint64                   `serialize:"true" json:"bondInputIndexes"`
+	InputIndexes []uint8                    `serialize:"true" json:"bondInputIndexes"`
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 	// Fee this validator charges delegators as a percentage, times 10,000
