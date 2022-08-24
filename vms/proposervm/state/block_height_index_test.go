@@ -28,20 +28,23 @@ func TestResetHeightIndex(t *testing.T) {
 	db := memdb.New()
 	vdb := versiondb.New(db)
 	heightDB := prefixdb.New(heightIndexPrefix, db)
-	heightDB.Put([]byte("key"), []byte("value"))
+	err := heightDB.Put([]byte("key"), []byte("value"))
+	assert.NoError(t, err, "No error expected to be thrown by Put")
 	hi := NewHeightIndex(heightDB, vdb)
-	testId := ids.GenerateTestID()
-	hi.SetBlockIDAtHeight(0, testId)
-	hi.SetCheckpoint(testId)
+	testID := ids.GenerateTestID()
+	err = hi.SetBlockIDAtHeight(0, testID)
+	assert.NoError(t, err, "No error expected to be thrown by SetBlockIDAtHeight")
+	err = hi.SetCheckpoint(testID)
+	assert.NoError(t, err, "No error expected to be thrown by SetCheckpoint")
 
-	err := hi.ResetHeightIndex()
+	err = hi.ResetHeightIndex()
 	assert.NoError(t, err, "No error expected to be thrown by ResetHeightIndex")
 
-	// ensure heightDB has been resetted
+	// ensure heightDB has been reset
 	x, _ := hi.GetBlockIDAtHeight(0)
 	assert.Equal(t, ids.Empty, x)
 
-	// ensure metadataDB is also resetted
+	// ensure metadataDB is also reset
 	_, err2 := hi.GetCheckpoint()
 	assert.Error(t, err2)
 

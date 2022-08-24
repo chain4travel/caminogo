@@ -264,17 +264,23 @@ func TestMarshallJSON(t *testing.T) {
 	ctx := snow.DefaultContextTest()
 	aliaser := ids.NewAliaser()
 	chainID := ids.Empty
-	aliaser.Alias(chainID, "X")
-	aliaser.Alias(chainID, chainID.String())
+	err := aliaser.Alias(chainID, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = aliaser.Alias(chainID, chainID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx.BCLookup = aliaser
-	addressId, _ := ids.ShortFromString("X-custom1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq4mlve4")
+	addressID, _ := ids.ShortFromString("X-custom1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq4mlve4")
 	out := TransferOutput{
 		Amt: 1,
 		OutputOwners: OutputOwners{
 			Locktime:  1,
 			Threshold: 1,
 			Addrs: []ids.ShortID{
-				addressId,
+				addressID,
 			},
 			ctx: ctx,
 		},
@@ -285,7 +291,7 @@ func TestMarshallJSON(t *testing.T) {
 			Locktime:  1,
 			Threshold: 1,
 			Addrs: []ids.ShortID{
-				addressId,
+				addressID,
 			},
 		},
 	}
