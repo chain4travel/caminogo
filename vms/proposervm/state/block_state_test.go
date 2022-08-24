@@ -31,7 +31,6 @@ import (
 )
 
 func testBlockState(a *assert.Assertions, bs BlockState) {
-
 	_, _, b, err := initCommonTestData()
 	a.NoError(err)
 

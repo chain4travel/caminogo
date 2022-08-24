@@ -323,7 +323,6 @@ func TestMarshallJSON(t *testing.T) {
 	}
 
 	for name, test := range tests {
-
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			bytes, err := test.transferOutputput.MarshalJSON()

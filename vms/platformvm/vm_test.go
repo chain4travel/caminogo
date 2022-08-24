@@ -3074,7 +3074,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 }
 
 func TestGetValidatorSet(t *testing.T) {
-
 	vm, _, _ := defaultVM()
 	validatorSet, _ := vm.Validators.GetValidators(ids.Empty)
 	validatorsWithWeights := make(map[ids.ShortID]uint64)
@@ -3105,7 +3104,6 @@ func TestGetValidatorSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			if tt.alreadyCached {
 				cacher := &cache.LRU{Size: validatorSetsCacheSize}
 				cacher.Put(0, validatorSet)
