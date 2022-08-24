@@ -18,11 +18,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/chain4travel/caminogo/snow/uptime/mocks"
-	"github.com/stretchr/testify/mock"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/chain4travel/caminogo/snow/uptime/mocks"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/chain4travel/caminogo/cache"
 	"github.com/chain4travel/caminogo/chains"
