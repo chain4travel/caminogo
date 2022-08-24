@@ -94,17 +94,52 @@ func (us UnparsedStaker) Parse() (Staker, error) {
 	return s, nil
 }
 
+// UnparsedMultisigAlias defines a multisignature alias address.
+// [Alias] is the alias of the multisignature address. It's encoded to string
+// the same way as ShortID String() method does.
+// [Addresses] are the addresses that are allowed to sign transactions from the multisignature address.
+// All addresses are encoded to string the same way as ShortID String() method does.
+// [Threshold] is the number of signatures required to sign transactions from the multisignature address.
+type UnparsedMultisigAlias struct {
+	Alias     string   `json:"alias"`
+	Addresses []string `json:"addresses"`
+	Threshold uint32   `json:"threshold"`
+}
+
+func (uma UnparsedMultisigAlias) Parse() (MultisigAlias, error) {
+	ma := MultisigAlias{
+		Threshold: uma.Threshold,
+		Addresses: make([]ids.ShortID, len(uma.Addresses)),
+	}
+
+	var err error
+	ma.Alias, err = ids.ShortFromString(uma.Alias)
+	if err != nil {
+		return ma, err
+	}
+
+	for i, addr := range uma.Addresses {
+		ma.Addresses[i], err = ids.ShortFromString(addr)
+		if err != nil {
+			return ma, err
+		}
+	}
+
+	return ma, nil
+}
+
 // UnparsedConfig contains the genesis addresses used to construct a genesis
 type UnparsedConfig struct {
 	NetworkID uint32 `json:"networkID"`
 
 	Allocations []UnparsedAllocation `json:"allocations"`
 
-	StartTime                  uint64           `json:"startTime"`
-	InitialStakeDuration       uint64           `json:"initialStakeDuration"`
-	InitialStakeDurationOffset uint64           `json:"initialStakeDurationOffset"`
-	InitialStakedFunds         []string         `json:"initialStakedFunds"`
-	InitialStakers             []UnparsedStaker `json:"initialStakers"`
+	StartTime                  uint64                  `json:"startTime"`
+	InitialStakeDuration       uint64                  `json:"initialStakeDuration"`
+	InitialStakeDurationOffset uint64                  `json:"initialStakeDurationOffset"`
+	InitialStakedFunds         []string                `json:"initialStakedFunds"`
+	InitialStakers             []UnparsedStaker        `json:"initialStakers"`
+	InitialMultisigAddresses   []UnparsedMultisigAlias `json:"initialMultisigAddresses"`
 
 	CChainGenesis string `json:"cChainGenesis"`
 
@@ -120,6 +155,7 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		InitialStakeDurationOffset: uc.InitialStakeDurationOffset,
 		InitialStakedFunds:         make([]ids.ShortID, len(uc.InitialStakedFunds)),
 		InitialStakers:             make([]Staker, len(uc.InitialStakers)),
+		InitialMultisigAddresses:   make([]MultisigAlias, len(uc.InitialMultisigAddresses)),
 		CChainGenesis:              uc.CChainGenesis,
 		Message:                    uc.Message,
 	}
@@ -147,6 +183,13 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 			return c, err
 		}
 		c.InitialStakers[i] = is
+	}
+	for i, uma := range uc.InitialMultisigAddresses {
+		ma, err := uma.Parse()
+		if err != nil {
+			return c, err
+		}
+		c.InitialMultisigAddresses[i] = ma
 	}
 	return c, nil
 }

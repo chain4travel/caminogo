@@ -41,12 +41,12 @@ var (
 // - [fee] is the amount of AVAX that should be burned
 // - [changeAddr] is the address that change, if there is any, is sent to
 // Returns:
-// - [inputs] the inputs that should be consumed to fund the outputs
-// - [returnedOutputs] the outputs that should be immediately returned to the
-//                     UTXO set
-// - [stakedOutputs] the outputs that should be locked for the duration of the
-//                   staking period
-// - [signers] the proof of ownership of the funds being moved
+//   - [inputs] the inputs that should be consumed to fund the outputs
+//   - [returnedOutputs] the outputs that should be immediately returned to the
+//     UTXO set
+//   - [stakedOutputs] the outputs that should be locked for the duration of the
+//     staking period
+//   - [signers] the proof of ownership of the funds being moved
 func (vm *VM) stake(
 	keys []*crypto.PrivateKeySECP256K1R,
 	amount uint64,
@@ -345,6 +345,7 @@ func (vm *VM) semanticVerifySpend(
 	feeAssetID ids.ID,
 ) error {
 	utxos := make([]*avax.UTXO, len(ins))
+	signers := make([]verify.Verifiable, len(ins))
 	for index, input := range ins {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
 		if err != nil {
@@ -354,15 +355,31 @@ func (vm *VM) semanticVerifySpend(
 				err,
 			)
 		}
+
+		// The `semanticVerifySpendUTXOs` called bellow was extended to accept `signers` the owners
+		// that constitute the multisig alias which owns the UTXO being spent.
+		// Returned `inputOwners` slice is type of `secp256k1fx.TransferOutput` which takes part
+		// only in the signature verification in `vm.fx.VerifyTransfer`.
+		inputOwners, err := utxoDB.GetUTXOMultisigOwners(utxo)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to get multisig info consumed UTXO %s due to: %w",
+				&input.UTXOID,
+				err,
+			)
+		}
 		utxos[index] = utxo
+		signers[index] = inputOwners
 	}
 
-	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
+	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, signers, creds, feeAmount, feeAssetID)
 }
 
 // Verify that [tx] is semantically valid.
 // [db] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
+// [signingOwners] because owners of the spend inputs might be actually multisig aliases
+// we need to provide the underlying owners that own the alias.
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // [utxos[i]] is the UTXO being consumed by [ins[i]]
 // Precondition: [tx] has already been syntactically verified
@@ -371,6 +388,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	utxos []*avax.UTXO,
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
+	signingOwners []verify.Verifiable,
 	creds []verify.Verifiable,
 	feeAmount uint64,
 	feeAssetID ids.ID,
@@ -440,7 +458,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 
 		// Verify that this tx's credentials allow [in] to be spent
-		if err := vm.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
+		if err := vm.fx.VerifyTransfer(tx, in, creds[index], signingOwners[index]); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 

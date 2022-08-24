@@ -75,17 +75,37 @@ func (s Staker) Unparse(networkID uint32) (UnparsedStaker, error) {
 	}, err
 }
 
+type MultisigAlias struct {
+	Alias     ids.ShortID   `json:"alias"`
+	Addresses []ids.ShortID `json:"addresses"`
+	Threshold uint32        `json:"threshold"`
+}
+
+func (ma MultisigAlias) Unparse() (UnparsedMultisigAlias, error) {
+	addresses := make([]string, len(ma.Addresses))
+	for i, a := range ma.Addresses {
+		addresses[i] = a.String()
+	}
+
+	return UnparsedMultisigAlias{
+		Alias:     ma.Alias.String(),
+		Addresses: addresses,
+		Threshold: ma.Threshold,
+	}, nil
+}
+
 // Config contains the genesis addresses used to construct a genesis
 type Config struct {
 	NetworkID uint32 `json:"networkID"`
 
 	Allocations []Allocation `json:"allocations"`
 
-	StartTime                  uint64        `json:"startTime"`
-	InitialStakeDuration       uint64        `json:"initialStakeDuration"`
-	InitialStakeDurationOffset uint64        `json:"initialStakeDurationOffset"`
-	InitialStakedFunds         []ids.ShortID `json:"initialStakedFunds"`
-	InitialStakers             []Staker      `json:"initialStakers"`
+	StartTime                  uint64          `json:"startTime"`
+	InitialStakeDuration       uint64          `json:"initialStakeDuration"`
+	InitialStakeDurationOffset uint64          `json:"initialStakeDurationOffset"`
+	InitialStakedFunds         []ids.ShortID   `json:"initialStakedFunds"`
+	InitialStakers             []Staker        `json:"initialStakers"`
+	InitialMultisigAddresses   []MultisigAlias `json:"initialMultisigAddresses"`
 
 	CChainGenesis string `json:"cChainGenesis"`
 
@@ -101,6 +121,7 @@ func (c Config) Unparse() (UnparsedConfig, error) {
 		InitialStakeDurationOffset: c.InitialStakeDurationOffset,
 		InitialStakedFunds:         make([]string, len(c.InitialStakedFunds)),
 		InitialStakers:             make([]UnparsedStaker, len(c.InitialStakers)),
+		InitialMultisigAddresses:   make([]UnparsedMultisigAlias, len(c.InitialMultisigAddresses)),
 		CChainGenesis:              c.CChainGenesis,
 		Message:                    c.Message,
 	}
@@ -128,6 +149,13 @@ func (c Config) Unparse() (UnparsedConfig, error) {
 			return uc, err
 		}
 		uc.InitialStakers[i] = uis
+	}
+	for i, ma := range c.InitialMultisigAddresses {
+		uma, err := ma.Unparse()
+		if err != nil {
+			return uc, err
+		}
+		uc.InitialMultisigAddresses[i] = uma
 	}
 
 	return uc, nil

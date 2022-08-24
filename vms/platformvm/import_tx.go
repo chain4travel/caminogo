@@ -155,7 +155,13 @@ func (tx *UnsignedImportTx) Execute(
 		copy(ins, tx.Ins)
 		copy(ins[len(tx.Ins):], tx.ImportedInputs)
 
-		if err := vm.semanticVerifySpendUTXOs(tx, utxos, ins, tx.Outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
+		// Because `semanticVerifySpendUTXOs` signature has changed and accepts also `signingOwners` slice
+		// I'm just passing the same what comes in UTXO - so no `alias -> addrs` extensions is done.
+		signers := make([]verify.Verifiable, len(utxos))
+		for i, utxo := range utxos {
+			signers[i] = utxo.Out
+		}
+		if err := vm.semanticVerifySpendUTXOs(tx, utxos, ins, tx.Outs, signers, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, err
 		}
 	}

@@ -124,6 +124,17 @@ type APIChain struct {
 	SubnetID    ids.ID   `json:"subnetID"`
 }
 
+// APIMultisigOwners defines the threshold and addresses of owners of a multisig alias
+// at the network's genesis.
+// [Alias] is the 20-byte address like alias of the multisig
+// [Addresses] are the addresses of the owners of the multisig
+// [Threshold] is the number of signatures required to spend from the multisig
+type APIMultisigOwners struct {
+	Alias     ids.ShortID   `json:"alias"`
+	Addresses []ids.ShortID `json:"addresses"`
+	Threshold uint32        `json:"threshold"`
+}
+
 // BuildGenesisArgs are the arguments used to create
 // the genesis data of the Platform Chain.
 // [NetworkID] is the ID of the network
@@ -132,15 +143,16 @@ type APIChain struct {
 // [Chains] are the chains that exist at genesis.
 // [Time] is the Platform Chain's time at network genesis.
 type BuildGenesisArgs struct {
-	AvaxAssetID   ids.ID                `json:"avaxAssetID"`
-	NetworkID     json.Uint32           `json:"networkID"`
-	UTXOs         []APIUTXO             `json:"utxos"`
-	Validators    []APIPrimaryValidator `json:"validators"`
-	Chains        []APIChain            `json:"chains"`
-	Time          json.Uint64           `json:"time"`
-	InitialSupply json.Uint64           `json:"initialSupply"`
-	Message       string                `json:"message"`
-	Encoding      formatting.Encoding   `json:"encoding"`
+	AvaxAssetID    ids.ID                `json:"avaxAssetID"`
+	NetworkID      json.Uint32           `json:"networkID"`
+	UTXOs          []APIUTXO             `json:"utxos"`
+	Validators     []APIPrimaryValidator `json:"validators"`
+	Chains         []APIChain            `json:"chains"`
+	MultisigOwners []APIMultisigOwners   `json:"multisigOwners"`
+	Time           json.Uint64           `json:"time"`
+	InitialSupply  json.Uint64           `json:"initialSupply"`
+	Message        string                `json:"message"`
+	Encoding       formatting.Encoding   `json:"encoding"`
 }
 
 // BuildGenesisReply is the reply from BuildGenesis
@@ -155,14 +167,20 @@ type GenesisUTXO struct {
 	Message   []byte `serialize:"true" json:"message"`
 }
 
+type GenesisMultisigAlias struct {
+	Alias  ids.ShortID              `serialize:"true" json:"alias"`
+	Owners secp256k1fx.OutputOwners `serialize:"true" json:"owners"`
+}
+
 // Genesis represents a genesis state of the platform chain
 type Genesis struct {
-	UTXOs         []*GenesisUTXO `serialize:"true"`
-	Validators    []*Tx          `serialize:"true"`
-	Chains        []*Tx          `serialize:"true"`
-	Timestamp     uint64         `serialize:"true"`
-	InitialSupply uint64         `serialize:"true"`
-	Message       string         `serialize:"true"`
+	UTXOs           []*GenesisUTXO          `serialize:"true"`
+	Validators      []*Tx                   `serialize:"true"`
+	Chains          []*Tx                   `serialize:"true"`
+	MultisigAliases []*GenesisMultisigAlias `serialize:"true"`
+	Timestamp       uint64                  `serialize:"true"`
+	InitialSupply   uint64                  `serialize:"true"`
+	Message         string                  `serialize:"true"`
 }
 
 func (g *Genesis) Initialize() error {
@@ -347,6 +365,17 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 		chains = append(chains, tx)
 	}
 
+	multisigAliases := make([]*GenesisMultisigAlias, len(args.MultisigOwners))
+	for i, multisigOwner := range args.MultisigOwners {
+		owners := multisigOwner.Addresses[:]
+		ids.SortShortIDs(owners)
+		oo := secp256k1fx.OutputOwners{
+			Threshold: multisigOwner.Threshold,
+			Addrs:     owners,
+		}
+		multisigAliases[i] = &GenesisMultisigAlias{multisigOwner.Alias, oo}
+	}
+
 	validatorTxs := make([]*Tx, validators.Len())
 	for i, tx := range validators.txs {
 		validatorTxs[i] = tx.tx
@@ -354,12 +383,13 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 
 	// genesis holds the genesis state
 	genesis := Genesis{
-		UTXOs:         utxos,
-		Validators:    validatorTxs,
-		Chains:        chains,
-		Timestamp:     uint64(args.Time),
-		InitialSupply: uint64(args.InitialSupply),
-		Message:       args.Message,
+		UTXOs:           utxos,
+		Validators:      validatorTxs,
+		Chains:          chains,
+		MultisigAliases: multisigAliases,
+		Timestamp:       uint64(args.Time),
+		InitialSupply:   uint64(args.InitialSupply),
+		Message:         args.Message,
 	}
 
 	// Marshal genesis to bytes

@@ -189,9 +189,9 @@ func validateConfig(networkID uint32, config *Config) error {
 // loads the network genesis data from the config at [filepath].
 //
 // FromFile returns:
-// 1) The byte representation of the genesis state of the platform chain
-//    (ie the genesis state of the network)
-// 2) The asset ID of native token
+//  1. The byte representation of the genesis state of the platform chain
+//     (ie the genesis state of the network)
+//  2. The asset ID of native token
 func FromFile(networkID uint32, filepath string) ([]byte, ids.ID, error) {
 	switch networkID {
 	case constants.MainnetID, constants.CaminoID, constants.TestnetID, constants.LocalID:
@@ -230,9 +230,9 @@ func FromFile(networkID uint32, filepath string) ([]byte, ids.ID, error) {
 // loads the network genesis data from [genesisContent].
 //
 // FromFlag returns:
-// 1) The byte representation of the genesis state of the platform chain
-//    (ie the genesis state of the network)
-// 2) The asset ID of native token
+//  1. The byte representation of the genesis state of the platform chain
+//     (ie the genesis state of the network)
+//  2. The asset ID of native token
 func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
 	switch networkID {
 	case constants.MainnetID, constants.CaminoID, constants.TestnetID, constants.LocalID:
@@ -256,9 +256,9 @@ func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
 }
 
 // FromConfig returns:
-// 1) The byte representation of the genesis state of the platform chain
-//    (ie the genesis state of the network)
-// 2) The asset ID of AVAX
+//  1. The byte representation of the genesis state of the platform chain
+//     (ie the genesis state of the network)
+//  2. The asset ID of AVAX
 func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	hrp := constants.GetHRP(config.NetworkID)
 
@@ -448,6 +448,15 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 			VMID:        constants.EVMID,
 			Name:        "C-Chain",
 		},
+	}
+
+	platformvmArgs.MultisigOwners = make([]platformvm.APIMultisigOwners, len(config.InitialMultisigAddresses))
+	for i, msa := range config.InitialMultisigAddresses {
+		platformvmArgs.MultisigOwners[i] = platformvm.APIMultisigOwners{
+			Alias:     msa.Alias,
+			Addresses: msa.Addresses,
+			Threshold: msa.Threshold,
+		}
 	}
 
 	platformvmReply := platformvm.BuildGenesisReply{}

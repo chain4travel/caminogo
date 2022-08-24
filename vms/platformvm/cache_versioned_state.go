@@ -20,13 +20,16 @@ import (
 	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
+	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
 
 var _ VersionedState = &versionedStateImpl{}
 
 type UTXOGetter interface {
 	GetUTXO(utxoID ids.ID) (*avax.UTXO, error)
+	GetUTXOMultisigOwners(utxo *avax.UTXO) (verify.Verifiable, error)
 }
 
 type UTXOAdder interface {
@@ -64,6 +67,9 @@ type MutableState interface {
 
 	GetTx(txID ids.ID) (*Tx, status.Status, error)
 	AddTx(tx *Tx, status status.Status)
+
+	GetMultisigOwners(id ids.ShortID) (secp256k1fx.OutputOwners, error)
+	AddMultisigOwners(ids.ShortID, secp256k1fx.OutputOwners)
 }
 
 type VersionedState interface {
@@ -97,6 +103,8 @@ type versionedStateImpl struct {
 
 	// map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
 	modifiedUTXOs map[ids.ID]*utxoImpl
+
+	addedMultisigOwners map[ids.ShortID]secp256k1fx.OutputOwners
 }
 
 type txStatusImpl struct {
@@ -121,6 +129,31 @@ func newVersionedState(
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
 	}
+}
+
+func (vs *versionedStateImpl) GetUTXOMultisigOwners(utxo *avax.UTXO) (verify.Verifiable, error) {
+	out := utxo.Out
+	inner, ok := out.(*secp256k1fx.TransferOutput)
+	if !ok {
+		return utxo.Out, nil
+	}
+
+	// Multisig alias can be the only owner of the UTXO. Otherwise, owners are assumed to be regular addresses.
+	if len(inner.OutputOwners.Addrs) > 1 {
+		return utxo.Out, nil
+	}
+
+	owner := inner.OutputOwners.Addrs[0]
+	outputOwners, err := vs.GetMultisigOwners(owner)
+	if err != nil {
+		return utxo.Out, err
+	}
+
+	ret := &secp256k1fx.TransferOutput{
+		Amt:          inner.Amt,
+		OutputOwners: outputOwners,
+	}
+	return verify.State(ret), nil
 }
 
 func (vs *versionedStateImpl) GetTimestamp() time.Time {
@@ -219,6 +252,18 @@ func (vs *versionedStateImpl) AddChain(createChainTx *Tx) {
 		return
 	}
 	vs.cachedChains[tx.SubnetID] = append(cachedChains, createChainTx)
+}
+
+func (vs *versionedStateImpl) GetMultisigOwners(id ids.ShortID) (secp256k1fx.OutputOwners, error) {
+	if outputOwners, exist := vs.addedMultisigOwners[id]; exist {
+		return outputOwners, nil
+	}
+
+	return vs.parentState.GetMultisigOwners(id)
+}
+
+func (vs *versionedStateImpl) AddMultisigOwners(id ids.ShortID, outputOwners secp256k1fx.OutputOwners) {
+	vs.addedMultisigOwners[id] = outputOwners
 }
 
 func (vs *versionedStateImpl) GetTx(txID ids.ID) (*Tx, status.Status, error) {

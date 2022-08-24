@@ -34,7 +34,9 @@ import (
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/wrappers"
 	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
+	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
 	safemath "github.com/chain4travel/caminogo/utils/math"
 )
@@ -54,6 +56,7 @@ var (
 	subnetPrefix          = []byte("subnet")
 	chainPrefix           = []byte("chain")
 	singletonPrefix       = []byte("singleton")
+	multisigOwnersPrefix  = []byte("multisigOwners")
 
 	timestampKey     = []byte("timestamp")
 	currentSupplyKey = []byte("current supply")
@@ -225,6 +228,9 @@ type internalStateImpl struct {
 	originalCurrentSupply, currentSupply uint64
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
+
+	addedMultisigOwners map[ids.ShortID]secp256k1fx.OutputOwners
+	multisigOwnersDB    database.Database
 }
 
 type ValidatorWeightDiff struct {
@@ -311,6 +317,9 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 		chainDB:     prefixdb.New(chainPrefix, baseDB),
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
+
+		addedMultisigOwners: make(map[ids.ShortID]secp256k1fx.OutputOwners),
+		multisigOwnersDB:    prefixdb.New(multisigOwnersPrefix, baseDB),
 	}
 }
 
@@ -322,6 +331,31 @@ func (st *internalStateImpl) initCaches() {
 	st.utxoState = avax.NewUTXOState(st.utxoDB, GenesisCodec)
 	st.chainCache = &cache.LRU{Size: chainCacheSize}
 	st.chainDBCache = &cache.LRU{Size: chainDBCacheSize}
+}
+
+func (st *internalStateImpl) GetUTXOMultisigOwners(utxo *avax.UTXO) (verify.Verifiable, error) {
+	out := utxo.Out
+	inner, ok := out.(*secp256k1fx.TransferOutput)
+	if !ok {
+		return utxo.Out, nil
+	}
+
+	// Multisig alias can be the only owner of the UTXO. Otherwise, owners are assumed to be regular addresses.
+	if len(inner.OutputOwners.Addrs) > 1 {
+		return utxo.Out, nil
+	}
+
+	owner := inner.OutputOwners.Addrs[0]
+	outputOwners, err := st.GetMultisigOwners(owner)
+	if err != nil {
+		return utxo.Out, err
+	}
+
+	ret := &secp256k1fx.TransferOutput{
+		Amt:          inner.Amt,
+		OutputOwners: outputOwners,
+	}
+	return verify.State(ret), nil
 }
 
 func (st *internalStateImpl) initMeteredCaches(metrics prometheus.Registerer) error {
@@ -593,6 +627,29 @@ func (st *internalStateImpl) AddTx(tx *Tx, status status.Status) {
 	}
 }
 
+func (st *internalStateImpl) GetMultisigOwners(id ids.ShortID) (secp256k1fx.OutputOwners, error) {
+	outputOwners := secp256k1fx.OutputOwners{}
+	if outputOwners, exist := st.addedMultisigOwners[id]; exist {
+		return outputOwners, nil
+	}
+
+	ooBytes, err := st.multisigOwnersDB.Get(id.Bytes())
+	if err != nil {
+		return outputOwners, err
+	}
+
+	_, err = GenesisCodec.Unmarshal(ooBytes, &outputOwners)
+	if err != nil {
+		return outputOwners, err
+	}
+
+	return outputOwners, nil
+}
+
+func (st *internalStateImpl) AddMultisigOwners(id ids.ShortID, outputOwners secp256k1fx.OutputOwners) {
+	st.addedMultisigOwners[id] = outputOwners
+}
+
 func (st *internalStateImpl) GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error) {
 	if utxos, exists := st.addedRewardUTXOs[txID]; exists {
 		return utxos, nil
@@ -837,6 +894,9 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
+	if err := st.writeMultisigOwners(); err != nil {
+		return nil, fmt.Errorf("failed to write multisig owners with: %w", err)
+	}
 	return st.baseDB.CommitBatch()
 }
 
@@ -859,6 +919,7 @@ func (st *internalStateImpl) Close() error {
 		st.subnetBaseDB.Close(),
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
+		st.multisigOwnersDB.Close(),
 		st.baseDB.Close(),
 	)
 	return errs.Err
@@ -1190,6 +1251,21 @@ func (st *internalStateImpl) writeRewardUTXOs() error {
 			if err := txDB.Put(utxoID[:], utxoBytes); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (st *internalStateImpl) writeMultisigOwners() error {
+	for moID, mo := range st.addedMultisigOwners {
+		delete(st.addedMultisigOwners, moID)
+
+		moBytes, err := GenesisCodec.Marshal(CodecVersion, mo)
+		if err != nil {
+			return err
+		}
+		if err := st.multisigOwnersDB.Put(moID[:], moBytes); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1553,6 +1629,10 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 	// Persist UTXOs that exist at genesis
 	for _, utxo := range genesis.UTXOs {
 		st.AddUTXO(&utxo.UTXO)
+	}
+
+	for _, ma := range genesis.MultisigAliases {
+		st.AddMultisigOwners(ma.Alias, ma.Owners)
 	}
 
 	// Persist the platform chain's timestamp at genesis
