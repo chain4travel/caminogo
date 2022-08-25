@@ -237,54 +237,13 @@ currentStakerLoop:
 		}
 	}
 
-	daoProposals := parentState.DaoProposalChainState()
-	numDaoProposalsToArchive := 0
-daoProposalLoop:
-	for _, tx := range daoProposals.Proposals() {
-		switch daoProposal := tx.UnsignedTx.(type) {
-		case *UnsignedDaoSubmitProposalTx:
-			if daoProposal.EndTime().After(txTimestamp) {
-				break daoProposalLoop
-			}
-			// TODO somewhere here we need to issue a ConcludeProposalTx
-			numDaoProposalsToArchive++
-		default:
-			return nil, nil, fmt.Errorf("expected validator but got %T", tx.UnsignedTx)
-		}
-	}
-
-	newlyDaoProposals := daoProposals
-
-	if numDaoProposalsToArchive > 0 {
-		if newlyDaoProposals, err = daoProposals.ArchiveNextProposals(numDaoProposalsToArchive); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	onCommitState := newVersionedState(vm, parentState, newlyCurrentStakers, newlyPendingStakers, newlyDaoProposals)
+	onCommitState := newVersionedStateWithNewStakerChainState(vm, parentState, newlyCurrentStakers, newlyPendingStakers)
 	onCommitState.SetTimestamp(txTimestamp)
 	onCommitState.SetCurrentSupply(currentSupply)
 
 	// State doesn't change if this proposal is aborted
-	onAbortState := newVersionedState(vm, parentState, currentStakers, pendingStakers, daoProposals)
+	onAbortState := newVersionedStateWithNewStakerChainState(vm, parentState, currentStakers, pendingStakers)
 
-	// Refund the dao proposals
-	for i := 0; i < numDaoProposalsToArchive; i++ {
-		dtx := daoProposals.Proposals()[i]
-		// We don't need the OK check because we already verified
-		daoProposalTx, _ := dtx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
-		for i, out := range daoProposalTx.Bond {
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        daoProposalTx.ID(),
-					OutputIndex: uint32(len(daoProposalTx.Outs) + i),
-				},
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out:   out.Output(),
-			}
-			onCommitState.AddUTXO(utxo)
-		}
-	}
 	return onCommitState, onAbortState, nil
 }
 
