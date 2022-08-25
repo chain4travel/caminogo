@@ -47,5 +47,4 @@ func TestResetHeightIndex(t *testing.T) {
 	// ensure metadataDB is also reset
 	_, err2 := hi.GetCheckpoint()
 	assert.Error(t, err2)
-
 }

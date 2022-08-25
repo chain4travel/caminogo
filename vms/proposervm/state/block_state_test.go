@@ -93,7 +93,6 @@ func TestGetBlockWithUncachedBlock(t *testing.T) {
 	actualBlk, _, err := bs.GetBlock(blk.ID())
 	a.Equal(blk, actualBlk)
 	a.NoError(err)
-
 }
 
 func initCommonTestData() (database.Database, BlockState, block.SignedBlock, error) {

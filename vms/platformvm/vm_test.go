@@ -3093,11 +3093,13 @@ func TestGetValidatorSet(t *testing.T) {
 		wantErr       bool
 		alreadyCached bool
 	}{
-		{name: "validator set not cached",
+		{
+			name: "validator set not cached",
 			args: args{height: 0, subnetID: ids.Empty},
 			want: validatorsWithWeights,
 		},
-		{name: "validator set already cached",
+		{
+			name:          "validator set already cached",
 			args:          args{height: 0, subnetID: ids.Empty},
 			want:          validatorsWithWeights,
 			alreadyCached: true,
@@ -3139,15 +3141,18 @@ func TestGetPercentConnected(t *testing.T) {
 		want    float64
 		wantErr bool
 	}{
-		{name: "all (5) validators connected",
+		{
+			name: "all (5) validators connected",
 			args: args{subnetID: ids.Empty},
 			want: 1,
 		},
-		{name: "1/5 validators disconnected",
+		{
+			name: "1/5 validators disconnected",
 			args: args{subnetID: ids.Empty},
 			want: 0.8,
 		},
-		{name: "false subnet id",
+		{
+			name:    "false subnet id",
 			args:    args{subnetID: ids.GenerateTestID()},
 			wantErr: true,
 		},
