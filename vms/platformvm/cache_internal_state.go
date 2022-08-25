@@ -1362,8 +1362,9 @@ func (st *internalStateImpl) writeDao() error {
 		if !ok {
 			return errWrongTxType
 		}
-		proposalID := daoProposalTx.DaoProposal.ProposalID
-		if st.daoProposalChainState.GetProposalState(proposalID) == dao.ProposalStateVoted {
+		proposalID := daoProposalTx.ID()
+		state := st.daoProposalChainState.GetProposalState(proposalID)
+		if dao.HasConcluded(state) {
 			if err := st.daoProposalArchiveList.Put(proposalID[:], nil); err != nil {
 				return err
 			}
@@ -1691,7 +1692,7 @@ func (st *internalStateImpl) loadDao() error {
 		}
 
 		ds.proposals = append(ds.proposals, tx)
-		ds.proposalsByID[daoProposalTx.DaoProposal.ID()] = &DaoProposalCacheImpl{
+		ds.proposalsByID[daoProposalTx.ID()] = &DaoProposalCacheImpl{
 			daoProposalTx: daoProposalTx,
 			votes:         make([]*Tx, 0),
 		}
@@ -1721,7 +1722,7 @@ func (st *internalStateImpl) loadDao() error {
 		if err != nil {
 			return err
 		}
-		daoVoteTx, ok := tx.UnsignedTx.(*UnsignedDaoVoteTx)
+		daoVoteTx, ok := tx.UnsignedTx.(*UnsignedDaoAddVoteTx)
 		if !ok {
 			return errWrongTxType
 		}
