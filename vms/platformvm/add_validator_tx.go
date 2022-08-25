@@ -42,6 +42,9 @@ var (
 	errInsufficientDelegationFee = errors.New("staker charges an insufficient delegation fee")
 	errTooManyShares             = fmt.Errorf("a staker can only require at most %d shares from delegators", reward.PercentDenominator)
 
+	// TODO @Jax this should be in the dao config on the vm
+	validatorVotingDurration = time.Hour * 24 * 7 * 2 // Two weeks
+
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
 	_ UnsingedVoteableTx = &UnsignedAddValidatorTx{}
@@ -272,6 +275,9 @@ func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 }
 
 func (tx *UnsignedAddValidatorTx) VerifyWithProposalContext(parentState MutableState, proposal dao.ProposalConfiguration) error {
+	if proposal.EndTime().Sub(proposal.StartTime()) != validatorVotingDurration {
+		return fmt.Errorf("voting time for a validator need exactly to be %d", validatorVotingDurration)
+	}
 
 	currentValidators := parentState.CurrentStakerChainState()
 	activeSet, err := currentValidators.ValidatorSet(constants.PrimaryNetworkID)
@@ -282,7 +288,7 @@ func (tx *UnsignedAddValidatorTx) VerifyWithProposalContext(parentState MutableS
 	absoluteMajority := activeSet.Len()/2 + 1
 
 	if absoluteMajority >= int(proposal.Thresh) {
-		return fmt.Errorf("AddValidatorTx needs at least an absolute majority aproval of currently %d votes", absoluteMajority)
+		return fmt.Errorf("AddValidatorTx needs at least an absolute majority approval of currently %d votes", absoluteMajority)
 	}
 
 	return nil
