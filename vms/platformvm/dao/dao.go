@@ -78,6 +78,7 @@ func (d *ProposalConfiguration) Verify() error {
 	if d.Thresh > 0 {
 		return errNonPositiveThreshold
 	}
+
 	return nil
 }
 
