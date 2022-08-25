@@ -16,11 +16,11 @@ import (
 )
 
 var (
-	errVotingTooShort   = errors.New("voting period is too short")
-	errVotingTooLong    = errors.New("voting period is too long")
-	errAlreadyValidator = errors.New("node is already a validator")
+	errVotingTooShort = errors.New("voting period is too short")
+	errVotingTooLong  = errors.New("voting period is too long")
 
 	_ UnsignedProposalTx = &UnsignedDaoSubmitProposalTx{}
+	_ TimedTx            = &UnsignedDaoSubmitProposalTx{}
 )
 
 // UnsignedDaoSubmitProposalTx is an unsigned daoProposalTx
@@ -29,12 +29,12 @@ type UnsignedDaoSubmitProposalTx struct {
 	BaseTx `serialize:"true"`
 
 	// Our Dao Proposal
-	DaoProposal dao.Proposal `serialize:"true" json:"daoProposal"` // TODO maybe this should be a config
+	ProposalConfiguration dao.ProposalConfiguration `serialize:"true" json:"proposalConfiguration"`
 
 	// ! @jax on the first iteration this will only contain one tx that is executed when the
 	// ! proposal was accepted
 	// Tx to exectue when proposal was accpeted
-	ProposedTx UnsingedVoteableTx // TODO maybe this should be a generic tx and then be checked at runtime *shrug*
+	ProposedTx UnsingedVoteableTx `serialize:"true" json:"proposedTx"` // TODO maybe this should be a generic tx and then be checked at runtime *shrug*
 
 	// Where to send locked tokens when done voting
 	// TODO @jax this needs to be changed to a PChainOut
@@ -50,6 +50,9 @@ func (tx *UnsignedDaoSubmitProposalTx) InitCtx(ctx *snow.Context) {
 		bond.InitCtx(ctx)
 	}
 }
+func (tx *UnsignedDaoSubmitProposalTx) Weight() uint64 {
+	return 0
+}
 
 // SyntacticVerify returns nil if [tx] is valid
 func (tx *UnsignedDaoSubmitProposalTx) SyntacticVerify(ctx *snow.Context) error {
@@ -64,15 +67,8 @@ func (tx *UnsignedDaoSubmitProposalTx) SyntacticVerify(ctx *snow.Context) error 
 		return fmt.Errorf("failed to verify BaseTx: %w", err)
 	}
 
-	if err := tx.DaoProposal.Verify(); err != nil {
-		return fmt.Errorf("failed to verify DaoProposal: %w", err)
-	}
-
-	if len(tx.DaoProposal.Data) > dao.MaxDaoProposalBytes {
-		return fmt.Errorf("maximum allowed proposal size exeeded: %d > %d",
-			len(tx.DaoProposal.Data),
-			dao.MaxDaoProposalBytes,
-		)
+	if err := tx.ProposalConfiguration.Verify(); err != nil {
+		return fmt.Errorf("failed to verify ProposalConfiguration: %w", err)
 	}
 
 	// cache that this is valid
@@ -83,8 +79,15 @@ func (tx *UnsignedDaoSubmitProposalTx) SyntacticVerify(ctx *snow.Context) error 
 // Attempts to verify this transaction with the provided state.
 func (tx *UnsignedDaoSubmitProposalTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
 
-	if err := tx.ProposedTx.VerifyWithProposalContext(parentState, tx.DaoProposal); err != nil {
-		return err
+	if _, status, err := parentState.GetTx(tx.ProposedTx.ID()); err == nil {
+		return fmt.Errorf("[%s] ProposedTx with id %s was already executed with status %s", tx.ID(), tx.ProposedTx.ID(), status)
+	}
+
+	if err := tx.ProposedTx.VerifyWithProposalContext(parentState, tx.ProposalConfiguration); err != nil {
+		return fmt.Errorf("[%s] ProposedTx did not accept the given proposal paramenters: %v", tx.ID(), err)
+	}
+	if innerErr := tx.ProposedTx.SemanticVerify(vm, parentState, stx); innerErr != nil {
+		return fmt.Errorf("[%s] ProposedTx could not be executed: %v", tx.ID(), innerErr)
 	}
 	_, _, err := tx.Execute(vm, parentState, stx)
 	return err
@@ -117,7 +120,7 @@ func (tx *UnsignedDaoSubmitProposalTx) Execute(
 		return nil, nil, fmt.Errorf("provided tx Inputs to dont have enough transferable AVAX to bond")
 	}
 
-	duration := tx.DaoProposal.Duration()
+	duration := tx.ProposalConfiguration.Duration()
 	switch {
 	case duration < vm.DaoConfig.MinProposalDuration:
 		return nil, nil, errVotingTooShort
@@ -126,8 +129,6 @@ func (tx *UnsignedDaoSubmitProposalTx) Execute(
 	}
 
 	daoProposals := parentState.DaoProposalChainState()
-	currentStakers := parentState.CurrentStakerChainState()
-	pendingStakers := parentState.PendingStakerChainState()
 
 	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Bond))
 	copy(outs, tx.Outs)
@@ -136,7 +137,7 @@ func (tx *UnsignedDaoSubmitProposalTx) Execute(
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
 		// Ensure the proposed validator starts after the current time
-		startTime := tx.DaoProposal.StartTime()
+		startTime := tx.ProposalConfiguration.StartTime()
 		if !currentTimestamp.Before(startTime) {
 			return nil, nil, fmt.Errorf(
 				"daoProposal start time (%s) at or before current timestamp (%s)",
@@ -146,28 +147,12 @@ func (tx *UnsignedDaoSubmitProposalTx) Execute(
 		}
 
 		// Ensure this proposal isn't already inserted
-		if daoProposals.GetProposalState(tx.DaoProposal.ID()) != dao.ProposalStateUnknown {
-			return nil, nil, fmt.Errorf("%s proposal already exists", tx.DaoProposal.ID().Hex())
+		if daoProposals.GetProposalState(tx.ID()) != dao.ProposalStateUnknown {
+			return nil, nil, fmt.Errorf("%s proposal already exists", tx.ID().Hex())
 		}
 
-		// Early exit if one tries to vote for an existing validator
-		// this should be the verify block of the internal tx
-		if tx.DaoProposal.ProposalType == dao.ProposalTypeAddValidator {
-			nodeID, err := ids.ToShortID(tx.DaoProposal.Data)
-			if err != nil {
-				return nil, nil, fmt.Errorf("proposal -> nodId failed: %w", err)
-			}
-			if _, err := currentStakers.GetValidator(nodeID); err == nil {
-				return nil, nil, errAlreadyValidator
-			}
-			if _, err := pendingStakers.GetValidator(nodeID); err == nil {
-				return nil, nil, errAlreadyValidator
-			}
-		}
-
-		if prop := daoProposals.Exists(tx); prop != nil {
-			return nil, nil, fmt.Errorf("duplicate proposal found: %s", prop.ID().String())
-		}
+		// We dont need to check for an already existing proposedTx as if its voted in a different proposal
+		// its totaly fine
 
 		// Verify the flowcheck
 		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.DaoConfig.ProposalTxFee, vm.ctx.AVAXAssetID); err != nil {
@@ -207,26 +192,27 @@ func (tx *UnsignedDaoSubmitProposalTx) Execute(
 // InitiallyPrefersCommit returns true if this node thinks the vote
 // should be inserted. This is currently true, if there are no duplicates
 func (tx *UnsignedDaoSubmitProposalTx) InitiallyPrefersCommit(vm *VM) bool {
-	return tx.DaoProposal.StartTime().After(vm.clock.Time())
+	return tx.ProposalConfiguration.StartTime().After(vm.clock.Time())
 }
 
 // TimedTx Interface
-func (tx *UnsignedDaoSubmitProposalTx) StartTime() time.Time { return tx.DaoProposal.StartTime() }
-func (tx *UnsignedDaoSubmitProposalTx) EndTime() time.Time   { return tx.DaoProposal.EndTime() }
-
-// func (tx *UnsignedDaoSubmitProposalTx) Weight() uint64       { return tx.DaoProposal.Weight() }
+func (tx *UnsignedDaoSubmitProposalTx) StartTime() time.Time {
+	return tx.ProposalConfiguration.StartTime()
+}
+func (tx *UnsignedDaoSubmitProposalTx) EndTime() time.Time {
+	return tx.ProposalConfiguration.EndTime()
+}
 
 // NewDaoProposalTx returns a new UnsignedDaoSubmitProposalTx
 func (vm *VM) newDaoSubmitProposalTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
-	changeAddr ids.ShortID, // Address to send change to, if there is any
-	proposalType, // The type of this proposal
-	lockAmt, // The amount locked during voting period
+	changeAddr ids.ShortID,
 	startTime, // The time voting starts
 	endTime uint64, // The time voting ends
-	proposal []byte, // this is the proposal message, stored in TX Metadata
+	proposedTx UnsingedVoteableTx, // this is the proposal message, stored in TX Metadata
 ) (*Tx, ids.ID, error) {
-	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, lockAmt, vm.DaoConfig.ProposalTxFee, changeAddr)
+
+	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, vm.DaoConfig.ProposalBondAmount, vm.DaoConfig.ProposalTxFee, changeAddr)
 	if err != nil {
 		return nil, ids.ID{}, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -242,22 +228,17 @@ func (vm *VM) newDaoSubmitProposalTx(
 			Ins:          ins,
 			Outs:         unlockedOuts,
 		}},
-		DaoProposal: dao.Proposal{
-			Thresh:       uint32(thresh),
-			ProposalType: proposalType,
-			Start:        startTime,
-			End:          endTime,
-			// Wght:         lockAmt,
-			Data: proposal,
+		ProposedTx: proposedTx,
+		ProposalConfiguration: dao.ProposalConfiguration{
+			Thresh: uint32(thresh),
+			Start:  startTime,
+			End:    endTime,
 		},
-		// Locks: lockedOuts,
-	}
-	if err = utx.DaoProposal.InitializeID(); err != nil {
-		return nil, ids.ID{}, err
+		Bond: lockedOuts,
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
 		return nil, ids.ID{}, err
 	}
-	return tx, utx.DaoProposal.ID(), utx.SyntacticVerify(vm.ctx)
+	return tx, utx.ID(), utx.SyntacticVerify(vm.ctx)
 }
