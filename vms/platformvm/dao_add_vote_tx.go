@@ -109,6 +109,11 @@ func (tx *UnsignedDaoAddVoteTx) Execute(
 			)
 		}
 
+		validator, err := currentStakers.GetValidator(tx.NodeID)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		// verify that the proposal is active and that we have not voted so far
 		daoProposal, err := daoProposals.GetActiveProposal(tx.ProposalID)
 		switch {
@@ -120,12 +125,8 @@ func (tx *UnsignedDaoAddVoteTx) Execute(
 			return nil, nil, fmt.Errorf("proposal: %s already accepted", tx.ProposalID.String())
 		case daoProposal.Voted(tx.NodeID):
 			return nil, nil, fmt.Errorf("node %s has already voted on proposal: %s", tx.NodeID.String(), tx.ProposalID.String())
-		}
-
-		// now verify that the caller is the addValidator of tx.nodeID
-		validator, err := currentStakers.GetValidator(tx.NodeID)
-		if err != nil {
-			return nil, nil, err
+		case daoProposal.DaoProposalTx().StartTime().After(validator.AddValidatorTx().StartTime()):
+			return nil, nil, fmt.Errorf("node %s only became a validator after the proposal started and is thus not eligible to participate", tx.NodeID.String())
 		}
 
 		ok, err := validator.VerifyCredsIntersection(vm, stx)
