@@ -33,7 +33,6 @@ import (
 	"github.com/chain4travel/caminogo/utils/wrappers"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/keystore"
-	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
@@ -1000,18 +999,101 @@ type AddDaoProposalArgs struct {
 	// User, password, from addrs, change addr
 	api.JSONSpendHeader
 
-	ProposalType json.Uint64 `json:"proposalType"`
+	StartTime json.Uint64 `json:"startTime"`
+	EndTime   json.Uint64 `json:"endTime"`
 
-	StartTime  json.Uint64 `json:"startTime"`
-	EndTime    json.Uint64 `json:"endTime"`
-	LockAmount json.Uint64 `json:"lockAmount,omitempty"`
-
-	Proposal []byte `json:"proposal"`
+	ValidatorArgs AddValidatorArgs
 }
 
 type AddDaoProposalReply struct {
 	api.JSONTxIDChangeAddr
 	ProposalID ids.ID `json:"proposalID"`
+}
+
+func (service *Service) buildAddValidatorTxFromArgs(args *AddValidatorArgs) (*Tx, error) {
+	now := service.vm.clock.Time()
+	minAddStakerTime := now.Add(minAddStakerDelay)
+	minAddStakerUnix := json.Uint64(minAddStakerTime.Unix())
+	maxAddStakerTime := now.Add(maxFutureStartTime)
+	maxAddStakerUnix := json.Uint64(maxAddStakerTime.Unix())
+
+	if args.StartTime == 0 {
+		args.StartTime = minAddStakerUnix
+	}
+
+	switch {
+	case args.RewardAddress == "":
+		return nil, errNoRewardAddress
+	case args.StartTime < minAddStakerUnix:
+		return nil, errStartTimeTooSoon
+	case args.StartTime > maxAddStakerUnix:
+		return nil, errStartTimeTooLate
+	case args.DelegationFeeRate < 0 || args.DelegationFeeRate > 100:
+		return nil, errInvalidDelegationRate
+	}
+
+	// Parse the node ID
+	var nodeID ids.ShortID
+	if args.NodeID == "" {
+		nodeID = service.vm.ctx.NodeID // If omitted, use this node's ID
+	} else {
+		nID, err := ids.ShortFromPrefixedString(args.NodeID, constants.NodeIDPrefix)
+		if err != nil {
+			return nil, err
+		}
+		nodeID = nID
+	}
+
+	// Parse the from addresses
+	fromAddrs, err := avax.ParseLocalAddresses(service.vm, args.From)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the reward address
+	rewardAddress, err := service.vm.ParseLocalAddress(args.RewardAddress)
+	if err != nil {
+		return nil, fmt.Errorf("problem while parsing reward address: %w", err)
+	}
+
+	user, err := keystore.NewUserFromKeystore(service.vm.ctx.Keystore, args.Username, args.Password)
+	if err != nil {
+		return nil, err
+	}
+	defer user.Close()
+
+	// Get the user's keys
+	privKeys, err := keystore.GetKeychain(user, fromAddrs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
+	}
+
+	// Parse the change address.
+	if len(privKeys.Keys) == 0 {
+		return nil, errNoKeys
+	}
+	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
+	if args.ChangeAddr != "" {
+		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't parse changeAddr: %w", err)
+		}
+	}
+
+	// Create the transaction
+	tx, err := service.vm.newAddValidatorTx(
+		args.weight(),                        // Stake amount
+		uint64(args.StartTime),               // Start time
+		uint64(args.EndTime),                 // End time
+		nodeID,                               // Node ID
+		rewardAddress,                        // Reward Address
+		uint32(10000*args.DelegationFeeRate), // Shares
+		privKeys.Keys,                        // Private keys
+		changeAddr,                           // Change address
+	)
+
+	return tx, err
+
 }
 
 // PlaceDaoProposal creates, signs and issues a transaction to place a dao proposal to
@@ -1040,22 +1122,14 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 		return errStartTimeTooLate
 	}
 
-	if args.ProposalType >= json.Uint64(dao.ProposalTypeMax) {
-		return errInvalidProposalType
+	proposedTx, err := service.buildAddValidatorTxFromArgs(&args.ValidatorArgs)
+	if err != nil {
+		return fmt.Errorf("Could not build proposedTx: %v", err)
 	}
 
-	if args.Proposal == nil {
-		args.Proposal = []byte{}
-	}
-
-	// In case we have an ValidatorProposal, Payload must be a nodeid
-	if args.ProposalType == json.Uint64(dao.ProposalTypeAddValidator) {
-		if nID, err := ids.ShortFromPrefixedString(
-			string(args.Proposal),
-			constants.NodeIDPrefix,
-		); err == nil {
-			args.Proposal = nID.Bytes()
-		}
+	proposedUtx, ok := proposedTx.UnsignedTx.(UnsingedVoteableTx)
+	if !ok {
+		panic("build AddValidatorTxFromArgs build invalid tx type")
 	}
 
 	// Parse the from addresses
@@ -1090,14 +1164,12 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 	}
 
 	// Create the transaction
-	tx, id, err := service.vm.newDaoProposalTx(
-		privKeys.Keys,             // Private keys
-		changeAddr,                // Change address
-		uint64(args.ProposalType), // proposal type
-		uint64(args.LockAmount),   // The lock amount
-		uint64(args.StartTime),    // Start time of the proposal
-		uint64(args.EndTime),      // End time of the proposal
-		args.Proposal,             // The proposal message
+	tx, id, err := service.vm.newDaoSubmitProposalTx(
+		privKeys.Keys,          // Private keys
+		changeAddr,             // Change address
+		uint64(args.StartTime), // Start time of the proposal
+		uint64(args.EndTime),   // End time of the proposal
+		proposedUtx,            // The proposal message
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
@@ -1124,7 +1196,7 @@ type GetDaoProposalArgs struct {
 // GetDaoProposalReply is the response from GetDaoProposal
 type GetDaoProposalReply struct {
 	ProposalTx *UnsignedDaoSubmitProposalTx `json:"proposal,omitempty"`
-	Votes      []*UnsignedDaoVoteTx         `json:"votes,omitempty"`
+	Votes      []*UnsignedDaoAddVoteTx      `json:"votes,omitempty"`
 	Status     string                       `json:"status"`
 }
 
@@ -1139,10 +1211,10 @@ func (service *Service) GetDaoProposal(_ *http.Request, args *GetDaoProposalArgs
 	if err == nil {
 		reply.ProposalTx = proposal.DaoProposalTx()
 		reply.ProposalTx.InitCtx(service.vm.ctx)
-		reply.Votes = make([]*UnsignedDaoVoteTx, len(proposal.Votes()))
+		reply.Votes = make([]*UnsignedDaoAddVoteTx, len(proposal.Votes()))
 		for idx, vote := range proposal.Votes() {
 			vote.InitCtx(service.vm.ctx)
-			reply.Votes[idx] = vote.UnsignedTx.(*UnsignedDaoVoteTx)
+			reply.Votes[idx] = vote.UnsignedTx.(*UnsignedDaoAddVoteTx)
 		}
 	}
 	reply.Status = proposalCache.GetProposalState(args.DaoProposalID).String()
@@ -2331,9 +2403,9 @@ func (service *Service) getOutHelper(tx *Tx, addrs ids.ShortSet) (uint64, int, [
 	case *UnsignedAddDelegatorTx:
 		outs = tx.Stake
 		outIndex = 1
-	case *UnsignedDaoSubmitProposalTx:
-		outs = tx.Locks
-		outIndex = 2
+	// case *UnsignedDaoSubmitProposalTx:
+	// 	outs = tx.Locks
+	// 	outIndex = 2
 	case *UnsignedAddSubnetValidatorTx:
 		return 0, -1, nil, nil
 	default:

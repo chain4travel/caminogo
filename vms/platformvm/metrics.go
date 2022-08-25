@@ -51,8 +51,9 @@ type metrics struct {
 	numExportTxs,
 	numImportTxs,
 	numRewardValidatorTxs,
-	numDaoProposalTxs,
-	numDaoVoteTxs prometheus.Counter
+	numDaoSubmitProposalTxs,
+	numDaoConcludeProposalTxs,
+	numDaoAddVoteTxs prometheus.Counter
 
 	validatorSetsCached     prometheus.Counter
 	validatorSetsCreated    prometheus.Counter
@@ -134,8 +135,9 @@ func (m *metrics) Initialize(
 	m.numExportTxs = newTxMetrics(namespace, "export")
 	m.numImportTxs = newTxMetrics(namespace, "import")
 	m.numRewardValidatorTxs = newTxMetrics(namespace, "reward_validator")
-	m.numDaoProposalTxs = newTxMetrics(namespace, "add_dao_proposal")
-	m.numDaoVoteTxs = newTxMetrics(namespace, "add_dao_vote")
+	m.numDaoSubmitProposalTxs = newTxMetrics(namespace, "submit_dao_proposal")
+	m.numDaoConcludeProposalTxs = newTxMetrics(namespace, "conclude_dao_proposal")
+	m.numDaoAddVoteTxs = newTxMetrics(namespace, "add_dao_vote")
 
 	m.validatorSetsCached = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -187,8 +189,9 @@ func (m *metrics) Initialize(
 		registerer.Register(m.numExportTxs),
 		registerer.Register(m.numImportTxs),
 		registerer.Register(m.numRewardValidatorTxs),
-		registerer.Register(m.numDaoProposalTxs),
-		registerer.Register(m.numDaoVoteTxs),
+		registerer.Register(m.numDaoSubmitProposalTxs),
+		registerer.Register(m.numDaoConcludeProposalTxs),
+		registerer.Register(m.numDaoAddVoteTxs),
 
 		registerer.Register(m.validatorSetsCreated),
 		registerer.Register(m.validatorSetsCached),
@@ -250,9 +253,11 @@ func (m *metrics) AcceptTx(tx *Tx) error {
 	case *UnsignedRewardValidatorTx:
 		m.numRewardValidatorTxs.Inc()
 	case *UnsignedDaoSubmitProposalTx:
-		m.numDaoProposalTxs.Inc()
-	case *UnsignedDaoVoteTx:
-		m.numDaoVoteTxs.Inc()
+		m.numDaoSubmitProposalTxs.Inc()
+	case *UnsignedDaoConcludeProposalTx:
+		m.numDaoConcludeProposalTxs.Inc()
+	case *UnsignedDaoAddVoteTx:
+		m.numDaoAddVoteTxs.Inc()
 	default:
 		return fmt.Errorf("%w: %T", errUnknownTxType, tx.UnsignedTx)
 	}
