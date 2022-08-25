@@ -27,6 +27,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/timer"
 	"github.com/chain4travel/caminogo/utils/timer/mockable"
 	"github.com/chain4travel/caminogo/utils/units"
+	"github.com/chain4travel/caminogo/vms/platformvm/dao"
 )
 
 const (
@@ -128,13 +129,13 @@ func (m *blockBuilder) AddUnverifiedTx(tx *Tx) error {
 
 	// TODO also check if the tx is a votable tx and requires a valid proposal
 
-	/*
-		votableTx, ok := tx.UnsingedTx.(UnsingedVoteableTx)
-		if ok && votableTx.RequiresAcceptedProposal() {
-			return fmt.Errorf("votableTx cannot be executed outside of a ConcludeProposalTx")
-		}
+	//*
+	_, ok = tx.UnsignedTx.(*UnsignedDaoConcludeProposalTx)
+	if ok {
+		return fmt.Errorf("votableTx cannot be executed outside of a ConcludeProposalTx")
+	}
 
-	*/
+	//*/
 
 	if err := m.AddVerifiedTx(tx); err != nil {
 		return err
@@ -204,22 +205,21 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 		return m.vm.newProposalBlock(preferredID, nextHeight, *rewardValidatorTx)
 	}
 
-	// TODO @Jax
-	/*
-		proposalTxID, shouldConclude, err := m.getProposalsToConclude(preferedState)
+	//*
+	proposalTxID, shouldConclude, err := m.getProposalsToConclude(preferredState)
+	if err != nil {
+		return nil, err
+	}
+
+	if shouldConclude {
+		concludeTx, err := m.vm.newConcludeProposalTx(proposalTxID)
 		if err != nil {
 			return nil, err
 		}
+		return m.vm.newProposalBlock(preferredID, nextHeight, *concludeTx)
+	}
 
-		if shouldConcluce {
-			acceptedTx, err := m.vm.getWrappedProposalTx(proposalTxID)
-			if err != nil {
-				return nil, err
-			}
-			return m.vm.newProposalBlock(preferredID, nextHeight, *acceptedTx)
-		}
-
-	*/
+	//*/
 
 	// Try building a proposal block that advances the chain timestamp.
 	nextChainTime, waitTime, err := m.getNextChainTime(preferredState)
@@ -325,6 +325,31 @@ func (m *blockBuilder) Shutdown() {
 	m.vm.ctx.Lock.Unlock()
 	m.timer.Stop()
 	m.vm.ctx.Lock.Lock()
+}
+
+// getStakerToReward return the staker txID to remove from the primary network
+// staking set, if one exists.
+func (m *blockBuilder) getProposalsToConclude(preferredState MutableState) (ids.ID, bool, error) {
+
+	currentChainTimestamp := preferredState.GetTimestamp()
+	if !currentChainTimestamp.Before(mockable.MaxTime) {
+		return ids.Empty, false, errEndOfTime
+	}
+
+	daoProposalChainState := preferredState.DaoProposalChainState()
+	tx, err := daoProposalChainState.GetNextProposal()
+	if err != nil {
+		return ids.Empty, false, err
+	}
+
+	proposal, ok := tx.UnsignedTx.(*UnsignedDaoSubmitProposalTx)
+	if !ok {
+		return ids.Empty, false, fmt.Errorf("expected proposalTx to be UnsingedDaoSumbitProposalTx but got %T", tx.UnsignedTx)
+	}
+
+	shouldConclude := currentChainTimestamp.Equal(proposal.EndTime()) ||
+		daoProposalChainState.GetProposalState(proposal.ID()) == dao.ProposalStateAccepted
+	return tx.ID(), shouldConclude, nil
 }
 
 // getStakerToReward return the staker txID to remove from the primary network
