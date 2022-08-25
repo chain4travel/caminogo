@@ -77,7 +77,6 @@ var (
 	errMissingName                = errors.New("argument 'name' not given")
 	errMissingVMID                = errors.New("argument 'vmID' not given")
 	errMissingBlockchainID        = errors.New("argument 'blockchainID' not given")
-	errInvalidProposalType        = errors.New("unknown proposaltype")
 )
 
 // Service defines the API calls that can be made to the platform chain
@@ -1093,7 +1092,6 @@ func (service *Service) buildAddValidatorTxFromArgs(args *AddValidatorArgs) (*Tx
 	)
 
 	return tx, err
-
 }
 
 // PlaceDaoProposal creates, signs and issues a transaction to place a dao proposal to
@@ -1124,7 +1122,7 @@ func (service *Service) AddDaoProposal(_ *http.Request, args *AddDaoProposalArgs
 
 	proposedTx, err := service.buildAddValidatorTxFromArgs(&args.ValidatorArgs)
 	if err != nil {
-		return fmt.Errorf("Could not build proposedTx: %v", err)
+		return fmt.Errorf("could not build proposedTx: %v", err)
 	}
 
 	proposedUtx, ok := proposedTx.UnsignedTx.(UnsingedVoteableTx)

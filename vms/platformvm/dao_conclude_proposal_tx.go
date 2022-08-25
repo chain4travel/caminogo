@@ -35,7 +35,7 @@ type UnsignedDaoConcludeProposalTx struct {
 		- has it enough yes votes
 		- is it over e.g. is the timestamp after the endtime
 
-	- if timestamp.after(endtime) && votes < threshhold
+	- if timestamp.after(endtime) && votes < threshold
 		- set status to rejected
 	- if votes >= treshold
 		- execute wrapped tx
@@ -53,7 +53,7 @@ type UnsignedDaoConcludeProposalTx struct {
 // [UnsignedDaoConcludeProposalTx]. Also sets the [ctx] to the given [vm.ctx] so that
 // the addresses can be json marshalled into human readable format
 func (tx *UnsignedDaoConcludeProposalTx) InitCtx(ctx *snow.Context) {
-	return //TODO needs investigation
+	// TODO needs investigation
 }
 
 func (tx *UnsignedDaoConcludeProposalTx) InputIDs() ids.Set {
@@ -62,8 +62,7 @@ func (tx *UnsignedDaoConcludeProposalTx) InputIDs() ids.Set {
 
 // SyntacticVerify returns nil if [tx] is valid
 func (tx *UnsignedDaoConcludeProposalTx) SyntacticVerify(ctx *snow.Context) error {
-	switch {
-	case tx == nil:
+	if tx == nil {
 		return errNilTx
 	}
 
@@ -117,7 +116,7 @@ func (tx *UnsignedDaoConcludeProposalTx) Execute(
 
 	var innerOnCommitState, innerOnAbortState VersionedState
 	var innerExecuteErr error
-	var executed bool = false
+	var executed = false
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
@@ -129,7 +128,7 @@ func (tx *UnsignedDaoConcludeProposalTx) Execute(
 		}
 
 		if currentTimestamp.After(proposalTx.StartTime()) && currentTimestamp.Before(proposalTx.EndTime()) && proposalState != dao.ProposalStateAccepted {
-			return nil, nil, fmt.Errorf("proposal \"%s\" has not been accepted yet, but can still be voted on")
+			return nil, nil, fmt.Errorf("proposal \"%s\" has not been accepted yet, but can still be voted on", proposalTxID)
 		}
 
 		if proposalState == dao.ProposalStateConcluded {
@@ -142,12 +141,11 @@ func (tx *UnsignedDaoConcludeProposalTx) Execute(
 		}
 
 		if currentTimestamp.Equal(proposalTx.EndTime()) && proposalState != dao.ProposalStateAccepted {
-			vm.Logger().Info("Proposal \"%s\" did not recieve enough votes to be executed")
+			vm.Logger().Info("Proposal \"%s\" did not receive enough votes to be executed")
 		}
 
 		// maybe equals is a better idea to figure out if we are at the end of the voting period as
 		// advance time should only bring us to this exact moment
-
 	}
 
 	// delete the current proposal from state

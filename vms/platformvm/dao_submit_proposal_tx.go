@@ -33,7 +33,7 @@ type UnsignedDaoSubmitProposalTx struct {
 
 	// ! @jax on the first iteration this will only contain one tx that is executed when the
 	// ! proposal was accepted
-	// Tx to exectue when proposal was accpeted
+	// Tx to exectue when proposal was accepted
 	ProposedTx UnsingedVoteableTx `serialize:"true" json:"proposedTx"` // TODO maybe this should be a generic tx and then be checked at runtime *shrug*
 
 	// Where to send locked tokens when done voting
@@ -78,7 +78,6 @@ func (tx *UnsignedDaoSubmitProposalTx) SyntacticVerify(ctx *snow.Context) error 
 
 // Attempts to verify this transaction with the provided state.
 func (tx *UnsignedDaoSubmitProposalTx) SemanticVerify(vm *VM, parentState MutableState, stx *Tx) error {
-
 	if _, status, err := parentState.GetTx(tx.ProposedTx.ID()); err == nil {
 		return fmt.Errorf("[%s] ProposedTx with id %s was already executed with status %s", tx.ID(), tx.ProposedTx.ID(), status)
 	}
@@ -211,7 +210,6 @@ func (vm *VM) newDaoSubmitProposalTx(
 	endTime uint64, // The time voting ends
 	proposedTx UnsingedVoteableTx, // this is the proposal message, stored in TX Metadata
 ) (*Tx, ids.ID, error) {
-
 	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, vm.DaoConfig.ProposalBondAmount, vm.DaoConfig.ProposalTxFee, changeAddr)
 	if err != nil {
 		return nil, ids.ID{}, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)

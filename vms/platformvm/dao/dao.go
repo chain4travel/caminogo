@@ -11,11 +11,8 @@ import (
 )
 
 var (
-	errInvalidID                               = errors.New("cannot build proposal id")
-	errWeightTooSmall                          = errors.New("lock amount too small")
-	errStartTimeBeforeEndTime                  = errors.New("startTime must be before endTime")
-	errVotingDurrationForAddValidatorIncorrect = errors.New("the voting durration to propose a new validator must be 2 weeks")
-	errNonPositiveThreshold                    = errors.New("the number of votes to accept a proposal must be at least 1")
+	errStartTimeBeforeEndTime = errors.New("startTime must be before endTime")
+	errNonPositiveThreshold   = errors.New("the number of votes to accept a proposal must be at least 1")
 
 	Codec codec.Manager
 )

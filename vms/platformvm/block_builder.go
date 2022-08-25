@@ -135,7 +135,7 @@ func (m *blockBuilder) AddUnverifiedTx(tx *Tx) error {
 		return fmt.Errorf("votableTx cannot be executed outside of a ConcludeProposalTx")
 	}
 
-	//*/
+	// */
 
 	if err := m.AddVerifiedTx(tx); err != nil {
 		return err
@@ -205,7 +205,6 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 		return m.vm.newProposalBlock(preferredID, nextHeight, *rewardValidatorTx)
 	}
 
-	//*
 	proposalTxID, shouldConclude, err := m.getProposalsToConclude(preferredState)
 	if err != nil {
 		return nil, err
@@ -218,8 +217,6 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 		}
 		return m.vm.newProposalBlock(preferredID, nextHeight, *concludeTx)
 	}
-
-	//*/
 
 	// Try building a proposal block that advances the chain timestamp.
 	nextChainTime, waitTime, err := m.getNextChainTime(preferredState)
@@ -330,7 +327,6 @@ func (m *blockBuilder) Shutdown() {
 // getStakerToReward return the staker txID to remove from the primary network
 // staking set, if one exists.
 func (m *blockBuilder) getProposalsToConclude(preferredState MutableState) (ids.ID, bool, error) {
-
 	currentChainTimestamp := preferredState.GetTimestamp()
 	if !currentChainTimestamp.Before(mockable.MaxTime) {
 		return ids.Empty, false, errEndOfTime
