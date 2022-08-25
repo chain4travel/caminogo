@@ -91,8 +91,13 @@ type UnsignedProposalTx interface {
 type UnsingedVoteableTx interface {
 	UnsignedProposalTx
 
+	// This allows a Tx to disallow execution if no proposal allowed its execution
 	RequiresAcceptedProposal() bool
-	VerifyWithProposalContext(parentState MutableState, proposal dao.Proposal) error
+	// Each voteableTx can should be able to decide if with a current state and proposalConfig
+	// if a vote should be allowed to be created e.g. an AddValidatorTx should not be allowed if the theshhold is
+	// lower that have of the current validator set
+	// this also allows for flexibility on future voteableTx that might need to be added
+	VerifyWithProposalContext(parentState MutableState, proposal dao.ProposalConfiguration) error
 }
 
 // UnsignedAtomicTx is an unsigned operation that can be atomically accepted

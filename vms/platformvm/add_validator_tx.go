@@ -271,7 +271,20 @@ func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.StartTime().After(vm.clock.Time())
 }
 
-func (tx *UnsignedAddValidatorTx) VerifyWithProposalContext(proposal dao.Proposal) error {
+func (tx *UnsignedAddValidatorTx) VerifyWithProposalContext(parentState MutableState, proposal dao.ProposalConfiguration) error {
+
+	currentValidators := parentState.CurrentStakerChainState()
+	activeSet, err := currentValidators.ValidatorSet(constants.PrimaryNetworkID)
+	if err != nil {
+		return err
+	}
+
+	absoluteMajority := activeSet.Len()/2 + 1
+
+	if absoluteMajority >= int(proposal.Thresh) {
+		return fmt.Errorf("AddValidatorTx needs at least an absolute majority aproval of currently %d votes", absoluteMajority)
+	}
+
 	return nil
 }
 
