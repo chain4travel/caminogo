@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/stretchr/testify/assert"
 )
 
 type dummyUnsignedTx struct {
@@ -418,6 +420,151 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			} else if err != nil && !test.shouldErr {
 				t.Fatalf("unexpected error: %s", err)
 			}
+		})
+	}
+}
+
+func Test_syntacticVerifyInputIndexes(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	type args struct {
+		inputs       []*avax.TransferableInput
+		inputIndexes []uint8
+		outputs      []*avax.TransferableOutput
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		msg     string
+	}{
+		{
+			name: "Happy path",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint8{0, 0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			wantErr: false,
+			msg:     "happy path",
+		},
+		{
+			name: "Wrong assetId",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: ids.ID{}},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint8{0, 0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 100,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			msg:     "Should have failed because of input and output assetId mismatch",
+		},
+		{
+			name: "Input amount and consumed amount mismatch",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint8{0, 0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 100,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			msg:     "Should have failed because of input amount and consumed amount mismatch",
+		},
+		{
+			name: "Amount overflow",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint8{0, 0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: math.MaxUint64,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			msg:     "Should have failed because of output amount overflow",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := syntacticVerifyInputIndexes(tt.args.inputs, tt.args.inputIndexes, tt.args.outputs)
+			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
 		})
 	}
 }
