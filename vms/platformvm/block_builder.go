@@ -21,6 +21,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow/consensus/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/common"
@@ -335,6 +336,9 @@ func (m *blockBuilder) getProposalsToConclude(preferredState MutableState) (ids.
 	daoProposalChainState := preferredState.DaoProposalChainState()
 	tx, err := daoProposalChainState.GetNextProposal()
 	if err != nil {
+		if err == database.ErrNotFound { // ignore not found errors
+			return ids.Empty, false, nil
+		}
 		return ids.Empty, false, err
 	}
 
