@@ -19,6 +19,7 @@ import (
 
 	"github.com/chain4travel/caminogo/chains"
 	"github.com/chain4travel/caminogo/database/manager"
+	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/snow/uptime"
@@ -46,24 +47,34 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	}
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
-	//?@charalarg don't know why this test is here, it has to do with addValidatorTx not rewardValidatorRx
-	//Case 1: Chain timestamp is wrong
-	//if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
-	//	t.Fatal(err)
-	//} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-	//	t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	//}
+	// Case 1: Chain timestamp is wrong
+	stx, err := vm.newRewardValidatorTx(toRemove.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
+		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
+	}
 
 	// Advance chain timestamp to time that next validator leaves
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
-	//?@charalarg don't know why this test is here, it has to do with addValidatorTx not rewardValidatorRx
 	// Case 2: Wrong validator
-	//if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
-	//	t.Fatal(err)
-	//} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-	//	t.Fatalf("should have failed because validator ID is wrong")
-	//}
+	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
+		t.Fatalf("should have failed because validator ID is wrong")
+	}
 
 	// Case 3: Happy path
 	tx, err := vm.newRewardValidatorTx(toRemove.ID())
@@ -127,24 +138,33 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	}
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
-	//?@charalarg don't know why this test is here, it has to do with addValidatorTx not rewardValidatorRx
-	// Case 1: Chain timestamp is wrong
-	//if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
-	//	t.Fatal(err)
-	//} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-	//	t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	//}
+	stx, err := vm.newRewardValidatorTx(toRemove.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
+		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
+	}
 
 	// Advance chain timestamp to time that next validator leaves
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
-	//?@charalarg don't know why this test is here, it has to do with addValidatorTx not rewardValidatorRx
 	// Case 2: Wrong validator
-	//if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
-	//	t.Fatal(err)
-	//} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-	//	t.Fatalf("should have failed because validator ID is wrong")
-	//}
+	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
+		t.Fatalf("should have failed because validator ID is wrong")
+	}
 
 	// Case 3: Happy path
 	tx, err := vm.newRewardValidatorTx(toRemove.ID())
