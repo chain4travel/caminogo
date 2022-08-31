@@ -15,8 +15,10 @@
 package platformvm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -82,7 +84,7 @@ func (vm *VM) spend(
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // nonTransitionedOutputs
 	[]*avax.TransferableOutput, // transitionedOutputs
-	[]uint8, // lockedOutInIndexes
+	[]uint32, // lockedOutInIndexes
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
@@ -110,8 +112,8 @@ func (vm *VM) spend(
 	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	notLockedOutInIndexes := []uint8{}
-	lockedOutInIndexes := []uint8{}
+	notLockedOutInputIndexes := []uint32{}
+	lockedOutInputIndexes := []uint32{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -172,7 +174,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint8(len(ins) - 1) // TODO@ uint8 cast safe ?
+		inputIndex := uint32(len(ins) - 1)
 
 		// Add the output to the transitioned outputs
 		lockedOuts = append(lockedOuts, &avax.TransferableOutput{
@@ -182,7 +184,7 @@ func (vm *VM) spend(
 				OutputOwners: innerOut.OutputOwners,
 			},
 		})
-		lockedOutInIndexes = append(lockedOutInIndexes, inputIndex)
+		lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
 
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
@@ -194,7 +196,7 @@ func (vm *VM) spend(
 					OutputOwners: innerOut.OutputOwners,
 				},
 			})
-			notLockedOutInIndexes = append(notLockedOutInIndexes, inputIndex)
+			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -260,7 +262,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint8(len(ins) - 1) // TODO@ uint8 cast safe ?
+		inputIndex := uint32(len(ins) - 1)
 
 		if amountToSpend > 0 {
 			// Some of this input was put for spending
@@ -271,11 +273,16 @@ func (vm *VM) spend(
 					OutputOwners: secp256k1fx.OutputOwners{
 						Locktime:  0,
 						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
+						// ! @evlekht this violates no-transfer rule of p-chain
+						// ! cause it basicly transfer part of the funds to change address
+						// ! And what about inital owners? We have asset owned by 5 keys,
+						// ! 10% of it spended for bonding (staking) or depositng
+						// ! and then it suddenly owned by another key ??
+						Addrs: []ids.ShortID{changeAddr},
 					},
 				},
 			})
-			lockedOutInIndexes = append(lockedOutInIndexes, inputIndex)
+			lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
 		}
 
 		if remainingValue > 0 {
@@ -287,11 +294,16 @@ func (vm *VM) spend(
 					OutputOwners: secp256k1fx.OutputOwners{
 						Locktime:  0,
 						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
+						// ! @evlekht this violates no-transfer rule of p-chain
+						// ! cause it basicly transfer part of the funds to change address
+						// ! And what about inital owners? We have asset owned by 5 people,
+						// ! 10% of it spended and the rest is returned as change
+						// ! to just one address ??
+						Addrs: []ids.ShortID{changeAddr},
 					},
 				},
 			})
-			notLockedOutInIndexes = append(notLockedOutInIndexes, inputIndex)
+			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -304,15 +316,42 @@ func (vm *VM) spend(
 			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
 	}
 
-	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
-	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
+	inputIndexes := make([]uint32, len(notLockedOutInputIndexes)+len(lockedOutInputIndexes))
+	copy(inputIndexes, notLockedOutInputIndexes)
+	copy(inputIndexes[len(notLockedOutInputIndexes):], lockedOutInputIndexes)
 
-	outInIndexes := make([]uint8, len(notLockedOutInIndexes)+len(lockedOutInIndexes))
-	copy(outInIndexes, lockedOutInIndexes)
-	copy(outInIndexes[len(notLockedOutInIndexes):], lockedOutInIndexes)
+	// * @evlekht I'm not happy with this duplication of sort logic, but here it is
+	sort.Sort(&innerSortInputs{ins: ins, signers: signers, indexes: inputIndexes}) // sort inputs, keys and input indexes
+	avax.SortTransferableOutputs(notLockedOuts, Codec)                             // sort outputs
+	avax.SortTransferableOutputs(lockedOuts, Codec)                                // sort outputs
 
-	return ins, notLockedOuts, lockedOuts, outInIndexes, signers, nil
+	return ins, notLockedOuts, lockedOuts, inputIndexes, signers, nil
+}
+
+type innerSortInputs struct {
+	ins     []*avax.TransferableInput
+	signers [][]*crypto.PrivateKeySECP256K1R
+	indexes []uint32
+}
+
+func (ins *innerSortInputs) Less(i, j int) bool {
+	iID, iIndex := ins.ins[i].InputSource()
+	jID, jIndex := ins.ins[j].InputSource()
+
+	switch bytes.Compare(iID[:], jID[:]) {
+	case -1:
+		return true
+	case 0:
+		return iIndex < jIndex
+	default:
+		return false
+	}
+}
+func (ins *innerSortInputs) Len() int { return len(ins.ins) }
+func (ins *innerSortInputs) Swap(i, j int) {
+	ins.ins[j], ins.ins[i] = ins.ins[i], ins.ins[j]
+	ins.signers[j], ins.signers[i] = ins.signers[i], ins.signers[j]
+	ins.indexes[j], ins.indexes[i] = ins.indexes[i], ins.indexes[j]
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
@@ -560,10 +599,14 @@ func (vm *VM) semanticVerifySpendUTXOs(
 // Precondition: [tx] has already been syntactically verified
 func syntacticVerifyInputIndexes(
 	inputs []*avax.TransferableInput,
-	inputIndexes []uint8,
+	inputIndexes []uint32,
 	outputs []*avax.TransferableOutput,
 ) error {
-	producedAmount := make(map[uint8]uint64, len(inputs))
+	if len(inputs) > 4_294_967_295 { // max uint32
+		return fmt.Errorf("inputs len is to big")
+	}
+
+	producedAmount := make(map[uint32]uint64, len(inputs))
 
 	for outputIndex, out := range outputs {
 		inputIndex := inputIndexes[outputIndex]
@@ -581,7 +624,7 @@ func syntacticVerifyInputIndexes(
 	}
 
 	for inputIndex, in := range inputs {
-		if in.In.Amount() < producedAmount[uint8(inputIndex)] { // TODO@ uint8 cast safe ?
+		if in.In.Amount() < producedAmount[uint32(inputIndex)] {
 			return fmt.Errorf("input[%d] produces more tokens than it consumes", inputIndex)
 		}
 	}

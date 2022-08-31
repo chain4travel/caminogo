@@ -901,6 +901,7 @@ func (st *internalStateImpl) Close() error {
 		st.subnetBaseDB.Close(),
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
+		st.lockedUTXOsDB.Close(),
 		st.baseDB.Close(),
 	)
 	return errs.Err
