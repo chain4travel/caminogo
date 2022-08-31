@@ -462,6 +462,7 @@ func (st *internalStateImpl) SetCurrentSupply(currentSupply uint64) { st.current
 func (st *internalStateImpl) SetValidatorBondAmount(currentSupply uint64) {
 	st.validatorBondAmount = currentSupply
 }
+
 func (st *internalStateImpl) GetValidatorBondAmount() uint64 {
 	return st.validatorBondAmount
 }
