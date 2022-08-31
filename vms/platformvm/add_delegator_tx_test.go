@@ -477,23 +477,23 @@ func TestAddDelegatorTxOverDelegatedRegression(t *testing.T) {
 func TestAddDelegatorTxHeapCorruption(t *testing.T) {
 	validatorStartTime := defaultGenesisTime.Add(syncBound).Add(1 * time.Second)
 	validatorEndTime := validatorStartTime.Add(360 * 24 * time.Hour)
-	validatorStake := defaultMaxValidatorStake / 5
+	validatorStake := defaultValidatorStake / 5
 
 	delegator1StartTime := validatorStartTime
 	delegator1EndTime := delegator1StartTime.Add(3 * defaultMinStakingDuration)
-	delegator1Stake := defaultMinValidatorStake
+	delegator1Stake := defaultValidatorStake
 
 	delegator2StartTime := validatorStartTime.Add(1 * defaultMinStakingDuration)
 	delegator2EndTime := delegator1StartTime.Add(6 * defaultMinStakingDuration)
-	delegator2Stake := defaultMinValidatorStake
+	delegator2Stake := defaultValidatorStake
 
 	delegator3StartTime := validatorStartTime.Add(2 * defaultMinStakingDuration)
 	delegator3EndTime := delegator1StartTime.Add(4 * defaultMinStakingDuration)
-	delegator3Stake := defaultMaxValidatorStake - validatorStake - 2*defaultMinValidatorStake
+	delegator3Stake := defaultValidatorStake - validatorStake - 2*defaultValidatorStake
 
 	delegator4StartTime := validatorStartTime.Add(5 * defaultMinStakingDuration)
 	delegator4EndTime := delegator1StartTime.Add(7 * defaultMinStakingDuration)
-	delegator4Stake := defaultMaxValidatorStake - validatorStake - defaultMinValidatorStake
+	delegator4Stake := defaultValidatorStake - validatorStake - defaultValidatorStake
 
 	tests := []struct {
 		name       string

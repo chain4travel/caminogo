@@ -70,7 +70,6 @@ var (
 	errStakingDisableOnPublicNetwork = errors.New("staking disabled on public network")
 	errAuthPasswordTooWeak           = errors.New("API auth password is not strong enough")
 	errInvalidUptimeRequirement      = errors.New("uptime requirement must be in the range [0, 1]")
-	errMinValidatorStakeAboveMax     = errors.New("minimum validator stake can't be greater than maximum validator stake")
 	errInvalidDelegationFee          = errors.New("delegation fee must be in the range [0, 1,000,000]")
 	errInvalidMinStakeDuration       = errors.New("min stake duration must be > 0")
 	errMinStakeDurationAboveMax      = errors.New("max stake duration can't be less than min stake duration")

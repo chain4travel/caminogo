@@ -95,12 +95,11 @@ var (
 	// each key controls an address that has [defaultBalance] AVAX at genesis
 	keys []*crypto.PrivateKeySECP256K1R
 
-	defaultMinValidatorStake = 5 * units.MilliAvax
-	defaultMaxValidatorStake = 500 * units.MilliAvax
+	defaultValidatorStake    = 5 * units.MilliAvax
 	defaultMinDelegatorStake = 1 * units.MilliAvax
 
 	// amount all genesis validators have in defaultVM
-	defaultBalance = 100 * defaultMinValidatorStake
+	defaultBalance = 100 * defaultValidatorStake
 
 	// subnet that exists at genesis in defaultVM
 	// Its controlKeys are keys[0], keys[1], keys[2]
@@ -228,14 +227,15 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 	}
 
 	buildGenesisArgs := BuildGenesisArgs{
-		Encoding:      formatting.Hex,
-		NetworkID:     json.Uint32(testNetworkID),
-		AvaxAssetID:   avaxAssetID,
-		UTXOs:         genesisUTXOs,
-		Validators:    genesisValidators,
-		Chains:        nil,
-		Time:          json.Uint64(defaultGenesisTime.Unix()),
-		InitialSupply: json.Uint64(360 * units.MegaAvax),
+		Encoding:            formatting.Hex,
+		NetworkID:           json.Uint32(testNetworkID),
+		AvaxAssetID:         avaxAssetID,
+		UTXOs:               genesisUTXOs,
+		Validators:          genesisValidators,
+		Chains:              nil,
+		Time:                json.Uint64(defaultGenesisTime.Unix()),
+		InitialSupply:       json.Uint64(360 * units.MegaAvax),
+		ValidatorBondAmount: json.Uint64(defaultValidatorStake),
 	}
 
 	buildGenesisResponse := BuildGenesisReply{}
