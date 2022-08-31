@@ -472,6 +472,112 @@ func TestGetBalance(t *testing.T) {
 	}
 }
 
+func TestService_GetBalance(t *testing.T) {
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	response := &GetBalanceResponse{
+		Balance:            0,
+		Unlocked:           0,
+		Deposited:          0,
+		Bonded:             0,
+		DepositedAndBonded: 0,
+		UTXOIDs:            nil,
+	}
+
+	tests := []struct {
+		name          string
+		GenerateState func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string)
+		wantErr       bool
+		msg           string
+	}{
+		{
+			name: "Happy path",
+			GenerateState: func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string) {
+				key, _ := service.vm.factory.NewPrivateKey()
+				testKey := key.PublicKey().Address()
+				localAddr, _ := service.vm.FormatLocalAddress(testKey)
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 10,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 20,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{
+						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+					},
+					deposits: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
+						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+					},
+					//updatedUTXOs: map[ids.ID]utxoLockState{
+					//	utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
+					//	utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+					//},
+				}
+				return utxos, lockedUTXOsState, localAddr
+			},
+			wantErr: false,
+			msg:     "Happy path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			utxos, lockedUTXOsState, localAddr := tt.GenerateState()
+			requestArgs := &GetBalanceRequest{
+				Addresses: []string{localAddr},
+			}
+			for _, utxo := range utxos {
+				tempUtxo := &utxo
+				service.vm.internalState.AddUTXO(tempUtxo)
+			}
+			service.vm.internalState.SetLockedUTXOsChainState(lockedUTXOsState)
+			err := service.vm.internalState.Commit()
+			assert.NoError(t, err)
+			err = service.GetBalance(nil, requestArgs, response)
+			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
+		})
+	}
+}
+
 // Test method GetStake
 func TestGetStake(t *testing.T) {
 	assert := assert.New(t)
