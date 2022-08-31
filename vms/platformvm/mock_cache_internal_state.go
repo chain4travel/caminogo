@@ -403,6 +403,20 @@ func (mr *MockInternalStateMockRecorder) GetUptime(nodeID interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUptime", reflect.TypeOf((*MockInternalState)(nil).GetUptime), nodeID)
 }
 
+// GetValidatorBondAmount mocks base method.
+func (m *MockInternalState) GetValidatorBondAmount() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetValidatorBondAmount")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetValidatorBondAmount indicates an expected call of GetValidatorBondAmount.
+func (mr *MockInternalStateMockRecorder) GetValidatorBondAmount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidatorBondAmount", reflect.TypeOf((*MockInternalState)(nil).GetValidatorBondAmount))
+}
+
 // GetValidatorWeightDiffs mocks base method.
 func (m *MockInternalState) GetValidatorWeightDiffs(height uint64, subnetID ids.ID) (map[ids.ShortID]*ValidatorWeightDiff, error) {
 	m.ctrl.T.Helper()
@@ -516,6 +530,18 @@ func (m *MockInternalState) SetUptime(nodeID ids.ShortID, upDuration time.Durati
 func (mr *MockInternalStateMockRecorder) SetUptime(nodeID, upDuration, lastUpdated interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUptime", reflect.TypeOf((*MockInternalState)(nil).SetUptime), nodeID, upDuration, lastUpdated)
+}
+
+// SetValidatorBondAmount mocks base method.
+func (m *MockInternalState) SetValidatorBondAmount(currentSupply uint64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetValidatorBondAmount", currentSupply)
+}
+
+// SetValidatorBondAmount indicates an expected call of SetValidatorBondAmount.
+func (mr *MockInternalStateMockRecorder) SetValidatorBondAmount(currentSupply interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValidatorBondAmount", reflect.TypeOf((*MockInternalState)(nil).SetValidatorBondAmount), currentSupply)
 }
 
 // UTXOIDs mocks base method.

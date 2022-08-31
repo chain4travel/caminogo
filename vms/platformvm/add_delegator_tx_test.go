@@ -102,7 +102,6 @@ func TestAddDelegatorTxExecute(t *testing.T) {
 	// pending validator set with the minimum staking amount
 	addMinStakeValidator := func(vm *VM) {
 		tx, err := vm.newAddValidatorTx(
-			vm.MinValidatorStake,                    // stake amount
 			newValidatorStartTime,                   // start time
 			newValidatorEndTime,                     // end time
 			newValidatorID,                          // node ID
@@ -129,7 +128,6 @@ func TestAddDelegatorTxExecute(t *testing.T) {
 	// pending validator set with the maximum staking amount
 	addMaxStakeValidator := func(vm *VM) {
 		tx, err := vm.newAddValidatorTx(
-			vm.MaxValidatorStake,                    // stake amount
 			newValidatorStartTime,                   // start time
 			newValidatorEndTime,                     // end time
 			newValidatorID,                          // node ID
@@ -373,7 +371,6 @@ func TestAddDelegatorTxOverDelegatedRegression(t *testing.T) {
 
 	// create valid tx
 	addValidatorTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(validatorStartTime.Unix()),
 		uint64(validatorEndTime.Unix()),
 		id,
@@ -405,7 +402,7 @@ func TestAddDelegatorTxOverDelegatedRegression(t *testing.T) {
 
 	// create valid tx
 	addFirstDelegatorTx, err := vm.newAddDelegatorTx(
-		4*vm.MinValidatorStake, // maximum amount of stake this delegator can provide
+		4*vm.internalState.GetValidatorBondAmount(), // maximum amount of stake this delegator can provide
 		uint64(firstDelegatorStartTime.Unix()),
 		uint64(firstDelegatorEndTime.Unix()),
 		id,
@@ -538,7 +535,6 @@ func TestAddDelegatorTxHeapCorruption(t *testing.T) {
 
 			// create valid tx
 			addValidatorTx, err := vm.newAddValidatorTx(
-				validatorStake,
 				uint64(validatorStartTime.Unix()),
 				uint64(validatorEndTime.Unix()),
 				id,

@@ -200,7 +200,6 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 	DSEndTime := DSStartTime.Add(5 * defaultMinStakingDuration)
 
 	addDSTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,                    // stake amount
 		uint64(DSStartTime.Unix()),              // start time
 		uint64(DSEndTime.Unix()),                // end time
 		pendingDSValidatorID,                    // node ID

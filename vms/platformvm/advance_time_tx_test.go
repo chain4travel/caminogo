@@ -564,7 +564,7 @@ func TestAdvanceTimeTxDelegatorStakerWeight(t *testing.T) {
 	primarySet, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
 	assert.True(t, ok)
 	vdrWeight, _ := primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinValidatorStake, vdrWeight)
+	assert.Equal(t, vm.internalState.GetValidatorBondAmount(), vdrWeight)
 
 	// Add delegator
 	pendingDelegatorStartTime := pendingValidatorStartTime.Add(1 * time.Second)
@@ -594,7 +594,7 @@ func TestAdvanceTimeTxDelegatorStakerWeight(t *testing.T) {
 
 	// Test validator weight after delegation
 	vdrWeight, _ = primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinDelegatorStake+vm.MinValidatorStake, vdrWeight)
+	assert.Equal(t, vm.MinDelegatorStake+vm.internalState.GetValidatorBondAmount(), vdrWeight)
 }
 
 func TestAdvanceTimeTxDelegatorStakers(t *testing.T) {
@@ -627,7 +627,7 @@ func TestAdvanceTimeTxDelegatorStakers(t *testing.T) {
 	primarySet, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
 	assert.True(t, ok)
 	vdrWeight, _ := primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinValidatorStake, vdrWeight)
+	assert.Equal(t, vm.internalState.GetValidatorBondAmount(), vdrWeight)
 
 	// Add delegator
 	pendingDelegatorStartTime := pendingValidatorStartTime.Add(1 * time.Second)
@@ -657,7 +657,7 @@ func TestAdvanceTimeTxDelegatorStakers(t *testing.T) {
 
 	// Test validator weight after delegation
 	vdrWeight, _ = primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinDelegatorStake+vm.MinValidatorStake, vdrWeight)
+	assert.Equal(t, vm.MinDelegatorStake+vm.internalState.GetValidatorBondAmount(), vdrWeight)
 }
 
 // Test method InitiallyPrefersCommit
@@ -721,7 +721,6 @@ func TestAdvanceTimeTxUnmarshal(t *testing.T) {
 
 func addPendingValidator(vm *VM, startTime time.Time, endTime time.Time, nodeID ids.ShortID, keys []*crypto.PrivateKeySECP256K1R) (*Tx, error) {
 	addPendingValidatorTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,

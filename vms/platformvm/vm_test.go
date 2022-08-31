@@ -339,8 +339,6 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 		TxFee:                  defaultTxFee,
 		CreateSubnetTxFee:      100 * defaultTxFee,
 		CreateBlockchainTxFee:  100 * defaultTxFee,
-		MinValidatorStake:      defaultMinValidatorStake,
-		MaxValidatorStake:      defaultMaxValidatorStake,
 		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
@@ -417,8 +415,6 @@ func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan commo
 		Validators:             validators.NewManager(),
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 		TxFee:                  defaultTxFee,
-		MinValidatorStake:      defaultMinValidatorStake,
-		MaxValidatorStake:      defaultMaxValidatorStake,
 		MinDelegatorStake:      defaultMinDelegatorStake,
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
@@ -583,7 +579,6 @@ func TestAddValidatorCommit(t *testing.T) {
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
@@ -660,7 +655,6 @@ func TestInvalidAddValidatorCommit(t *testing.T) {
 
 	// create invalid tx
 	tx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
@@ -716,7 +710,6 @@ func TestAddValidatorReject(t *testing.T) {
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
@@ -792,7 +785,6 @@ func TestAddValidatorInvalidNotReissued(t *testing.T) {
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		repeatNodeID,
@@ -2519,7 +2511,6 @@ func TestRejectedStateRegressionInvalidValidatorTimestamp(t *testing.T) {
 
 	// Create the tx to add a new validator
 	addValidatorTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,
 		uint64(newValidatorStartTime.Unix()),
 		uint64(newValidatorEndTime.Unix()),
 		nodeID,
@@ -2746,7 +2737,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 
 	// Create the tx to add the first new validator
 	addValidatorTx0, err := vm.newAddValidatorTx(
-		vm.MaxValidatorStake,
 		uint64(newValidatorStartTime0.Unix()),
 		uint64(newValidatorEndTime0.Unix()),
 		nodeID0,
@@ -2933,7 +2923,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 
 	// Create the tx to add the second new validator
 	addValidatorTx1, err := vm.newAddValidatorTx(
-		vm.MaxValidatorStake,
 		uint64(newValidatorStartTime1.Unix()),
 		uint64(newValidatorEndTime1.Unix()),
 		nodeID1,

@@ -214,7 +214,6 @@ func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
 	vdrNodeID := ids.GenerateTestShortID()
 	vdrTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake, // stakeAmt
 		vdrStartTime,
 		vdrEndTime,
 		vdrNodeID,        // node ID
@@ -252,7 +251,7 @@ func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
 	assert.True(ok)
 	stake, ok := set.GetWeight(vdrNodeID)
 	assert.True(ok)
-	assert.Equal(vm.MinValidatorStake+vm.MinDelegatorStake, stake)
+	assert.Equal(vm.internalState.GetValidatorBondAmount()+vm.MinDelegatorStake, stake)
 
 	tx, err := vm.newRewardValidatorTx(delTx.ID())
 	assert.NoError(err)
@@ -295,7 +294,7 @@ func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
 
 	stake, ok = set.GetWeight(vdrNodeID)
 	assert.True(ok)
-	assert.Equal(vm.MinValidatorStake, stake)
+	assert.Equal(vm.internalState.GetValidatorBondAmount(), stake)
 }
 
 func TestRewardDelegatorTxExecuteOnAbort(t *testing.T) {
@@ -319,7 +318,6 @@ func TestRewardDelegatorTxExecuteOnAbort(t *testing.T) {
 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
 	vdrNodeID := ids.GenerateTestShortID()
 	vdrTx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake, // stakeAmt
 		vdrStartTime,
 		vdrEndTime,
 		vdrNodeID,        // node ID
