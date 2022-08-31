@@ -56,6 +56,9 @@ type MutableState interface {
 	GetCurrentSupply() uint64
 	SetCurrentSupply(uint64)
 
+	SetValidatorBondAmount(currentSupply uint64)
+	GetValidatorBondAmount() uint64
+
 	GetSubnets() ([]*Tx, error)
 	AddSubnet(createSubnetTx *Tx)
 
@@ -81,7 +84,8 @@ type versionedStateImpl struct {
 
 	timestamp time.Time
 
-	currentSupply uint64
+	currentSupply       uint64
+	validatorBondAmount uint64
 
 	addedSubnets  []*Tx
 	cachedSubnets []*Tx
@@ -120,6 +124,7 @@ func newVersionedState(
 		pendingStakerChainState: pending,
 		timestamp:               ps.GetTimestamp(),
 		currentSupply:           ps.GetCurrentSupply(),
+		validatorBondAmount:     ps.GetValidatorBondAmount(),
 	}
 }
 
@@ -137,6 +142,14 @@ func (vs *versionedStateImpl) GetCurrentSupply() uint64 {
 
 func (vs *versionedStateImpl) SetCurrentSupply(currentSupply uint64) {
 	vs.currentSupply = currentSupply
+}
+
+func (vs *versionedStateImpl) GetValidatorBondAmount() uint64 {
+	return vs.validatorBondAmount
+}
+
+func (vs *versionedStateImpl) SetValidatorBondAmount(currentSupply uint64) {
+	vs.validatorBondAmount = currentSupply
 }
 
 func (vs *versionedStateImpl) GetSubnets() ([]*Tx, error) {
@@ -311,6 +324,7 @@ func (vs *versionedStateImpl) SetBase(parentState MutableState) {
 func (vs *versionedStateImpl) Apply(is InternalState) {
 	is.SetTimestamp(vs.timestamp)
 	is.SetCurrentSupply(vs.currentSupply)
+	is.SetValidatorBondAmount(vs.validatorBondAmount)
 	for _, subnet := range vs.addedSubnets {
 		is.AddSubnet(subnet)
 	}

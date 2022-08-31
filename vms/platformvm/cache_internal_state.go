@@ -55,10 +55,11 @@ var (
 	chainPrefix           = []byte("chain")
 	singletonPrefix       = []byte("singleton")
 
-	timestampKey     = []byte("timestamp")
-	currentSupplyKey = []byte("current supply")
-	lastAcceptedKey  = []byte("last accepted")
-	initializedKey   = []byte("initialized")
+	timestampKey           = []byte("timestamp")
+	currentSupplyKey       = []byte("current supply")
+	lastAcceptedKey        = []byte("last accepted")
+	validatorBondAmountKey = []byte("validatorBondAmount")
+	initializedKey         = []byte("initialized")
 
 	errWrongNetworkID = errors.New("tx has wrong network ID")
 
@@ -158,7 +159,8 @@ type InternalState interface {
  *   |-- initializedKey -> nil
  *   |-- timestampKey -> timestamp
  *   |-- currentSupplyKey -> currentSupply
- *   '-- lastAcceptedKey -> lastAccepted
+ *   |-- lastAcceptedKey -> lastAccepted
+ *   '-- validatorBondAmountKey -> validatorBondAmount
  */
 type internalStateImpl struct {
 	vm *VM
@@ -221,10 +223,11 @@ type internalStateImpl struct {
 	chainDBCache cache.Cacher     // cache of subnetID -> linkedDB
 	chainDB      database.Database
 
-	originalTimestamp, timestamp         time.Time
-	originalCurrentSupply, currentSupply uint64
-	originalLastAccepted, lastAccepted   ids.ID
-	singletonDB                          database.Database
+	originalTimestamp, timestamp                     time.Time
+	originalCurrentSupply, currentSupply             uint64
+	originalValidatorBondAmount, validatorBondAmount uint64
+	originalLastAccepted, lastAccepted               ids.ID
+	singletonDB                                      database.Database
 }
 
 type ValidatorWeightDiff struct {
@@ -455,6 +458,13 @@ func (st *internalStateImpl) SetTimestamp(timestamp time.Time) { st.timestamp = 
 
 func (st *internalStateImpl) GetCurrentSupply() uint64              { return st.currentSupply }
 func (st *internalStateImpl) SetCurrentSupply(currentSupply uint64) { st.currentSupply = currentSupply }
+
+func (st *internalStateImpl) SetValidatorBondAmount(currentSupply uint64) {
+	st.validatorBondAmount = currentSupply
+}
+func (st *internalStateImpl) GetValidatorBondAmount() uint64 {
+	return st.validatorBondAmount
+}
 
 func (st *internalStateImpl) GetLastAccepted() ids.ID             { return st.lastAccepted }
 func (st *internalStateImpl) SetLastAccepted(lastAccepted ids.ID) { st.lastAccepted = lastAccepted }
@@ -1258,6 +1268,16 @@ func (st *internalStateImpl) writeSingletons() error {
 		}
 		st.originalLastAccepted = st.lastAccepted
 	}
+	if st.originalValidatorBondAmount != st.validatorBondAmount {
+		if err := database.PutUInt64(
+			st.singletonDB,
+			validatorBondAmountKey,
+			st.validatorBondAmount,
+		); err != nil {
+			return err
+		}
+		st.originalValidatorBondAmount = st.validatorBondAmount
+	}
 	return nil
 }
 
@@ -1292,6 +1312,13 @@ func (st *internalStateImpl) loadSingletons() error {
 	}
 	st.originalLastAccepted = lastAccepted
 	st.lastAccepted = lastAccepted
+
+	validatorBondAmount, err := database.GetUInt64(st.singletonDB, validatorBondAmountKey)
+	if err != nil {
+		return err
+	}
+	st.originalValidatorBondAmount = validatorBondAmount
+	st.validatorBondAmount = validatorBondAmount
 
 	return nil
 }
@@ -1559,6 +1586,7 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 	genesisTime := time.Unix(int64(genesis.Timestamp), 0)
 	st.SetTimestamp(genesisTime)
 	st.SetCurrentSupply(genesis.InitialSupply)
+	st.SetValidatorBondAmount(genesis.ValidatorBondAmount)
 
 	// Persist primary network validator set at genesis
 	for _, vdrTx := range genesis.Validators {

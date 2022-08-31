@@ -662,8 +662,6 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 	}
 	if !constants.IsActiveNetwork(networkID) {
 		config.UptimeRequirement = v.GetFloat64(UptimeRequirementKey)
-		config.MinValidatorStake = v.GetUint64(MinValidatorStakeKey)
-		config.MaxValidatorStake = v.GetUint64(MaxValidatorStakeKey)
 		config.MinDelegatorStake = v.GetUint64(MinDelegatorStakeKey)
 		config.MinStakeDuration = v.GetDuration(MinStakeDurationKey)
 		config.MaxStakeDuration = v.GetDuration(MaxStakeDurationKey)
@@ -675,8 +673,6 @@ func getStakingConfig(v *viper.Viper, networkID uint32) (node.StakingConfig, err
 		switch {
 		case config.UptimeRequirement < 0 || config.UptimeRequirement > 1:
 			return node.StakingConfig{}, errInvalidUptimeRequirement
-		case config.MinValidatorStake > config.MaxValidatorStake:
-			return node.StakingConfig{}, errMinValidatorStakeAboveMax
 		case config.MinDelegationFee > 1_000_000:
 			return node.StakingConfig{}, errInvalidDelegationFee
 		case config.MinStakeDuration <= 0:

@@ -240,7 +240,7 @@ func (tx *UnsignedAddDelegatorTx) Execute(
 		}
 
 		if !currentTimestamp.Before(vm.ApricotPhase3Time) {
-			maximumWeight = math.Min64(maximumWeight, vm.MaxValidatorStake)
+			maximumWeight = math.Min64(maximumWeight, parentState.GetValidatorBondAmount())
 		}
 
 		canDelegate, err := CanDelegate(

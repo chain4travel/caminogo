@@ -106,6 +106,8 @@ type UnparsedConfig struct {
 	InitialStakedFunds         []string         `json:"initialStakedFunds"`
 	InitialStakers             []UnparsedStaker `json:"initialStakers"`
 
+	ValidatorBondAmount uint64 `json:"validatorBondAmount"`
+
 	CChainGenesis string `json:"cChainGenesis"`
 
 	Message string `json:"message"`
@@ -120,6 +122,7 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		InitialStakeDurationOffset: uc.InitialStakeDurationOffset,
 		InitialStakedFunds:         make([]ids.ShortID, len(uc.InitialStakedFunds)),
 		InitialStakers:             make([]Staker, len(uc.InitialStakers)),
+		ValidatorBondAmount:        uc.ValidatorBondAmount,
 		CChainGenesis:              uc.CChainGenesis,
 		Message:                    uc.Message,
 	}

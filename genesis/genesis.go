@@ -337,12 +337,13 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 
 	// Specify the initial state of the Platform Chain
 	platformvmArgs := platformvm.BuildGenesisArgs{
-		AvaxAssetID:   avaxAssetID,
-		NetworkID:     json.Uint32(config.NetworkID),
-		Time:          json.Uint64(config.StartTime),
-		InitialSupply: json.Uint64(initialSupply),
-		Message:       config.Message,
-		Encoding:      defaultEncoding,
+		AvaxAssetID:         avaxAssetID,
+		NetworkID:           json.Uint32(config.NetworkID),
+		Time:                json.Uint64(config.StartTime),
+		InitialSupply:       json.Uint64(initialSupply),
+		Message:             config.Message,
+		Encoding:            defaultEncoding,
+		ValidatorBondAmount: json.Uint64(config.ValidatorBondAmount),
 	}
 	for _, allocation := range config.Allocations {
 		if initiallyStaked.Contains(allocation.AVAXAddr) {
