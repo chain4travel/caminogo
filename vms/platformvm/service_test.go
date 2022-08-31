@@ -454,8 +454,8 @@ func TestGetBalance(t *testing.T) {
 		if err := service.GetBalance(nil, &request, &reply); err != nil {
 			t.Fatal(err)
 		}
-		if reply.Balance != cjson.Uint64(defaultBalance) {
-			t.Fatalf("Wrong balance. Expected %d ; Returned %d", defaultBalance, reply.Balance)
+		if reply.Unlocked != cjson.Uint64(defaultBalance) {
+			t.Fatalf("Wrong balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
 		}
 		if reply.Unlocked != cjson.Uint64(defaultBalance) {
 			t.Fatalf("Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
@@ -463,8 +463,8 @@ func TestGetBalance(t *testing.T) {
 		if reply.Deposited != 0 {
 			t.Fatalf("Wrong deposited balance. Expected %d ; Returned %d", 0, reply.Deposited)
 		}
-		if reply.Bonded != 0 {
-			t.Fatalf("Wrong bonded balance. Expected %d ; Returned %d", 0, reply.Bonded)
+		if reply.Bonded != defaultWeight {
+			t.Fatalf("Wrong bonded balance. Expected %d ; Returned %d", defaultWeight, reply.Bonded)
 		}
 		if reply.DepositedAndBonded != 0 {
 			t.Fatalf("Wrong deposited & bonded balance. Expected %d ; Returned %d", 0, reply.DepositedAndBonded)
