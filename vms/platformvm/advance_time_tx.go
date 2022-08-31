@@ -116,7 +116,6 @@ func (tx *UnsignedAdvanceTimeTx) Execute(
 
 	pendingStakers := parentState.PendingStakerChainState()
 	toAddValidatorsWithRewardToCurrent := []*validatorReward(nil)
-	toAddDelegatorsWithRewardToCurrent := []*validatorReward(nil)
 	toAddWithoutRewardToCurrent := []*Tx(nil)
 	numToRemoveFromPending := 0
 
@@ -186,7 +185,6 @@ currentStakerLoop:
 	}
 	newlyCurrentStakers, err := currentStakers.UpdateStakers(
 		toAddValidatorsWithRewardToCurrent,
-		toAddDelegatorsWithRewardToCurrent,
 		toAddWithoutRewardToCurrent,
 		numToRemoveFromCurrent,
 	)

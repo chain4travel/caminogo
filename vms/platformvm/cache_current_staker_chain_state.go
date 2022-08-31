@@ -25,8 +25,6 @@ import (
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow/validators"
 	"github.com/chain4travel/caminogo/utils/constants"
-
-	safemath "github.com/chain4travel/caminogo/utils/math"
 )
 
 var (
@@ -37,17 +35,14 @@ var (
 
 type currentStakerChainState interface {
 	// The NextStaker value returns the next staker that is going to be removed
-	// using a RewardValidatorTx. Therefore, only AddValidatorTxs and
-	// AddDelegatorTxs will be returned. AddSubnetValidatorTxs are removed using
-	// AdvanceTimestampTxs.
+	// using a RewardValidatorTx. Therefore, only AddValidatorTxs will be returned.
+	// AddSubnetValidatorTxs are removed using AdvanceTimestampTxs.
 	GetNextStaker() (addStakerTx *Tx, potentialReward uint64, err error)
 	GetStaker(txID ids.ID) (tx *Tx, potentialReward uint64, err error)
 	GetValidator(nodeID ids.ShortID) (currentValidator, error)
 
 	UpdateStakers(
 		addValidators []*validatorReward,
-		// TODO @jax update this method to remove delegators
-		addDelegators []*validatorReward,
 		addSubnetValidators []*Tx,
 		numTxsToRemove int,
 	) (currentStakerChainState, error)
@@ -105,7 +100,6 @@ func (cs *currentStakerChainStateImpl) GetValidator(nodeID ids.ShortID) (current
 
 func (cs *currentStakerChainStateImpl) UpdateStakers(
 	addValidatorTxs []*validatorReward,
-	addDelegatorTxs []*validatorReward,
 	addSubnetValidatorTxs []*Tx,
 	numTxsToRemove int,
 ) (currentStakerChainState, error) {
@@ -114,10 +108,10 @@ func (cs *currentStakerChainStateImpl) UpdateStakers(
 	}
 	newCS := &currentStakerChainStateImpl{
 		validatorsByNodeID: make(map[ids.ShortID]*currentValidatorImpl, len(cs.validatorsByNodeID)+len(addValidatorTxs)),
-		validatorsByTxID:   make(map[ids.ID]*validatorReward, len(cs.validatorsByTxID)+len(addValidatorTxs)+len(addDelegatorTxs)+len(addSubnetValidatorTxs)),
+		validatorsByTxID:   make(map[ids.ID]*validatorReward, len(cs.validatorsByTxID)+len(addValidatorTxs)+len(addSubnetValidatorTxs)),
 		validators:         cs.validators[numTxsToRemove:], // sorted in order of removal
 
-		addedStakers:   append(addValidatorTxs, addDelegatorTxs...),
+		addedStakers:   addValidatorTxs,
 		deletedStakers: cs.validators[:numTxsToRemove],
 	}
 
@@ -129,7 +123,7 @@ func (cs *currentStakerChainStateImpl) UpdateStakers(
 		newCS.validatorsByTxID[txID] = vdr
 	}
 
-	if numAdded := len(addValidatorTxs) + len(addDelegatorTxs) + len(addSubnetValidatorTxs); numAdded != 0 {
+	if numAdded := len(addValidatorTxs) + len(addSubnetValidatorTxs); numAdded != 0 {
 		numCurrent := len(newCS.validators)
 		newSize := numCurrent + numAdded
 		newValidators := make([]*Tx, newSize)
@@ -138,11 +132,6 @@ func (cs *currentStakerChainStateImpl) UpdateStakers(
 
 		numStart := numCurrent + len(addSubnetValidatorTxs)
 		for i, tx := range addValidatorTxs {
-			newValidators[numStart+i] = tx.addStakerTx
-		}
-
-		numStart = numCurrent + len(addSubnetValidatorTxs) + len(addValidatorTxs)
-		for i, tx := range addDelegatorTxs {
 			newValidators[numStart+i] = tx.addStakerTx
 		}
 
@@ -274,13 +263,8 @@ func (cs *currentStakerChainStateImpl) ValidatorSet(subnetID ids.ID) (validators
 func (cs *currentStakerChainStateImpl) primaryValidatorSet() (validators.Set, error) {
 	vdrs := validators.NewSet()
 
-	var err error
 	for nodeID, vdr := range cs.validatorsByNodeID {
 		vdrWeight := vdr.addValidatorTx.Validator.Wght
-		vdrWeight, err = safemath.Add64(vdrWeight, vdr.delegatorWeight)
-		if err != nil {
-			return nil, err
-		}
 		if err := vdrs.AddWeight(nodeID, vdrWeight); err != nil {
 			return nil, err
 		}
@@ -370,8 +354,7 @@ func (s innerSortValidatorsByRemoval) Less(i, j int) bool {
 	}
 
 	// If the end times are the same, then we sort by the tx type. First we
-	// remove UnsignedAddSubnetValidatorTxs, then UnsignedAddDelegatorTx, then
-	// UnsignedAddValidatorTx.
+	// remove UnsignedAddSubnetValidatorTxs, then UnsignedAddValidatorTx.
 	if iPriority > jPriority {
 		return true
 	}

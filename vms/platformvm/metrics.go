@@ -42,7 +42,6 @@ type metrics struct {
 
 	numVotesWon, numVotesLost prometheus.Counter
 
-	numAddDelegatorTxs,
 	numAddSubnetValidatorTxs,
 	numAddValidatorTxs,
 	numAdvanceTimeTxs,
@@ -123,7 +122,6 @@ func (m *metrics) Initialize(
 		Help:      "Total number of votes this node has lost",
 	})
 
-	m.numAddDelegatorTxs = newTxMetrics(namespace, "add_delegator")
 	m.numAddSubnetValidatorTxs = newTxMetrics(namespace, "add_subnet_validator")
 	m.numAddValidatorTxs = newTxMetrics(namespace, "add_validator")
 	m.numAdvanceTimeTxs = newTxMetrics(namespace, "advance_time")
@@ -174,7 +172,6 @@ func (m *metrics) Initialize(
 		registerer.Register(m.numVotesWon),
 		registerer.Register(m.numVotesLost),
 
-		registerer.Register(m.numAddDelegatorTxs),
 		registerer.Register(m.numAddSubnetValidatorTxs),
 		registerer.Register(m.numAddValidatorTxs),
 		registerer.Register(m.numAdvanceTimeTxs),

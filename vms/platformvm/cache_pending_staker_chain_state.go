@@ -26,8 +26,8 @@ import (
 
 var _ pendingStakerChainState = &pendingStakerChainStateImpl{}
 
-// pendingStakerChainState manages the set of stakers (both validators and
-// delegators) that are slated to start staking in the future.
+// pendingStakerChainState manages the set of validators
+// that are slated to start staking in the future.
 type pendingStakerChainState interface {
 	GetValidatorTx(nodeID ids.ShortID) (addStakerTx *UnsignedAddValidatorTx, err error)
 	GetValidator(nodeID ids.ShortID) validator
@@ -230,7 +230,7 @@ func (s innerSortValidatorsByAddition) Less(i, j int) bool {
 	}
 
 	// If the end times are the same, then we sort by the tx type. First we
-	// add UnsignedAddValidatorTx, then UnsignedAddDelegatorTx, then
+	// add UnsignedAddValidatorTx, then
 	// UnsignedAddSubnetValidatorTxs.
 	if iPriority > jPriority {
 		return true
