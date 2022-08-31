@@ -86,6 +86,18 @@ func (mr *MockInternalStateMockRecorder) AddCurrentStaker(tx, potentialReward in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddCurrentStaker", reflect.TypeOf((*MockInternalState)(nil).AddCurrentStaker), tx, potentialReward)
 }
 
+// AddDepositOffer mocks base method.
+func (m *MockInternalState) AddDepositOffer(offer *depositOffer) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddDepositOffer", offer)
+}
+
+// AddDepositOffer indicates an expected call of AddDepositOffer.
+func (mr *MockInternalStateMockRecorder) AddDepositOffer(offer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDepositOffer", reflect.TypeOf((*MockInternalState)(nil).AddDepositOffer), offer)
+}
+
 // AddPendingStaker mocks base method.
 func (m *MockInternalState) AddPendingStaker(tx *Tx) {
 	m.ctrl.T.Helper()
@@ -237,6 +249,20 @@ func (m *MockInternalState) DeleteUTXO(utxoID ids.ID) {
 func (mr *MockInternalStateMockRecorder) DeleteUTXO(utxoID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUTXO", reflect.TypeOf((*MockInternalState)(nil).DeleteUTXO), utxoID)
+}
+
+// DepositOffersChainState mocks base method.
+func (m *MockInternalState) DepositOffersChainState() depositOffersChainState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DepositOffersChainState")
+	ret0, _ := ret[0].(depositOffersChainState)
+	return ret0
+}
+
+// DepositOffersChainState indicates an expected call of DepositOffersChainState.
+func (mr *MockInternalStateMockRecorder) DepositOffersChainState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DepositOffersChainState", reflect.TypeOf((*MockInternalState)(nil).DepositOffersChainState))
 }
 
 // GetBlock mocks base method.
@@ -454,6 +480,18 @@ func (m *MockInternalState) SetCurrentSupply(arg0 uint64) {
 func (mr *MockInternalStateMockRecorder) SetCurrentSupply(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSupply", reflect.TypeOf((*MockInternalState)(nil).SetCurrentSupply), arg0)
+}
+
+// SetDepositOffersChainState mocks base method.
+func (m *MockInternalState) SetDepositOffersChainState(arg0 depositOffersChainState) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetDepositOffersChainState", arg0)
+}
+
+// SetDepositOffersChainState indicates an expected call of SetDepositOffersChainState.
+func (mr *MockInternalStateMockRecorder) SetDepositOffersChainState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDepositOffersChainState", reflect.TypeOf((*MockInternalState)(nil).SetDepositOffersChainState), arg0)
 }
 
 // SetHeight mocks base method.

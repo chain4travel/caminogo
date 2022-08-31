@@ -244,9 +244,17 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 	}
 
+	depositOffersState := parentState.DepositOffersChainState()
+
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
+
+	onCommitState := newVersionedState(
+		parentState,
+		currentStakers,
+		newlyPendingStakers,
+		depositOffersState,
+	)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -255,7 +263,12 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(
+		parentState,
+		currentStakers,
+		pendingStakers,
+		depositOffersState,
+	)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS

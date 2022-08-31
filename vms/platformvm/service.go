@@ -2428,3 +2428,31 @@ func (service *Service) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 
 	return nil
 }
+
+// GetDepositOffersReply is the response from calling GetDepositOffers.
+type GetDepositOffersReply struct {
+	Offers []*APIDepositOffer `json:"offers"`
+}
+
+// GetDepositOffers returns active lock rule offers
+func (service *Service) GetDepositOffers(_ *http.Request, _ *struct{}, reply *GetDepositOffersReply) error {
+	service.vm.ctx.Log.Debug("Platform: GetDepositOffers called")
+
+	now := service.vm.Clock().Time()
+	offers := service.vm.internalState.DepositOffersChainState().GetAllOffers()
+
+	for _, offer := range offers {
+		if offer.StartTime().Before(now) && offer.EndTime().After(now) {
+			reply.Offers = append(reply.Offers, &APIDepositOffer{
+				ID:           offer.id,
+				InterestRate: json.Float64(offer.InterestRateFloat64()),
+				Start:        json.Uint64(offer.Start),
+				End:          json.Uint64(offer.End),
+				MinAmount:    json.Uint64(offer.MinAmount),
+				Duration:     json.Uint64(offer.Duration),
+			})
+		}
+	}
+
+	return nil
+}

@@ -189,6 +189,7 @@ func (tx *UnsignedImportTx) AtomicExecute(
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.DepositOffersChainState(),
 	)
 	_, err := tx.Execute(vm, newState, stx)
 	return newState, err
