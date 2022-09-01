@@ -110,9 +110,9 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if onCommitBalance != oldBalance+toRemove.Validator.Weight()+27 {
+	if onCommitBalance != oldBalance+toRemove.Validator.Weight()+13773 {
 		t.Fatalf("on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
-			oldBalance, toRemove.Validator.Weight(), 27, onCommitBalance)
+			oldBalance, toRemove.Validator.Weight(), 13773, onCommitBalance)
 	}
 }
 

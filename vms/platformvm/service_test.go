@@ -468,6 +468,7 @@ func TestGetBalance(t *testing.T) {
 	}
 }
 
+//?@charalarg changes in this function are taken from "remove-delegation" PR
 // Test method GetStake
 func TestGetStake(t *testing.T) {
 	assert := assert.New(t)
@@ -495,7 +496,7 @@ func TestGetStake(t *testing.T) {
 		response := GetStakeReply{}
 		err := service.GetStake(nil, &args, &response)
 		assert.NoError(err)
-		assert.EqualValues(uint64(defaultWeight), uint64(response.Staked))
+		assert.EqualValues(defaultValidatorStake, uint64(response.Staked))
 		assert.Len(response.Outputs, 1)
 		// Unmarshal into an output
 		outputBytes, err := formatting.Decode(args.Encoding, response.Outputs[0])
@@ -505,7 +506,7 @@ func TestGetStake(t *testing.T) {
 		assert.NoError(err)
 		out, ok := output.Out.(*secp256k1fx.TransferOutput)
 		assert.True(ok)
-		assert.EqualValues(out.Amount(), defaultWeight)
+		assert.EqualValues(out.Amount(), defaultValidatorStake)
 		assert.EqualValues(out.Threshold, 1)
 		assert.Len(out.Addrs, 1)
 		assert.Equal(keys[i].PublicKey().Address(), out.Addrs[0])
@@ -522,7 +523,7 @@ func TestGetStake(t *testing.T) {
 	response := GetStakeReply{}
 	err := service.GetStake(nil, &args, &response)
 	assert.NoError(err)
-	assert.EqualValues(len(genesis.Validators)*defaultWeight, response.Staked)
+	assert.EqualValues(len(genesis.Validators)*int(defaultValidatorStake), response.Staked)
 	assert.Len(response.Outputs, len(genesis.Validators))
 	for _, outputStr := range response.Outputs {
 		outputBytes, err := formatting.Decode(args.Encoding, outputStr)
@@ -532,62 +533,20 @@ func TestGetStake(t *testing.T) {
 		assert.NoError(err)
 		out, ok := output.Out.(*secp256k1fx.TransferOutput)
 		assert.True(ok)
-		assert.EqualValues(defaultWeight, out.Amount())
+		assert.EqualValues(defaultValidatorStake, out.Amount())
 		assert.EqualValues(out.Threshold, 1)
 		assert.EqualValues(out.Locktime, 0)
 		assert.Len(out.Addrs, 1)
 	}
 
-	oldStake := uint64(defaultWeight)
-
-	// Add a delegator
-	stakeAmt := service.vm.MinDelegatorStake + 12345
-	delegatorNodeID := keys[0].PublicKey().Address()
-	delegatorEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
-	tx, err := service.vm.newAddDelegatorTx(
-		stakeAmt,
-		uint64(defaultGenesisTime.Unix()),
-		delegatorEndTime,
-		delegatorNodeID,
-		ids.GenerateTestShortID(),
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		keys[0].PublicKey().Address(), // change addr
-	)
-	assert.NoError(err)
-
-	service.vm.internalState.AddCurrentStaker(tx, 0)
-	service.vm.internalState.AddTx(tx, status.Committed)
-	err = service.vm.internalState.Commit()
-	assert.NoError(err)
-	err = service.vm.internalState.(*internalStateImpl).loadCurrentValidators()
-	assert.NoError(err)
-
-	// Make sure the delegator addr has the right stake (old stake + stakeAmt)
-	addr, _ := service.vm.FormatLocalAddress(keys[0].PublicKey().Address())
-	args.Addresses = []string{addr}
-	err = service.GetStake(nil, &args, &response)
-	assert.NoError(err)
-	assert.EqualValues(oldStake+stakeAmt, uint64(response.Staked))
-	assert.Len(response.Outputs, 2)
-	// Unmarshal into transferableoutputs
-	outputs := make([]avax.TransferableOutput, 2)
-	for i := range outputs {
-		outputBytes, err := formatting.Decode(args.Encoding, response.Outputs[i])
-		assert.NoError(err)
-		_, err = Codec.Unmarshal(outputBytes, &outputs[i])
-		assert.NoError(err)
-	}
-	// Make sure the stake amount is as expected
-	assert.EqualValues(stakeAmt+oldStake, outputs[0].Out.Amount()+outputs[1].Out.Amount())
-
-	oldStake = uint64(response.Staked)
+	oldStake := defaultValidatorStake
 
 	// Make sure this works for pending stakers
 	// Add a pending staker
-	stakeAmt = service.vm.internalState.GetValidatorBondAmount() + 54321
+	stakeAmt := service.vm.internalState.GetValidatorBondAmount()
 	pendingStakerNodeID := ids.GenerateTestShortID()
 	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
-	tx, err = service.vm.newAddValidatorTx(
+	tx, err := service.vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()),
 		pendingStakerEndTime,
 		pendingStakerNodeID,
@@ -605,12 +564,14 @@ func TestGetStake(t *testing.T) {
 	err = service.vm.internalState.(*internalStateImpl).loadPendingValidators()
 	assert.NoError(err)
 
-	// Make sure the delegator has the right stake (old stake + stakeAmt)
+	// Make sure the new staked amount includes the stake (old stake + stakeAmt)
+	addr, _ := service.vm.FormatLocalAddress(keys[0].PublicKey().Address())
+	args.Addresses = []string{addr}
 	err = service.GetStake(nil, &args, &response)
 	assert.NoError(err)
-	assert.EqualValues(oldStake+stakeAmt, response.Staked)
-	assert.Len(response.Outputs, 3)
-	outputs = make([]avax.TransferableOutput, 3)
+	assert.EqualValues(oldStake+stakeAmt, uint64(response.Staked))
+	assert.Len(response.Outputs, 2)
+	outputs := make([]avax.TransferableOutput, 2)
 	// Unmarshal
 	for i := range outputs {
 		outputBytes, err := formatting.Decode(args.Encoding, response.Outputs[i])
@@ -619,7 +580,7 @@ func TestGetStake(t *testing.T) {
 		assert.NoError(err)
 	}
 	// Make sure the stake amount is as expected
-	assert.EqualValues(stakeAmt+oldStake, outputs[0].Out.Amount()+outputs[1].Out.Amount()+outputs[2].Out.Amount())
+	assert.EqualValues(stakeAmt+oldStake, outputs[0].Out.Amount()+outputs[1].Out.Amount())
 }
 
 // Test method GetCurrentValidators

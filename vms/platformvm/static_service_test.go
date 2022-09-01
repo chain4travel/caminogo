@@ -178,7 +178,7 @@ func TestBuildGenesisReturnsSortedValidators(t *testing.T) {
 		Amount:  123456789,
 	}
 
-	weight := json.Uint64(987654321)
+	weight := json.Uint64(defaultValidatorStake)
 	validator1 := APIPrimaryValidator{
 		APIStaker: APIStaker{
 			StartTime: 0,
@@ -237,8 +237,9 @@ func TestBuildGenesisReturnsSortedValidators(t *testing.T) {
 			validator2,
 			validator3,
 		},
-		Time:     5,
-		Encoding: formatting.Hex,
+		Time:                5,
+		Encoding:            formatting.Hex,
+		ValidatorBondAmount: json.Uint64(defaultValidatorStake),
 	}
 	reply := BuildGenesisReply{}
 

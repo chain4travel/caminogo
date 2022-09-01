@@ -125,8 +125,8 @@ func init() {
 	ctx := defaultContext()
 	factory := crypto.FactorySECP256K1R{}
 	for _, key := range []string{
-		"24jUJ9vZexUM6expyMcT48LBx27k1m7xpraoV62oSQAHdziao5",
 		"2MMvUMsxx6zsHSNXJdFD8yc5XkancvwyKPwpw4xUK3TCGDuNBY",
+		"24jUJ9vZexUM6expyMcT48LBx27k1m7xpraoV62oSQAHdziao5",
 		"cxb7KpGWhDMALTjNNSJ7UQkkomPesyWAPUaWRGdyeBNzR6f35",
 		"ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN",
 		"2RWLv6YVEXDiWLpaCbXhhqxtLbnFaKQsWPSSMSPhpWo47uJAeV",
@@ -219,7 +219,7 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 				Addresses: []string{addr},
 			},
 			Staked: []APIUTXO{{
-				Amount:  json.Uint64(defaultWeight),
+				Amount:  json.Uint64(defaultValidatorStake),
 				Address: addr,
 			}},
 			DelegationFee: reward.PercentDenominator,
@@ -2348,35 +2348,35 @@ func TestMaxStakeAmount(t *testing.T) {
 			startTime:      defaultValidateEndTime,
 			endTime:        defaultValidateEndTime.Add(2 * time.Minute),
 			validatorID:    keys[0].PublicKey().Address(),
-			expectedAmount: defaultWeight,
+			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "startTime before validation period ends",
 			startTime:      defaultValidateEndTime.Add(-time.Minute),
 			endTime:        defaultValidateEndTime.Add(2 * time.Minute),
 			validatorID:    keys[0].PublicKey().Address(),
-			expectedAmount: defaultWeight,
+			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime after validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime.Add(time.Minute),
 			validatorID:    keys[0].PublicKey().Address(),
-			expectedAmount: defaultWeight,
+			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime when validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime,
 			validatorID:    keys[0].PublicKey().Address(),
-			expectedAmount: defaultWeight,
+			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime before validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime.Add(-time.Minute),
 			validatorID:    keys[0].PublicKey().Address(),
-			expectedAmount: defaultWeight,
+			expectedAmount: defaultValidatorStake,
 		},
 	}
 
@@ -3045,12 +3045,12 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 		node0, err := currentStakers.GetValidator(nodeID0)
 		assert.NoError(err)
 		potentialReward := node0.PotentialReward()
-		assert.Equal(uint64(60000000), potentialReward)
+		assert.Equal(uint64(600000), potentialReward)
 
 		node1, err := currentStakers.GetValidator(nodeID1)
 		assert.NoError(err)
 		potentialReward = node1.PotentialReward()
-		assert.EqualValues(uint64(59999999), potentialReward)
+		assert.EqualValues(uint64(599999), potentialReward)
 
 		pendingStakers := vm.internalState.PendingStakerChainState()
 		_, err = pendingStakers.GetValidatorTx(nodeID1)
