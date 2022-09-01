@@ -21,7 +21,9 @@ import (
 	"github.com/chain4travel/caminogo/codec"
 	"github.com/chain4travel/caminogo/codec/linearcodec"
 	"github.com/chain4travel/caminogo/ids"
+	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/vms/components/verify"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestOutputAmount(t *testing.T) {
@@ -255,5 +257,82 @@ func TestTransferOutputState(t *testing.T) {
 	intf := interface{}(&TransferOutput{})
 	if _, ok := intf.(verify.State); !ok {
 		t.Fatalf("should be marked as state")
+	}
+}
+
+func TestMarshallJSON(t *testing.T) {
+	ctx := snow.DefaultContextTest()
+	aliaser := ids.NewAliaser()
+	chainID := ids.Empty
+	err := aliaser.Alias(chainID, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = aliaser.Alias(chainID, chainID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx.BCLookup = aliaser
+	addressID, _ := ids.ShortFromString("X-custom1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq4mlve4")
+	out := TransferOutput{
+		Amt: 1,
+		OutputOwners: OutputOwners{
+			Locktime:  1,
+			Threshold: 1,
+			Addrs: []ids.ShortID{
+				addressID,
+			},
+			ctx: ctx,
+		},
+	}
+	outWithoutContext := TransferOutput{
+		Amt: 1,
+		OutputOwners: OutputOwners{
+			Locktime:  1,
+			Threshold: 1,
+			Addrs: []ids.ShortID{
+				addressID,
+			},
+		},
+	}
+
+	expected := []byte{
+		// {"addresses":[
+		0x7b, 0x22, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x65, 0x73, 0x22, 0x3a, 0x5b,
+		// X-custom1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq4mlve4
+		0x22, 0x58, 0x2d, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x31, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x71, 0x34, 0x6d, 0x6c, 0x76, 0x65, 0x34, 0x22,
+		// ],
+		0x5d, 0x2c,
+		// "amount":1,
+		0x22, 0x61, 0x6d, 0x6f, 0x75, 0x6e, 0x74, 0x22, 0x3a, 0x31, 0x2c,
+		// "locktime":1,
+		0x22, 0x6c, 0x6f, 0x63, 0x6b, 0x74, 0x69, 0x6d, 0x65, 0x22, 0x3a, 0x31, 0x2c,
+		// "threshold":1}
+		0x22, 0x74, 0x68, 0x72, 0x65, 0x73, 0x68, 0x6f, 0x6c, 0x64, 0x22, 0x3a, 0x31, 0x7d,
+	}
+
+	type test struct {
+		transferOutputput TransferOutput
+		expected          []byte
+		err               error
+	}
+
+	tests := map[string]test{
+		"Marshal successful with amount": {transferOutputput: out, expected: expected},
+		"Error missing context":          {transferOutputput: outWithoutContext, err: errMarshal},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			bytes, err := test.transferOutputput.MarshalJSON()
+			if test.err != nil {
+				assert.Error(err)
+				assert.Equal(test.err, err)
+			} else {
+				assert.NoError(err)
+			}
+			assert.Equal(test.expected, bytes)
+		})
 	}
 }
