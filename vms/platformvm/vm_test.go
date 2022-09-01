@@ -522,8 +522,8 @@ func TestGenesis(t *testing.T) {
 		} else if out1, ok := utxos[1].Out.(*secp256k1fx.TransferOutput); !ok {
 			t.Fatal("expected utxo output to be type *secp256k1fx.TransferOutput")
 		} else if out1.Amount() != uint64(utxo.Amount) && out1.Amount() != uint64(defaultWeight) {
-			//?@charalarg this test never reaches this block
-			//Not sure if we should just delete it or move it to a separate case
+			// ? @charalarg this test never reaches this block
+			// ? Not sure if we should just delete it or move it to a separate case
 			id := keys[0].PublicKey().Address()
 			hrp := constants.NetworkIDToHRP[testNetworkID]
 			addr, err := formatting.FormatBech32(hrp, id.Bytes())

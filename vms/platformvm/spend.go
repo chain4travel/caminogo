@@ -274,8 +274,8 @@ func (vm *VM) spend(
 						Locktime:  0,
 						Threshold: 1,
 						// ! @evlekht this violates no-transfer rule of p-chain
-						// ! cause it basicly transfer part of the funds to change address
-						// ! And what about inital owners? We have asset owned by 5 keys,
+						// ! cause it basically transfer part of the funds to change address
+						// ! And what about initial owners? We have asset owned by 5 keys,
 						// ! 10% of it spended for bonding (staking) or depositng
 						// ! and then it suddenly owned by another key ??
 						Addrs: []ids.ShortID{changeAddr},
@@ -295,8 +295,8 @@ func (vm *VM) spend(
 						Locktime:  0,
 						Threshold: 1,
 						// ! @evlekht this violates no-transfer rule of p-chain
-						// ! cause it basicly transfer part of the funds to change address
-						// ! And what about inital owners? We have asset owned by 5 people,
+						// ! cause it basically transfer part of the funds to change address
+						// ! And what about initial owners? We have asset owned by 5 people,
 						// ! 10% of it spended and the rest is returned as change
 						// ! to just one address ??
 						Addrs: []ids.ShortID{changeAddr},
