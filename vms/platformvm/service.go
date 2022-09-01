@@ -655,12 +655,11 @@ type GetCurrentValidatorsArgs struct {
 }
 
 // GetCurrentValidatorsReply are the results from calling GetCurrentValidators.
-// Each validator contains a list of delegators to itself.
 type GetCurrentValidatorsReply struct {
 	Validators []interface{} `json:"validators"`
 }
 
-// GetCurrentValidators returns current validators and delegators
+// GetCurrentValidators returns current validators
 func (service *Service) GetCurrentValidators(_ *http.Request, args *GetCurrentValidatorsArgs, reply *GetCurrentValidatorsReply) error {
 	service.vm.ctx.Log.Debug("Platform: GetCurrentValidators called")
 

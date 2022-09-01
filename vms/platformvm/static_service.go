@@ -87,13 +87,6 @@ type APIPrimaryValidator struct {
 	Staked          []APIUTXO     `json:"staked,omitempty"`
 }
 
-// APIPrimaryDelegator is the repr. of a primary network delegator sent over APIs.
-type APIPrimaryDelegator struct {
-	APIStaker
-	RewardOwner     *APIOwner    `json:"rewardOwner,omitempty"`
-	PotentialReward *json.Uint64 `json:"potentialReward,omitempty"`
-}
-
 func (v *APIStaker) weight() uint64 {
 	switch {
 	case v.Weight != nil:

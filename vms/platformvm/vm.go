@@ -61,7 +61,7 @@ const (
 	// that is allowed to be placed on a validator.
 	MaxValidatorWeightFactor uint64 = 5
 
-	// Maximum future start time for staking/delegating
+	// Maximum future start time for staking
 	maxFutureStartTime = 24 * 7 * 2 * time.Hour
 
 	maxRecentlyAcceptedWindowSize = 256

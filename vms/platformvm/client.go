@@ -176,8 +176,7 @@ type Client interface {
 	// staked on the Primary Network.
 	GetStake(ctx context.Context, addrs []string, options ...rpc.Option) (*GetStakeReply, error)
 	// GetMinStake returns the minimum staking amount in nAVAX for validators
-	// and delegators respectively
-	GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, uint64, error)
+	GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// GetTotalStake returns the total amount (in nAVAX) staked on the network
 	GetTotalStake(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// GetMaxStakeAmount returns the maximum amount of nAVAX staking to the named
@@ -392,36 +391,6 @@ func (c *client) AddValidator(
 			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		APIStaker: APIStaker{
-			NodeID:      nodeID,
-			StakeAmount: &jsonStakeAmount,
-			StartTime:   json.Uint64(startTime),
-			EndTime:     json.Uint64(endTime),
-		},
-		RewardAddress: rewardAddress,
-	}, res, options...)
-	return res.TxID, err
-}
-
-func (c *client) AddDelegator(
-	ctx context.Context,
-	user api.UserPass,
-	from []string,
-	changeAddr string,
-	rewardAddress,
-	nodeID string,
-	stakeAmount,
-	startTime,
-	endTime uint64,
-	options ...rpc.Option,
-) (ids.ID, error) {
-	res := &api.JSONTxID{}
-	jsonStakeAmount := json.Uint64(stakeAmount)
-	err := c.requester.SendRequest(ctx, "addDelegator", &AddDelegatorArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
-		}, APIStaker: APIStaker{
 			NodeID:      nodeID,
 			StakeAmount: &jsonStakeAmount,
 			StartTime:   json.Uint64(startTime),
@@ -659,10 +628,10 @@ func (c *client) GetStake(ctx context.Context, addrs []string, options ...rpc.Op
 	return res, err
 }
 
-func (c *client) GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, uint64, error) {
+func (c *client) GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, error) {
 	res := new(GetMinStakeReply)
 	err := c.requester.SendRequest(ctx, "getMinStake", struct{}{}, res, options...)
-	return uint64(res.MinValidatorStake), 0, err
+	return uint64(res.MinValidatorStake), err
 }
 
 func (c *client) GetTotalStake(ctx context.Context, options ...rpc.Option) (uint64, error) {

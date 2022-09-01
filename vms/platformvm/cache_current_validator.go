@@ -17,16 +17,11 @@ type currentValidatorImpl struct {
 	validatorImpl
 
 	addValidatorTx  *UnsignedAddValidatorTx
-	delegatorWeight uint64
 	potentialReward uint64
 }
 
 func (v *currentValidatorImpl) AddValidatorTx() *UnsignedAddValidatorTx {
 	return v.addValidatorTx
-}
-
-func (v *currentValidatorImpl) DelegatorWeight() uint64 {
-	return v.delegatorWeight
 }
 
 func (v *currentValidatorImpl) PotentialReward() uint64 {

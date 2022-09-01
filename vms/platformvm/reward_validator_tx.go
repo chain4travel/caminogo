@@ -47,7 +47,7 @@ var (
 type UnsignedRewardValidatorTx struct {
 	avax.Metadata
 
-	// ID of the tx that created the delegator/validator being removed/rewarded
+	// ID of the tx that created the validator being removed/rewarded
 	TxID ids.ID `serialize:"true" json:"txID"`
 
 	// Marks if this validator should be rewarded according to this node.

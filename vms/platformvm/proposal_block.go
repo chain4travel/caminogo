@@ -31,7 +31,7 @@ var _ Block = &ProposalBlock{}
 // 	1. Advance the chain's timestamp (*AdvanceTimeTx)
 //  2. Remove a staker from the staker set (*RewardStakerTx)
 //  3. Add a new staker to the set of pending (future) stakers
-//     (*AddValidatorTx, *AddDelegatorTx, *AddSubnetValidatorTx)
+//     (*AddValidatorTx, *AddSubnetValidatorTx)
 //
 // The proposal will be enacted (change the chain's state) if the proposal block
 // is accepted and followed by an accepted Commit block
