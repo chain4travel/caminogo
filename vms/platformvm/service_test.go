@@ -44,7 +44,6 @@ import (
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
-	cjson "github.com/chain4travel/caminogo/utils/json"
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"
 )
 
@@ -442,47 +441,6 @@ func TestGetBalance(t *testing.T) {
 		service.vm.ctx.Lock.Unlock()
 	}()
 
-	// Ensure GetStake is correct for each of the genesis validators
-	genesis, _ := defaultGenesis()
-	for _, utxo := range genesis.UTXOs {
-		request := GetBalanceRequest{
-			Addresses: []string{
-				fmt.Sprintf("P-%s", utxo.Address),
-			},
-		}
-		reply := GetBalanceResponse{}
-		if err := service.GetBalance(nil, &request, &reply); err != nil {
-			t.Fatal(err)
-		}
-		if reply.Unlocked != cjson.Uint64(defaultBalance) {
-			t.Fatalf("Wrong balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
-		}
-		if reply.Unlocked != cjson.Uint64(defaultBalance) {
-			t.Fatalf("Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
-		}
-		if reply.Deposited != 0 {
-			t.Fatalf("Wrong deposited balance. Expected %d ; Returned %d", 0, reply.Deposited)
-		}
-		if reply.Bonded != defaultWeight {
-			t.Fatalf("Wrong bonded balance. Expected %d ; Returned %d", defaultWeight, reply.Bonded)
-		}
-		if reply.DepositedAndBonded != 0 {
-			t.Fatalf("Wrong deposited & bonded balance. Expected %d ; Returned %d", 0, reply.DepositedAndBonded)
-		}
-	}
-}
-
-func TestService_GetBalance(t *testing.T) {
-	service := defaultService(t)
-	defaultAddress(t, service)
-	service.vm.ctx.Lock.Lock()
-	defer func() {
-		if err := service.vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		service.vm.ctx.Lock.Unlock()
-	}()
-
 	response := &GetBalanceResponse{
 		Balance:            0,
 		Unlocked:           0,
@@ -495,6 +453,7 @@ func TestService_GetBalance(t *testing.T) {
 	tests := []struct {
 		name          string
 		GenerateState func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string)
+		want          *GetBalanceResponse
 		wantErr       bool
 		msg           string
 	}{
@@ -505,6 +464,7 @@ func TestService_GetBalance(t *testing.T) {
 				testKey := key.PublicKey().Address()
 				localAddr, _ := service.vm.FormatLocalAddress(testKey)
 				utxos := []avax.UTXO{
+					// Bonded UTXO
 					{
 						UTXOID: avax.UTXOID{
 							TxID:        ids.GenerateTestID(),
@@ -520,6 +480,7 @@ func TestService_GetBalance(t *testing.T) {
 							},
 						},
 					},
+					// Deposited UTXO
 					{
 						UTXOID: avax.UTXOID{
 							TxID:        ids.GenerateTestID(),
@@ -535,45 +496,145 @@ func TestService_GetBalance(t *testing.T) {
 							},
 						},
 					},
+					// Deposited and bonded UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 100,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
+					// Unlocked UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 5,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{
+						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					},
+					deposits: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
+						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+						utxos[2].InputID(): {BondTxID: &utxos[2].TxID, DepositTxID: &utxos[2].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState, localAddr
+			},
+			want: &GetBalanceResponse{
+				Balance:            135,
+				Unlocked:           5,
+				Deposited:          20,
+				Bonded:             10,
+				DepositedAndBonded: 100,
+			},
+			wantErr: false,
+			msg:     "Happy path",
+		},
+		{
+			name: "Locktime not zero",
+			GenerateState: func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string) {
+				key, _ := service.vm.factory.NewPrivateKey()
+				testKey := key.PublicKey().Address()
+				localAddr, _ := service.vm.FormatLocalAddress(testKey)
+				utxos := []avax.UTXO{
+					// Bonded UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 10,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  service.vm.clock.Unix() + 3600,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
 				}
 				lockedUTXOsState := &lockedUTXOsChainStateImpl{
 					bonds: map[ids.ID]ids.Set{
 						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
 					},
-					deposits: map[ids.ID]ids.Set{
-						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
-					},
+					deposits: map[ids.ID]ids.Set{},
 					lockedUTXOs: map[ids.ID]utxoLockState{
 						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
-						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
 					},
-					//updatedUTXOs: map[ids.ID]utxoLockState{
-					//	utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
-					//	utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
-					//},
 				}
 				return utxos, lockedUTXOsState, localAddr
 			},
-			wantErr: false,
-			msg:     "Happy path",
+			want:    response,
+			wantErr: true,
+			msg:     "Should have failed because locktime is not zero",
+		},
+		{
+			name: "Address wrong format",
+			GenerateState: func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string) {
+				utxos := []avax.UTXO{}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{}
+				return utxos, lockedUTXOsState, "DummyWrongAddress"
+			},
+			want:    response,
+			wantErr: true,
+			msg:     "Should have failed because address has wrong format",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			UTXOIDs := []*avax.UTXOID{}
 			utxos, lockedUTXOsState, localAddr := tt.GenerateState()
 			requestArgs := &GetBalanceRequest{
 				Addresses: []string{localAddr},
 			}
 			for _, utxo := range utxos {
-				tempUtxo := &utxo
-				service.vm.internalState.AddUTXO(tempUtxo)
+				utxo := utxo
+				service.vm.internalState.AddUTXO(&utxo)
+				UTXOIDs = append(UTXOIDs, &utxo.UTXOID)
 			}
 			service.vm.internalState.SetLockedUTXOsChainState(lockedUTXOsState)
 			err := service.vm.internalState.Commit()
 			assert.NoError(t, err)
 			err = service.GetBalance(nil, requestArgs, response)
-			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
+			// assert the balances without the UTXOs
+			assert.Equal(t, tt.want, &GetBalanceResponse{
+				Balance:            response.Balance,
+				Unlocked:           response.Unlocked,
+				Deposited:          response.Deposited,
+				Bonded:             response.Bonded,
+				DepositedAndBonded: response.DepositedAndBonded,
+			})
+			tt.want.UTXOIDs = UTXOIDs
+			// assert the UTXOs
+			assert.ElementsMatchf(t, tt.want.UTXOIDs, response.UTXOIDs, tt.msg)
 		})
 	}
 }
