@@ -2444,12 +2444,12 @@ func (service *Service) GetDepositOffers(_ *http.Request, _ *struct{}, reply *Ge
 	for _, offer := range offers {
 		if offer.StartTime().Before(now) && offer.EndTime().After(now) {
 			reply.Offers = append(reply.Offers, &APIDepositOffer{
-				ID:           offer.id,
-				InterestRate: json.Float64(offer.InterestRateFloat64()),
-				Start:        json.Uint64(offer.Start),
-				End:          json.Uint64(offer.End),
-				MinAmount:    json.Uint64(offer.MinAmount),
-				Duration:     json.Uint64(offer.Duration),
+				ID:              offer.id,
+				InterestRate:    json.Float64(offer.InterestRateFloat64()),
+				Start:           json.Uint64(offer.Start),
+				End:             json.Uint64(offer.End),
+				MinAmount:       json.Uint64(offer.MinAmount),
+				DepositDuration: json.Uint64(offer.DepositDuration),
 			})
 		}
 	}

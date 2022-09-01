@@ -450,6 +450,18 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		},
 	}
 
+	for _, offer := range config.DepositOffers {
+		platformvmArgs.DepositOffers = append(platformvmArgs.DepositOffers,
+			platformvm.APIDepositOffer{
+				InterestRate:    json.Float64(offer.InterestRate),
+				Start:           json.Uint64(offer.Start),
+				End:             json.Uint64(offer.End),
+				MinAmount:       json.Uint64(offer.MinAmount),
+				DepositDuration: json.Uint64(offer.DepositDuration),
+			},
+		)
+	}
+
 	platformvmReply := platformvm.BuildGenesisReply{}
 	platformvmSS := platformvm.StaticService{}
 	if err := platformvmSS.BuildGenesis(nil, &platformvmArgs, &platformvmReply); err != nil {

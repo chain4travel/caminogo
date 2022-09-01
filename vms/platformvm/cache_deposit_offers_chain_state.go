@@ -88,7 +88,7 @@ type depositOffer struct {
 	End                   uint64 `serialize:"true"`
 	MinAmount             uint64 `serialize:"true"`
 	// ! @evlekht do we need MaxAmount? Check it with min in deposit tx
-	Duration uint64 `serialize:"true"`
+	DepositDuration uint64 `serialize:"true"`
 }
 
 func (o *depositOffer) SetID() error {

@@ -76,11 +76,11 @@ func (s Staker) Unparse(networkID uint32) (UnparsedStaker, error) {
 }
 
 type DepositOffer struct {
-	InterestRate float64 `json:"interestRate"`
-	Start        uint64  `json:"start"`
-	End          uint64  `json:"end"`
-	MinAmount    uint64  `json:"minAmount"`
-	Duration     uint64  `json:"duration"`
+	InterestRate    float64 `json:"interestRate"`
+	Start           uint64  `json:"start"`
+	End             uint64  `json:"end"`
+	MinAmount       uint64  `json:"minAmount"`
+	DepositDuration uint64  `json:"depositDuration"`
 }
 
 // Config contains the genesis addresses used to construct a genesis

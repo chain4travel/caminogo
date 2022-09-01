@@ -127,12 +127,12 @@ type APIChain struct {
 // DepositOffers defines a lock rule offer that exists
 // at the network's genesis.
 type APIDepositOffer struct {
-	ID           ids.ID       `json:"id"`
-	InterestRate json.Float64 `json:"interestRate"`
-	Start        json.Uint64  `json:"start"`
-	End          json.Uint64  `json:"end"`
-	MinAmount    json.Uint64  `json:"minAmount"`
-	Duration     json.Uint64  `json:"duration"`
+	ID              ids.ID       `json:"id"`
+	InterestRate    json.Float64 `json:"interestRate"`
+	Start           json.Uint64  `json:"start"`
+	End             json.Uint64  `json:"end"`
+	MinAmount       json.Uint64  `json:"minAmount"`
+	DepositDuration json.Uint64  `json:"depositDuration"`
 }
 
 // BuildGenesisArgs are the arguments used to create
@@ -368,7 +368,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			Start:                 uint64(offer.Start),
 			End:                   uint64(offer.End),
 			MinAmount:             uint64(offer.MinAmount),
-			Duration:              uint64(offer.Duration),
+			DepositDuration:       uint64(offer.DepositDuration),
 		}
 
 		offers = append(offers, offer)
