@@ -2429,27 +2429,27 @@ func (service *Service) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	return nil
 }
 
-// GetLockRuleOffersReply is the response from calling GetLockRuleOffers.
-type GetLockRuleOffersReply struct {
-	Offers []*APILockRuleOffers `json:"offers"`
+// GetDepositOffersReply is the response from calling GetDepositOffers.
+type GetDepositOffersReply struct {
+	Offers []*APIDepositOffer `json:"offers"`
 }
 
-// GetLockRuleOffers returns active lock rule offers
-func (service *Service) GetLockRuleOffers(_ *http.Request, _ *struct{}, reply *GetLockRuleOffersReply) error {
-	service.vm.ctx.Log.Debug("Platform: GetLockRuleOffers called")
+// GetDepositOffers returns active lock rule offers
+func (service *Service) GetDepositOffers(_ *http.Request, _ *struct{}, reply *GetDepositOffersReply) error {
+	service.vm.ctx.Log.Debug("Platform: GetDepositOffers called")
 
 	now := service.vm.Clock().Time()
-	offers := service.vm.internalState.GetLockRuleOffers()
+	offers := service.vm.internalState.DepositOffersChainState().GetAllOffers()
 
 	for _, offer := range offers {
 		if offer.StartTime().Before(now) && offer.EndTime().After(now) {
-			reply.Offers = append(reply.Offers, &APILockRuleOffers{
-				ID:           offer.ID(),
-				InterestRate: json.Float64(offer.InterestRateFloat64()),
-				Start:        json.Uint64(offer.Start),
-				End:          json.Uint64(offer.End),
-				MinAmount:    json.Uint64(offer.MinAmount),
-				Duration:     json.Uint64(offer.Duration),
+			reply.Offers = append(reply.Offers, &APIDepositOffer{
+				ID:              offer.id,
+				InterestRate:    json.Float64(offer.InterestRateFloat64()),
+				Start:           json.Uint64(offer.Start),
+				End:             json.Uint64(offer.End),
+				MinAmount:       json.Uint64(offer.MinAmount),
+				DepositDuration: json.Uint64(offer.DepositDuration),
 			})
 		}
 	}

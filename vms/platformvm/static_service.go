@@ -124,15 +124,15 @@ type APIChain struct {
 	SubnetID    ids.ID   `json:"subnetID"`
 }
 
-// APILockRuleOffers defines a lock rule offer that exists
+// DepositOffers defines a lock rule offer that exists
 // at the network's genesis.
-type APILockRuleOffers struct {
-	ID           ids.ID       `json:"id"`
-	InterestRate json.Float64 `json:"interestRate"`
-	Start        json.Uint64  `json:"start"`
-	End          json.Uint64  `json:"end"`
-	MinAmount    json.Uint64  `json:"minAmount"`
-	Duration     json.Uint64  `json:"duration"`
+type APIDepositOffer struct {
+	ID              ids.ID       `json:"id"`
+	InterestRate    json.Float64 `json:"interestRate"`
+	Start           json.Uint64  `json:"start"`
+	End             json.Uint64  `json:"end"`
+	MinAmount       json.Uint64  `json:"minAmount"`
+	DepositDuration json.Uint64  `json:"depositDuration"`
 }
 
 // BuildGenesisArgs are the arguments used to create
@@ -143,16 +143,16 @@ type APILockRuleOffers struct {
 // [Chains] are the chains that exist at genesis.
 // [Time] is the Platform Chain's time at network genesis.
 type BuildGenesisArgs struct {
-	AvaxAssetID    ids.ID                `json:"avaxAssetID"`
-	NetworkID      json.Uint32           `json:"networkID"`
-	UTXOs          []APIUTXO             `json:"utxos"`
-	Validators     []APIPrimaryValidator `json:"validators"`
-	Chains         []APIChain            `json:"chains"`
-	LockRuleOffers []APILockRuleOffers   `json:"offers"`
-	Time           json.Uint64           `json:"time"`
-	InitialSupply  json.Uint64           `json:"initialSupply"`
-	Message        string                `json:"message"`
-	Encoding       formatting.Encoding   `json:"encoding"`
+	AvaxAssetID   ids.ID                `json:"avaxAssetID"`
+	NetworkID     json.Uint32           `json:"networkID"`
+	UTXOs         []APIUTXO             `json:"utxos"`
+	Validators    []APIPrimaryValidator `json:"validators"`
+	Chains        []APIChain            `json:"chains"`
+	DepositOffers []APIDepositOffer     `json:"depositOffers"`
+	Time          json.Uint64           `json:"time"`
+	InitialSupply json.Uint64           `json:"initialSupply"`
+	Message       string                `json:"message"`
+	Encoding      formatting.Encoding   `json:"encoding"`
 }
 
 // BuildGenesisReply is the reply from BuildGenesis
@@ -169,13 +169,13 @@ type GenesisUTXO struct {
 
 // Genesis represents a genesis state of the platform chain
 type Genesis struct {
-	UTXOs          []*GenesisUTXO   `serialize:"true"`
-	Validators     []*Tx            `serialize:"true"`
-	Chains         []*Tx            `serialize:"true"`
-	LockRuleOffers []*LockRuleOffer `serialize:"true"`
-	Timestamp      uint64           `serialize:"true"`
-	InitialSupply  uint64           `serialize:"true"`
-	Message        string           `serialize:"true"`
+	UTXOs         []*GenesisUTXO  `serialize:"true"`
+	Validators    []*Tx           `serialize:"true"`
+	Chains        []*Tx           `serialize:"true"`
+	DepositOffers []*depositOffer `serialize:"true"`
+	Timestamp     uint64          `serialize:"true"`
+	InitialSupply uint64          `serialize:"true"`
+	Message       string          `serialize:"true"`
 }
 
 func (g *Genesis) Initialize() error {
@@ -361,14 +361,14 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	}
 
 	// Specify the offers that exist at genesis.
-	offers := []*LockRuleOffer{}
-	for _, offer := range args.LockRuleOffers {
-		offer := &LockRuleOffer{
-			InterestRateNominator: uint64(offer.InterestRate * json.Float64(InterestRateDenominator)),
+	offers := []*depositOffer{}
+	for _, offer := range args.DepositOffers {
+		offer := &depositOffer{
+			InterestRateNominator: uint64(offer.InterestRate * json.Float64(interestRateDenominator)),
 			Start:                 uint64(offer.Start),
 			End:                   uint64(offer.End),
 			MinAmount:             uint64(offer.MinAmount),
-			Duration:              uint64(offer.Duration),
+			DepositDuration:       uint64(offer.DepositDuration),
 		}
 
 		offers = append(offers, offer)
@@ -381,13 +381,13 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 
 	// genesis holds the genesis state
 	genesis := Genesis{
-		UTXOs:          utxos,
-		Validators:     validatorTxs,
-		Chains:         chains,
-		LockRuleOffers: offers,
-		Timestamp:      uint64(args.Time),
-		InitialSupply:  uint64(args.InitialSupply),
-		Message:        args.Message,
+		UTXOs:         utxos,
+		Validators:    validatorTxs,
+		Chains:        chains,
+		DepositOffers: offers,
+		Timestamp:     uint64(args.Time),
+		InitialSupply: uint64(args.InitialSupply),
+		Message:       args.Message,
 	}
 
 	// Marshal genesis to bytes

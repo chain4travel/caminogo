@@ -75,12 +75,12 @@ func (s Staker) Unparse(networkID uint32) (UnparsedStaker, error) {
 	}, err
 }
 
-type LockRuleOffer struct {
-	InterestRate float64 `json:"interestRate"`
-	Start        uint64  `json:"start"`
-	End          uint64  `json:"end"`
-	MinAmount    uint64  `json:"minAmount"`
-	Duration     uint64  `json:"duration"`
+type DepositOffer struct {
+	InterestRate    float64 `json:"interestRate"`
+	Start           uint64  `json:"start"`
+	End             uint64  `json:"end"`
+	MinAmount       uint64  `json:"minAmount"`
+	DepositDuration uint64  `json:"depositDuration"`
 }
 
 // Config contains the genesis addresses used to construct a genesis
@@ -89,12 +89,12 @@ type Config struct {
 
 	Allocations []Allocation `json:"allocations"`
 
-	StartTime                  uint64          `json:"startTime"`
-	InitialStakeDuration       uint64          `json:"initialStakeDuration"`
-	InitialStakeDurationOffset uint64          `json:"initialStakeDurationOffset"`
-	InitialStakedFunds         []ids.ShortID   `json:"initialStakedFunds"`
-	InitialStakers             []Staker        `json:"initialStakers"`
-	LockRuleOffers             []LockRuleOffer `json:"lockRuleOffers"`
+	StartTime                  uint64         `json:"startTime"`
+	InitialStakeDuration       uint64         `json:"initialStakeDuration"`
+	InitialStakeDurationOffset uint64         `json:"initialStakeDurationOffset"`
+	InitialStakedFunds         []ids.ShortID  `json:"initialStakedFunds"`
+	InitialStakers             []Staker       `json:"initialStakers"`
+	DepositOffers              []DepositOffer `json:"depositOffers"`
 
 	CChainGenesis string `json:"cChainGenesis"`
 
@@ -112,7 +112,7 @@ func (c Config) Unparse() (UnparsedConfig, error) {
 		InitialStakers:             make([]UnparsedStaker, len(c.InitialStakers)),
 		CChainGenesis:              c.CChainGenesis,
 		Message:                    c.Message,
-		LockRuleOffers:             c.LockRuleOffers,
+		DepositOffers:              c.DepositOffers,
 	}
 	for i, a := range c.Allocations {
 		ua, err := a.Unparse(uc.NetworkID)

@@ -54,7 +54,7 @@ var (
 	subnetPrefix          = []byte("subnet")
 	chainPrefix           = []byte("chain")
 	singletonPrefix       = []byte("singleton")
-	lockRuleOffersPrefix  = []byte("lockRuleOffers")
+	depositOffersPrefix   = []byte("depositOffers")
 
 	timestampKey     = []byte("timestamp")
 	currentSupplyKey = []byte("current supply")
@@ -96,17 +96,17 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
+	AddDepositOffer(offer *depositOffer)
+
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
+	SetDepositOffersChainState(depositOffersChainState)
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(ids.ID)
 
 	GetBlock(blockID ids.ID) (Block, error)
 	AddBlock(block Block)
-
-	GetLockRuleOffers() []*LockRuleOffer
-	GetLockRuleOfferByID(id ids.ID) *LockRuleOffer
 
 	Abort()
 	Commit() error
@@ -163,8 +163,8 @@ type InternalState interface {
  * | |-- timestampKey -> timestamp
  * | |-- currentSupplyKey -> currentSupply
  * | '-- lastAcceptedKey -> lastAccepted
- * '-. lockRuleOffers
- *   '-- offerID -> offer bytes
+ * '-. depositOffers
+ *   '-- offerID -> depositOffer bytes
  */
 type internalStateImpl struct {
 	vm *VM
@@ -173,6 +173,7 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
+	depositOffersChainState depositOffersChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
@@ -217,10 +218,6 @@ type internalStateImpl struct {
 	utxoDB        database.Database
 	utxoState     avax.UTXOState
 
-	addedLockRuleOffers []*LockRuleOffer
-	lockRuleOffersByID  map[ids.ID]*LockRuleOffer // map of offer-id -> *lock rule offers; if the offer is nil, it has been removed
-	lockRuleOffersDB    database.Database
-
 	cachedSubnets []*Tx // nil if the subnets haven't been loaded
 	addedSubnets  []*Tx
 	subnetBaseDB  database.Database
@@ -235,6 +232,10 @@ type internalStateImpl struct {
 	originalCurrentSupply, currentSupply uint64
 	originalLastAccepted, lastAccepted   ids.ID
 	singletonDB                          database.Database
+
+	addedDepositOffers []*depositOffer
+	depositOffersDB    database.Database
+	depositOffersList  linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -274,11 +275,12 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 
 	validatorDiffsDB := prefixdb.New(validatorDiffsPrefix, validatorsDB)
 
-	lockRuleOffersDB := prefixdb.New(lockRuleOffersPrefix, baseDB)
-
 	rewardUTXODB := prefixdb.New(rewardUTXOsPrefix, baseDB)
 	utxoDB := prefixdb.New(utxoPrefix, baseDB)
 	subnetBaseDB := prefixdb.New(subnetPrefix, baseDB)
+
+	depositOffersDB := prefixdb.New(depositOffersPrefix, baseDB)
+
 	return &internalStateImpl{
 		vm: vm,
 
@@ -324,8 +326,8 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
 
-		lockRuleOffersDB:   lockRuleOffersDB,
-		lockRuleOffersByID: make(map[ids.ID]*LockRuleOffer),
+		depositOffersDB:   depositOffersDB,
+		depositOffersList: linkeddb.NewDefault(depositOffersDB),
 	}
 }
 
@@ -711,12 +713,20 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
 }
 
+func (st *internalStateImpl) DepositOffersChainState() depositOffersChainState {
+	return st.depositOffersChainState
+}
+
 func (st *internalStateImpl) SetCurrentStakerChainState(cs currentStakerChainState) {
 	st.currentStakerChainState = cs
 }
 
 func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainState) {
 	st.pendingStakerChainState = ps
+}
+
+func (st *internalStateImpl) SetDepositOffersChainState(cs depositOffersChainState) {
+	st.depositOffersChainState = cs
 }
 
 func (st *internalStateImpl) GetUptime(nodeID ids.ShortID) (upDuration time.Duration, lastUpdated time.Time, err error) {
@@ -808,24 +818,8 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 	return weightDiffs, nil
 }
 
-func (st *internalStateImpl) AddLockRuleOffer(offer *LockRuleOffer) {
-	offer.Initialize()
-	st.lockRuleOffersByID[offer.ID()] = offer
-	st.addedLockRuleOffers = append(st.addedLockRuleOffers, offer)
-}
-
-func (st *internalStateImpl) GetLockRuleOffers() []*LockRuleOffer {
-	offers := make([]*LockRuleOffer, len(st.lockRuleOffersByID))
-	i := 0
-	for _, offer := range st.lockRuleOffersByID {
-		offers[i] = offer
-		i++
-	}
-	return offers
-}
-
-func (st *internalStateImpl) GetLockRuleOfferByID(id ids.ID) *LockRuleOffer {
-	return st.lockRuleOffersByID[id]
+func (st *internalStateImpl) AddDepositOffer(offer *depositOffer) {
+	st.addedDepositOffers = append(st.addedDepositOffers, offer)
 }
 
 func (st *internalStateImpl) Abort() {
@@ -872,8 +866,8 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
-	if err := st.writeLockRuleOffers(); err != nil {
-		return nil, fmt.Errorf("failed to write lock rule offers with: %w", err)
+	if err := st.writeDepositOffers(); err != nil {
+		return nil, fmt.Errorf("failed to write deposit offers with: %w", err)
 	}
 	return st.baseDB.CommitBatch()
 }
@@ -897,6 +891,7 @@ func (st *internalStateImpl) Close() error {
 		st.subnetBaseDB.Close(),
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
+		st.depositOffersDB.Close(),
 		st.baseDB.Close(),
 	)
 	return errs.Err
@@ -1299,20 +1294,19 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
-func (st *internalStateImpl) writeLockRuleOffers() error {
-	for _, offer := range st.addedLockRuleOffers {
-		offerID := offer.ID()
-
+func (st *internalStateImpl) writeDepositOffers() error {
+	for _, offer := range st.addedDepositOffers {
 		bytes, err := GenesisCodec.Marshal(CodecVersion, offer)
 		if err != nil {
 			return err
 		}
 
-		if err := st.lockRuleOffersDB.Put(offerID[:], bytes); err != nil {
+		offerID := offer.id
+		if err := st.depositOffersDB.Put(offerID[:], bytes); err != nil {
 			return err
 		}
 	}
-	st.addedLockRuleOffers = nil
+	st.addedDepositOffers = nil
 	return nil
 }
 
@@ -1323,7 +1317,10 @@ func (st *internalStateImpl) load() error {
 	if err := st.loadCurrentValidators(); err != nil {
 		return err
 	}
-	return st.loadPendingValidators()
+	if err := st.loadPendingValidators(); err != nil {
+		return err
+	}
+	return st.loadDepositOffers()
 }
 
 func (st *internalStateImpl) loadSingletons() error {
@@ -1591,6 +1588,38 @@ func (st *internalStateImpl) loadPendingValidators() error {
 	return nil
 }
 
+func (st *internalStateImpl) loadDepositOffers() error {
+	cs := &depositOffersChainStateImpl{
+		offers: make(map[ids.ID]*depositOffer),
+	}
+
+	depositOffersIt := st.depositOffersList.NewIterator()
+	defer depositOffersIt.Release()
+	for depositOffersIt.Next() {
+		offerIDBytes := depositOffersIt.Key()
+		offerID, err := ids.ToID(offerIDBytes)
+		if err != nil {
+			return err
+		}
+
+		offerBytes := depositOffersIt.Value()
+		offer := depositOffer{
+			id: offerID,
+		}
+		if _, err := GenesisCodec.Unmarshal(offerBytes, &offer); err != nil {
+			return err
+		}
+
+		cs.offers[offerID] = &offer
+	}
+	if err := depositOffersIt.Error(); err != nil {
+		return err
+	}
+
+	st.depositOffersChainState = cs
+	return nil
+}
+
 func (st *internalStateImpl) shouldInit() (bool, error) {
 	has, err := st.singletonDB.Has(initializedKey)
 	return !has, err
@@ -1657,9 +1686,11 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 		st.AddTx(chain, status.Committed)
 	}
 
-	for _, offer := range genesis.LockRuleOffers {
-		offer.Initialize()
-		st.AddLockRuleOffer(offer)
+	for _, offer := range genesis.DepositOffers {
+		if err := offer.SetID(); err != nil {
+			return err
+		}
+		st.AddDepositOffer(offer)
 	}
 
 	// Create the genesis block and save it as being accepted (We don't just

@@ -31,27 +31,7 @@ import (
 )
 
 func testBlockState(a *assert.Assertions, bs BlockState) {
-	parentID := ids.ID{1}
-	timestamp := time.Unix(123, 0)
-	pChainHeight := uint64(2)
-	innerBlockBytes := []byte{3}
-	chainID := ids.ID{4}
-
-	tlsCert, err := staking.NewTLSCert()
-	a.NoError(err)
-
-	cert := tlsCert.Leaf
-	key := tlsCert.PrivateKey.(crypto.Signer)
-
-	b, err := block.Build(
-		parentID,
-		timestamp,
-		pChainHeight,
-		cert,
-		innerBlockBytes,
-		chainID,
-		key,
-	)
+	_, _, b, err := initCommonTestData()
 	a.NoError(err)
 
 	_, _, err = bs.GetBlock(b.ID())
@@ -91,4 +71,53 @@ func TestMeteredBlockState(t *testing.T) {
 	a.NoError(err)
 
 	testBlockState(a, bs)
+}
+
+func TestGetBlockWithUncachedBlock(t *testing.T) {
+	a := assert.New(t)
+	db, bs, blk, err := initCommonTestData()
+	a.NoError(err)
+
+	blkWrapper := blockWrapper{
+		Block:  blk.Bytes(),
+		Status: choices.Accepted,
+		block:  blk,
+	}
+
+	bytes, err := c.Marshal(version, &blkWrapper)
+	a.NoError(err)
+
+	blkID := blk.ID()
+	err = db.Put(blkID[:], bytes)
+	a.NoError(err)
+	actualBlk, _, err := bs.GetBlock(blk.ID())
+	a.Equal(blk, actualBlk)
+	a.NoError(err)
+}
+
+func initCommonTestData() (database.Database, BlockState, block.SignedBlock, error) {
+	db := memdb.New()
+	bs := NewBlockState(db)
+
+	parentID := ids.ID{1}
+	timestamp := time.Unix(123, 0)
+	pChainHeight := uint64(2)
+	innerBlockBytes := []byte{3}
+	chainID := ids.ID{4}
+
+	tlsCert, _ := staking.NewTLSCert()
+
+	cert := tlsCert.Leaf
+	key := tlsCert.PrivateKey.(crypto.Signer)
+
+	blk, err := block.Build(
+		parentID,
+		timestamp,
+		pChainHeight,
+		cert,
+		innerBlockBytes,
+		chainID,
+		key,
+	)
+	return db, bs, blk, err
 }
