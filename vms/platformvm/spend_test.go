@@ -300,7 +300,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 
 	type args struct {
 		inputs       []*avax.TransferableInput
-		inputIndexes []uint8
+		inputIndexes []uint32
 		outputs      []*avax.TransferableOutput
 	}
 	tests := []struct {
@@ -320,7 +320,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 						},
 					},
 				},
-				inputIndexes: []uint8{0, 0},
+				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -344,7 +344,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 						},
 					},
 				},
-				inputIndexes: []uint8{0, 0},
+				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -374,7 +374,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 						},
 					},
 				},
-				inputIndexes: []uint8{0, 0},
+				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -404,7 +404,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 						},
 					},
 				},
-				inputIndexes: []uint8{0, 0},
+				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -428,7 +428,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := syntacticVerifyInputIndexes(tt.args.inputs, tt.args.inputIndexes, tt.args.outputs)
-			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
+			assert.Equal(t, tt.wantErr, err != nil, tt.msg)
 		})
 	}
 }

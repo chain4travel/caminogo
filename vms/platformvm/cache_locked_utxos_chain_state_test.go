@@ -109,7 +109,7 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 			}
 			cs.lockedUTXOs[tt.args.inputs[0].InputID()] = tt.utxoLockState
 			err := cs.SemanticVerifyLockInputs(tt.args.inputs, tt.args.bond)
-			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
+			assert.Equal(t, tt.wantErr, err != nil, tt.msg)
 		})
 	}
 }
@@ -360,7 +360,7 @@ func TestUpdateUTXOs(t *testing.T) {
 				updatedUTXOs: tt.fields.updatedUTXOs,
 			}
 			got, err := cs.updateUTXOs(tt.args.updatedUTXOStates)
-			assert.Equal(t, err != nil, tt.wantErr, tt.msg)
+			assert.Equal(t, tt.wantErr, err != nil, tt.msg)
 			assert.Equalf(t, tt.want, got, tt.msg)
 		})
 	}
