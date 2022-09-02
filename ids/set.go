@@ -145,6 +145,19 @@ func (ids Set) CappedList(size int) []ID {
 	return idList
 }
 
+// Clone returns a copy of set.
+func (ids Set) Clone() Set {
+	if ids == nil {
+		return nil
+	}
+
+	clone := NewSet(ids.Len())
+	for id := range ids {
+		clone[id] = struct{}{}
+	}
+	return clone
+}
+
 // Equals returns true if the sets contain the same elements
 func (ids Set) Equals(oIDs Set) bool {
 	if ids.Len() != oIDs.Len() {

@@ -54,7 +54,7 @@ type UnsignedAddValidatorTx struct {
 	Validator Validator `serialize:"true" json:"validator"`
 	// Where to send bonded tokens when done validating
 	Bond         []*avax.TransferableOutput `serialize:"true" json:"stake"`
-	InputIndexes []uint8                    `serialize:"true" json:"inputIndexes"`
+	InputIndexes []uint32                   `serialize:"true" json:"inputIndexes"`
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 	// Fee this validator charges delegators as a percentage, times 10,000
@@ -245,7 +245,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 
 		if err := lockedUTXOsState.SemanticVerifyLockInputs(tx.Ins, true); err != nil {
-			return nil, nil, fmt.Errorf("failed semanticVerifyLock: %w", err)
+			return nil, nil, fmt.Errorf("failed semanticVerifyLockInputs: %w", err)
 		}
 
 		// Make sure the tx doesn't start too far in the future. This is done
