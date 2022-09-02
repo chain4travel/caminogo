@@ -27,6 +27,226 @@ import (
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
 
+func TestAddValidatorTxWithNewReward(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	key, err := vm.factory.NewPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeID := key.PublicKey().Address()
+
+	startTime := defaultGenesisTime.Add(1 * time.Second)
+	// Create the validator tx
+	tx, err := vm.newAddValidatorTx(
+		vm.MinValidatorStake,     // stake amount
+		uint64(startTime.Unix()), // start time
+		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
+		nodeID,                    // node ID
+		key.PublicKey().Address(), // reward address
+		reward.PercentDenominator, // shares
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		ids.ShortEmpty, // change addr // key
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
+		t.Fatal("should've errored because validator's weight is less than the minimum amount")
+	}
+
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	currentStakersTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentStaker := currentStakersTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
+	// Change state's time
+	vm.internalState.SetTimestamp(currentStaker.EndTime())
+
+	// Create reward tx
+	reward_tx, err := vm.newRewardValidatorTx(currentStaker.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onCommitState, _, err := reward_tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, reward_tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onCommitCurrentStakers := onCommitState.CurrentStakerChainState()
+	nextStakerTx, _, err := onCommitCurrentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentStaker.ID() == nextStakerTx.ID() {
+		t.Fatalf("Should have removed the previous validator")
+	}
+
+	// check that stake/reward is given back
+	stakeOwners := currentStaker.Bond[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+
+	// Get old balances
+	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onCommitState.Apply(vm.internalState)
+	if err := vm.internalState.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if onCommitBalance != oldBalance+27 {
+		t.Fatalf("on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
+			oldBalance, currentStaker.Validator.Weight(), 27, onCommitBalance)
+	}
+
+	vm.internalState.SetTimestamp(defaultGenesisTime)
+
+	if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
+		t.Fatal("Shouldn't have errored because validator is OK to be executed again")
+	}
+}
+
+func TestAddValidatorTxExecuteUnitTesting(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	key, err := vm.factory.NewPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeID := key.PublicKey().Address()
+
+	// Case: Validator's weight is less than the minimum amount
+	tx, err := vm.newAddValidatorTx(
+		vm.MinValidatorStake,
+		uint64(defaultValidateStartTime.Unix()),
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		nodeID,
+		reward.PercentDenominator,
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		ids.ShortEmpty, // change addr
+	)
+
+	tx.UnsignedTx.(*UnsignedAddValidatorTx).Validator.Wght = 0
+	if err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
+		t.Fatal("should've errored because validator's weight is less than the minimum amount")
+	}
+
+	// Case: Validator's weight is more than the maximum amount
+	tx, err = vm.newAddValidatorTx(
+		vm.MinValidatorStake,
+		uint64(defaultValidateStartTime.Unix()),
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		nodeID,
+		reward.PercentDenominator,
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		ids.ShortEmpty, // change addr
+	)
+
+	tx.UnsignedTx.(*UnsignedAddValidatorTx).Validator.Wght = vm.MaxValidatorStake + 1
+	if err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
+		t.Fatal("should've errored because validator's weight is more than the maximum amount")
+	}
+
+	// Case: Validator in pending validator set of primary network
+	key2, err := vm.factory.NewPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	startTime := defaultGenesisTime.Add(1 * time.Second)
+	tx, err = vm.newAddValidatorTx(
+		vm.MinValidatorStake,     // stake amount
+		uint64(startTime.Unix()), // start time
+		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
+		nodeID,                     // node ID
+		key2.PublicKey().Address(), // reward address
+		reward.PercentDenominator,  // shares
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		ids.ShortEmpty, // change addr // key
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vm.internalState.AddCurrentStaker(tx, 0)
+	vm.internalState.AddTx(tx, status.Committed)
+	if err := vm.internalState.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vm.internalState.(*internalStateImpl).loadCurrentValidators(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
+		t.Fatal("should have failed because validator in pending validator set")
+	}
+
+	// Case: Validator in pending validator set of primary network
+	key2, err = vm.factory.NewPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	startTime = defaultGenesisTime.Add(1 * time.Second)
+	tx, err = vm.newAddValidatorTx(
+		vm.MinValidatorStake,     // stake amount
+		uint64(startTime.Unix()), // start time
+		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
+		nodeID,                     // node ID
+		key2.PublicKey().Address(), // reward address
+		reward.PercentDenominator,  // shares
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		ids.ShortEmpty, // change addr // key
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vm.internalState.AddPendingStaker(tx)
+	vm.internalState.AddTx(tx, status.Committed)
+	if err := vm.internalState.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vm.internalState.(*internalStateImpl).loadPendingValidators(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
+		t.Fatal("should have failed because validator in pending validator set")
+	}
+}
+
 func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
