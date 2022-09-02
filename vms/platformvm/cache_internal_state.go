@@ -1302,7 +1302,7 @@ func (st *internalStateImpl) writeDepositOffers() error {
 		}
 
 		offerID := offer.id
-		if err := st.depositOffersDB.Put(offerID[:], bytes); err != nil {
+		if err := st.depositOffersList.Put(offerID[:], bytes); err != nil {
 			return err
 		}
 	}
