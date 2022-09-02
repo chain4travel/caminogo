@@ -43,35 +43,37 @@ func TestGetGenesisDepositOffers(t *testing.T) {
 	}
 
 	service.vm.Clock().Set(time.Now())
-	lockRuleOffersReply := GetDepositOffersReply{}
-	err = service.GetDepositOffers(nil, nil, &lockRuleOffersReply)
+	depositOffersReply := GetDepositOffersReply{}
+	err = service.GetDepositOffers(nil, nil, &depositOffersReply)
 	assert.NoError(t, err)
-	assert.Equal(t, lockRuleOffersReply, expectedReply)
+	assert.Equal(t, depositOffersReply, expectedReply)
 }
 
 func TestGetGenesisDepositOfferById(t *testing.T) {
-	service := defaultService(t)
-	service.vm.ctx.Lock.Lock()
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
 	defer func() {
-		err := service.vm.Shutdown()
-		assert.NoError(t, err)
-		service.vm.ctx.Lock.Unlock()
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
 	}()
 
 	err := genesisDepositOffer.SetID()
 	assert.NoError(t, err)
 
-	lockRuleOfferReply := service.vm.internalState.DepositOffersChainState().GetOfferByID(genesisDepositOffer.id)
-	assert.Equal(t, *lockRuleOfferReply, genesisDepositOffer)
+	depositOfferReply := vm.internalState.DepositOffersChainState().GetOfferByID(genesisDepositOffer.id)
+	assert.Equal(t, *depositOfferReply, genesisDepositOffer)
 }
 
 func TestAddDepositOffer(t *testing.T) {
-	service := defaultService(t)
-	service.vm.ctx.Lock.Lock()
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
 	defer func() {
-		err := service.vm.Shutdown()
-		assert.NoError(t, err)
-		service.vm.ctx.Lock.Unlock()
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
 	}()
 
 	newDepositOffer := &depositOffer{
@@ -84,12 +86,12 @@ func TestAddDepositOffer(t *testing.T) {
 
 	err := newDepositOffer.SetID()
 	assert.NoError(t, err)
-	offersState := service.vm.internalState.DepositOffersChainState()
+	offersState := vm.internalState.DepositOffersChainState()
 	newOffersState := offersState.AddOffer(newDepositOffer)
-	newOffersState.Apply(service.vm.internalState)
-	err = service.vm.internalState.Commit()
+	newOffersState.Apply(vm.internalState)
+	err = vm.internalState.Commit()
 	assert.NoError(t, err)
 
-	lockRuleOfferReply := newOffersState.GetOfferByID(newDepositOffer.id)
-	assert.Equal(t, lockRuleOfferReply, newDepositOffer)
+	depositOfferReply := newOffersState.GetOfferByID(newDepositOffer.id)
+	assert.Equal(t, depositOfferReply, newDepositOffer)
 }
