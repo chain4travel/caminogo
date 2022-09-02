@@ -118,7 +118,8 @@ func (r *upnpRouter) ExternalIP() (net.IP, error) {
 }
 
 func (r *upnpRouter) MapPort(protocol string, intPort, extPort uint16,
-	desc string, duration time.Duration) error {
+	desc string, duration time.Duration,
+) error {
 	ip, err := r.localIP()
 	if err != nil {
 		return nil

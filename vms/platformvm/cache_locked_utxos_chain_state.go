@@ -36,7 +36,7 @@ type lockedUTXOsChainState interface {
 	GetUTXOLockState(utxoID ids.ID) utxoLockState
 	UpdateAndProduceUTXOs(
 		inputs []*avax.TransferableInput,
-		inputIndexes []uint8,
+		inputIndexes []uint32,
 		bondedOuts []*avax.TransferableOutput,
 		notBondedOuts []*avax.TransferableOutput,
 		txID ids.ID,
@@ -66,17 +66,17 @@ func (cs *lockedUTXOsChainStateImpl) GetUTXOLockState(utxoID ids.ID) utxoLockSta
 
 func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]utxoLockState) (lockedUTXOsChainState, error) {
 	newCS := &lockedUTXOsChainStateImpl{
-		bonds:        make(map[ids.ID]ids.Set, len(cs.bonds)+1),
-		deposits:     make(map[ids.ID]ids.Set, len(cs.deposits)+1),
-		lockedUTXOs:  make(map[ids.ID]utxoLockState, len(cs.lockedUTXOs)+1),
+		bonds:        make(map[ids.ID]ids.Set, len(cs.bonds)),
+		deposits:     make(map[ids.ID]ids.Set, len(cs.deposits)),
+		lockedUTXOs:  make(map[ids.ID]utxoLockState, len(cs.lockedUTXOs)),
 		updatedUTXOs: updatedUTXOStates,
 	}
 
 	for bondTxID, utxoIDs := range cs.bonds {
-		newCS.bonds[bondTxID] = utxoIDs
+		newCS.bonds[bondTxID] = utxoIDs.Clone()
 	}
 	for depositTxID, utxoIDs := range cs.deposits {
-		newCS.deposits[depositTxID] = utxoIDs
+		newCS.deposits[depositTxID] = utxoIDs.Clone()
 	}
 	for utxoID, lockIDs := range cs.lockedUTXOs {
 		newCS.lockedUTXOs[utxoID] = lockIDs
@@ -172,7 +172,7 @@ func (cs *lockedUTXOsChainStateImpl) Apply(is InternalState) {
 // - [producedUTXOs] utxos with produced outputs
 func (cs *lockedUTXOsChainStateImpl) UpdateAndProduceUTXOs(
 	inputs []*avax.TransferableInput,
-	inputIndexes []uint8,
+	inputIndexes []uint32,
 	notLockedOuts []*avax.TransferableOutput,
 	lockedOuts []*avax.TransferableOutput,
 	txID ids.ID,

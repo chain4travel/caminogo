@@ -211,204 +211,204 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	}
 }
 
-//?@charalarg this test will be deleted in the remove delegation PR
-//func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
-//	assert := assert.New(t)
-//
-//	vm, _, _ := defaultVM()
-//	vm.ctx.Lock.Lock()
-//	defer func() {
-//		err := vm.Shutdown()
-//		assert.NoError(err)
-//
-//		vm.ctx.Lock.Unlock()
-//	}()
-//
-//	vdrRewardAddress := ids.GenerateTestShortID()
-//	delRewardAddress := ids.GenerateTestShortID()
-//
-//	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
-//	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
-//	vdrNodeID := ids.GenerateTestShortID()
-//	vdrTx, err := vm.newAddValidatorTx(
-//		vm.MinValidatorStake, // stakeAmt
-//		vdrStartTime,
-//		vdrEndTime,
-//		vdrNodeID,        // node ID
-//		vdrRewardAddress, // reward address
-//		reward.PercentDenominator/4,
-//		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
-//		ids.ShortEmpty,                          // change addr
-//	)
-//	assert.NoError(err)
-//
-//	delStartTime := vdrStartTime
-//	delEndTime := vdrEndTime
-//	delTx, err := vm.newAddDelegatorTx(
-//		vm.MinDelegatorStake, // stakeAmt
-//		delStartTime,
-//		delEndTime,
-//		vdrNodeID,                               // node ID
-//		delRewardAddress,                        // reward address
-//		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
-//		ids.ShortEmpty,                          // change addr
-//	)
-//	assert.NoError(err)
-//
-//	vm.internalState.AddCurrentStaker(vdrTx, 0)
-//	vm.internalState.AddTx(vdrTx, status.Committed)
-//	vm.internalState.AddCurrentStaker(delTx, 1000000)
-//	vm.internalState.AddTx(delTx, status.Committed)
-//	vm.internalState.SetTimestamp(time.Unix(int64(delEndTime), 0))
-//	err = vm.internalState.Commit()
-//	assert.NoError(err)
-//	err = vm.internalState.(*internalStateImpl).loadCurrentValidators()
-//	assert.NoError(err)
-//	// test validator stake
-//	set, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
-//	assert.True(ok)
-//	stake, ok := set.GetWeight(vdrNodeID)
-//	assert.True(ok)
-//	assert.Equal(vm.MinValidatorStake+vm.MinDelegatorStake, stake)
-//
-//	tx, err := vm.newRewardValidatorTx(delTx.ID())
-//	assert.NoError(err)
-//
-//	onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-//	assert.NoError(err)
-//
-//	vdrDestSet := ids.ShortSet{}
-//	vdrDestSet.Add(vdrRewardAddress)
-//	delDestSet := ids.ShortSet{}
-//	delDestSet.Add(delRewardAddress)
-//
-//	expectedReward := uint64(1000000)
-//
-//	oldVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
-//	assert.NoError(err)
-//	oldDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
-//	assert.NoError(err)
-//
-//	onCommitState.Apply(vm.internalState)
-//	err = vm.internalState.Commit()
-//	assert.NoError(err)
-//
-//	// If tx is committed, delegator and delegatee should get reward
-//	// and the delegator's reward should be greater because the delegatee's share is 25%
-//	commitVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
-//	assert.NoError(err)
-//	vdrReward, err := math.Sub64(commitVdrBalance, oldVdrBalance)
-//	assert.NoError(err)
-//	assert.NotZero(vdrReward, "expected delegatee balance to increase because of reward")
-//
-//	commitDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
-//	assert.NoError(err)
-//	delReward, err := math.Sub64(commitDelBalance, oldDelBalance)
-//	assert.NoError(err)
-//	assert.NotZero(delReward, "expected delegator balance to increase because of reward")
-//
-//	assert.Less(vdrReward, delReward, "the delegator's reward should be greater than the delegatee's because the delegatee's share is 25%")
-//	assert.Equal(expectedReward, delReward+vdrReward, "expected total reward to be %d but is %d", expectedReward, delReward+vdrReward)
-//
-//	stake, ok = set.GetWeight(vdrNodeID)
-//	assert.True(ok)
-//	assert.Equal(vm.MinValidatorStake, stake)
-//}
+// ? @charalarg this test will be deleted in the remove delegation PR
+// func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
+// 	assert := assert.New(t)
 
-//?@charalarg this test will be deleted in the remove delegation PR
-//func TestRewardDelegatorTxExecuteOnAbort(t *testing.T) {
-//	assert := assert.New(t)
-//
-//	vm, _, _ := defaultVM()
-//	vm.ctx.Lock.Lock()
-//	defer func() {
-//		err := vm.Shutdown()
-//		assert.NoError(err)
-//
-//		vm.ctx.Lock.Unlock()
-//	}()
-//
-//	initialSupply := vm.internalState.GetCurrentSupply()
-//
-//	vdrRewardAddress := ids.GenerateTestShortID()
-//	delRewardAddress := ids.GenerateTestShortID()
-//
-//	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
-//	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
-//	vdrNodeID := ids.GenerateTestShortID()
-//	vdrTx, err := vm.newAddValidatorTx(
-//		vm.MinValidatorStake, // stakeAmt
-//		vdrStartTime,
-//		vdrEndTime,
-//		vdrNodeID,        // node ID
-//		vdrRewardAddress, // reward address
-//		reward.PercentDenominator/4,
-//		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
-//		ids.ShortEmpty,                          // change addr
-//	)
-//	assert.NoError(err)
-//
-//	delStartTime := vdrStartTime
-//	delEndTime := vdrEndTime
-//	delTx, err := vm.newAddDelegatorTx(
-//		vm.MinDelegatorStake, // stakeAmt
-//		delStartTime,
-//		delEndTime,
-//		vdrNodeID,                               // node ID
-//		delRewardAddress,                        // reward address
-//		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
-//		ids.ShortEmpty,                          // change addr
-//	)
-//	assert.NoError(err)
-//
-//	vm.internalState.AddCurrentStaker(vdrTx, 0)
-//	vm.internalState.AddTx(vdrTx, status.Committed)
-//	vm.internalState.AddCurrentStaker(delTx, 1000000)
-//	vm.internalState.AddTx(delTx, status.Committed)
-//	vm.internalState.SetTimestamp(time.Unix(int64(delEndTime), 0))
-//	err = vm.internalState.Commit()
-//	assert.NoError(err)
-//	err = vm.internalState.(*internalStateImpl).loadCurrentValidators()
-//	assert.NoError(err)
-//
-//	tx, err := vm.newRewardValidatorTx(delTx.ID())
-//	assert.NoError(err)
-//
-//	_, onAbortState, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-//	assert.NoError(err)
-//
-//	vdrDestSet := ids.ShortSet{}
-//	vdrDestSet.Add(vdrRewardAddress)
-//	delDestSet := ids.ShortSet{}
-//	delDestSet.Add(delRewardAddress)
-//
-//	expectedReward := uint64(1000000)
-//
-//	oldVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
-//	assert.NoError(err)
-//	oldDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
-//	assert.NoError(err)
-//
-//	onAbortState.Apply(vm.internalState)
-//	err = vm.internalState.Commit()
-//	assert.NoError(err)
-//
-//	// If tx is aborted, delegator and delegatee shouldn't get reward
-//	newVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
-//	assert.NoError(err)
-//	vdrReward, err := math.Sub64(newVdrBalance, oldVdrBalance)
-//	assert.NoError(err)
-//	assert.Zero(vdrReward, "expected delegatee balance not to increase")
-//
-//	newDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
-//	assert.NoError(err)
-//	delReward, err := math.Sub64(newDelBalance, oldDelBalance)
-//	assert.NoError(err)
-//	assert.Zero(delReward, "expected delegator balance not to increase")
-//
-//	newSupply := vm.internalState.GetCurrentSupply()
-//	assert.Equal(initialSupply-expectedReward, newSupply, "should have removed un-rewarded tokens from the potential supply")
-//}
+// 	vm, _, _ := defaultVM()
+// 	vm.ctx.Lock.Lock()
+// 	defer func() {
+// 		err := vm.Shutdown()
+// 		assert.NoError(err)
+
+// 		vm.ctx.Lock.Unlock()
+// 	}()
+
+// 	vdrRewardAddress := ids.GenerateTestShortID()
+// 	delRewardAddress := ids.GenerateTestShortID()
+
+// 	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
+// 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
+// 	vdrNodeID := ids.GenerateTestShortID()
+// 	vdrTx, err := vm.newAddValidatorTx(
+// 		vm.MinValidatorStake, // stakeAmt
+// 		vdrStartTime,
+// 		vdrEndTime,
+// 		vdrNodeID,        // node ID
+// 		vdrRewardAddress, // reward address
+// 		reward.PercentDenominator/4,
+// 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
+// 		ids.ShortEmpty,                          // change addr
+// 	)
+// 	assert.NoError(err)
+
+// 	delStartTime := vdrStartTime
+// 	delEndTime := vdrEndTime
+// 	delTx, err := vm.newAddDelegatorTx(
+// 		vm.MinDelegatorStake, // stakeAmt
+// 		delStartTime,
+// 		delEndTime,
+// 		vdrNodeID,                               // node ID
+// 		delRewardAddress,                        // reward address
+// 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
+// 		ids.ShortEmpty,                          // change addr
+// 	)
+// 	assert.NoError(err)
+
+// 	vm.internalState.AddCurrentStaker(vdrTx, 0)
+// 	vm.internalState.AddTx(vdrTx, status.Committed)
+// 	vm.internalState.AddCurrentStaker(delTx, 1000000)
+// 	vm.internalState.AddTx(delTx, status.Committed)
+// 	vm.internalState.SetTimestamp(time.Unix(int64(delEndTime), 0))
+// 	err = vm.internalState.Commit()
+// 	assert.NoError(err)
+// 	err = vm.internalState.(*internalStateImpl).loadCurrentValidators()
+// 	assert.NoError(err)
+// 	// test validator stake
+// 	set, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
+// 	assert.True(ok)
+// 	stake, ok := set.GetWeight(vdrNodeID)
+// 	assert.True(ok)
+// 	assert.Equal(vm.MinValidatorStake+vm.MinDelegatorStake, stake)
+
+// 	tx, err := vm.newRewardValidatorTx(delTx.ID())
+// 	assert.NoError(err)
+
+// 	onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
+// 	assert.NoError(err)
+
+// 	vdrDestSet := ids.ShortSet{}
+// 	vdrDestSet.Add(vdrRewardAddress)
+// 	delDestSet := ids.ShortSet{}
+// 	delDestSet.Add(delRewardAddress)
+
+// 	expectedReward := uint64(1000000)
+
+// 	oldVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
+// 	assert.NoError(err)
+// 	oldDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
+// 	assert.NoError(err)
+
+// 	onCommitState.Apply(vm.internalState)
+// 	err = vm.internalState.Commit()
+// 	assert.NoError(err)
+
+// 	// If tx is committed, delegator and delegatee should get reward
+// 	// and the delegator's reward should be greater because the delegatee's share is 25%
+// 	commitVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
+// 	assert.NoError(err)
+// 	vdrReward, err := math.Sub64(commitVdrBalance, oldVdrBalance)
+// 	assert.NoError(err)
+// 	assert.NotZero(vdrReward, "expected delegatee balance to increase because of reward")
+
+// 	commitDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
+// 	assert.NoError(err)
+// 	delReward, err := math.Sub64(commitDelBalance, oldDelBalance)
+// 	assert.NoError(err)
+// 	assert.NotZero(delReward, "expected delegator balance to increase because of reward")
+
+// 	assert.Less(vdrReward, delReward, "the delegator's reward should be greater than the delegatee's because the delegatee's share is 25%")
+// 	assert.Equal(expectedReward, delReward+vdrReward, "expected total reward to be %d but is %d", expectedReward, delReward+vdrReward)
+
+// 	stake, ok = set.GetWeight(vdrNodeID)
+// 	assert.True(ok)
+// 	assert.Equal(vm.MinValidatorStake, stake)
+// }
+
+// ? @charalarg this test will be deleted in the remove delegation PR
+// func TestRewardDelegatorTxExecuteOnAbort(t *testing.T) {
+// 	assert := assert.New(t)
+
+// 	vm, _, _ := defaultVM()
+// 	vm.ctx.Lock.Lock()
+// 	defer func() {
+// 		err := vm.Shutdown()
+// 		assert.NoError(err)
+
+// 		vm.ctx.Lock.Unlock()
+// 	}()
+
+// 	initialSupply := vm.internalState.GetCurrentSupply()
+
+// 	vdrRewardAddress := ids.GenerateTestShortID()
+// 	delRewardAddress := ids.GenerateTestShortID()
+
+// 	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
+// 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
+// 	vdrNodeID := ids.GenerateTestShortID()
+// 	vdrTx, err := vm.newAddValidatorTx(
+// 		vm.MinValidatorStake, // stakeAmt
+// 		vdrStartTime,
+// 		vdrEndTime,
+// 		vdrNodeID,        // node ID
+// 		vdrRewardAddress, // reward address
+// 		reward.PercentDenominator/4,
+// 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
+// 		ids.ShortEmpty,                          // change addr
+// 	)
+// 	assert.NoError(err)
+
+// 	delStartTime := vdrStartTime
+// 	delEndTime := vdrEndTime
+// 	delTx, err := vm.newAddDelegatorTx(
+// 		vm.MinDelegatorStake, // stakeAmt
+// 		delStartTime,
+// 		delEndTime,
+// 		vdrNodeID,                               // node ID
+// 		delRewardAddress,                        // reward address
+// 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // fee payer
+// 		ids.ShortEmpty,                          // change addr
+// 	)
+// 	assert.NoError(err)
+
+// 	vm.internalState.AddCurrentStaker(vdrTx, 0)
+// 	vm.internalState.AddTx(vdrTx, status.Committed)
+// 	vm.internalState.AddCurrentStaker(delTx, 1000000)
+// 	vm.internalState.AddTx(delTx, status.Committed)
+// 	vm.internalState.SetTimestamp(time.Unix(int64(delEndTime), 0))
+// 	err = vm.internalState.Commit()
+// 	assert.NoError(err)
+// 	err = vm.internalState.(*internalStateImpl).loadCurrentValidators()
+// 	assert.NoError(err)
+
+// 	tx, err := vm.newRewardValidatorTx(delTx.ID())
+// 	assert.NoError(err)
+
+// 	_, onAbortState, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
+// 	assert.NoError(err)
+
+// 	vdrDestSet := ids.ShortSet{}
+// 	vdrDestSet.Add(vdrRewardAddress)
+// 	delDestSet := ids.ShortSet{}
+// 	delDestSet.Add(delRewardAddress)
+
+// 	expectedReward := uint64(1000000)
+
+// 	oldVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
+// 	assert.NoError(err)
+// 	oldDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
+// 	assert.NoError(err)
+
+// 	onAbortState.Apply(vm.internalState)
+// 	err = vm.internalState.Commit()
+// 	assert.NoError(err)
+
+// 	// If tx is aborted, delegator and delegatee shouldn't get reward
+// 	newVdrBalance, err := avax.GetBalance(vm.internalState, vdrDestSet)
+// 	assert.NoError(err)
+// 	vdrReward, err := math.Sub64(newVdrBalance, oldVdrBalance)
+// 	assert.NoError(err)
+// 	assert.Zero(vdrReward, "expected delegatee balance not to increase")
+
+// 	newDelBalance, err := avax.GetBalance(vm.internalState, delDestSet)
+// 	assert.NoError(err)
+// 	delReward, err := math.Sub64(newDelBalance, oldDelBalance)
+// 	assert.NoError(err)
+// 	assert.Zero(delReward, "expected delegator balance not to increase")
+
+// 	newSupply := vm.internalState.GetCurrentSupply()
+// 	assert.Equal(initialSupply-expectedReward, newSupply, "should have removed un-rewarded tokens from the potential supply")
+// }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {
 	_, genesisBytes := defaultGenesis()
