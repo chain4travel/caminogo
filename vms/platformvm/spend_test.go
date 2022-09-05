@@ -310,13 +310,37 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 		msg     string
 	}{
 		{
-			name: "Happy path",
+			name: "One input one output",
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint32{0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			wantErr: false,
+			msg:     "One input one output",
+		},
+		{
+			name: "One input two outputs",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 2,
 						},
 					},
 				},
@@ -328,10 +352,82 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 							Amt: 1,
 						},
 					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
 				},
 			},
 			wantErr: false,
-			msg:     "happy path",
+			msg:     "One input two outputs",
+		},
+		{
+			name: "Two inputs one output",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint32{0},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			wantErr: false,
+			msg:     "Two inputs one output",
+		},
+		{
+			name: "Two inputs two outputs",
+			args: args{
+				inputs: []*avax.TransferableInput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						In: &secp256k1fx.TransferInput{
+							Amt: 1,
+						},
+					},
+				},
+				inputIndexes: []uint32{0, 1},
+				outputs: []*avax.TransferableOutput{
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+					{
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			wantErr: false,
+			msg:     "Two inputs two outputs",
 		},
 		{
 			name: "Wrong assetId",
