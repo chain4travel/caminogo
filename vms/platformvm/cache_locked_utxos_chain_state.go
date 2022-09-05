@@ -105,6 +105,9 @@ func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]ut
 					bondTxID)
 			}
 			bond.Remove(newLockedUTXOID)
+			if bond.Len() == 0 {
+				delete(newCS.bonds, bondTxID)
+			}
 		case oldLockedUTXOState.BondTxID != newLockedUTXO.BondTxID:
 			return nil, fmt.Errorf("attempt to bond bonded utxo (utxoID: %v, oldBondID: %v, newBondID: %v)",
 				newLockedUTXOID, oldLockedUTXOState.BondTxID, newLockedUTXO.BondTxID)
@@ -130,6 +133,9 @@ func (cs *lockedUTXOsChainStateImpl) updateUTXOs(updatedUTXOStates map[ids.ID]ut
 					depositTxID)
 			}
 			deposit.Remove(newLockedUTXOID)
+			if deposit.Len() == 0 {
+				delete(newCS.deposits, depositTxID)
+			}
 		case oldLockedUTXOState.DepositTxID != newLockedUTXO.DepositTxID:
 			return nil, fmt.Errorf("attempt to deposit deposited utxo (utxoID: %v, oldDepositID: %v, newDepositID: %v)",
 				newLockedUTXOID, oldLockedUTXOState.DepositTxID, newLockedUTXO.DepositTxID)
