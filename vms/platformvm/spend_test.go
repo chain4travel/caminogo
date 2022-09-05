@@ -288,16 +288,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 	}
 }
 
-func Test_syntacticVerifyInputIndexes(t *testing.T) {
-	vm, _, _ := defaultVM()
-	vm.ctx.Lock.Lock()
-	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		vm.ctx.Lock.Unlock()
-	}()
-
+func TestSyntacticVerifyInputIndexes(t *testing.T) {
 	type args struct {
 		inputs       []*avax.TransferableInput
 		inputIndexes []uint32
@@ -314,7 +305,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
@@ -323,7 +314,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
@@ -338,7 +329,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 2,
 						},
@@ -347,13 +338,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
@@ -368,13 +359,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
@@ -383,7 +374,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
@@ -398,13 +389,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
@@ -413,13 +404,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0, 1},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
@@ -443,13 +434,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 100,
 						},
@@ -464,7 +455,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
@@ -473,13 +464,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 100,
 						},
@@ -494,7 +485,7 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 			args: args{
 				inputs: []*avax.TransferableInput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						In: &secp256k1fx.TransferInput{
 							Amt: 1,
 						},
@@ -503,13 +494,13 @@ func Test_syntacticVerifyInputIndexes(t *testing.T) {
 				inputIndexes: []uint32{0, 0},
 				outputs: []*avax.TransferableOutput{
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: math.MaxUint64,
 						},
 					},
 					{
-						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Asset: avax.Asset{ID: avaxAssetID},
 						Out: &secp256k1fx.TransferOutput{
 							Amt: 1,
 						},
