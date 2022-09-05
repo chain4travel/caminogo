@@ -43,8 +43,7 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 				},
 				bond: true,
 			},
-			utxoLockState: utxoLockState{BondTxID: nil, DepositTxID: nil},
-			wantErr:       false,
+			utxoLockState: utxoLockState{},
 			msg:           "Happy path bond",
 		},
 		{
@@ -58,10 +57,8 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 						},
 					},
 				},
-				bond: false,
 			},
-			utxoLockState: utxoLockState{BondTxID: nil, DepositTxID: nil},
-			wantErr:       false,
+			utxoLockState: utxoLockState{},
 			msg:           "Happy path deposit",
 		},
 		{
@@ -77,8 +74,7 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 				},
 				bond: true,
 			},
-			utxoLockState: utxoLockState{BondTxID: nil, DepositTxID: &ids.ID{}},
-			wantErr:       false,
+			utxoLockState: utxoLockState{DepositTxID: &ids.ID{}},
 			msg:           "Happy path bond deposited amount",
 		},
 		{
@@ -92,10 +88,8 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 						},
 					},
 				},
-				bond: false,
 			},
-			utxoLockState: utxoLockState{BondTxID: &ids.ID{}, DepositTxID: nil},
-			wantErr:       false,
+			utxoLockState: utxoLockState{BondTxID: &ids.ID{}},
 			msg:           "Happy path deposit bonded amount",
 		},
 		{
@@ -111,7 +105,7 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 				},
 				bond: true,
 			},
-			utxoLockState: utxoLockState{BondTxID: &ids.ID{}, DepositTxID: nil},
+			utxoLockState: utxoLockState{BondTxID: &ids.ID{}},
 			wantErr:       true,
 			msg:           "Should have failed because UTXOs consumed are already bonded",
 		},
@@ -126,9 +120,8 @@ func TestSemanticVerifyLockInputs(t *testing.T) {
 						},
 					},
 				},
-				bond: false,
 			},
-			utxoLockState: utxoLockState{BondTxID: nil, DepositTxID: &ids.ID{}},
+			utxoLockState: utxoLockState{DepositTxID: &ids.ID{}},
 			wantErr:       true,
 			msg:           "Should have failed because UTXOs consumed are already deposited",
 		},
@@ -162,8 +155,7 @@ func TestUpdateUTXOs(t *testing.T) {
 		{
 			name: "Happy path bonding",
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    &ids.ID{9, 9},
-				DepositTxID: nil,
+				BondTxID: &ids.ID{9, 9},
 			}},
 			want: &lockedUTXOsChainStateImpl{
 				bonds: map[ids.ID]ids.Set{
@@ -171,36 +163,27 @@ func TestUpdateUTXOs(t *testing.T) {
 				},
 				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 			},
-			wantErr: false,
-			msg:     "Happy path bonding",
+			msg: "Happy path bonding",
 		},
 		{
 			name: "Happy path bonding deposited tokens",
 			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds: make(map[ids.ID]ids.Set),
+				bonds: map[ids.ID]ids.Set{},
 				deposits: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: &ids.ID{9, 9},
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 			},
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    &ids.ID{8, 8},
-				DepositTxID: nil,
+				BondTxID: &ids.ID{8, 8},
 			}},
 			want: &lockedUTXOsChainStateImpl{
 				bonds: map[ids.ID]ids.Set{
@@ -208,16 +191,13 @@ func TestUpdateUTXOs(t *testing.T) {
 				},
 				deposits: make(map[ids.ID]ids.Set),
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{8, 8},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{8, 8},
 				}},
 				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{8, 8},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{8, 8},
 				}},
 			},
-			wantErr: false,
-			msg:     "Happy path bonding deposited tokens",
+			msg: "Happy path bonding deposited tokens",
 		},
 		{
 			name: "Happy path unbonding",
@@ -225,53 +205,32 @@ func TestUpdateUTXOs(t *testing.T) {
 				bonds: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
-				deposits: make(map[ids.ID]ids.Set),
+				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 			},
-			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
-				DepositTxID: nil,
-			}},
+			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {}},
 			want: &lockedUTXOsChainStateImpl{
-				bonds:       map[ids.ID]ids.Set{},
-				deposits:    map[ids.ID]ids.Set{},
-				lockedUTXOs: map[ids.ID]utxoLockState{},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: nil,
-				}},
+				bonds:        map[ids.ID]ids.Set{},
+				deposits:     map[ids.ID]ids.Set{},
+				lockedUTXOs:  map[ids.ID]utxoLockState{},
+				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {}},
 			},
-			wantErr: false,
-			msg:     "Happy path unbonding",
+			msg: "Happy path unbonding",
 		},
 		{
 			name: "BondTx exists no bond state",
 			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds:    make(map[ids.ID]ids.Set),
-				deposits: make(map[ids.ID]ids.Set),
+				bonds:    map[ids.ID]ids.Set{},
+				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 			},
-			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
-				DepositTxID: nil,
-			}},
-			want:    nil,
-			wantErr: true,
-			msg:     "Should have failed because bonding tx exists but there is no such bond in state",
+			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {}},
+			wantErr:           true,
+			msg:               "Should have failed because bonding tx exists but there is no such bond in state",
 		},
 		{
 			name: "Bonding already bonded UTXO",
@@ -279,34 +238,20 @@ func TestUpdateUTXOs(t *testing.T) {
 				bonds: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
-				deposits: make(map[ids.ID]ids.Set),
+				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 			},
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    &ids.ID{8, 8},
-				DepositTxID: nil,
+				BondTxID: &ids.ID{8, 8},
 			}},
-			want:    nil,
 			wantErr: true,
 			msg:     "Should have failed because UTXO is already bonded",
 		},
 		{
 			name: "Happy path depositing",
-			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds:        make(map[ids.ID]ids.Set),
-				deposits:     make(map[ids.ID]ids.Set),
-				lockedUTXOs:  make(map[ids.ID]utxoLockState),
-				updatedUTXOs: make(map[ids.ID]utxoLockState),
-			},
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
 				DepositTxID: &ids.ID{9, 9},
 			}},
 			want: &lockedUTXOsChainStateImpl{
@@ -315,16 +260,13 @@ func TestUpdateUTXOs(t *testing.T) {
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 			},
-			wantErr: false,
-			msg:     "Happy path depositing",
+			msg: "Happy path depositing",
 		},
 		{
 			name: "Happy path depositing bonded tokens",
@@ -332,18 +274,12 @@ func TestUpdateUTXOs(t *testing.T) {
 				bonds: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
-				deposits: make(map[ids.ID]ids.Set),
+				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    &ids.ID{9, 9},
-					DepositTxID: nil,
+					BondTxID: &ids.ID{9, 9},
 				}},
 			},
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
 				DepositTxID: &ids.ID{8, 8},
 			}},
 			want: &lockedUTXOsChainStateImpl{
@@ -352,92 +288,61 @@ func TestUpdateUTXOs(t *testing.T) {
 					{8, 8}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{8, 8},
 				}},
 				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{8, 8},
 				}},
 			},
-			wantErr: false,
-			msg:     "Happy path depositing bonded tokens",
+			msg: "Happy path depositing bonded tokens",
 		},
 		{
 			name: "Happy path undepositing",
 			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds: make(map[ids.ID]ids.Set),
+				bonds: map[ids.ID]ids.Set{},
 				deposits: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: &ids.ID{9, 9},
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 			},
-			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
-				DepositTxID: nil,
-			}},
+			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {}},
 			want: &lockedUTXOsChainStateImpl{
-				bonds:       map[ids.ID]ids.Set{},
-				deposits:    map[ids.ID]ids.Set{},
-				lockedUTXOs: map[ids.ID]utxoLockState{},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: nil,
-				}},
+				bonds:        map[ids.ID]ids.Set{},
+				deposits:     map[ids.ID]ids.Set{},
+				lockedUTXOs:  map[ids.ID]utxoLockState{},
+				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {}},
 			},
-			wantErr: false,
-			msg:     "Happy path undepositing",
+			msg: "Happy path undepositing",
 		},
 		{
 			name: "DepositTx exists no deposit state",
 			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds:    make(map[ids.ID]ids.Set),
-				deposits: make(map[ids.ID]ids.Set),
+				bonds:    map[ids.ID]ids.Set{},
+				deposits: map[ids.ID]ids.Set{},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: &ids.ID{9, 9},
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 			},
-			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
-				DepositTxID: nil,
-			}},
-			want:    nil,
-			wantErr: true,
-			msg:     "Should have failed because depositing tx exists but there is no such deposit in state",
+			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {}},
+			wantErr:           true,
+			msg:               "Should have failed because depositing tx exists but there is no such deposit in state",
 		},
 		{
 			name: "Depositing already deposited UTXO",
 			lockedStateImpl: lockedUTXOsChainStateImpl{
-				bonds: make(map[ids.ID]ids.Set),
+				bonds: map[ids.ID]ids.Set{},
 				deposits: map[ids.ID]ids.Set{
 					{9, 9}: map[ids.ID]struct{}{{1, 1}: {}},
 				},
 				lockedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
-					DepositTxID: &ids.ID{9, 9},
-				}},
-				updatedUTXOs: map[ids.ID]utxoLockState{{1, 1}: {
-					BondTxID:    nil,
 					DepositTxID: &ids.ID{9, 9},
 				}},
 			},
 			updatedUTXOStates: map[ids.ID]utxoLockState{{1, 1}: {
-				BondTxID:    nil,
 				DepositTxID: &ids.ID{8, 8},
 			}},
-			want:    nil,
 			wantErr: true,
 			msg:     "Should have failed because UTXO is already deposited",
 		},
