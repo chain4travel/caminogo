@@ -12,7 +12,7 @@
 // Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-//go:generate mockgen -source cache_internal_state.go -destination mock_cache_internal_state.go -package platformvm -aux_files github.com/chain4travel/caminogo/vms/platformvm=cache_versioned_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_validator_state.go
+//go:generate mockgen -source cache_internal_state.go -destination mock_cache_internal_state.go -package platformvm -aux_files github.com/chain4travel/caminogo/vms/platformvm=cache_versioned_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_validator_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_deposit_offers_state.go
 
 package platformvm
 
@@ -24,10 +24,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/golang/mock/gomock"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/api/keystore"
@@ -43,6 +39,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
 	cjson "github.com/chain4travel/caminogo/utils/json"
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"

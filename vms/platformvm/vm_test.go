@@ -22,9 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chain4travel/caminogo/snow/uptime/mocks"
-	"github.com/stretchr/testify/mock"
-
 	"github.com/chain4travel/caminogo/cache"
 	"github.com/chain4travel/caminogo/chains"
 	"github.com/chain4travel/caminogo/chains/atomic"
@@ -36,19 +33,17 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/choices"
 	"github.com/chain4travel/caminogo/snow/consensus/snowball"
-	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/snow/engine/common/queue"
 	"github.com/chain4travel/caminogo/snow/engine/common/tracker"
-	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/snowman/bootstrap"
-	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
 	"github.com/chain4travel/caminogo/snow/networking/benchlist"
 	"github.com/chain4travel/caminogo/snow/networking/handler"
 	"github.com/chain4travel/caminogo/snow/networking/router"
 	"github.com/chain4travel/caminogo/snow/networking/sender"
 	"github.com/chain4travel/caminogo/snow/networking/timeout"
 	"github.com/chain4travel/caminogo/snow/uptime"
+	"github.com/chain4travel/caminogo/snow/uptime/mocks"
 	"github.com/chain4travel/caminogo/snow/validators"
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -65,6 +60,11 @@ import (
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
+	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
+	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
 )
 
 var (
@@ -76,6 +76,16 @@ var (
 		MinConsumptionRate: .10 * reward.PercentDenominator,
 		MintingPeriod:      365 * 24 * time.Hour,
 		SupplyCap:          720 * units.MegaAvax,
+	}
+
+	defaultDepositOffer = []APIDepositOffer{
+		{
+			InterestRate:    0.1,
+			Start:           1659342978,
+			End:             1672516799,
+			MinAmount:       0,
+			DepositDuration: 60,
+		},
 	}
 
 	// AVAX asset ID in tests
@@ -234,6 +244,7 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 		UTXOs:         genesisUTXOs,
 		Validators:    genesisValidators,
 		Chains:        nil,
+		DepositOffers: defaultDepositOffer,
 		Time:          json.Uint64(defaultGenesisTime.Unix()),
 		InitialSupply: json.Uint64(360 * units.MegaAvax),
 	}

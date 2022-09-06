@@ -128,7 +128,8 @@ func TestGetAncestorsPreForkOnly(t *testing.T) {
 	// Simply return an empty result
 	coreVM.GetAncestorsF = func(blkID ids.ID,
 		maxBlocksNum, maxBlocksSize int,
-		maxBlocksRetrivalTime time.Duration) ([][]byte, error) {
+		maxBlocksRetrivalTime time.Duration,
+	) ([][]byte, error) {
 		res := make([][]byte, 0, 3)
 		switch blkID {
 		case coreBlk3.ID():
@@ -240,7 +241,8 @@ func TestGetAncestorsPostForkOnly(t *testing.T) {
 	// Simply return an empty result
 	coreVM.GetAncestorsF = func(blkID ids.ID,
 		maxBlocksNum, maxBlocksSize int,
-		maxBlocksRetrivalTime time.Duration) ([][]byte, error) {
+		maxBlocksRetrivalTime time.Duration,
+	) ([][]byte, error) {
 		res := make([][]byte, 0, 3)
 		switch blkID {
 		case coreBlk3.ID():
@@ -412,7 +414,8 @@ func TestGetAncestorsAtSnomanPlusPlusFork(t *testing.T) {
 	// Simply return an empty result
 	coreVM.GetAncestorsF = func(blkID ids.ID,
 		maxBlocksNum, maxBlocksSize int,
-		maxBlocksRetrivalTime time.Duration) ([][]byte, error) {
+		maxBlocksRetrivalTime time.Duration,
+	) ([][]byte, error) {
 		res := make([][]byte, 0, 3)
 		switch blkID {
 		case coreBlk4.ID():
@@ -866,7 +869,8 @@ func initTestRemoteProposerVM(
 
 	coreVM.InitializeF = func(*snow.Context, manager.Manager,
 		[]byte, []byte, []byte, chan<- common.Message,
-		[]*common.Fx, common.AppSender) error {
+		[]*common.Fx, common.AppSender,
+	) error {
 		return nil
 	}
 	coreVM.LastAcceptedF = func() (ids.ID, error) { return coreGenBlk.ID(), nil }
