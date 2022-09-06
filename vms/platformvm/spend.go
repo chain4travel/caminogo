@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/chain4travel/caminogo/codec"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/hashing"
@@ -112,8 +113,8 @@ func (vm *VM) spend(
 	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	notLockedOutInputIndexes := []uint32{}
-	lockedOutInputIndexes := []uint32{}
+	notLockedOutInputIDs := []ids.ID{}
+	lockedOutInputIDs := []ids.ID{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -174,7 +175,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint32(len(ins) - 1)
+		inputID := utxo.InputID()
 
 		// Add the output to the transitioned outputs
 		lockedOuts = append(lockedOuts, &avax.TransferableOutput{
@@ -184,7 +185,7 @@ func (vm *VM) spend(
 				OutputOwners: innerOut.OutputOwners,
 			},
 		})
-		lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
+		lockedOutInputIDs = append(lockedOutInputIDs, inputID)
 
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
@@ -196,7 +197,7 @@ func (vm *VM) spend(
 					OutputOwners: innerOut.OutputOwners,
 				},
 			})
-			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
+			notLockedOutInputIDs = append(notLockedOutInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -262,7 +263,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint32(len(ins) - 1)
+		inputID := utxo.InputID()
 
 		if amountToSpend > 0 {
 			// Some of this input was put for spending
@@ -282,7 +283,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
+			lockedOutInputIDs = append(lockedOutInputIDs, inputID)
 		}
 
 		if remainingValue > 0 {
@@ -303,7 +304,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
+			notLockedOutInputIDs = append(notLockedOutInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -316,42 +317,70 @@ func (vm *VM) spend(
 			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
 	}
 
-	inputIndexes := make([]uint32, len(notLockedOutInputIndexes)+len(lockedOutInputIndexes))
-	copy(inputIndexes, notLockedOutInputIndexes)
-	copy(inputIndexes[len(notLockedOutInputIndexes):], lockedOutInputIndexes)
+	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
+	// ! @evlekht sort logic is partially duplicated, unhappy with this
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{ // sort not-locked outputs
+		outs:     notLockedOuts,
+		inputIDs: notLockedOutInputIDs,
+		codec:    Codec,
+	})
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{ // sort locked outputs
+		outs:     lockedOuts,
+		inputIDs: lockedOutInputIDs,
+		codec:    Codec,
+	})
 
-	// * @evlekht I'm not happy with this duplication of sort logic, but here it is
-	sort.Sort(&innerSortInputs{ins: ins, signers: signers, indexes: inputIndexes}) // sort inputs, keys and input indexes
-	avax.SortTransferableOutputs(notLockedOuts, Codec)                             // sort outputs
-	avax.SortTransferableOutputs(lockedOuts, Codec)                                // sort outputs
+	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
+	for inputIndex, in := range ins {
+		inputIndexesMap[in.InputID()] = uint32(inputIndex)
+	}
+
+	inputIndexes := make([]uint32, len(notLockedOutInputIDs)+len(lockedOutInputIDs))
+	for i, inputID := range notLockedOutInputIDs {
+		inputIndexes[i] = inputIndexesMap[inputID]
+	}
+	offset := len(notLockedOutInputIDs)
+	for i, inputID := range lockedOutInputIDs {
+		inputIndexes[offset+i] = inputIndexesMap[inputID]
+	}
 
 	return ins, notLockedOuts, lockedOuts, inputIndexes, signers, nil
 }
 
-type innerSortInputs struct {
-	ins     []*avax.TransferableInput
-	signers [][]*crypto.PrivateKeySECP256K1R
-	indexes []uint32
+type innerSortTransferableOutputsAndInputIDs struct {
+	outs     []*avax.TransferableOutput
+	inputIDs []ids.ID
+	codec    codec.Manager
 }
 
-func (ins *innerSortInputs) Less(i, j int) bool {
-	iID, iIndex := ins.ins[i].InputSource()
-	jID, jIndex := ins.ins[j].InputSource()
+func (outs *innerSortTransferableOutputsAndInputIDs) Less(i, j int) bool {
+	iOut := outs.outs[i]
+	jOut := outs.outs[j]
 
-	switch bytes.Compare(iID[:], jID[:]) {
+	iAssetID := iOut.AssetID()
+	jAssetID := jOut.AssetID()
+
+	switch bytes.Compare(iAssetID[:], jAssetID[:]) {
 	case -1:
 		return true
-	case 0:
-		return iIndex < jIndex
-	default:
+	case 1:
 		return false
 	}
+
+	iBytes, err := outs.codec.Marshal(CodecVersion, &iOut.Out)
+	if err != nil {
+		return false
+	}
+	jBytes, err := outs.codec.Marshal(CodecVersion, &jOut.Out)
+	if err != nil {
+		return false
+	}
+	return bytes.Compare(iBytes, jBytes) == -1
 }
-func (ins *innerSortInputs) Len() int { return len(ins.ins) }
-func (ins *innerSortInputs) Swap(i, j int) {
-	ins.ins[j], ins.ins[i] = ins.ins[i], ins.ins[j]
-	ins.signers[j], ins.signers[i] = ins.signers[i], ins.signers[j]
-	ins.indexes[j], ins.indexes[i] = ins.indexes[i], ins.indexes[j]
+func (outs *innerSortTransferableOutputsAndInputIDs) Len() int { return len(outs.outs) }
+func (outs *innerSortTransferableOutputsAndInputIDs) Swap(i, j int) {
+	outs.outs[j], outs.outs[i] = outs.outs[i], outs.outs[j]
+	outs.inputIDs[j], outs.inputIDs[i] = outs.inputIDs[i], outs.inputIDs[j]
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.

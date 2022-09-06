@@ -25,10 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/api/keystore"
 	"github.com/chain4travel/caminogo/chains/atomic"
@@ -43,6 +39,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"
 )
