@@ -337,11 +337,11 @@ func (vm *VM) spend(
 
 	inputIndexes := make([]uint32, len(notLockedOutInputIDs)+len(lockedOutInputIDs))
 	for i, inputID := range notLockedOutInputIDs {
-		inputIndexes[i] = uint32(inputIndexesMap[inputID])
+		inputIndexes[i] = inputIndexesMap[inputID]
 	}
 	offset := len(notLockedOutInputIDs)
 	for i, inputID := range lockedOutInputIDs {
-		inputIndexes[offset+i] = uint32(inputIndexesMap[inputID])
+		inputIndexes[offset+i] = inputIndexesMap[inputID]
 	}
 
 	return ins, notLockedOuts, lockedOuts, inputIndexes, signers, nil
