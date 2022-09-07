@@ -15,9 +15,12 @@
 package platformvm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 
+	"github.com/chain4travel/caminogo/codec"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/hashing"
@@ -315,8 +318,17 @@ func (vm *VM) spend(
 	}
 
 	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
-	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
+	// ! @evlekht sort logic is partially duplicated, unhappy with this
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{ // sort not-locked outputs
+		outs:     notLockedOuts,
+		inputIDs: notLockedOutInputIDs,
+		codec:    Codec,
+	})
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{ // sort locked outputs
+		outs:     lockedOuts,
+		inputIDs: lockedOutInputIDs,
+		codec:    Codec,
+	})
 
 	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
 	for inputIndex, in := range ins {
@@ -333,6 +345,42 @@ func (vm *VM) spend(
 	}
 
 	return ins, notLockedOuts, lockedOuts, inputIndexes, signers, nil
+}
+
+type innerSortTransferableOutputsAndInputIDs struct {
+	outs     []*avax.TransferableOutput
+	inputIDs []ids.ID
+	codec    codec.Manager
+}
+
+func (outs *innerSortTransferableOutputsAndInputIDs) Less(i, j int) bool {
+	iOut := outs.outs[i]
+	jOut := outs.outs[j]
+
+	iAssetID := iOut.AssetID()
+	jAssetID := jOut.AssetID()
+
+	switch bytes.Compare(iAssetID[:], jAssetID[:]) {
+	case -1:
+		return true
+	case 1:
+		return false
+	}
+
+	iBytes, err := outs.codec.Marshal(CodecVersion, &iOut.Out)
+	if err != nil {
+		return false
+	}
+	jBytes, err := outs.codec.Marshal(CodecVersion, &jOut.Out)
+	if err != nil {
+		return false
+	}
+	return bytes.Compare(iBytes, jBytes) == -1
+}
+func (outs *innerSortTransferableOutputsAndInputIDs) Len() int { return len(outs.outs) }
+func (outs *innerSortTransferableOutputsAndInputIDs) Swap(i, j int) {
+	outs.outs[j], outs.outs[i] = outs.outs[i], outs.outs[j]
+	outs.inputIDs[j], outs.inputIDs[i] = outs.inputIDs[i], outs.inputIDs[j]
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
