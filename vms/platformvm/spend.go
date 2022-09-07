@@ -15,10 +15,8 @@
 package platformvm
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -112,8 +110,8 @@ func (vm *VM) spend(
 	notLockedOuts := []*avax.TransferableOutput{}
 	lockedOuts := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	notLockedOutInputIndexes := []uint32{}
-	lockedOutInputIndexes := []uint32{}
+	notLockedOutInputIDs := []ids.ID{}
+	lockedOutInputIDs := []ids.ID{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -174,7 +172,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint32(len(ins) - 1)
+		inputID := utxo.InputID()
 
 		// Add the output to the transitioned outputs
 		lockedOuts = append(lockedOuts, &avax.TransferableOutput{
@@ -184,7 +182,7 @@ func (vm *VM) spend(
 				OutputOwners: innerOut.OutputOwners,
 			},
 		})
-		lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
+		lockedOutInputIDs = append(lockedOutInputIDs, inputID)
 
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
@@ -196,7 +194,7 @@ func (vm *VM) spend(
 					OutputOwners: innerOut.OutputOwners,
 				},
 			})
-			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
+			notLockedOutInputIDs = append(notLockedOutInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -262,7 +260,7 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputIndex := uint32(len(ins) - 1)
+		inputID := utxo.InputID()
 
 		if amountToSpend > 0 {
 			// Some of this input was put for spending
@@ -282,7 +280,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			lockedOutInputIndexes = append(lockedOutInputIndexes, inputIndex)
+			lockedOutInputIDs = append(lockedOutInputIDs, inputID)
 		}
 
 		if remainingValue > 0 {
@@ -303,7 +301,7 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			notLockedOutInputIndexes = append(notLockedOutInputIndexes, inputIndex)
+			notLockedOutInputIDs = append(notLockedOutInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -316,42 +314,25 @@ func (vm *VM) spend(
 			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
 	}
 
-	inputIndexes := make([]uint32, len(notLockedOutInputIndexes)+len(lockedOutInputIndexes))
-	copy(inputIndexes, notLockedOutInputIndexes)
-	copy(inputIndexes[len(notLockedOutInputIndexes):], lockedOutInputIndexes)
+	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
+	avax.SortTransferableOutputs(notLockedOuts, Codec)   // sort outputs
+	avax.SortTransferableOutputs(lockedOuts, Codec)      // sort outputs
 
-	// * @evlekht I'm not happy with this duplication of sort logic, but here it is
-	sort.Sort(&innerSortInputs{ins: ins, signers: signers, indexes: inputIndexes}) // sort inputs, keys and input indexes
-	avax.SortTransferableOutputs(notLockedOuts, Codec)                             // sort outputs
-	avax.SortTransferableOutputs(lockedOuts, Codec)                                // sort outputs
+	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
+	for inputIndex, in := range ins {
+		inputIndexesMap[in.InputID()] = uint32(inputIndex)
+	}
+
+	inputIndexes := make([]uint32, len(notLockedOutInputIDs)+len(lockedOutInputIDs))
+	for i, inputID := range notLockedOutInputIDs {
+		inputIndexes[i] = uint32(inputIndexesMap[inputID])
+	}
+	offset := len(notLockedOutInputIDs)
+	for i, inputID := range lockedOutInputIDs {
+		inputIndexes[offset+i] = uint32(inputIndexesMap[inputID])
+	}
 
 	return ins, notLockedOuts, lockedOuts, inputIndexes, signers, nil
-}
-
-type innerSortInputs struct {
-	ins     []*avax.TransferableInput
-	signers [][]*crypto.PrivateKeySECP256K1R
-	indexes []uint32
-}
-
-func (ins *innerSortInputs) Less(i, j int) bool {
-	iID, iIndex := ins.ins[i].InputSource()
-	jID, jIndex := ins.ins[j].InputSource()
-
-	switch bytes.Compare(iID[:], jID[:]) {
-	case -1:
-		return true
-	case 0:
-		return iIndex < jIndex
-	default:
-		return false
-	}
-}
-func (ins *innerSortInputs) Len() int { return len(ins.ins) }
-func (ins *innerSortInputs) Swap(i, j int) {
-	ins.ins[j], ins.ins[i] = ins.ins[i], ins.ins[j]
-	ins.signers[j], ins.signers[i] = ins.signers[i], ins.signers[j]
-	ins.indexes[j], ins.indexes[i] = ins.indexes[i], ins.indexes[j]
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
