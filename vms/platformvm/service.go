@@ -778,7 +778,6 @@ type GetPendingValidatorsArgs struct {
 }
 
 // GetPendingValidatorsReply are the results from calling GetPendingValidators.
-// Unlike GetCurrentValidatorsReply, each validator has a null delegator list.
 type GetPendingValidatorsReply struct {
 	Validators []interface{} `json:"validators"`
 }
@@ -1018,22 +1017,6 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		user.Close(),
 	)
 	return errs.Err
-}
-
-// AddDelegatorArgs are the arguments to AddDelegator
-type AddDelegatorArgs struct {
-	// User, password, from addrs, change addr
-	api.JSONSpendHeader
-	APIStaker
-	RewardAddress string `json:"rewardAddress"`
-}
-
-// AddDelegator creates and signs and issues a transaction to add a delegator to
-// the primary network
-func (service *Service) AddDelegator(_ *http.Request, args *AddDelegatorArgs, reply *api.JSONTxIDChangeAddr) error {
-	service.vm.ctx.Log.Debug("Platform: AddDelegator called")
-
-	return fmt.Errorf("delegation is disabled on this chain")
 }
 
 // AddSubnetValidatorArgs are the arguments to AddSubnetValidator
