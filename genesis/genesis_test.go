@@ -209,28 +209,23 @@ var (
 		"initialStakers": [
 			{
 				"nodeID": "NodeID-7Xhw2mDxuDS44j42TCB6U5579esbSt3Lg",
-				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u",
-				"delegationFee": 1000000
+				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
 				"nodeID": "NodeID-MFrZFVCXPv5iCn6M9K6XduxGTYp891xXZ",
-				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u",
-				"delegationFee": 500000
+				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
 				"nodeID": "NodeID-NFBbbJ4qCmNaCzeW7sxErhvWqvEQMnYcN",
-				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u",
-				"delegationFee": 250000
+				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
 				"nodeID": "NodeID-GWPcbFJZFfZreETSoWjPimr846mXEKCtu",
-				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u",
-				"delegationFee": 125000
+				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
 				"nodeID": "NodeID-P7oB2McjBGgW2NXXWVYjV8JEDFoW9xDE5",
-				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u",
-				"delegationFee": 62500
+				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			}
 		],
 		"cChainGenesis": "{\"config\":{\"chainId\":43112,\"homesteadBlock\":0,\"daoForkBlock\":0,\"daoForkSupport\":true,\"eip150Block\":0,\"eip150Hash\":\"0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0\",\"eip155Block\":0,\"eip158Block\":0,\"byzantiumBlock\":0,\"constantinopleBlock\":0,\"petersburgBlock\":0,\"istanbulBlock\":0,\"muirGlacierBlock\":0},\"nonce\":\"0x0\",\"timestamp\":\"0x0\",\"extraData\":\"0x00\",\"gasLimit\":\"0x5f5e100\",\"difficulty\":\"0x0\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"coinbase\":\"0x0000000000000000000000000000000000000000\",\"alloc\":{\"0100000000000000000000000000000000000000\":{\"code\":\"0x7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c80631e010439146042578063b6510bb314606e575b600080fd5b605c60048036036020811015605657600080fd5b503560b1565b60408051918252519081900360200190f35b818015607957600080fd5b5060af60048036036080811015608e57600080fd5b506001600160a01b03813516906020810135906040810135906060013560b6565b005b30cd90565b836001600160a01b031681836108fc8690811502906040516000604051808303818888878c8acf9550505050505015801560f4573d6000803e3d6000fd5b505050505056fea26469706673582212201eebce970fe3f5cb96bf8ac6ba5f5c133fc2908ae3dcd51082cfee8f583429d064736f6c634300060a0033\",\"balance\":\"0x0\"}},\"number\":\"0x0\",\"gasUsed\":\"0x0\",\"parentHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}",
@@ -277,7 +272,7 @@ func TestGenesisFromFile(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "a1d1838586db85fe94ab1143560c3356df9ba2445794b796bba050be89f4fcb4",
+			expected:     "a516ca17d58001f754e2d21af4936cc8f5208dcc1c4180fdf13cb69c478f1964",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -356,7 +351,7 @@ func TestGenesisFromFlag(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "a1d1838586db85fe94ab1143560c3356df9ba2445794b796bba050be89f4fcb4",
+			expected:     "a516ca17d58001f754e2d21af4936cc8f5208dcc1c4180fdf13cb69c478f1964",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -433,11 +428,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "N5SYDM4Lyei9bhpNaCrr59P9u89Z77Hbe7AZ1NVZNGm9L5Tw4",
+					expectedID: "2v7d4zUJtEYLx9YQjjYDHgUjhL846bSKBBF2b2vMNq7vA3Vvpe",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "8FeUkRkbFTiF3yFQr1AyD7GFgexY6dYjhj8XcyQ7jXX1BC8s9",
+					expectedID: "2MLJ3J32TFGKzJ8w3wuNVYCcUzsreCDu93eUctzhi24KVYS7JY",
 				},
 			},
 		},
@@ -446,11 +441,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "28Pp3JZJBABUmFQcC9ZXPjuDS6WVX8LeQP9y3DvpCXGiNiTQFV",
+					expectedID: "2Jpc779BgheaYProoDt2Y7h4415eQS5imi1dHbydnEBrZ9iwUu",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "G52TJLLbDSxYXsijNMpKFB6kAyDVRd9DGWVWYBh86Z8sEXm1i",
+					expectedID: "2ULH7rEiJPgEWjWi56s1VXrewbFwCG7P7VqHfBZdY29LHBeWpG",
 				},
 			},
 		},
@@ -459,11 +454,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "2eNy1mUFdmaxXNj1eQHUe7Np4gju9sJsEtWQ4MX3ToiNKuADed",
+					expectedID: "ip9vTW1rBvvi5xYmmWhQcP6m2B5cSkMhv8vURqzjAYqtiiY3u",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "2CA6j5zYzasynPsFeNoqWkmTCt3VScMvXUZHbfDJ8k3oGzAPtU",
+					expectedID: "RbKAoyGsfq3ZrLVdeTDjVwwkkJBU7Q82H2L3CPfGTKje2LdXP",
 				},
 			},
 		},
