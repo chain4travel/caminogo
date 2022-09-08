@@ -348,7 +348,11 @@ func (st *internalStateImpl) GetUTXOMultisigOwners(utxo *avax.UTXO) (verify.Veri
 	owner := inner.OutputOwners.Addrs[0]
 	outputOwners, err := st.GetMultisigOwners(owner)
 	if err != nil {
-		return utxo.Out, err
+		if err == database.ErrNotFound {
+			return utxo.Out, nil
+		} else {
+			return utxo.Out, err
+		}
 	}
 
 	ret := &secp256k1fx.TransferOutput{
