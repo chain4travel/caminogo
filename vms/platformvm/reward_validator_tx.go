@@ -75,7 +75,8 @@ func (tx *UnsignedRewardValidatorTx) SemanticVerify(vm *VM, parentState MutableS
 // The current validating set must have at least one member.
 // The next validator to be removed must be the validator specified in this block.
 // The next validator to be removed must be have an end time equal to the current
-//   chain timestamp.
+//
+//	chain timestamp.
 func (tx *UnsignedRewardValidatorTx) Execute(
 	vm *VM,
 	parentState MutableState,
