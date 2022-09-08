@@ -25,7 +25,6 @@ import (
 	"github.com/chain4travel/caminogo/utils/math"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
-	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 )
 
 var (
@@ -48,7 +47,7 @@ var (
 type UnsignedRewardValidatorTx struct {
 	avax.Metadata
 
-	// ID of the tx that created the delegator/validator being removed/rewarded
+	// ID of the tx that created the validator being removed/rewarded
 	TxID ids.ID `serialize:"true" json:"txID"`
 
 	// Marks if this validator should be rewarded according to this node.
@@ -76,7 +75,8 @@ func (tx *UnsignedRewardValidatorTx) SemanticVerify(vm *VM, parentState MutableS
 // The current validating set must have at least one member.
 // The next validator to be removed must be the validator specified in this block.
 // The next validator to be removed must be have an end time equal to the current
-//   chain timestamp.
+//
+//	chain timestamp.
 func (tx *UnsignedRewardValidatorTx) Execute(
 	vm *VM,
 	parentState MutableState,
@@ -95,6 +95,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		return nil, nil, errWrongNumberOfCredentials
 	}
 
+	// dertiedemann: this works? even if the parent state is a not a validator state
 	currentStakers := parentState.CurrentStakerChainState()
 	stakerTx, stakerReward, err := currentStakers.GetNextStaker()
 	if err == database.ErrNotFound {
@@ -191,95 +192,6 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		// Handle reward preferences
 		nodeID = uStakerTx.Validator.ID()
 		startTime = uStakerTx.StartTime()
-	case *UnsignedAddDelegatorTx:
-		// Refund the stake here
-		for i, out := range uStakerTx.Stake {
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + i),
-				},
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out:   out.Output(),
-			}
-			onCommitState.AddUTXO(utxo)
-			onAbortState.AddUTXO(utxo)
-		}
-
-		// We're removing a delegator, so we need to fetch the validator they
-		// are delgated to.
-		vdr, err := currentStakers.GetValidator(uStakerTx.Validator.NodeID)
-		if err != nil {
-			return nil, nil, fmt.Errorf(
-				"failed to get whether %s is a validator: %w",
-				uStakerTx.Validator.NodeID,
-				err,
-			)
-		}
-		vdrTx := vdr.AddValidatorTx()
-
-		// Calculate split of reward between delegator/delegatee
-		// The delegator gives stake to the validatee
-		delegatorShares := reward.PercentDenominator - uint64(vdrTx.Shares)             // parentTx.Shares <= reward.PercentDenominator so no underflow
-		delegatorReward := delegatorShares * (stakerReward / reward.PercentDenominator) // delegatorShares <= reward.PercentDenominator so no overflow
-		// Delay rounding as long as possible for small numbers
-		if optimisticReward, err := math.Mul64(delegatorShares, stakerReward); err == nil {
-			delegatorReward = optimisticReward / reward.PercentDenominator
-		}
-		delegateeReward := stakerReward - delegatorReward // delegatorReward <= reward so no underflow
-
-		offset := 0
-
-		// Reward the delegator here
-		if delegatorReward > 0 {
-			outIntf, err := vm.fx.CreateOutput(delegatorReward, uStakerTx.RewardsOwner)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to create output: %w", err)
-			}
-			out, ok := outIntf.(verify.State)
-			if !ok {
-				return nil, nil, errInvalidState
-			}
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Stake)),
-				},
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out:   out,
-			}
-
-			onCommitState.AddUTXO(utxo)
-			onCommitState.AddRewardUTXO(tx.TxID, utxo)
-
-			offset++
-		}
-
-		// Reward the delegatee here
-		if delegateeReward > 0 {
-			outIntf, err := vm.fx.CreateOutput(delegateeReward, vdrTx.RewardsOwner)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to create output: %w", err)
-			}
-			out, ok := outIntf.(verify.State)
-			if !ok {
-				return nil, nil, errInvalidState
-			}
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        tx.TxID,
-					OutputIndex: uint32(len(uStakerTx.Outs) + len(uStakerTx.Stake) + offset),
-				},
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out:   out,
-			}
-
-			onCommitState.AddUTXO(utxo)
-			onCommitState.AddRewardUTXO(tx.TxID, utxo)
-		}
-
-		nodeID = uStakerTx.Validator.ID()
-		startTime = vdrTx.StartTime()
 	default:
 		return nil, nil, errShouldBeDSValidator
 	}
