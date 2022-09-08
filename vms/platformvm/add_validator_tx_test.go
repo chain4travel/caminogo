@@ -22,7 +22,6 @@ import (
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/vms/components/avax"
-	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
@@ -56,7 +55,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 
@@ -78,7 +76,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 
@@ -110,7 +107,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 
@@ -129,28 +125,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		t.Fatal("should have errored because rewards owner has no addresses")
 	}
 
-	// Case: Too many shares
-	tx, err = vm.newAddValidatorTx(
-		vm.MinValidatorStake,
-		uint64(defaultValidateStartTime.Unix()),
-		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
-		nodeID,
-		reward.PercentDenominator,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
-
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx.UnsignedTx.(*UnsignedAddValidatorTx).Shares++ // 1 more than max amount
-	// This tx was syntactically verified when it was created...pretend it wasn't so we don't use cache
-	tx.UnsignedTx.(*UnsignedAddValidatorTx).syntacticallyVerified = false
-	if err := tx.UnsignedTx.(*UnsignedAddValidatorTx).SyntacticVerify(vm.ctx); err == nil {
-		t.Fatal("should have errored because of too many shares")
-	}
-
 	// Case: Valid
 	if tx, err := vm.newAddValidatorTx(
 		vm.MinValidatorStake,
@@ -158,7 +132,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 
@@ -193,7 +166,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	); err != nil {
@@ -209,7 +181,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateStartTime.Add(maxFutureStartTime).Add(defaultMinStakingDuration).Unix()+1),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	); err != nil {
@@ -225,7 +196,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID, // node ID
 		nodeID, // reward address
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	); err != nil {
@@ -246,7 +216,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
 		nodeID,                     // node ID
 		key2.PublicKey().Address(), // reward address
-		reward.PercentDenominator,  // shares
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr // key
 	)
@@ -274,7 +243,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
 	); err != nil {

@@ -26,21 +26,18 @@ import (
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
-	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
 	safemath "github.com/chain4travel/caminogo/utils/math"
 )
 
 var (
-	errNilTx                     = errors.New("tx is nil")
-	errWeightTooSmall            = errors.New("weight of this validator is too low")
-	errWeightTooLarge            = errors.New("weight of this validator is too large")
-	errStakeTooShort             = errors.New("staking period is too short")
-	errStakeTooLong              = errors.New("staking period is too long")
-	errInsufficientDelegationFee = errors.New("staker charges an insufficient delegation fee")
-	errFutureStakeTime           = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
-	errTooManyShares             = fmt.Errorf("a staker can only require at most %d shares from delegators", reward.PercentDenominator)
+	errNilTx           = errors.New("tx is nil")
+	errWeightTooSmall  = errors.New("weight of this validator is too low")
+	errWeightTooLarge  = errors.New("weight of this validator is too large")
+	errStakeTooShort   = errors.New("staking period is too short")
+	errStakeTooLong    = errors.New("staking period is too long")
+	errFutureStakeTime = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
@@ -50,15 +47,12 @@ var (
 type UnsignedAddValidatorTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
-	// Describes the delegatee
+	// Describes the validator
 	Validator Validator `serialize:"true" json:"validator"`
 	// Where to send staked tokens when done validating
 	Stake []*avax.TransferableOutput `serialize:"true" json:"stake"`
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
-	// Fee this validator charges delegators as a percentage, times 10,000
-	// For example, if this validator has Shares=300,000 then they take 30% of rewards from delegators
-	Shares uint32 `serialize:"true" json:"shares"`
 }
 
 // InitCtx sets the FxID fields in the inputs and outputs of this
@@ -95,8 +89,6 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return errNilTx
 	case tx.syntacticallyVerified: // already passed syntactic verification
 		return nil
-	case tx.Shares > reward.PercentDenominator: // Ensure delegators shares are in the allowed amount
-		return errTooManyShares
 	}
 
 	if err := tx.BaseTx.SyntacticVerify(ctx); err != nil {
@@ -167,8 +159,6 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		return nil, nil, errWeightTooSmall
 	case tx.Validator.Wght > vm.MaxValidatorStake: // Ensure validator isn't staking too much
 		return nil, nil, errWeightTooLarge
-	case tx.Shares < vm.MinDelegationFee:
-		return nil, nil, errInsufficientDelegationFee
 	}
 
 	duration := tx.Validator.Duration()
@@ -277,7 +267,6 @@ func (vm *VM) newAddValidatorTx(
 	endTime uint64, // Unix time they stop validating
 	nodeID ids.ShortID, // ID of the node we want to validate with
 	rewardAddress ids.ShortID, // Address to send reward to, if applicable
-	shares uint32, // 10,000 times percentage of reward taken from delegators
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
@@ -305,7 +294,6 @@ func (vm *VM) newAddValidatorTx(
 			Threshold: 1,
 			Addrs:     []ids.ShortID{rewardAddress},
 		},
-		Shares: shares,
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
