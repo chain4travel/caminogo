@@ -72,7 +72,7 @@ type Client interface {
 	// GetCurrentValidators returns the list of current validators for subnet with ID [subnetID]
 	GetCurrentValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, error)
 	// GetPendingValidators returns the list of pending validators for subnet with ID [subnetID]
-	GetPendingValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, []interface{}, error)
+	GetPendingValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, error)
 	// GetCurrentSupply returns an upper bound on the supply of AVAX in the system
 	GetCurrentSupply(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// SampleValidators returns the nodeIDs of a sample of [sampleSize] validators from the current validator set for subnet with ID [subnetID]
@@ -89,23 +89,9 @@ type Client interface {
 		stakeAmount,
 		startTime,
 		endTime uint64,
-		delegationFeeRate float32,
 		options ...rpc.Option,
 	) (ids.ID, error)
-	// AddDelegator issues a transaction to add a delegator to the primary network
-	// and returns the txID
-	AddDelegator(
-		ctx context.Context,
-		user api.UserPass,
-		from []string,
-		changeAddr string,
-		rewardAddress,
-		nodeID string,
-		stakeAmount,
-		startTime,
-		endTime uint64,
-		options ...rpc.Option,
-	) (ids.ID, error)
+
 	// AddSubnetValidator issues a transaction to add validator [nodeID] to subnet
 	// with ID [subnetID] and returns the txID
 	AddSubnetValidator(
@@ -190,8 +176,7 @@ type Client interface {
 	// staked on the Primary Network.
 	GetStake(ctx context.Context, addrs []string, options ...rpc.Option) (*GetStakeReply, error)
 	// GetMinStake returns the minimum staking amount in nAVAX for validators
-	// and delegators respectively
-	GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, uint64, error)
+	GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// GetTotalStake returns the total amount (in nAVAX) staked on the network
 	GetTotalStake(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// GetMaxStakeAmount returns the maximum amount of nAVAX staking to the named
@@ -358,7 +343,7 @@ func (c *client) GetPendingValidators(
 	subnetID ids.ID,
 	nodeIDs []ids.ShortID,
 	options ...rpc.Option,
-) ([]interface{}, []interface{}, error) {
+) ([]interface{}, error) {
 	nodeIDsStr := []string{}
 	for _, nodeID := range nodeIDs {
 		nodeIDsStr = append(nodeIDsStr, nodeID.PrefixedString(constants.NodeIDPrefix))
@@ -368,7 +353,7 @@ func (c *client) GetPendingValidators(
 		SubnetID: subnetID,
 		NodeIDs:  nodeIDsStr,
 	}, res, options...)
-	return res.Validators, res.Delegators, err
+	return res.Validators, err
 }
 
 func (c *client) GetCurrentSupply(ctx context.Context, options ...rpc.Option) (uint64, error) {
@@ -396,7 +381,6 @@ func (c *client) AddValidator(
 	stakeAmount,
 	startTime,
 	endTime uint64,
-	delegationFeeRate float32,
 	options ...rpc.Option,
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
@@ -407,37 +391,6 @@ func (c *client) AddValidator(
 			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		APIStaker: APIStaker{
-			NodeID:      nodeID,
-			StakeAmount: &jsonStakeAmount,
-			StartTime:   json.Uint64(startTime),
-			EndTime:     json.Uint64(endTime),
-		},
-		RewardAddress:     rewardAddress,
-		DelegationFeeRate: json.Float32(delegationFeeRate),
-	}, res, options...)
-	return res.TxID, err
-}
-
-func (c *client) AddDelegator(
-	ctx context.Context,
-	user api.UserPass,
-	from []string,
-	changeAddr string,
-	rewardAddress,
-	nodeID string,
-	stakeAmount,
-	startTime,
-	endTime uint64,
-	options ...rpc.Option,
-) (ids.ID, error) {
-	res := &api.JSONTxID{}
-	jsonStakeAmount := json.Uint64(stakeAmount)
-	err := c.requester.SendRequest(ctx, "addDelegator", &AddDelegatorArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
-		}, APIStaker: APIStaker{
 			NodeID:      nodeID,
 			StakeAmount: &jsonStakeAmount,
 			StartTime:   json.Uint64(startTime),
@@ -675,10 +628,10 @@ func (c *client) GetStake(ctx context.Context, addrs []string, options ...rpc.Op
 	return res, err
 }
 
-func (c *client) GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, uint64, error) {
+func (c *client) GetMinStake(ctx context.Context, options ...rpc.Option) (uint64, error) {
 	res := new(GetMinStakeReply)
 	err := c.requester.SendRequest(ctx, "getMinStake", struct{}{}, res, options...)
-	return uint64(res.MinValidatorStake), uint64(res.MinDelegatorStake), err
+	return uint64(res.MinValidatorStake), err
 }
 
 func (c *client) GetTotalStake(ctx context.Context, options ...rpc.Option) (uint64, error) {
