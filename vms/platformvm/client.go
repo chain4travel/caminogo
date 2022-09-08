@@ -72,7 +72,7 @@ type Client interface {
 	// GetCurrentValidators returns the list of current validators for subnet with ID [subnetID]
 	GetCurrentValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, error)
 	// GetPendingValidators returns the list of pending validators for subnet with ID [subnetID]
-	GetPendingValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, []interface{}, error)
+	GetPendingValidators(ctx context.Context, subnetID ids.ID, nodeIDs []ids.ShortID, options ...rpc.Option) ([]interface{}, error)
 	// GetCurrentSupply returns an upper bound on the supply of AVAX in the system
 	GetCurrentSupply(ctx context.Context, options ...rpc.Option) (uint64, error)
 	// SampleValidators returns the nodeIDs of a sample of [sampleSize] validators from the current validator set for subnet with ID [subnetID]
@@ -343,7 +343,7 @@ func (c *client) GetPendingValidators(
 	subnetID ids.ID,
 	nodeIDs []ids.ShortID,
 	options ...rpc.Option,
-) ([]interface{}, []interface{}, error) {
+) ([]interface{}, error) {
 	nodeIDsStr := []string{}
 	for _, nodeID := range nodeIDs {
 		nodeIDsStr = append(nodeIDsStr, nodeID.PrefixedString(constants.NodeIDPrefix))
@@ -353,7 +353,7 @@ func (c *client) GetPendingValidators(
 		SubnetID: subnetID,
 		NodeIDs:  nodeIDsStr,
 	}, res, options...)
-	return res.Validators, nil, err
+	return res.Validators, err
 }
 
 func (c *client) GetCurrentSupply(ctx context.Context, options ...rpc.Option) (uint64, error) {
