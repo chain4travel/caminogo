@@ -59,13 +59,11 @@ func (w *walletWithOptions) IssueBaseTx(
 func (w *walletWithOptions) IssueAddValidatorTx(
 	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
-	shares uint32,
 	options ...common.Option,
 ) (ids.ID, error) {
 	return w.Wallet.IssueAddValidatorTx(
 		validator,
 		rewardsOwner,
-		shares,
 		common.UnionOptions(w.options, options)...,
 	)
 }

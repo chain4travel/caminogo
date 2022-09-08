@@ -32,10 +32,10 @@ type builderWithOptions struct {
 // NewBuilderWithOptions returns a new transaction builder that will use the
 // given options by default.
 //
-// - [builder] is the builder that will be called to perform the underlying
-//   opterations.
-// - [options] will be provided to the builder in addition to the options
-//   provided in the method calls.
+//   - [builder] is the builder that will be called to perform the underlying
+//     opterations.
+//   - [options] will be provided to the builder in addition to the options
+//     provided in the method calls.
 func NewBuilderWithOptions(builder Builder, options ...common.Option) Builder {
 	return &builderWithOptions{
 		Builder: builder,
@@ -64,13 +64,11 @@ func (b *builderWithOptions) GetImportableBalance(
 func (b *builderWithOptions) NewAddValidatorTx(
 	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
-	shares uint32,
 	options ...common.Option,
 ) (*platformvm.UnsignedAddValidatorTx, error) {
 	return b.Builder.NewAddValidatorTx(
 		validator,
 		rewardsOwner,
-		shares,
 		common.UnionOptions(b.options, options)...,
 	)
 }
