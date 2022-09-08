@@ -24,7 +24,6 @@ import (
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/crypto"
-	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 )
 
@@ -534,131 +533,8 @@ func TestWhitelistedSubnet(t *testing.T) {
 	}
 }
 
-func TestAdvanceTimeTxDelegatorStakerWeight(t *testing.T) {
-	vm, _, _ := defaultVM()
-	vm.ctx.Lock.Lock()
-	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		vm.ctx.Lock.Unlock()
-	}()
-
-	// Case: Timestamp is after next validator start time
-	// Add a pending validator
-	pendingValidatorStartTime := defaultGenesisTime.Add(1 * time.Second)
-	pendingValidatorEndTime := pendingValidatorStartTime.Add(defaultMaxStakingDuration)
-	nodeIDKey, _ := vm.factory.NewPrivateKey()
-	nodeID := nodeIDKey.PublicKey().Address()
-	_, err := addPendingValidator(vm, pendingValidatorStartTime, pendingValidatorEndTime, nodeID, []*crypto.PrivateKeySECP256K1R{keys[0]})
-	assert.NoError(t, err)
-
-	tx, err := vm.newAdvanceTimeTx(pendingValidatorStartTime)
-	assert.NoError(t, err)
-	onCommit, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	assert.NoError(t, err)
-	onCommit.Apply(vm.internalState)
-	assert.NoError(t, vm.internalState.Commit())
-
-	// Test validator weight before delegation
-	primarySet, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
-	assert.True(t, ok)
-	vdrWeight, _ := primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinValidatorStake, vdrWeight)
-
-	// Add delegator
-	pendingDelegatorStartTime := pendingValidatorStartTime.Add(1 * time.Second)
-	pendingDelegatorEndTime := pendingDelegatorStartTime.Add(1 * time.Second)
-	addDelegatorTx, err := vm.newAddDelegatorTx(
-		vm.MinDelegatorStake,
-		uint64(pendingDelegatorStartTime.Unix()),
-		uint64(pendingDelegatorEndTime.Unix()),
-		nodeID,
-		keys[0].PublicKey().Address(),
-		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1], keys[4]},
-		ids.ShortEmpty, // change addr
-	)
-	assert.NoError(t, err)
-	vm.internalState.AddPendingStaker(addDelegatorTx)
-	vm.internalState.AddTx(addDelegatorTx, status.Committed)
-	assert.NoError(t, vm.internalState.Commit())
-	assert.NoError(t, vm.internalState.(*internalStateImpl).loadPendingValidators())
-
-	// Advance Time
-	tx, err = vm.newAdvanceTimeTx(pendingDelegatorStartTime)
-	assert.NoError(t, err)
-	onCommit, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	assert.NoError(t, err)
-	onCommit.Apply(vm.internalState)
-	assert.NoError(t, vm.internalState.Commit())
-
-	// Test validator weight after delegation
-	vdrWeight, _ = primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinDelegatorStake+vm.MinValidatorStake, vdrWeight)
-}
-
-func TestAdvanceTimeTxDelegatorStakers(t *testing.T) {
-	vm, _, _ := defaultVM()
-	vm.ctx.Lock.Lock()
-	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		vm.ctx.Lock.Unlock()
-	}()
-
-	// Case: Timestamp is after next validator start time
-	// Add a pending validator
-	pendingValidatorStartTime := defaultGenesisTime.Add(1 * time.Second)
-	pendingValidatorEndTime := pendingValidatorStartTime.Add(defaultMinStakingDuration)
-	nodeIDKey, _ := vm.factory.NewPrivateKey()
-	nodeID := nodeIDKey.PublicKey().Address()
-	_, err := addPendingValidator(vm, pendingValidatorStartTime, pendingValidatorEndTime, nodeID, []*crypto.PrivateKeySECP256K1R{keys[0]})
-	assert.NoError(t, err)
-
-	tx, err := vm.newAdvanceTimeTx(pendingValidatorStartTime)
-	assert.NoError(t, err)
-	onCommit, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	assert.NoError(t, err)
-	onCommit.Apply(vm.internalState)
-	assert.NoError(t, vm.internalState.Commit())
-
-	// Test validator weight before delegation
-	primarySet, ok := vm.Validators.GetValidators(constants.PrimaryNetworkID)
-	assert.True(t, ok)
-	vdrWeight, _ := primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinValidatorStake, vdrWeight)
-
-	// Add delegator
-	pendingDelegatorStartTime := pendingValidatorStartTime.Add(1 * time.Second)
-	pendingDelegatorEndTime := pendingDelegatorStartTime.Add(defaultMinStakingDuration)
-	addDelegatorTx, err := vm.newAddDelegatorTx(
-		vm.MinDelegatorStake,
-		uint64(pendingDelegatorStartTime.Unix()),
-		uint64(pendingDelegatorEndTime.Unix()),
-		nodeID,
-		keys[0].PublicKey().Address(),
-		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1], keys[4]},
-		ids.ShortEmpty, // change addr
-	)
-	assert.NoError(t, err)
-	vm.internalState.AddPendingStaker(addDelegatorTx)
-	vm.internalState.AddTx(addDelegatorTx, status.Committed)
-	assert.NoError(t, vm.internalState.Commit())
-	assert.NoError(t, vm.internalState.(*internalStateImpl).loadPendingValidators())
-
-	// Advance Time
-	tx, err = vm.newAdvanceTimeTx(pendingDelegatorStartTime)
-	assert.NoError(t, err)
-	onCommit, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	assert.NoError(t, err)
-	onCommit.Apply(vm.internalState)
-	assert.NoError(t, vm.internalState.Commit())
-
-	// Test validator weight after delegation
-	vdrWeight, _ = primarySet.GetWeight(nodeID)
-	assert.Equal(t, vm.MinDelegatorStake+vm.MinValidatorStake, vdrWeight)
-}
+// ?@jax same idea here, stakeing is deeply linked with delegation removing tests that cover both...
+// ? im not comfortable with this
 
 // Test method InitiallyPrefersCommit
 func TestAdvanceTimeTxInitiallyPrefersCommit(t *testing.T) {
@@ -726,7 +602,6 @@ func addPendingValidator(vm *VM, startTime time.Time, endTime time.Time, nodeID 
 		uint64(endTime.Unix()),
 		nodeID,
 		nodeID,
-		reward.PercentDenominator,
 		keys,
 		ids.ShortEmpty, // change addr
 	)
