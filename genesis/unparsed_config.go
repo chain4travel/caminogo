@@ -17,6 +17,7 @@ package genesis
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/constants"
@@ -128,6 +129,16 @@ func (uma UnparsedMultisigAlias) Parse() (MultisigAlias, error) {
 	return ma, nil
 }
 
+func (ma *UnparsedMultisigAlias) Validate() error {
+	if ma.Threshold == 0 {
+		return fmt.Errorf("multisig threshold must be greater than 0")
+	}
+	if ma.Threshold > uint32(len(ma.Addresses)) {
+		return fmt.Errorf("multisig threshold exceeds the number of addresses")
+	}
+	return nil
+}
+
 // UnparsedConfig contains the genesis addresses used to construct a genesis
 type UnparsedConfig struct {
 	NetworkID uint32 `json:"networkID"`
@@ -184,6 +195,10 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		}
 		c.InitialStakers[i] = is
 	}
+
+	if err := validateMultisigAddresses(uc.InitialMultisigAddresses); err != nil {
+		return c, fmt.Errorf("failed to validate initial multisig addresses: %w", err)
+	}
 	for i, uma := range uc.InitialMultisigAddresses {
 		ma, err := uma.Parse()
 		if err != nil {
@@ -191,5 +206,36 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		}
 		c.InitialMultisigAddresses[i] = ma
 	}
+
 	return c, nil
+}
+
+func validateMultisigAddresses(multisigAddrs []UnparsedMultisigAlias) error {
+	addrs := make(map[string]struct{})
+	aliases := make(map[string]struct{})
+
+	for _, uma := range multisigAddrs {
+		if err := uma.Validate(); err != nil {
+			return err
+		}
+
+		// check alias was not previously defined
+		if _, ok := aliases[uma.Alias]; ok {
+			return fmt.Errorf("alias %s definition is duplicated", uma.Alias)
+		}
+
+		aliases[uma.Alias] = struct{}{}
+		for _, addr := range uma.Addresses {
+			addrs[addr] = struct{}{}
+		}
+	}
+
+	// check alias was not used as an address of another alias
+	for _, ma := range multisigAddrs {
+		if _, ok := addrs[ma.Alias]; ok {
+			return fmt.Errorf("alias %s is used as an address of another alias", ma.Alias)
+		}
+	}
+
+	return nil
 }
