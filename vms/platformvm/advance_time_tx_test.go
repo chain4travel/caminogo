@@ -533,9 +533,6 @@ func TestWhitelistedSubnet(t *testing.T) {
 	}
 }
 
-// ?@jax same idea here, stakeing is deeply linked with delegation removing tests that cover both...
-// ? im not comfortable with this
-
 // Test method InitiallyPrefersCommit
 func TestAdvanceTimeTxInitiallyPrefersCommit(t *testing.T) {
 	vm, _, _ := defaultVM()

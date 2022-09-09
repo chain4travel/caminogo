@@ -23,8 +23,10 @@ import (
 	"github.com/chain4travel/caminogo/utils/constants"
 )
 
-var errInvalidState = errors.New("generated output isn't valid state")
-var errNilPendingValidator = errors.New("tried to access non existent pending validator")
+var (
+	errInvalidState        = errors.New("generated output isn't valid state")
+	errNilPendingValidator = errors.New("tried to access non existent pending validator")
+)
 
 func (vm *VM) maxStakeAmount(
 	subnetID ids.ID,

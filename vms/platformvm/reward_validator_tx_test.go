@@ -188,8 +188,6 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	}
 }
 
-// ?@jax again not a fan
-
 func TestUptimeDisallowedWithRestart(t *testing.T) {
 	_, genesisBytes := defaultGenesis()
 	db := manager.NewMemDB(version.DefaultVersion1_0_0)
