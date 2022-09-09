@@ -24,6 +24,7 @@ import (
 )
 
 var errInvalidState = errors.New("generated output isn't valid state")
+var errNilPendingValidator = errors.New("tried to access non existent pending validator")
 
 func (vm *VM) maxStakeAmount(
 	subnetID ids.ID,
@@ -43,8 +44,6 @@ func (vm *VM) maxStakeAmount(
 	return vm.maxSubnetStakeAmount(subnetID, nodeID, startTime, endTime)
 }
 
-// ?@jax did not fully understand why this needs to be in a separate function
-// ? the only difference is that subnets dont care about delegations
 func (vm *VM) maxSubnetStakeAmount(
 	subnetID ids.ID,
 	nodeID ids.ShortID,
@@ -63,16 +62,19 @@ func (vm *VM) maxSubnetStakeAmount(
 	currentValidator, err := currentStakers.GetValidator(nodeID)
 	switch err {
 	case nil:
-
-		// ? @jax just as an idea, if this returns also if subnetID
-		// ? is the primary network id we can just use this function
 		vdrTx, exists = currentValidator.SubnetValidators()[subnetID]
 		if !exists {
+			if pendingValidator.SubnetValidators() == nil {
+				return 0, errNilPendingValidator
+			}
 			vdrTx = pendingValidator.SubnetValidators()[subnetID]
 		}
 	case database.ErrNotFound:
-		// ?@jax isnt this dangerous without the existence check?
+		if pendingValidator.SubnetValidators() == nil {
+			return 0, errNilPendingValidator
+		}
 		vdrTx = pendingValidator.SubnetValidators()[subnetID]
+
 	default:
 		return 0, err
 	}
@@ -112,9 +114,6 @@ func (vm *VM) maxPrimarySubnetStakeAmount(
 		currentWeight := vdrTx.Weight()
 		return currentWeight, nil
 
-		// ?@jax integrate over time and sum up all delegations
-		// ? there is some magic around when to add/remove delegations, but as we rip them out good
-		// ? not an issue
 	// If the node id is not in the active valiator pools
 	// check if it will be in the future and count it if the time falls into the
 	// start/endtime
