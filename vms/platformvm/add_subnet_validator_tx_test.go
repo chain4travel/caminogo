@@ -395,7 +395,7 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 	// Remove a signature
 	tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).SubnetAuth.(*secp256k1fx.Input).SigIndices =
 		tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).SubnetAuth.(*secp256k1fx.Input).SigIndices[1:]
-		// This tx was syntactically verified when it was created...pretend it wasn't so we don't use cache
+	// This tx was syntactically verified when it was created...pretend it wasn't so we don't use cache
 	tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).syntacticallyVerified = false
 	if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
 		t.Fatal("should have failed verification because not enough control sigs")

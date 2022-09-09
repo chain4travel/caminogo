@@ -53,14 +53,15 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 	// Note that setting [chainTimestamp] also set's the VM's clock.
 	// Adjust input/output locktimes accordingly.
 	tests := []struct {
-		description string
-		utxos       []*avax.UTXO
-		ins         []*avax.TransferableInput
-		outs        []*avax.TransferableOutput
-		creds       []verify.Verifiable
-		fee         uint64
-		assetID     ids.ID
-		shouldErr   bool
+		description   string
+		utxos         []*avax.UTXO
+		ins           []*avax.TransferableInput
+		outs          []*avax.TransferableOutput
+		signingOwners []verify.Verifiable
+		creds         []verify.Verifiable
+		fee           uint64
+		assetID       ids.ID
+		shouldErr     bool
 	}{
 		{
 			description: "no inputs, no outputs, no fee",
@@ -107,6 +108,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				},
 			}},
 			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
@@ -188,6 +194,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				},
 			}},
 			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
@@ -216,6 +227,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				},
 			}},
 			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
@@ -244,6 +260,14 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				},
 			}},
 			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&StakeableLockOut{
+					Locktime: uint64(now.Unix()) + 1,
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt: 1,
+					},
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
@@ -296,6 +320,14 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 							Amt: 1,
 						},
 					},
+				},
+			},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
 				},
 			},
 			creds: []verify.Verifiable{
@@ -353,6 +385,14 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 					},
 				},
 			},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+				&secp256k1fx.TransferOutput{
+					Amt: 2,
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 				&secp256k1fx.Credential{},
@@ -390,6 +430,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 					},
 				},
 			},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+				},
+			},
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
@@ -408,6 +453,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				test.utxos,
 				test.ins,
 				test.outs,
+				test.signingOwners,
 				test.creds,
 				test.fee,
 				test.assetID,
