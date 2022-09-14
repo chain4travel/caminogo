@@ -15,6 +15,10 @@
 package platformvm
 
 import (
+	"errors"
+	"fmt"
+	"github.com/chain4travel/caminogo/utils/crypto"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -22,6 +26,42 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+)
+
+var (
+	sigBytes = [crypto.SECP256K1RSigLen]byte{
+		0x0e, 0x33, 0x4e, 0xbc, 0x67, 0xa7, 0x3f, 0xe8,
+		0x24, 0x33, 0xac, 0xa3, 0x47, 0x88, 0xa6, 0x3d,
+		0x58, 0xe5, 0x8e, 0xf0, 0x3a, 0xd5, 0x84, 0xf1,
+		0xbc, 0xa3, 0xb2, 0xd2, 0x5d, 0x52, 0xd6, 0x9b,
+		0x0f, 0x28, 0x5d, 0xcd, 0x3f, 0x71, 0x17, 0x0a,
+		0xf9, 0xbf, 0x2d, 0xb1, 0x10, 0x26, 0x5c, 0xe9,
+		0xdc, 0xc3, 0x9d, 0x7a, 0x01, 0x50, 0x9d, 0xe8,
+		0x35, 0xbd, 0xcb, 0x29, 0x3a, 0xd1, 0x49, 0x32,
+		0x00,
+	} // 4CM7pKwvzLZJmS8VugUubGa7mHMxMF7pF
+	sigBytes2 = [crypto.SECP256K1RSigLen]byte{
+		0x0e, 0x33, 0x4e, 0xbc, 0x67, 0xa7, 0x3f, 0xe8,
+		0x24, 0x33, 0xac, 0xa3, 0x47, 0x88, 0xa6, 0x3d,
+		0x58, 0xe5, 0x8e, 0xf0, 0x3a, 0xd5, 0x84, 0xf1,
+		0xbc, 0xa3, 0xb2, 0xd2, 0x5d, 0x51, 0xd6, 0x9b,
+		0x0f, 0x28, 0x5d, 0xcd, 0x3f, 0x71, 0x17, 0x0a,
+		0xf9, 0xbf, 0x2d, 0xb1, 0x10, 0x26, 0x5c, 0xe9,
+		0xdc, 0xc3, 0x9d, 0x7a, 0x01, 0x50, 0x9d, 0xe8,
+		0x35, 0xbd, 0xcb, 0x29, 0x3a, 0xd1, 0x49, 0x32,
+		0x00,
+	} // DZ5v6cGJJQ5TjPMrittjseZG4Xj8j7Amj
+	sigBytes3 = [crypto.SECP256K1RSigLen]byte{
+		0x0e, 0x33, 0x4e, 0xbc, 0x67, 0xa7, 0x3f, 0xe8,
+		0x24, 0x33, 0xac, 0xa3, 0x47, 0x88, 0xa6, 0x3d,
+		0x58, 0xe5, 0x8e, 0xf0, 0x3a, 0xd5, 0x84, 0xf1,
+		0xbc, 0xa3, 0xb2, 0xd2, 0x5d, 0x51, 0xd6, 0x9b,
+		0x0f, 0x28, 0x5d, 0xcd, 0x3f, 0x71, 0x18, 0x0a,
+		0xf9, 0xbf, 0x2d, 0xb1, 0x10, 0x26, 0x5c, 0xe9,
+		0xdc, 0xc3, 0x9d, 0x7a, 0x01, 0x50, 0x9d, 0xe8,
+		0x35, 0xbd, 0xcb, 0x29, 0x3a, 0xd1, 0x49, 0x32,
+		0x00,
+	} //
 )
 
 type dummyUnsignedTx struct {
@@ -62,6 +102,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 		fee           uint64
 		assetID       ids.ID
 		shouldErr     bool
+		expectedErr   error
 	}{
 		{
 			description: "no inputs, no outputs, no fee",
@@ -442,6 +483,151 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			assetID:   vm.ctx.AVAXAssetID,
 			shouldErr: false,
 		},
+		{
+			description: "zero signers, threshold=1 -> error",
+			utxos: []*avax.UTXO{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					Out: &StakeableLockOut{
+						Locktime: uint64(now.Unix()) - 1,
+						TransferableOut: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			ins: []*avax.TransferableInput{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					In: &secp256k1fx.TransferInput{
+						Amt: 1,
+					},
+				},
+			},
+			outs: []*avax.TransferableOutput{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					Out: &secp256k1fx.TransferOutput{
+						Amt: 1,
+					},
+				},
+			},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+					OutputOwners: secp256k1fx.OutputOwners{
+						Addrs: []ids.ShortID{
+							func() ids.ShortID { s, _ := ids.ShortFromString("7km6DDHSnzZZdSJx32tnZ8TDpjXNXSgJA"); return s }(),
+						}, Threshold: 1,
+					},
+				},
+			},
+			creds: []verify.Verifiable{
+				&secp256k1fx.Credential{},
+			},
+			fee:         0,
+			assetID:     vm.ctx.AVAXAssetID,
+			shouldErr:   true,
+			expectedErr: errors.New("input has less signers than expected"),
+		},
+		{
+			description: "two signers, threshold=2 -> success",
+			utxos: []*avax.UTXO{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					Out: &StakeableLockOut{
+						Locktime: uint64(now.Unix()) - 1,
+						TransferableOut: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			ins: []*avax.TransferableInput{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					In: &secp256k1fx.TransferInput{
+						Amt: 1,
+						Input: secp256k1fx.Input{
+							SigIndices: []uint32{0, 1},
+						},
+					},
+				},
+			},
+			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+					OutputOwners: secp256k1fx.OutputOwners{
+						Addrs: []ids.ShortID{
+							func() ids.ShortID { s, _ := ids.ShortFromString("4CM7pKwvzLZJmS8VugUubGa7mHMxMF7pF"); return s }(),
+							func() ids.ShortID { s, _ := ids.ShortFromString("DZ5v6cGJJQ5TjPMrittjseZG4Xj8j7Amj"); return s }(),
+						}, Threshold: 2,
+					},
+				},
+			},
+			creds: []verify.Verifiable{
+				&secp256k1fx.Credential{
+					Sigs: [][crypto.SECP256K1RSigLen]byte{
+						sigBytes,
+						sigBytes2,
+					},
+				},
+			},
+			fee:       0,
+			assetID:   vm.ctx.AVAXAssetID,
+			shouldErr: false,
+		},
+		{
+			description: "three signers, threshold=2 -> error?",
+			utxos: []*avax.UTXO{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					Out: &StakeableLockOut{
+						Locktime: uint64(now.Unix()) - 1,
+						TransferableOut: &secp256k1fx.TransferOutput{
+							Amt: 1,
+						},
+					},
+				},
+			},
+			ins: []*avax.TransferableInput{
+				{
+					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+					In: &secp256k1fx.TransferInput{
+						Amt: 1,
+						Input: secp256k1fx.Input{
+							SigIndices: []uint32{0, 1, 2},
+						},
+					},
+				},
+			},
+			outs: []*avax.TransferableOutput{},
+			signingOwners: []verify.Verifiable{
+				&secp256k1fx.TransferOutput{
+					Amt: 1,
+					OutputOwners: secp256k1fx.OutputOwners{
+						Addrs: []ids.ShortID{
+							func() ids.ShortID { s, _ := ids.ShortFromString("4CM7pKwvzLZJmS8VugUubGa7mHMxMF7pF"); return s }(),
+							func() ids.ShortID { s, _ := ids.ShortFromString("DZ5v6cGJJQ5TjPMrittjseZG4Xj8j7Amj"); return s }(),
+						}, Threshold: 2,
+					},
+				},
+			},
+			creds: []verify.Verifiable{
+				&secp256k1fx.Credential{
+					Sigs: [][crypto.SECP256K1RSigLen]byte{
+						sigBytes,
+						sigBytes2,
+						sigBytes3,
+					},
+				},
+			},
+			fee:         0,
+			assetID:     vm.ctx.AVAXAssetID,
+			shouldErr:   true,
+			expectedErr: errors.New("input has more signers than expected"), // errTooManySigners
+		},
 	}
 
 	for _, test := range tests {
@@ -463,6 +649,8 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				t.Fatalf("expected error but got none")
 			} else if err != nil && !test.shouldErr {
 				t.Fatalf("unexpected error: %s", err)
+			} else if err != nil && test.expectedErr != nil {
+				assert.Equal(t, fmt.Errorf("failed to verify transfer: %w", test.expectedErr), err)
 			}
 		})
 	}
