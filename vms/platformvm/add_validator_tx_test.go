@@ -19,15 +19,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/reward"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestAddValidatorTxWithNewReward(t *testing.T) {
+func TestTopLevelBondingCases(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
@@ -37,92 +42,127 @@ func TestAddValidatorTxWithNewReward(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
+	defAmt := vm.MinValidatorStake * 2 // 10000000
+
 	key, err := vm.factory.NewPrivateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	nodeID := key.PublicKey().Address()
 
 	startTime := defaultGenesisTime.Add(1 * time.Second)
-	// Create the validator tx
-	tx, err := vm.newAddValidatorTx(
-		vm.MinValidatorStake,     // stake amount
-		uint64(startTime.Unix()), // start time
-		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,                    // node ID
-		key.PublicKey().Address(), // reward address
-		reward.PercentDenominator, // shares
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr // key
-	)
-	if err != nil {
-		t.Fatal(err)
+
+	type args struct {
+		totalAmountToSpend uint64
+		totalAmountToBurn  uint64
+		spendMode          spendMode
 	}
 
-	if err != nil {
-		t.Fatal(err)
-	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
-		t.Fatal("should've errored because validator's weight is less than the minimum amount")
+	tests := []struct {
+		name          string
+		args          args
+		generateState func(secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl)
+		msg           string
+	}{
+		{
+			name: "Happy path bonding",
+			args: args{
+				totalAmountToSpend: defAmt / 2,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{8, 8},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds:       map[ids.ID]ids.Set{},
+					deposits:    map[ids.ID]ids.Set{},
+					lockedUTXOs: map[ids.ID]utxoLockState{},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "Happy path bonding",
+		},
 	}
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	currentStakersTx, _, err := currentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	currentStaker := currentStakersTx.UnsignedTx.(*UnsignedAddValidatorTx)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, _ := vm.factory.NewPrivateKey()
+			address := key.PublicKey().Address()
+			outputOwners := secp256k1fx.OutputOwners{
+				Locktime:  0,
+				Threshold: 1,
+				Addrs:     []ids.ShortID{address},
+			}
+			UTXOIDs := []ids.ID{}
 
-	// Change state's time
-	vm.internalState.SetTimestamp(currentStaker.EndTime())
+			utxo := avax.UTXO{}
 
-	// Create reward tx
-	reward_tx, err := vm.newRewardValidatorTx(currentStaker.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+			utxos, lockedUTXOsState := tt.generateState(outputOwners)
+			for _, l_utxo := range utxos {
+				utxo = l_utxo
+				vm.internalState.AddUTXO(&utxo)
+				UTXOIDs = append(UTXOIDs, utxo.InputID())
+			}
+			vm.internalState.SetLockedUTXOsChainState(lockedUTXOsState)
+			err := vm.internalState.Commit()
 
-	onCommitState, _, err := reward_tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, reward_tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+			assert.NoError(t, err)
 
-	onCommitCurrentStakers := onCommitState.CurrentStakerChainState()
-	nextStakerTx, _, err := onCommitCurrentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if currentStaker.ID() == nextStakerTx.ID() {
-		t.Fatalf("Should have removed the previous validator")
-	}
+			ins, unlockedOuts, lockedOuts, inputIndexes, signers, err := vm.spend(
+				[]*crypto.PrivateKeySECP256K1R{key.(*crypto.PrivateKeySECP256K1R)},
+				tt.args.totalAmountToSpend,
+				tt.args.totalAmountToBurn,
+				address,
+				tt.args.spendMode)
 
-	// check that stake/reward is given back
-	stakeOwners := currentStaker.Bond[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+			utx := &UnsignedAddValidatorTx{
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    vm.ctx.NetworkID,
+					BlockchainID: vm.ctx.ChainID,
+					Ins:          ins, // utxo
+					Outs:         unlockedOuts,
+				}},
+				Validator: Validator{
+					NodeID: nodeID,
+					Start:  uint64(startTime.Unix()),
+					End:    uint64(startTime.Add(defaultMinStakingDuration).Unix()),
+					Wght:   defAmt / 2,
+				},
+				Bond:         lockedOuts,
+				InputIndexes: inputIndexes,
+				RewardsOwner: &secp256k1fx.OutputOwners{
+					Locktime:  0,
+					Threshold: 1,
+					Addrs:     []ids.ShortID{nodeID},
+				},
+				Shares: reward.PercentDenominator,
+			}
+			tx := &Tx{UnsignedTx: utx}
 
-	// Get old balances
-	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+			if err := tx.Sign(Codec, signers); err != nil {
+				t.Fatal(err)
+			}
 
-	onCommitState.Apply(vm.internalState)
-	if err := vm.internalState.Commit(); err != nil {
-		t.Fatal(err)
-	}
+			if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
+				t.Fatal(err)
+			}
 
-	onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if onCommitBalance != oldBalance+27 {
-		t.Fatalf("on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
-			oldBalance, currentStaker.Validator.Weight(), 27, onCommitBalance)
-	}
-
-	vm.internalState.SetTimestamp(defaultGenesisTime)
-
-	if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
-		t.Fatal("Shouldn't have errored because validator is OK to be executed again")
+			assert.Equal(t, defAmt/2, lockedOuts[i].Output().Amount())
+			assert.Equal(t, defAmt/2-vm.AddStakerTxFee, unlockedOuts[i].Output().Amount())
+		})
 	}
 }
 
