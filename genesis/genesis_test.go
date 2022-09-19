@@ -273,7 +273,7 @@ func TestGenesisFromFile(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "08d0173d7cade86c5168def8f39a72a1b7b4c1791dd8605d373a4a152e3ee369",
+			expected:     "9672e135547313573f863d22a0204e25216765257e3c43f68517ae4ac28be6b6",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -352,7 +352,7 @@ func TestGenesisFromFlag(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "08d0173d7cade86c5168def8f39a72a1b7b4c1791dd8605d373a4a152e3ee369",
+			expected:     "9672e135547313573f863d22a0204e25216765257e3c43f68517ae4ac28be6b6",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -429,11 +429,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "2v7d4zUJtEYLx9YQjjYDHgUjhL846bSKBBF2b2vMNq7vA3Vvpe",
+					expectedID: "N5SYDM4Lyei9bhpNaCrr59P9u89Z77Hbe7AZ1NVZNGm9L5Tw4",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "2MLJ3J32TFGKzJ8w3wuNVYCcUzsreCDu93eUctzhi24KVYS7JY",
+					expectedID: "8FeUkRkbFTiF3yFQr1AyD7GFgexY6dYjhj8XcyQ7jXX1BC8s9",
 				},
 			},
 		},
@@ -442,11 +442,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "2Jpc779BgheaYProoDt2Y7h4415eQS5imi1dHbydnEBrZ9iwUu",
+					expectedID: "28Pp3JZJBABUmFQcC9ZXPjuDS6WVX8LeQP9y3DvpCXGiNiTQFV",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "2ULH7rEiJPgEWjWi56s1VXrewbFwCG7P7VqHfBZdY29LHBeWpG",
+					expectedID: "G52TJLLbDSxYXsijNMpKFB6kAyDVRd9DGWVWYBh86Z8sEXm1i",
 				},
 			},
 		},
@@ -455,11 +455,11 @@ func TestVMGenesis(t *testing.T) {
 			vmTest: []vmTest{
 				{
 					vmID:       constants.AVMID,
-					expectedID: "ip9vTW1rBvvi5xYmmWhQcP6m2B5cSkMhv8vURqzjAYqtiiY3u",
+					expectedID: "2eNy1mUFdmaxXNj1eQHUe7Np4gju9sJsEtWQ4MX3ToiNKuADed",
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "RbKAoyGsfq3ZrLVdeTDjVwwkkJBU7Q82H2L3CPfGTKje2LdXP",
+					expectedID: "2CA6j5zYzasynPsFeNoqWkmTCt3VScMvXUZHbfDJ8k3oGzAPtU",
 				},
 			},
 		},

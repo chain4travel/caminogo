@@ -62,9 +62,10 @@ func init() {
 
 			c.RegisterType(&UnsignedAddValidatorTx{}),
 			c.RegisterType(&UnsignedAddSubnetValidatorTx{}),
+
 			// The original AddDelegatorTx resided here and has to be replaced for
 			// compatibility issues with everything that uses the old codec
-			c.RegisterType(&struct{}{}),
+			c.RegisterType(&Dummy{}),
 
 			c.RegisterType(&UnsignedCreateChainTx{}),
 			c.RegisterType(&UnsignedCreateSubnetTx{}),
