@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -42,14 +43,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	defAmt := vm.MinValidatorStake * 2 // 10000000
-
 	key, err := vm.factory.NewPrivateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	nodeID := key.PublicKey().Address()
+
+	defAmt := vm.MinValidatorStake * 2 // 10000000
 
 	startTime := defaultGenesisTime.Add(1 * time.Second)
 
@@ -93,40 +94,79 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "Happy path bonding",
+			msg: "OK",
 		},
 	}
 
-	for i, tt := range tests {
+	utxo := avax.UTXO{}
+
+	ins := []*avax.TransferableInput{}
+
+	unlockedOuts := []*avax.TransferableOutput{}
+
+	lockedOuts := []*avax.TransferableOutput{}
+
+	inputIndexes := make([]uint32, 2)
+
+	inputIndexes = []uint32{0, 0}
+
+	signers := [][]*crypto.PrivateKeySECP256K1R{}
+
+	basic_key := keys[0]
+
+	address := basic_key.PublicKey().Address()
+
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{address},
+	}
+
+	inSigners := make([]*crypto.PrivateKeySECP256K1R, 0, outputOwners.Threshold)
+	inSigners = append(inSigners, basic_key)
+
+	signers = append(signers, inSigners)
+
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			key, _ := vm.factory.NewPrivateKey()
-			address := key.PublicKey().Address()
-			outputOwners := secp256k1fx.OutputOwners{
-				Locktime:  0,
-				Threshold: 1,
-				Addrs:     []ids.ShortID{address},
-			}
-			UTXOIDs := []ids.ID{}
-
-			utxo := avax.UTXO{}
-
 			utxos, lockedUTXOsState := tt.generateState(outputOwners)
 			for _, l_utxo := range utxos {
 				utxo = l_utxo
 				vm.internalState.AddUTXO(&utxo)
-				UTXOIDs = append(UTXOIDs, utxo.InputID())
 			}
-			vm.internalState.SetLockedUTXOsChainState(lockedUTXOsState)
+			lockedUTXOsState.Apply(vm.internalState)
 			err := vm.internalState.Commit()
 
 			assert.NoError(t, err)
 
-			ins, unlockedOuts, lockedOuts, inputIndexes, signers, err := vm.spend(
-				[]*crypto.PrivateKeySECP256K1R{key.(*crypto.PrivateKeySECP256K1R)},
-				tt.args.totalAmountToSpend,
-				tt.args.totalAmountToBurn,
-				address,
-				tt.args.spendMode)
+			innerOut, _ := utxo.Out.(*secp256k1fx.TransferOutput)
+
+			ins = append(ins, &avax.TransferableInput{
+				UTXOID: utxo.UTXOID,
+				Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+				In: &secp256k1fx.TransferInput{
+					Amt: innerOut.Amt,
+					Input: secp256k1fx.Input{
+						SigIndices: []uint32{0},
+					},
+				},
+			})
+
+			unlockedOuts = append(unlockedOuts, &avax.TransferableOutput{
+				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Out: &secp256k1fx.TransferOutput{
+					Amt:          tt.args.totalAmountToSpend - defaultTxFee,
+					OutputOwners: innerOut.OutputOwners,
+				},
+			})
+
+			lockedOuts = append(lockedOuts, &avax.TransferableOutput{
+				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Out: &secp256k1fx.TransferOutput{
+					Amt:          tt.args.totalAmountToSpend,
+					OutputOwners: innerOut.OutputOwners,
+				},
+			})
 
 			utx := &UnsignedAddValidatorTx{
 				BaseTx: BaseTx{BaseTx: avax.BaseTx{
@@ -139,14 +179,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 					NodeID: nodeID,
 					Start:  uint64(startTime.Unix()),
 					End:    uint64(startTime.Add(defaultMinStakingDuration).Unix()),
-					Wght:   defAmt / 2,
+					Wght:   tt.args.totalAmountToSpend,
 				},
 				Bond:         lockedOuts,
 				InputIndexes: inputIndexes,
 				RewardsOwner: &secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
-					Addrs:     []ids.ShortID{nodeID},
+					Addrs:     []ids.ShortID{address},
 				},
 				Shares: reward.PercentDenominator,
 			}
@@ -156,12 +196,13 @@ func TestTopLevelBondingCases(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
-				t.Fatal(err)
-			}
+			_, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
 
-			assert.Equal(t, defAmt/2, lockedOuts[i].Output().Amount())
-			assert.Equal(t, defAmt/2-vm.AddStakerTxFee, unlockedOuts[i].Output().Amount())
+			if tt.msg == "OK" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 		})
 	}
 }
@@ -182,6 +223,8 @@ func TestAddValidatorTxExecuteUnitTesting(t *testing.T) {
 	}
 	nodeID := key.PublicKey().Address()
 
+	fmt.Println("nodeID : ", nodeID)
+	fmt.Println("ids.ShortEmpty : ", ids.ShortEmpty)
 	// Case: Validator's weight is less than the minimum amount
 	tx, err := vm.newAddValidatorTx(
 		vm.MinValidatorStake,
