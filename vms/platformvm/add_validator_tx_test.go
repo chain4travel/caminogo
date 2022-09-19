@@ -40,7 +40,8 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nodeID := key.PublicKey().Address()
+
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// Case: tx is nil
 	var unsignedTx *UnsignedAddValidatorTx
@@ -53,10 +54,11 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
-
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -73,8 +75,10 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 
 	)
@@ -103,8 +107,10 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 
 	)
@@ -127,8 +133,10 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 
 	); err != nil {
@@ -153,15 +161,18 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nodeID := key.PublicKey().Address()
+
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// Case: Validator's start time too early
 	if tx, err := vm.newAddValidatorTx(
 		uint64(defaultValidateStartTime.Unix())-1,
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
@@ -174,8 +185,10 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateStartTime.Add(maxFutureStartTime).Unix()+1),
 		uint64(defaultValidateStartTime.Add(maxFutureStartTime).Add(defaultMinStakingDuration).Unix()+1),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
@@ -188,8 +201,10 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID, // node ID
-		nodeID, // reward address
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
@@ -202,13 +217,18 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	rsaPrivateKey2, certBytes2, nodeID2 := newNodeKeyAndCert()
+
 	startTime := defaultGenesisTime.Add(1 * time.Second)
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),                                // start time
 		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,                     // node ID
-		key2.PublicKey().Address(), // reward address
+		nodeID2, // node ID
+		key2.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey2,
+		certBytes2,
 		ids.ShortEmpty, // change addr // key
 	)
 	if err != nil {
@@ -233,8 +253,10 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)

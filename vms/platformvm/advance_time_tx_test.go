@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"testing"
 	"time"
@@ -50,13 +51,21 @@ func TestAdvanceTimeTxTimestampTooLate(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+
 	// Case: Timestamp is after next validator start time
 	// Add a pending validator
 	pendingValidatorStartTime := defaultGenesisTime.Add(1 * time.Second)
 	pendingValidatorEndTime := pendingValidatorStartTime.Add(defaultMinStakingDuration)
-	nodeIDKey, _ := vm.factory.NewPrivateKey()
-	nodeID := nodeIDKey.PublicKey().Address()
-	_, err := addPendingValidator(vm, pendingValidatorStartTime, pendingValidatorEndTime, nodeID, []*crypto.PrivateKeySECP256K1R{keys[0]})
+	_, err := addPendingValidator(
+		vm,
+		pendingValidatorStartTime,
+		pendingValidatorEndTime,
+		nodeID,
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
+	)
 	assert.NoError(t, err)
 
 	tx, err := vm.newAdvanceTimeTx(pendingValidatorStartTime.Add(1 * time.Second))
@@ -103,13 +112,21 @@ func TestAdvanceTimeTxUpdatePrimaryNetworkStakers(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+
 	// Case: Timestamp is after next validator start time
 	// Add a pending validator
 	pendingValidatorStartTime := defaultGenesisTime.Add(1 * time.Second)
 	pendingValidatorEndTime := pendingValidatorStartTime.Add(defaultMinStakingDuration)
-	nodeIDKey, _ := vm.factory.NewPrivateKey()
-	nodeID := nodeIDKey.PublicKey().Address()
-	addPendingValidatorTx, err := addPendingValidator(vm, pendingValidatorStartTime, pendingValidatorEndTime, nodeID, []*crypto.PrivateKeySECP256K1R{keys[0]})
+	addPendingValidatorTx, err := addPendingValidator(
+		vm,
+		pendingValidatorStartTime,
+		pendingValidatorEndTime,
+		nodeID,
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
+	)
 	assert.NoError(t, err)
 
 	tx, err := vm.newAdvanceTimeTx(pendingValidatorStartTime)
@@ -176,6 +193,8 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 	type staker struct {
 		nodeID             ids.ShortID
 		startTime, endTime time.Time
+		rsaPrivateKey      *rsa.PrivateKey
+		certBytes          []byte
 	}
 	type test struct {
 		description           string
@@ -186,22 +205,34 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 		expectedSubnetStakers map[ids.ShortID]stakerStatus
 	}
 
+	rsaPrivateKey1, certBytes1, nodeID1 := newNodeKeyAndCert()
+	rsaPrivateKey2, certBytes2, nodeID2 := newNodeKeyAndCert()
+	rsaPrivateKey3, certBytes3, nodeID3 := newNodeKeyAndCert()
+	rsaPrivateKey4, certBytes4, nodeID4 := newNodeKeyAndCert()
+	rsaPrivateKey5, certBytes5, nodeID5 := newNodeKeyAndCert()
+
 	// Chronological order: staker1 start, staker2 start, staker3 start and staker 4 start,
 	//  staker3 and staker4 end, staker2 end and staker5 start, staker1 end
 	staker1 := staker{
-		nodeID:    ids.GenerateTestShortID(),
-		startTime: defaultGenesisTime.Add(1 * time.Minute),
-		endTime:   defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute),
+		nodeID:        nodeID1,
+		startTime:     defaultGenesisTime.Add(1 * time.Minute),
+		endTime:       defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute),
+		rsaPrivateKey: rsaPrivateKey1,
+		certBytes:     certBytes1,
 	}
 	staker2 := staker{
-		nodeID:    ids.GenerateTestShortID(),
-		startTime: staker1.startTime.Add(1 * time.Minute),
-		endTime:   staker1.startTime.Add(1 * time.Minute).Add(defaultMinStakingDuration),
+		nodeID:        nodeID2,
+		startTime:     staker1.startTime.Add(1 * time.Minute),
+		endTime:       staker1.startTime.Add(1 * time.Minute).Add(defaultMinStakingDuration),
+		rsaPrivateKey: rsaPrivateKey2,
+		certBytes:     certBytes2,
 	}
 	staker3 := staker{
-		nodeID:    ids.GenerateTestShortID(),
-		startTime: staker2.startTime.Add(1 * time.Minute),
-		endTime:   staker2.endTime.Add(1 * time.Minute),
+		nodeID:        nodeID3,
+		startTime:     staker2.startTime.Add(1 * time.Minute),
+		endTime:       staker2.endTime.Add(1 * time.Minute),
+		rsaPrivateKey: rsaPrivateKey3,
+		certBytes:     certBytes3,
 	}
 	staker3Sub := staker{
 		nodeID:    staker3.nodeID,
@@ -209,14 +240,18 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 		endTime:   staker3.endTime.Add(-1 * time.Minute),
 	}
 	staker4 := staker{
-		nodeID:    ids.GenerateTestShortID(),
-		startTime: staker3.startTime,
-		endTime:   staker3.endTime,
+		nodeID:        nodeID4,
+		startTime:     staker3.startTime,
+		endTime:       staker3.endTime,
+		rsaPrivateKey: rsaPrivateKey4,
+		certBytes:     certBytes4,
 	}
 	staker5 := staker{
-		nodeID:    ids.GenerateTestShortID(),
-		startTime: staker2.endTime,
-		endTime:   staker2.endTime.Add(defaultMinStakingDuration),
+		nodeID:        nodeID5,
+		startTime:     staker2.endTime,
+		endTime:       staker2.endTime.Add(defaultMinStakingDuration),
+		rsaPrivateKey: rsaPrivateKey5,
+		certBytes:     certBytes5,
 	}
 
 	tests := []test{
@@ -307,7 +342,15 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 			vm.WhitelistedSubnets.Add(testSubnet1.ID())
 
 			for _, staker := range test.stakers {
-				_, err := addPendingValidator(vm, staker.startTime, staker.endTime, staker.nodeID, []*crypto.PrivateKeySECP256K1R{keys[0]})
+				_, err := addPendingValidator(
+					vm,
+					staker.startTime,
+					staker.endTime,
+					staker.nodeID,
+					[]*crypto.PrivateKeySECP256K1R{keys[0]},
+					staker.rsaPrivateKey,
+					staker.certBytes,
+				)
 				assert.NoError(err)
 			}
 
@@ -390,7 +433,6 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 	}()
 	vm.WhitelistedSubnets.Add(testSubnet1.ID())
 	// Add a subnet validator to the staker set
-	subnetValidatorNodeID := keys[0].PublicKey().Address()
 	// Starts after the corre
 	subnetVdr1StartTime := defaultValidateStartTime
 	subnetVdr1EndTime := defaultValidateStartTime.Add(defaultMinStakingDuration)
@@ -398,7 +440,7 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 		1,                                  // Weight
 		uint64(subnetVdr1StartTime.Unix()), // Start time
 		uint64(subnetVdr1EndTime.Unix()),   // end time
-		subnetValidatorNodeID,              // Node ID
+		nodeIDs[0],                         // Node ID
 		testSubnet1.ID(),                   // Subnet ID
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
 		ids.ShortEmpty, // reward address
@@ -456,7 +498,7 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 	}
 
 	currentStakers := onCommitState.CurrentStakerChainState()
-	vdr, err := currentStakers.GetValidator(subnetValidatorNodeID)
+	vdr, err := currentStakers.GetValidator(nodeIDs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +512,7 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 	onCommitState.Apply(vm.internalState)
 	assert.NoError(t, vm.internalState.Commit())
 	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), subnetVdr2NodeID))
-	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), subnetValidatorNodeID))
+	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), nodeIDs[0]))
 }
 
 func TestWhitelistedSubnet(t *testing.T) {
@@ -489,7 +531,6 @@ func TestWhitelistedSubnet(t *testing.T) {
 				vm.WhitelistedSubnets.Add(testSubnet1.ID())
 			}
 			// Add a subnet validator to the staker set
-			subnetValidatorNodeID := keys[0].PublicKey().Address()
 
 			subnetVdr1StartTime := defaultGenesisTime.Add(1 * time.Minute)
 			subnetVdr1EndTime := defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute)
@@ -497,7 +538,7 @@ func TestWhitelistedSubnet(t *testing.T) {
 				1,                                  // Weight
 				uint64(subnetVdr1StartTime.Unix()), // Start time
 				uint64(subnetVdr1EndTime.Unix()),   // end time
-				subnetValidatorNodeID,              // Node ID
+				nodeIDs[0],                         // Node ID
 				testSubnet1.ID(),                   // Subnet ID
 				[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
 				ids.ShortEmpty, // reward address
@@ -528,7 +569,7 @@ func TestWhitelistedSubnet(t *testing.T) {
 
 			onCommitState.Apply(vm.internalState)
 			assert.NoError(t, vm.internalState.Commit())
-			assert.Equal(t, whitelist, vm.Validators.Contains(testSubnet1.ID(), subnetValidatorNodeID))
+			assert.Equal(t, whitelist, vm.Validators.Contains(testSubnet1.ID(), nodeIDs[0]))
 		})
 	}
 }
@@ -592,13 +633,23 @@ func TestAdvanceTimeTxUnmarshal(t *testing.T) {
 	}
 }
 
-func addPendingValidator(vm *VM, startTime time.Time, endTime time.Time, nodeID ids.ShortID, keys []*crypto.PrivateKeySECP256K1R) (*Tx, error) {
+func addPendingValidator(
+	vm *VM,
+	startTime time.Time,
+	endTime time.Time,
+	nodeID ids.ShortID,
+	keys []*crypto.PrivateKeySECP256K1R,
+	rsaPrivateKey *rsa.PrivateKey,
+	nodeCertificate []byte,
+) (*Tx, error) {
 	addPendingValidatorTx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
 		nodeID,
 		keys,
+		rsaPrivateKey,
+		nodeCertificate,
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {

@@ -16,8 +16,12 @@ package platformvm
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 	"testing"
 	"time"
@@ -95,6 +99,10 @@ var (
 	// each key controls an address that has [defaultBalance] AVAX at genesis
 	keys []*crypto.PrivateKeySECP256K1R
 
+	rsaKeys      []*rsa.PrivateKey
+	certificates [][]byte
+	nodeIDs      []ids.ShortID
+
 	defaultValidatorStake = 5 * units.MilliAvax
 
 	// amount all genesis validators have in defaultVM
@@ -135,6 +143,12 @@ func init() {
 		pk, err := factory.ToPrivateKey(privKeyBytes)
 		ctx.Log.AssertNoError(err)
 		keys = append(keys, pk.(*crypto.PrivateKeySECP256K1R))
+
+		rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+
+		rsaKeys = append(rsaKeys, rsaPrivateKey)
+		certificates = append(certificates, certBytes)
+		nodeIDs = append(nodeIDs, nodeID)
 	}
 	testSubnet1ControlKeys = keys[0:3]
 }
@@ -202,8 +216,7 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 
 	genesisValidators := make([]APIPrimaryValidator, len(keys))
 	for i, key := range keys {
-		id := key.PublicKey().Address()
-		addr, err := formatting.FormatBech32(hrp, id.Bytes())
+		addr, err := formatting.FormatBech32(hrp, key.PublicKey().Address().Bytes())
 		if err != nil {
 			panic(err)
 		}
@@ -211,7 +224,7 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 			APIStaker: APIStaker{
 				StartTime: json.Uint64(defaultValidateStartTime.Unix()),
 				EndTime:   json.Uint64(defaultValidateEndTime.Unix()),
-				NodeID:    id.PrefixedString(constants.NodeIDPrefix),
+				NodeID:    nodeIDs[i].PrefixedString(constants.NodeIDPrefix),
 			},
 			RewardOwner: &APIOwner{
 				Threshold: 1,
@@ -248,6 +261,35 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 	}
 
 	return &buildGenesisArgs, genesisBytes
+}
+
+// newNodeKeyAndCert creates a new staking private key / staking certificate pair.
+// Returns the PEM byte representations of both.
+func newNodeKeyAndCert() (*rsa.PrivateKey, []byte, ids.ShortID) {
+	key, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		panic(fmt.Errorf("couldn't generate rsa key: %w", err))
+	}
+
+	// Create self-signed staking cert
+	certTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(0),
+		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
+		NotAfter:              time.Now().AddDate(100, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
+		BasicConstraintsValid: true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &key.PublicKey, key)
+	if err != nil {
+		panic(fmt.Errorf("couldn't create certificate: %w", err))
+	}
+
+	_, err = x509.ParseCertificate(certBytes)
+	if err != nil {
+		println(err)
+	}
+
+	return key, certBytes, nodeIDFromCertBytes(certBytes)
 }
 
 // Returns:
@@ -537,9 +579,9 @@ func TestGenesis(t *testing.T) {
 	if len(currentValidators) != len(genesisState.Validators) {
 		t.Fatal("vm's current validator set is wrong")
 	}
-	for _, key := range keys {
-		if addr := key.PublicKey().Address(); !vdrSet.Contains(addr) {
-			t.Fatalf("should have had validator with NodeID %s", addr)
+	for i := range keys {
+		if nodeID := nodeIDs[i]; !vdrSet.Contains(nodeID) {
+			t.Fatalf("should have had validator with NodeID %s", nodeID)
 		}
 	}
 
@@ -571,15 +613,18 @@ func TestAddValidatorCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nodeID := key.PublicKey().Address()
+
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -645,16 +690,20 @@ func TestInvalidAddValidatorCommit(t *testing.T) {
 
 	startTime := defaultGenesisTime.Add(-syncBound).Add(-1 * time.Second)
 	endTime := startTime.Add(defaultMinStakingDuration)
-	key, _ := vm.factory.NewPrivateKey()
-	nodeID := key.PublicKey().Address()
+	key, err := vm.factory.NewPrivateKey()
+	assert.NoError(t, err)
+
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// create invalid tx
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -699,16 +748,20 @@ func TestAddValidatorReject(t *testing.T) {
 
 	startTime := defaultGenesisTime.Add(syncBound).Add(1 * time.Second)
 	endTime := startTime.Add(defaultMinStakingDuration)
-	key, _ := vm.factory.NewPrivateKey()
-	nodeID := key.PublicKey().Address()
+	key, err := vm.factory.NewPrivateKey()
+	assert.NoError(t, err)
+
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -771,7 +824,6 @@ func TestAddValidatorInvalidNotReissued(t *testing.T) {
 	}()
 
 	// Use nodeID that is already in the genesis
-	repeatNodeID := keys[0].PublicKey().Address()
 
 	startTime := defaultGenesisTime.Add(syncBound).Add(1 * time.Second)
 	endTime := startTime.Add(defaultMinStakingDuration)
@@ -780,9 +832,11 @@ func TestAddValidatorInvalidNotReissued(t *testing.T) {
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
-		repeatNodeID,
-		repeatNodeID,
+		nodeIDs[0],
+		keys[0].PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaKeys[0],
+		certificates[0],
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -808,7 +862,6 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 
 	startTime := defaultValidateStartTime.Add(syncBound).Add(1 * time.Second)
 	endTime := startTime.Add(defaultMinStakingDuration)
-	nodeID := keys[0].PublicKey().Address()
 
 	// create valid tx
 	// note that [startTime, endTime] is a subset of time that keys[0]
@@ -817,7 +870,7 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 		defaultWeight,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
 		ids.ShortEmpty, // change addr
@@ -869,7 +922,7 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr := pendingStakers.GetValidator(nodeIDs[0])
 	_, exists := vdr.SubnetValidators()[testSubnet1.ID()]
 
 	// Verify that new validator is in pending validator set
@@ -891,7 +944,6 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 
 	startTime := defaultValidateStartTime.Add(syncBound).Add(1 * time.Second)
 	endTime := startTime.Add(defaultMinStakingDuration)
-	nodeID := keys[0].PublicKey().Address()
 
 	// create valid tx
 	// note that [startTime, endTime] is a subset of time that keys[0]
@@ -900,7 +952,7 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 		defaultWeight,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[1], testSubnet1ControlKeys[2]},
 		ids.ShortEmpty, // change addr
@@ -952,7 +1004,7 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr := pendingStakers.GetValidator(nodeIDs[0])
 	_, exists := vdr.SubnetValidators()[testSubnet1.ID()]
 
 	// Verify that new validator NOT in pending validator set
@@ -1319,8 +1371,6 @@ func TestCreateSubnet(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	nodeID := keys[0].PublicKey().Address()
-
 	createSubnetTx, err := vm.newCreateSubnetTx(
 		1, // threshold
 		[]ids.ShortID{ // control keys
@@ -1370,7 +1420,7 @@ func TestCreateSubnet(t *testing.T) {
 		defaultWeight,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		createSubnetTx.ID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
 		ids.ShortEmpty, // change addr
@@ -1418,7 +1468,7 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers := vm.internalState.PendingStakerChainState()
-	vdr := pendingStakers.GetValidator(nodeID)
+	vdr := pendingStakers.GetValidator(nodeIDs[0])
 	_, exists := vdr.SubnetValidators()[createSubnetTx.ID()]
 	if !exists {
 		t.Fatal("should have added a pending validator")
@@ -1466,14 +1516,14 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers = vm.internalState.PendingStakerChainState()
-	vdr = pendingStakers.GetValidator(nodeID)
+	vdr = pendingStakers.GetValidator(nodeIDs[0])
 	_, exists = vdr.SubnetValidators()[createSubnetTx.ID()]
 	if exists {
 		t.Fatal("should have removed the pending validator")
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	cVDR, err := currentStakers.GetValidator(nodeID)
+	cVDR, err := currentStakers.GetValidator(nodeIDs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1522,14 +1572,14 @@ func TestCreateSubnet(t *testing.T) {
 	}
 
 	pendingStakers = vm.internalState.PendingStakerChainState()
-	vdr = pendingStakers.GetValidator(nodeID)
+	vdr = pendingStakers.GetValidator(nodeIDs[0])
 	_, exists = vdr.SubnetValidators()[createSubnetTx.ID()]
 	if exists {
 		t.Fatal("should have removed the pending validator")
 	}
 
 	currentStakers = vm.internalState.CurrentStakerChainState()
-	cVDR, err = currentStakers.GetValidator(nodeID)
+	cVDR, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2335,42 +2385,42 @@ func TestMaxStakeAmount(t *testing.T) {
 			description:    "startTime after validation period ends",
 			startTime:      defaultValidateEndTime.Add(time.Minute),
 			endTime:        defaultValidateEndTime.Add(2 * time.Minute),
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: 0,
 		},
 		{
 			description:    "startTime when validation period ends",
 			startTime:      defaultValidateEndTime,
 			endTime:        defaultValidateEndTime.Add(2 * time.Minute),
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "startTime before validation period ends",
 			startTime:      defaultValidateEndTime.Add(-time.Minute),
 			endTime:        defaultValidateEndTime.Add(2 * time.Minute),
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime after validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime.Add(time.Minute),
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime when validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime,
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: defaultValidatorStake,
 		},
 		{
 			description:    "endTime before validation period ends",
 			startTime:      defaultValidateStartTime,
 			endTime:        defaultValidateEndTime.Add(-time.Minute),
-			validatorID:    keys[0].PublicKey().Address(),
+			validatorID:    nodeIDs[0],
 			expectedAmount: defaultValidatorStake,
 		},
 	}
@@ -2502,15 +2552,17 @@ func TestRejectedStateRegressionInvalidValidatorTimestamp(t *testing.T) {
 	key, err := vm.factory.NewPrivateKey()
 	assert.NoError(err)
 
-	nodeID := key.PublicKey().Address()
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
 
 	// Create the tx to add a new validator
 	addValidatorTx, err := vm.newAddValidatorTx(
 		uint64(newValidatorStartTime.Unix()),
 		uint64(newValidatorEndTime.Unix()),
 		nodeID,
-		nodeID,
+		key.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		ids.ShortEmpty,
 	)
 	assert.NoError(err)
@@ -2727,15 +2779,17 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 	newValidatorStartTime0 := defaultGenesisTime.Add(syncBound).Add(1 * time.Second)
 	newValidatorEndTime0 := newValidatorStartTime0.Add(defaultMaxStakingDuration)
 
-	nodeID0 := ids.GenerateTestShortID()
+	rsaPrivateKey0, certBytes0, nodeID0 := newNodeKeyAndCert()
 
 	// Create the tx to add the first new validator
 	addValidatorTx0, err := vm.newAddValidatorTx(
 		uint64(newValidatorStartTime0.Unix()),
 		uint64(newValidatorEndTime0.Unix()),
 		nodeID0,
-		nodeID0,
+		ids.GenerateTestShortID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey0,
+		certBytes0,
 		ids.ShortEmpty,
 	)
 	assert.NoError(err)
@@ -2912,15 +2966,17 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 	newValidatorStartTime1 := newValidatorStartTime0.Add(syncBound).Add(1 * time.Second)
 	newValidatorEndTime1 := newValidatorStartTime1.Add(defaultMaxStakingDuration)
 
-	nodeID1 := ids.GenerateTestShortID()
+	rsaPrivateKey1, certBytes1, nodeID1 := newNodeKeyAndCert()
 
 	// Create the tx to add the second new validator
 	addValidatorTx1, err := vm.newAddValidatorTx(
 		uint64(newValidatorStartTime1.Unix()),
 		uint64(newValidatorEndTime1.Unix()),
 		nodeID1,
-		nodeID1,
+		ids.GenerateTestShortID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[1]},
+		rsaPrivateKey1,
+		certBytes1,
 		ids.ShortEmpty,
 	)
 	assert.NoError(err)

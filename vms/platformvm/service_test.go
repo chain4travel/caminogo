@@ -103,7 +103,7 @@ func defaultAddress(t *testing.T, service *Service) {
 }
 
 func TestAddValidator(t *testing.T) {
-	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":""}`
+	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":"","nodePrivateKey":"","nodeCertificate":""}`
 	args := AddValidatorArgs{}
 	bytes, err := json.Marshal(&args)
 	if err != nil {
@@ -323,6 +323,8 @@ func TestGetTx(t *testing.T) {
 		createTx    func(service *Service) (*Tx, error)
 	}
 
+	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+
 	tests := []test{
 		{
 			"standard block",
@@ -344,9 +346,11 @@ func TestGetTx(t *testing.T) {
 				return service.vm.newAddValidatorTx( // Test GetTx works for proposal blocks
 					uint64(service.vm.clock.Time().Add(syncBound).Unix()),
 					uint64(service.vm.clock.Time().Add(syncBound).Add(defaultMinStakingDuration).Unix()),
-					ids.GenerateTestShortID(),
+					nodeID,
 					ids.GenerateTestShortID(),
 					[]*crypto.PrivateKeySECP256K1R{keys[0]},
+					rsaPrivateKey,
+					certBytes,
 					keys[0].PublicKey().Address(), // change addr
 				)
 			},
@@ -541,7 +545,7 @@ func TestGetStake(t *testing.T) {
 
 	// Make sure this works for pending stakers
 	// Add a pending staker
-	pendingStakerNodeID := ids.GenerateTestShortID()
+	rsaPrivateKey, certBytes, pendingStakerNodeID := newNodeKeyAndCert()
 	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
 	tx, err := service.vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()),
@@ -549,6 +553,8 @@ func TestGetStake(t *testing.T) {
 		pendingStakerNodeID,
 		ids.GenerateTestShortID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 		keys[0].PublicKey().Address(), // change addr
 	)
 	assert.NoError(err)
