@@ -71,6 +71,14 @@ type JSONFromAddrs struct {
 type JSONSpendHeader struct {
 	UserPass
 	JSONFromAddrs
+}
+
+// JSONSpendWithChangeHeader is 3 arguments to a method that spends (including those with tx fees)
+// 1) The username/password
+// 2) The addresses used in the method
+// 3) The address to send change to
+type JSONSpendWithChangeHeader struct {
+	JSONSpendHeader
 	JSONChangeAddr
 }
 

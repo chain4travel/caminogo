@@ -319,7 +319,6 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 					staker.nodeID,    // validator ID
 					testSubnet1.ID(), // Subnet ID
 					[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
-					ids.ShortEmpty, // reward address
 				)
 				assert.NoError(err)
 				vm.internalState.AddPendingStaker(tx)
@@ -401,7 +400,6 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 		subnetValidatorNodeID,              // Node ID
 		testSubnet1.ID(),                   // Subnet ID
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
-		ids.ShortEmpty, // reward address
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -427,7 +425,6 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 		subnetVdr2NodeID, // Node ID
 		testSubnet1.ID(), // Subnet ID
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
-		ids.ShortEmpty, // reward address
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -500,7 +497,6 @@ func TestWhitelistedSubnet(t *testing.T) {
 				subnetValidatorNodeID,              // Node ID
 				testSubnet1.ID(),                   // Subnet ID
 				[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
-				ids.ShortEmpty, // reward address
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -599,7 +595,6 @@ func addPendingValidator(vm *VM, startTime time.Time, endTime time.Time, nodeID 
 		nodeID,
 		nodeID,
 		keys,
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		return nil, err

@@ -212,7 +212,6 @@ func (vm *VM) newImportTx(
 	chainID ids.ID, // chain to import from
 	to ids.ShortID, // Address of recipient
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to import the funds
-	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
 	kc := secp256k1fx.NewKeychain(keys...)
 
@@ -259,7 +258,7 @@ func (vm *VM) newImportTx(
 	outs := []*avax.TransferableOutput{}
 	if importedAmount < vm.TxFee { // imported amount goes toward paying tx fee
 		var baseSigners [][]*crypto.PrivateKeySECP256K1R
-		ins, outs, _, baseSigners, err = vm.stake(keys, 0, vm.TxFee-importedAmount, changeAddr)
+		ins, outs, _, baseSigners, err = vm.stake(keys, 0, vm.TxFee-importedAmount)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 		}

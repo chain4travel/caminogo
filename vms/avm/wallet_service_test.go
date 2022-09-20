@@ -95,12 +95,14 @@ func TestWalletService_SendMultiple(t *testing.T) {
 			_, fromAddrsStr := sampleAddrs(t, vm, addrs)
 
 			args := &SendMultipleArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
 				Outputs: []SendOutput{

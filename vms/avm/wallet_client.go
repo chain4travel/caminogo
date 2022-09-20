@@ -95,9 +95,11 @@ func (c *walletClient) Send(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "send", &SendArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		SendOutput: SendOutput{
@@ -121,9 +123,11 @@ func (c *walletClient) SendMultiple(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "sendMultiple", &SendMultipleArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Outputs: outputs,

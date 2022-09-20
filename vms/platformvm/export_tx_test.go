@@ -68,7 +68,7 @@ func TestNewExportTx(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			assert := assert.New(t)
-			tx, err := vm.newExportTx(defaultBalance-defaultTxFee, tt.destinationChainID, to, tt.sourceKeys, ids.ShortEmpty)
+			tx, err := vm.newExportTx(defaultBalance-defaultTxFee, tt.destinationChainID, to, tt.sourceKeys)
 			if tt.shouldErr {
 				assert.Error(err)
 				return

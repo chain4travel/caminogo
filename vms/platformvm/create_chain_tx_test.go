@@ -148,7 +148,6 @@ func TestUnsignedCreateChainTxVerify(t *testing.T) {
 			test.fxIDs,
 			test.chainName,
 			test.keys,
-			ids.ShortEmpty, // change addr
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -181,7 +180,6 @@ func TestCreateChainTxInsufficientControlSigs(t *testing.T) {
 		nil,
 		"chain name",
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +216,6 @@ func TestCreateChainTxWrongControlSig(t *testing.T) {
 		nil,
 		"chain name",
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +264,6 @@ func TestCreateChainTxNoSuchSubnet(t *testing.T) {
 		nil,
 		"chain name",
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +300,6 @@ func TestCreateChainTxValid(t *testing.T) {
 		nil,
 		"chain name",
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -363,7 +358,7 @@ func TestCreateChainTxAP3FeeChange(t *testing.T) {
 				vm.ctx.Lock.Unlock()
 			}()
 
-			ins, outs, _, signers, err := vm.stake(keys, 0, test.fee, ids.ShortEmpty)
+			ins, outs, _, signers, err := vm.stake(keys, 0, test.fee)
 			assert.NoError(err)
 
 			subnetAuth, subnetSigners, err := vm.authorize(vm.internalState, testSubnet1.ID(), keys)

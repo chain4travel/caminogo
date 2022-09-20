@@ -103,7 +103,7 @@ func defaultAddress(t *testing.T, service *Service) {
 }
 
 func TestAddValidator(t *testing.T) {
-	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":""}`
+	expectedJSONString := `{"username":"","password":"","from":null,"txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":""}`
 	args := AddValidatorArgs{}
 	bytes, err := json.Marshal(&args)
 	if err != nil {
@@ -252,7 +252,7 @@ func TestGetTxStatus(t *testing.T) {
 	newAtomicUTXOManager := avax.NewAtomicUTXOManager(sm, Codec)
 
 	service.vm.AtomicUTXOManager = newAtomicUTXOManager
-	tx, err := service.vm.newImportTx(xChainID, ids.ShortEmpty, []*crypto.PrivateKeySECP256K1R{recipientKey}, ids.ShortEmpty)
+	tx, err := service.vm.newImportTx(xChainID, ids.ShortEmpty, []*crypto.PrivateKeySECP256K1R{recipientKey})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,6 @@ func TestGetTx(t *testing.T) {
 					nil,
 					"chain name",
 					[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-					keys[0].PublicKey().Address(), // change addr
 				)
 			},
 		},
@@ -347,7 +346,6 @@ func TestGetTx(t *testing.T) {
 					ids.GenerateTestShortID(),
 					ids.GenerateTestShortID(),
 					[]*crypto.PrivateKeySECP256K1R{keys[0]},
-					keys[0].PublicKey().Address(), // change addr
 				)
 			},
 		},
@@ -359,7 +357,6 @@ func TestGetTx(t *testing.T) {
 					service.vm.ctx.XChainID,
 					ids.GenerateTestShortID(),
 					[]*crypto.PrivateKeySECP256K1R{keys[0]},
-					keys[0].PublicKey().Address(), // change addr
 				)
 			},
 		},
@@ -549,7 +546,6 @@ func TestGetStake(t *testing.T) {
 		pendingStakerNodeID,
 		ids.GenerateTestShortID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		keys[0].PublicKey().Address(), // change addr
 	)
 	assert.NoError(err)
 

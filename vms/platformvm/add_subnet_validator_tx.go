@@ -269,9 +269,8 @@ func (vm *VM) newAddSubnetValidatorTx(
 	nodeID ids.ShortID, // ID of the node validating
 	subnetID ids.ID, // ID of the subnet the validator will validate
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to use for adding the validator
-	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
-	ins, outs, _, signers, err := vm.stake(keys, 0, vm.TxFee, changeAddr)
+	ins, outs, _, signers, err := vm.stake(keys, 0, vm.TxFee)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

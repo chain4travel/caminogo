@@ -380,7 +380,6 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 		// control keys are keys[0], keys[1], keys[2]
 		[]ids.ShortID{keys[0].PublicKey().Address(), keys[1].PublicKey().Address(), keys[2].PublicKey().Address()},
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // pays tx fee
-		keys[0].PublicKey().Address(),           // change addr
 	); err != nil {
 		panic(err)
 	} else if err := vm.blockBuilder.AddUnverifiedTx(tx); err != nil {
@@ -451,7 +450,6 @@ func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan commo
 		// control keys are keys[0], keys[1], keys[2]
 		[]ids.ShortID{keys[0].PublicKey().Address(), keys[1].PublicKey().Address(), keys[2].PublicKey().Address()},
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // pays tx fee
-		keys[0].PublicKey().Address(),           // change addr
 	); err != nil {
 		panic(err)
 	} else if err := vm.blockBuilder.AddUnverifiedTx(tx); err != nil {
@@ -580,7 +578,6 @@ func TestAddValidatorCommit(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -655,7 +652,6 @@ func TestInvalidAddValidatorCommit(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -709,7 +705,6 @@ func TestAddValidatorReject(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -783,7 +778,6 @@ func TestAddValidatorInvalidNotReissued(t *testing.T) {
 		repeatNodeID,
 		repeatNodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -820,7 +814,6 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 		nodeID,
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -903,7 +896,6 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 		nodeID,
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[1], testSubnet1ControlKeys[2]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1270,7 +1262,6 @@ func TestCreateChain(t *testing.T) {
 		nil,
 		"name",
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1328,7 +1319,6 @@ func TestCreateSubnet(t *testing.T) {
 			keys[1].PublicKey().Address(),
 		},
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // payer
-		keys[0].PublicKey().Address(),           // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1373,7 +1363,6 @@ func TestCreateSubnet(t *testing.T) {
 		nodeID,
 		createSubnetTx.ID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
 	} else if err := vm.blockBuilder.AddUnverifiedTx(addValidatorTx); err != nil {
@@ -1570,7 +1559,6 @@ func TestAtomicImport(t *testing.T) {
 		vm.ctx.XChainID,
 		recipientKey.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err == nil {
 		t.Fatalf("should have errored due to missing utxos")
 	}
@@ -1607,7 +1595,6 @@ func TestAtomicImport(t *testing.T) {
 		vm.ctx.XChainID,
 		recipientKey.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{recipientKey},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -2431,15 +2418,15 @@ func TestUnverifiedParentPanic(t *testing.T) {
 	addr0 := key0.PublicKey().Address()
 	addr1 := key1.PublicKey().Address()
 
-	addSubnetTx0, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr0}, []*crypto.PrivateKeySECP256K1R{key0}, addr0)
+	addSubnetTx0, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr0}, []*crypto.PrivateKeySECP256K1R{key0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	addSubnetTx1, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr1}, []*crypto.PrivateKeySECP256K1R{key1}, addr1)
+	addSubnetTx1, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr1}, []*crypto.PrivateKeySECP256K1R{key1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	addSubnetTx2, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr1}, []*crypto.PrivateKeySECP256K1R{key1}, addr0)
+	addSubnetTx2, err := vm.newCreateSubnetTx(1, []ids.ShortID{addr1}, []*crypto.PrivateKeySECP256K1R{key1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2511,7 +2498,6 @@ func TestRejectedStateRegressionInvalidValidatorTimestamp(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty,
 	)
 	assert.NoError(err)
 
@@ -2736,7 +2722,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 		nodeID0,
 		nodeID0,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty,
 	)
 	assert.NoError(err)
 
@@ -2921,7 +2906,6 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 		nodeID1,
 		nodeID1,
 		[]*crypto.PrivateKeySECP256K1R{keys[1]},
-		ids.ShortEmpty,
 	)
 	assert.NoError(err)
 

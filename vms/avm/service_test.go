@@ -2161,12 +2161,14 @@ func TestCreateFixedCapAsset(t *testing.T) {
 			_, fromAddrsStr := sampleAddrs(t, vm, addrs)
 
 			err = s.CreateFixedCapAsset(nil, &CreateAssetArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
 				Name:         "testAsset",
@@ -2209,12 +2211,14 @@ func TestCreateVariableCapAsset(t *testing.T) {
 			}
 
 			err = s.CreateVariableCapAsset(nil, &CreateAssetArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
 				Name:   "test asset",
@@ -2248,10 +2252,12 @@ func TestCreateVariableCapAsset(t *testing.T) {
 			createdAssetID := reply.AssetID.String()
 			// Test minting of the created variable cap asset
 			mintArgs := &MintArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
 					},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
@@ -2279,12 +2285,14 @@ func TestCreateVariableCapAsset(t *testing.T) {
 			}
 
 			sendArgs := &SendArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: []string{minterAddrStr}},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: []string{minterAddrStr}},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
 				SendOutput: SendOutput{
@@ -2323,12 +2331,14 @@ func TestNFTWorkflow(t *testing.T) {
 			}
 
 			createArgs := &CreateNFTAssetArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: fromAddrsStr[0]},
 				},
 				Name:   "BIG COIN",
@@ -2369,12 +2379,14 @@ func TestNFTWorkflow(t *testing.T) {
 				t.Fatal(err)
 			}
 			mintArgs := &MintNFTArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: fromAddrsStr[0]},
 				},
 				AssetID:  assetID.String(),
@@ -2404,12 +2416,14 @@ func TestNFTWorkflow(t *testing.T) {
 			}
 
 			sendArgs := &SendNFTArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: fromAddrsStr[0]},
 				},
 				AssetID: assetID.String(),
@@ -2578,12 +2592,14 @@ func TestSend(t *testing.T) {
 	_, fromAddrsStr := sampleAddrs(t, vm, addrs)
 
 	args := &SendArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass: api.UserPass{
-				Username: username,
-				Password: password,
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass: api.UserPass{
+					Username: username,
+					Password: password,
+				},
+				JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 			},
-			JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 		},
 		SendOutput: SendOutput{
@@ -2635,12 +2651,14 @@ func TestSendMultiple(t *testing.T) {
 			_, fromAddrsStr := sampleAddrs(t, vm, addrs)
 
 			args := &SendMultipleArgs{
-				JSONSpendHeader: api.JSONSpendHeader{
-					UserPass: api.UserPass{
-						Username: username,
-						Password: password,
+				JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+					JSONSpendHeader: api.JSONSpendHeader{
+						UserPass: api.UserPass{
+							Username: username,
+							Password: password,
+						},
+						JSONFromAddrs: api.JSONFromAddrs{From: fromAddrsStr},
 					},
-					JSONFromAddrs:  api.JSONFromAddrs{From: fromAddrsStr},
 					JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddrStr},
 				},
 				Outputs: []SendOutput{

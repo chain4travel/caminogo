@@ -112,9 +112,9 @@ func (w *WalletService) IssueTx(r *http.Request, args *api.FormattedTx, reply *a
 // Send returns the ID of the newly created transaction
 func (w *WalletService) Send(r *http.Request, args *SendArgs, reply *api.JSONTxIDChangeAddr) error {
 	return w.SendMultiple(r, &SendMultipleArgs{
-		JSONSpendHeader: args.JSONSpendHeader,
-		Outputs:         []SendOutput{args.SendOutput},
-		Memo:            args.Memo,
+		JSONSpendWithChangeHeader: args.JSONSpendWithChangeHeader,
+		Outputs:                   []SendOutput{args.SendOutput},
+		Memo:                      args.Memo,
 	}, reply)
 }
 

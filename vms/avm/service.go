@@ -494,12 +494,12 @@ type Owners struct {
 
 // CreateAssetArgs are arguments for passing into CreateAsset
 type CreateAssetArgs struct {
-	api.JSONSpendHeader           // User, password, from addrs, change addr
-	Name                string    `json:"name"`
-	Symbol              string    `json:"symbol"`
-	Denomination        byte      `json:"denomination"`
-	InitialHolders      []*Holder `json:"initialHolders"`
-	MinterSets          []Owners  `json:"minterSets"`
+	api.JSONSpendWithChangeHeader           // User, password, from addrs, change addr
+	Name                          string    `json:"name"`
+	Symbol                        string    `json:"symbol"`
+	Denomination                  byte      `json:"denomination"`
+	InitialHolders                []*Holder `json:"initialHolders"`
+	MinterSets                    []Owners  `json:"minterSets"`
 }
 
 // AssetIDChangeAddr is an asset ID and a change address
@@ -654,10 +654,10 @@ func (service *Service) CreateVariableCapAsset(r *http.Request, args *CreateAsse
 
 // CreateNFTAssetArgs are arguments for passing into CreateNFTAsset requests
 type CreateNFTAssetArgs struct {
-	api.JSONSpendHeader          // User, password, from addrs, change addr
-	Name                string   `json:"name"`
-	Symbol              string   `json:"symbol"`
-	MinterSets          []Owners `json:"minterSets"`
+	api.JSONSpendWithChangeHeader          // User, password, from addrs, change addr
+	Name                          string   `json:"name"`
+	Symbol                        string   `json:"symbol"`
+	MinterSets                    []Owners `json:"minterSets"`
 }
 
 // CreateNFTAsset returns ID of the newly created asset
@@ -932,7 +932,7 @@ type SendOutput struct {
 // SendArgs are arguments for passing into Send requests
 type SendArgs struct {
 	// User, password, from addrs, change addr
-	api.JSONSpendHeader
+	api.JSONSpendWithChangeHeader
 
 	// The amount, assetID, and destination to send funds to
 	SendOutput
@@ -944,7 +944,7 @@ type SendArgs struct {
 // SendMultipleArgs are arguments for passing into SendMultiple requests
 type SendMultipleArgs struct {
 	// User, password, from addrs, change addr
-	api.JSONSpendHeader
+	api.JSONSpendWithChangeHeader
 
 	// The outputs of the transaction
 	Outputs []SendOutput `json:"outputs"`
@@ -956,9 +956,9 @@ type SendMultipleArgs struct {
 // Send returns the ID of the newly created transaction
 func (service *Service) Send(r *http.Request, args *SendArgs, reply *api.JSONTxIDChangeAddr) error {
 	return service.SendMultiple(r, &SendMultipleArgs{
-		JSONSpendHeader: args.JSONSpendHeader,
-		Outputs:         []SendOutput{args.SendOutput},
-		Memo:            args.Memo,
+		JSONSpendWithChangeHeader: args.JSONSpendWithChangeHeader,
+		Outputs:                   []SendOutput{args.SendOutput},
+		Memo:                      args.Memo,
 	}, reply)
 }
 
@@ -1104,10 +1104,10 @@ func (service *Service) SendMultiple(r *http.Request, args *SendMultipleArgs, re
 
 // MintArgs are arguments for passing into Mint requests
 type MintArgs struct {
-	api.JSONSpendHeader             // User, password, from addrs, change addr
-	Amount              json.Uint64 `json:"amount"`
-	AssetID             string      `json:"assetID"`
-	To                  string      `json:"to"`
+	api.JSONSpendWithChangeHeader             // User, password, from addrs, change addr
+	Amount                        json.Uint64 `json:"amount"`
+	AssetID                       string      `json:"assetID"`
+	To                            string      `json:"to"`
 }
 
 // Mint issues a transaction that mints more of the asset
@@ -1219,10 +1219,10 @@ func (service *Service) Mint(r *http.Request, args *MintArgs, reply *api.JSONTxI
 
 // SendNFTArgs are arguments for passing into SendNFT requests
 type SendNFTArgs struct {
-	api.JSONSpendHeader             // User, password, from addrs, change addr
-	AssetID             string      `json:"assetID"`
-	GroupID             json.Uint32 `json:"groupID"`
-	To                  string      `json:"to"`
+	api.JSONSpendWithChangeHeader             // User, password, from addrs, change addr
+	AssetID                       string      `json:"assetID"`
+	GroupID                       json.Uint32 `json:"groupID"`
+	To                            string      `json:"to"`
 }
 
 // SendNFT sends an NFT
@@ -1327,11 +1327,11 @@ func (service *Service) SendNFT(r *http.Request, args *SendNFTArgs, reply *api.J
 
 // MintNFTArgs are arguments for passing into MintNFT requests
 type MintNFTArgs struct {
-	api.JSONSpendHeader                     // User, password, from addrs, change addr
-	AssetID             string              `json:"assetID"`
-	Payload             string              `json:"payload"`
-	To                  string              `json:"to"`
-	Encoding            formatting.Encoding `json:"encoding"`
+	api.JSONSpendWithChangeHeader                     // User, password, from addrs, change addr
+	AssetID                       string              `json:"assetID"`
+	Payload                       string              `json:"payload"`
+	To                            string              `json:"to"`
+	Encoding                      formatting.Encoding `json:"encoding"`
 }
 
 // MintNFT issues a MintNFT transaction and returns the ID of the newly created transaction
@@ -1560,7 +1560,7 @@ func (service *Service) Import(_ *http.Request, args *ImportArgs, reply *api.JSO
 // ExportArgs are arguments for passing into ExportAVA requests
 type ExportArgs struct {
 	// User, password, from addrs, change addr
-	api.JSONSpendHeader
+	api.JSONSpendWithChangeHeader
 	// Amount of nAVAX to send
 	Amount json.Uint64 `json:"amount"`
 

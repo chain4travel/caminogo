@@ -83,7 +83,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr string,
 		rewardAddress,
 		nodeID string,
 		stakeAmount,
@@ -98,7 +97,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr string,
 		subnetID,
 		nodeID string,
 		stakeAmount,
@@ -111,7 +109,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr string,
 		controlKeys []string,
 		threshold uint32,
 		options ...rpc.Option,
@@ -121,7 +118,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr string,
 		to string,
 		amount uint64,
 		options ...rpc.Option,
@@ -131,7 +127,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr,
 		to,
 		sourceChain string,
 		options ...rpc.Option,
@@ -141,7 +136,6 @@ type Client interface {
 		ctx context.Context,
 		user api.UserPass,
 		from []string,
-		changeAddr string,
 		subnetID ids.ID,
 		vmID string,
 		fxIDs []string,
@@ -375,7 +369,6 @@ func (c *client) AddValidator(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr string,
 	rewardAddress,
 	nodeID string,
 	stakeAmount,
@@ -405,7 +398,6 @@ func (c *client) AddSubnetValidator(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr string,
 	subnetID,
 	nodeID string,
 	stakeAmount,
@@ -417,9 +409,8 @@ func (c *client) AddSubnetValidator(
 	jsonStakeAmount := json.Uint64(stakeAmount)
 	err := c.requester.SendRequest(ctx, "addSubnetValidator", &AddSubnetValidatorArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		APIStaker: APIStaker{
 			NodeID:      nodeID,
@@ -436,7 +427,6 @@ func (c *client) CreateSubnet(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr string,
 	controlKeys []string,
 	threshold uint32,
 	options ...rpc.Option,
@@ -444,9 +434,8 @@ func (c *client) CreateSubnet(
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "createSubnet", &CreateSubnetArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		APISubnet: APISubnet{
 			ControlKeys: controlKeys,
@@ -460,7 +449,6 @@ func (c *client) ExportAVAX(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr string,
 	to string,
 	amount uint64,
 	options ...rpc.Option,
@@ -468,9 +456,8 @@ func (c *client) ExportAVAX(
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "exportAVAX", &ExportAVAXArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		To:     to,
 		Amount: json.Uint64(amount),
@@ -482,7 +469,6 @@ func (c *client) ImportAVAX(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr,
 	to,
 	sourceChain string,
 	options ...rpc.Option,
@@ -490,9 +476,8 @@ func (c *client) ImportAVAX(
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "importAVAX", &ImportAVAXArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		To:          to,
 		SourceChain: sourceChain,
@@ -504,7 +489,6 @@ func (c *client) CreateBlockchain(
 	ctx context.Context,
 	user api.UserPass,
 	from []string,
-	changeAddr string,
 	subnetID ids.ID,
 	vmID string,
 	fxIDs []string,
@@ -520,9 +504,8 @@ func (c *client) CreateBlockchain(
 	res := &api.JSONTxID{}
 	err = c.requester.SendRequest(ctx, "createBlockchain", &CreateBlockchainArgs{
 		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
-			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
+			UserPass:      user,
+			JSONFromAddrs: api.JSONFromAddrs{From: from},
 		},
 		SubnetID:    subnetID,
 		VMID:        vmID,

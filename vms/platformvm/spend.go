@@ -39,7 +39,6 @@ var (
 // - [keys] are the owners of the funds
 // - [amount] is the amount of funds that are trying to be staked
 // - [fee] is the amount of AVAX that should be burned
-// - [changeAddr] is the address that change, if there is any, is sent to
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
 // - [returnedOutputs] the outputs that should be immediately returned to the
@@ -51,7 +50,6 @@ func (vm *VM) stake(
 	keys []*crypto.PrivateKeySECP256K1R,
 	amount uint64,
 	fee uint64,
-	changeAddr ids.ShortID,
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // returnedOutputs
@@ -190,8 +188,8 @@ func (vm *VM) stake(
 		}
 
 		out := utxo.Out
-		inner, ok := out.(*StakeableLockOut)
-		if ok {
+
+		if inner, ok := out.(*StakeableLockOut); ok {
 			if inner.Locktime > now {
 				// This output is currently locked, so this output can't be
 				// burned. Additionally, it may have already been consumed
@@ -199,6 +197,12 @@ func (vm *VM) stake(
 				continue
 			}
 			out = inner.TransferableOut
+		}
+
+		inner, ok := out.(*secp256k1fx.TransferOutput)
+		if !ok {
+			// We only know how to clone secp256k1 outputs for now
+			continue
 		}
 
 		inIntf, inSigners, err := kc.Spend(out, now)
@@ -244,12 +248,8 @@ func (vm *VM) stake(
 			stakedOuts = append(stakedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
-					Amt: amountToStake,
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
-					},
+					Amt:          amountToStake,
+					OutputOwners: inner.OutputOwners,
 				},
 			})
 		}
@@ -259,12 +259,8 @@ func (vm *VM) stake(
 			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
-					Amt: remainingValue,
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
-					},
+					Amt:          remainingValue,
+					OutputOwners: inner.OutputOwners,
 				},
 			})
 		}

@@ -33,7 +33,6 @@ func getValidTx(vm *VM, t *testing.T) *Tx {
 		nil,
 		"chain name",
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)

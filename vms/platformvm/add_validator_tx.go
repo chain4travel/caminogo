@@ -264,10 +264,9 @@ func (vm *VM) newAddValidatorTx(
 	nodeID ids.ShortID, // ID of the node we want to validate with
 	rewardAddress ids.ShortID, // Address to send reward to, if applicable
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
-	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
 	bondAmount := vm.internalState.GetValidatorBondAmount()
-	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, bondAmount, vm.AddStakerTxFee, changeAddr)
+	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, bondAmount, vm.AddStakerTxFee)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

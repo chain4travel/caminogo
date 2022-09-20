@@ -350,9 +350,11 @@ func (c *client) CreateAsset(
 ) (ids.ID, error) {
 	res := &FormattedAssetID{}
 	err := c.requester.SendRequest(ctx, "createAsset", &CreateAssetArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Name:           name,
@@ -377,9 +379,11 @@ func (c *client) CreateFixedCapAsset(
 ) (ids.ID, error) {
 	res := &FormattedAssetID{}
 	err := c.requester.SendRequest(ctx, "createAsset", &CreateAssetArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Name:           name,
@@ -403,9 +407,11 @@ func (c *client) CreateVariableCapAsset(
 ) (ids.ID, error) {
 	res := &FormattedAssetID{}
 	err := c.requester.SendRequest(ctx, "createAsset", &CreateAssetArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Name:         name,
@@ -428,9 +434,11 @@ func (c *client) CreateNFTAsset(
 ) (ids.ID, error) {
 	res := &FormattedAssetID{}
 	err := c.requester.SendRequest(ctx, "createNFTAsset", &CreateNFTAssetArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Name:       name,
@@ -483,9 +491,11 @@ func (c *client) Send(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "send", &SendArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		SendOutput: SendOutput{
@@ -509,9 +519,11 @@ func (c *client) SendMultiple(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "sendMultiple", &SendMultipleArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Outputs: outputs,
@@ -532,9 +544,11 @@ func (c *client) Mint(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "mint", &MintArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Amount:  cjson.Uint64(amount),
@@ -556,9 +570,11 @@ func (c *client) SendNFT(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "sendNFT", &SendNFTArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		AssetID: assetID,
@@ -584,9 +600,11 @@ func (c *client) MintNFT(
 	}
 	res := &api.JSONTxID{}
 	err = c.requester.SendRequest(ctx, "mintNFT", &MintNFTArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		AssetID:  assetID,
@@ -619,9 +637,11 @@ func (c *client) Export(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest(ctx, "export", &ExportArgs{
-		JSONSpendHeader: api.JSONSpendHeader{
-			UserPass:       user,
-			JSONFromAddrs:  api.JSONFromAddrs{From: from},
+		JSONSpendWithChangeHeader: api.JSONSpendWithChangeHeader{
+			JSONSpendHeader: api.JSONSpendHeader{
+				UserPass:      user,
+				JSONFromAddrs: api.JSONFromAddrs{From: from},
+			},
 			JSONChangeAddr: api.JSONChangeAddr{ChangeAddr: changeAddr},
 		},
 		Amount:  cjson.Uint64(amount),

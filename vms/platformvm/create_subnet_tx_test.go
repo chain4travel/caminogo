@@ -20,7 +20,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/units"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
@@ -67,7 +66,7 @@ func TestCreateSubnetTxAP3FeeChange(t *testing.T) {
 				vm.ctx.Lock.Unlock()
 			}()
 
-			ins, outs, _, signers, err := vm.stake(keys, 0, test.fee, ids.ShortEmpty)
+			ins, outs, _, signers, err := vm.stake(keys, 0, test.fee)
 			assert.NoError(err)
 
 			// Create the tx

@@ -39,7 +39,6 @@ func TestTxHeapByStartTime(t *testing.T) {
 		ids.ShortID{},                           // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
-		ids.ShortEmpty,                          // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +51,6 @@ func TestTxHeapByStartTime(t *testing.T) {
 		ids.ShortID{1},                          // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
-		ids.ShortEmpty,                          // change addr
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +63,6 @@ func TestTxHeapByStartTime(t *testing.T) {
 		ids.ShortID{},                           // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
-		ids.ShortEmpty,                          // change addr
 	)
 	if err != nil {
 		t.Fatal(err)

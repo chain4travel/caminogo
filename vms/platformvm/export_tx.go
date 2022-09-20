@@ -196,13 +196,12 @@ func (vm *VM) newExportTx(
 	chainID ids.ID, // Chain to send the UTXOs to
 	to ids.ShortID, // Address of chain recipient
 	keys []*crypto.PrivateKeySECP256K1R, // Pay the fee and provide the tokens
-	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
 	toBurn, err := math.Add64(amount, vm.TxFee)
 	if err != nil {
 		return nil, errOverflowExport
 	}
-	ins, outs, _, signers, err := vm.stake(keys, 0, toBurn, changeAddr)
+	ins, outs, _, signers, err := vm.stake(keys, 0, toBurn)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

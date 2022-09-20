@@ -914,7 +914,7 @@ func (service *Service) SampleValidators(_ *http.Request, args *SampleValidators
 
 // AddValidatorArgs are the arguments to AddValidator
 type AddValidatorArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 	APIStaker
 	// The address the staking reward, if applicable, will go to
@@ -923,7 +923,7 @@ type AddValidatorArgs struct {
 
 // AddValidator creates and signs and issues a transaction to add a validator to
 // the primary network
-func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, reply *api.JSONTxIDChangeAddr) error {
+func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, reply *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: AddValidator called")
 
 	now := service.vm.clock.Time()
@@ -981,16 +981,8 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
 	}
 
-	// Parse the change address.
 	if len(privKeys.Keys) == 0 {
 		return errNoKeys
-	}
-	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
 	}
 
 	// Create the transaction
@@ -1000,14 +992,12 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		nodeID,                 // Node ID
 		rewardAddress,          // Reward Address
 		privKeys.Keys,          // Private keys
-		changeAddr,             // Change address
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
 	}
 
 	reply.TxID = tx.ID()
-	reply.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -1020,7 +1010,7 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 
 // AddSubnetValidatorArgs are the arguments to AddSubnetValidator
 type AddSubnetValidatorArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 	APIStaker
 	// ID of subnet to validate
@@ -1029,7 +1019,7 @@ type AddSubnetValidatorArgs struct {
 
 // AddSubnetValidator creates and signs and issues a transaction to add a
 // validator to a subnet other than the primary network
-func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValidatorArgs, response *api.JSONTxIDChangeAddr) error {
+func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValidatorArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: AddSubnetValidator called")
 
 	now := service.vm.clock.Time()
@@ -1083,16 +1073,8 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
 	}
 
-	// Parse the change address.
 	if len(keys.Keys) == 0 {
 		return errNoKeys
-	}
-	changeAddr := keys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
 	}
 
 	// Create the transaction
@@ -1103,14 +1085,12 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		nodeID,                 // Node ID
 		subnetID,               // Subnet ID
 		keys.Keys,              // Keys
-		changeAddr,             // Change address
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
 	}
 
 	response.TxID = tx.ID()
-	response.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -1123,7 +1103,7 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 
 // CreateSubnetArgs are the arguments to CreateSubnet
 type CreateSubnetArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 	// The ID member of APISubnet is ignored
 	APISubnet
@@ -1131,7 +1111,7 @@ type CreateSubnetArgs struct {
 
 // CreateSubnet creates and signs and issues a transaction to create a new
 // subnet
-func (service *Service) CreateSubnet(_ *http.Request, args *CreateSubnetArgs, response *api.JSONTxIDChangeAddr) error {
+func (service *Service) CreateSubnet(_ *http.Request, args *CreateSubnetArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: CreateSubnet called")
 
 	// Parse the control keys
@@ -1157,17 +1137,8 @@ func (service *Service) CreateSubnet(_ *http.Request, args *CreateSubnetArgs, re
 		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
 	}
 
-	// Parse the change address. Assumes that if the user has no keys,
-	// this operation will fail so the change address can be anything.
 	if len(privKeys.Keys) == 0 {
 		return errNoKeys
-	}
-	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
 	}
 
 	// Create the transaction
@@ -1175,14 +1146,12 @@ func (service *Service) CreateSubnet(_ *http.Request, args *CreateSubnetArgs, re
 		uint32(args.Threshold), // Threshold
 		controlKeys.List(),     // Control Addresses
 		privKeys.Keys,          // Private keys
-		changeAddr,             // Change address
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
 	}
 
 	response.TxID = tx.ID()
-	response.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -1195,7 +1164,7 @@ func (service *Service) CreateSubnet(_ *http.Request, args *CreateSubnetArgs, re
 
 // ExportAVAXArgs are the arguments to ExportAVAX
 type ExportAVAXArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 
 	// Amount of AVAX to send
@@ -1208,7 +1177,7 @@ type ExportAVAXArgs struct {
 
 // ExportAVAX exports AVAX from the P-Chain to the X-Chain
 // It must be imported on the X-Chain to complete the transfer
-func (service *Service) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, response *api.JSONTxIDChangeAddr) error {
+func (service *Service) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: ExportAVAX called")
 
 	if args.Amount == 0 {
@@ -1238,17 +1207,8 @@ func (service *Service) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, respon
 		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
 	}
 
-	// Parse the change address. Assumes that if the user has no keys,
-	// this operation will fail so the change address can be anything.
 	if len(privKeys.Keys) == 0 {
 		return errNoKeys
-	}
-	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
 	}
 
 	// Create the transaction
@@ -1257,14 +1217,12 @@ func (service *Service) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, respon
 		chainID,             // ID of the chain to send the funds to
 		to,                  // Address
 		privKeys.Keys,       // Private keys
-		changeAddr,          // Change address
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
 	}
 
 	response.TxID = tx.ID()
-	response.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -1277,7 +1235,7 @@ func (service *Service) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, respon
 
 // ImportAVAXArgs are the arguments to ImportAVAX
 type ImportAVAXArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 
 	// Chain the funds are coming from
@@ -1289,7 +1247,7 @@ type ImportAVAXArgs struct {
 
 // ImportAVAX issues a transaction to import AVAX from the X-chain. The AVAX
 // must have already been exported from the X-Chain.
-func (service *Service) ImportAVAX(_ *http.Request, args *ImportAVAXArgs, response *api.JSONTxIDChangeAddr) error {
+func (service *Service) ImportAVAX(_ *http.Request, args *ImportAVAXArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: ImportAVAX called")
 
 	// Parse the sourceCHain
@@ -1321,26 +1279,16 @@ func (service *Service) ImportAVAX(_ *http.Request, args *ImportAVAXArgs, respon
 		return fmt.Errorf("couldn't get keys controlled by the user: %w", err)
 	}
 
-	// Parse the change address. Assumes that if the user has no keys,
-	// this operation will fail so the change address can be anything.
 	if len(privKeys.Keys) == 0 {
 		return errNoKeys
 	}
-	changeAddr := privKeys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
-	}
 
-	tx, err := service.vm.newImportTx(chainID, to, privKeys.Keys, changeAddr)
+	tx, err := service.vm.newImportTx(chainID, to, privKeys.Keys)
 	if err != nil {
 		return err
 	}
 
 	response.TxID = tx.ID()
-	response.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -1359,7 +1307,7 @@ func (service *Service) ImportAVAX(_ *http.Request, args *ImportAVAXArgs, respon
 
 // CreateBlockchainArgs is the arguments for calling CreateBlockchain
 type CreateBlockchainArgs struct {
-	// User, password, from addrs, change addr
+	// User, password, from addrs
 	api.JSONSpendHeader
 	// ID of Subnet that validates the new blockchain
 	SubnetID ids.ID `json:"subnetID"`
@@ -1376,7 +1324,7 @@ type CreateBlockchainArgs struct {
 }
 
 // CreateBlockchain issues a transaction to create a new blockchain
-func (service *Service) CreateBlockchain(_ *http.Request, args *CreateBlockchainArgs, response *api.JSONTxIDChangeAddr) error {
+func (service *Service) CreateBlockchain(_ *http.Request, args *CreateBlockchainArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: CreateBlockchain called")
 
 	switch {
@@ -1433,19 +1381,9 @@ func (service *Service) CreateBlockchain(_ *http.Request, args *CreateBlockchain
 		return fmt.Errorf("couldn't get addresses controlled by the user: %w", err)
 	}
 
-	// Parse the change address. Assumes that if the user has no keys,
-	// this operation will fail so the change address can be anything.
 	if len(keys.Keys) == 0 {
 		return errNoKeys
 	}
-	changeAddr := keys.Keys[0].PublicKey().Address() // By default, use a key controlled by the user
-	if args.ChangeAddr != "" {
-		changeAddr, err = service.vm.ParseLocalAddress(args.ChangeAddr)
-		if err != nil {
-			return fmt.Errorf("couldn't parse changeAddr: %w", err)
-		}
-	}
-
 	// Create the transaction
 	tx, err := service.vm.newCreateChainTx(
 		args.SubnetID,
@@ -1454,14 +1392,12 @@ func (service *Service) CreateBlockchain(_ *http.Request, args *CreateBlockchain
 		fxIDs,
 		args.Name,
 		keys.Keys,
-		changeAddr, // Change address
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
 	}
 
 	response.TxID = tx.ID()
-	response.ChangeAddr, err = service.vm.FormatLocalAddress(changeAddr)
 
 	errs := wrappers.Errs{}
 	errs.Add(

@@ -86,7 +86,6 @@ func TestAtomicTxImports(t *testing.T) {
 		vm.ctx.XChainID,
 		recipientKey.PublicKey().Address(),
 		[]*crypto.PrivateKeySECP256K1R{recipientKey},
-		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
 		t.Fatal(err)

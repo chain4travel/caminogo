@@ -55,8 +55,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
-
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -75,8 +73,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
-
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -105,8 +101,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
-
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -129,8 +123,6 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
-
 	); err != nil {
 		t.Fatal(err)
 	} else if err := tx.UnsignedTx.(*UnsignedAddValidatorTx).SyntacticVerify(vm.ctx); err != nil {
@@ -162,7 +154,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -176,7 +167,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -190,7 +180,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		nodeID, // node ID
 		nodeID, // reward address
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -209,7 +198,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		nodeID,                     // node ID
 		key2.PublicKey().Address(), // reward address
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr // key
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +223,6 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		nodeID,
 		nodeID,
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
-		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)
 	}
