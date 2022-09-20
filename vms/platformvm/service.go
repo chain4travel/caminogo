@@ -1048,6 +1048,10 @@ type AddSubnetValidatorArgs struct {
 	APIStaker
 	// ID of subnet to validate
 	SubnetID string `json:"subnetID"`
+	// Node PEM encoded RSA private key
+	NodePrivateKey string `json:"nodePrivateKey"`
+	// Node PEM encoded x509 certificate with RSA public key
+	NodeCertificate string `json:"nodeCertificate"`
 }
 
 // AddSubnetValidator creates and signs and issues a transaction to add a
@@ -1118,6 +1122,23 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		}
 	}
 
+	// Parse node private key
+	rsaPrivateKey, err := parseRSAPrivateKeyFromPEM([]byte(args.NodePrivateKey))
+	if err != nil {
+		return fmt.Errorf("couldn't parse nodePrivateKey: %w", err)
+	}
+
+	// Parse node certificate
+	x509Cert, err := parseX509CertFromPEM([]byte(args.NodeCertificate))
+	if err != nil {
+		return fmt.Errorf("couldn't parse nodeCertificate: %w", err)
+	}
+
+	// Check that node's certificate public key matches node's private key
+	if err := checkCertificateAndKeyPair(x509Cert, rsaPrivateKey); err != nil {
+		return fmt.Errorf("nodePrivateKey and nodeCertificate doesn't match: %w", err)
+	}
+
 	// Create the transaction
 	tx, err := service.vm.newAddSubnetValidatorTx(
 		args.weight(),          // Stake amount
@@ -1126,6 +1147,8 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		nodeID,                 // Node ID
 		subnetID,               // Subnet ID
 		keys.Keys,              // Keys
+		rsaPrivateKey,          // Node private key
+		x509Cert.Raw,           // Node certificate bytes
 		changeAddr,             // Change address
 	)
 	if err != nil {

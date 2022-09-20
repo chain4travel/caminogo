@@ -1,3 +1,6 @@
+// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package platformvm
 
 import (
@@ -54,7 +57,7 @@ func (cred *RSACredential) MarshalJSON() ([]byte, error) {
 
 // verifyNodeSignature returns nil if [credIntf] matches [nodeCertificate]
 func verifyNodeSignature(tx *Tx) error {
-	addValidatorTx, ok := tx.UnsignedTx.(*UnsignedAddValidatorTx)
+	rsaSignedTx, ok := tx.UnsignedTx.(RSASignedTx)
 	if !ok {
 		return errWrongTxType
 	}
@@ -70,7 +73,7 @@ func verifyNodeSignature(tx *Tx) error {
 		return errWrongCredentialType
 	}
 
-	cert, err := x509.ParseCertificate(addValidatorTx.NodeCertificate)
+	cert, err := x509.ParseCertificate(rsaSignedTx.CertBytes())
 	if err != nil {
 		return fmt.Errorf("unable to parse x509 certificate: %w", err)
 	}

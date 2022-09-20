@@ -873,6 +873,8 @@ func TestAddSubnetValidatorAccept(t *testing.T) {
 		nodeIDs[0],
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		rsaKeys[0],
+		certificates[0],
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -955,6 +957,8 @@ func TestAddSubnetValidatorReject(t *testing.T) {
 		nodeIDs[0],
 		testSubnet1.ID(),
 		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[1], testSubnet1ControlKeys[2]},
+		rsaKeys[0],
+		certificates[0],
 		ids.ShortEmpty, // change addr
 	)
 	if err != nil {
@@ -1423,6 +1427,8 @@ func TestCreateSubnet(t *testing.T) {
 		nodeIDs[0],
 		createSubnetTx.ID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaKeys[0],
+		certificates[0],
 		ids.ShortEmpty, // change addr
 	); err != nil {
 		t.Fatal(err)

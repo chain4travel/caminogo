@@ -235,9 +235,11 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 		certBytes:     certBytes3,
 	}
 	staker3Sub := staker{
-		nodeID:    staker3.nodeID,
-		startTime: staker3.startTime.Add(1 * time.Minute),
-		endTime:   staker3.endTime.Add(-1 * time.Minute),
+		nodeID:        staker3.nodeID,
+		startTime:     staker3.startTime.Add(1 * time.Minute),
+		endTime:       staker3.endTime.Add(-1 * time.Minute),
+		rsaPrivateKey: rsaPrivateKey3,
+		certBytes:     certBytes3,
 	}
 	staker4 := staker{
 		nodeID:        nodeID4,
@@ -362,6 +364,8 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 					staker.nodeID,    // validator ID
 					testSubnet1.ID(), // Subnet ID
 					[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
+					staker.rsaPrivateKey,
+					staker.certBytes,
 					ids.ShortEmpty, // reward address
 				)
 				assert.NoError(err)
@@ -443,6 +447,8 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 		nodeIDs[0],                         // Node ID
 		testSubnet1.ID(),                   // Subnet ID
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
+		rsaKeys[0],
+		certificates[0],
 		ids.ShortEmpty, // reward address
 	)
 	if err != nil {
@@ -461,14 +467,15 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 	// The above validator is now part of the staking set
 
 	// Queue a staker that joins the staker set after the above validator leaves
-	subnetVdr2NodeID := keys[1].PublicKey().Address()
 	tx, err = vm.newAddSubnetValidatorTx(
 		1, // Weight
 		uint64(subnetVdr1EndTime.Add(time.Second).Unix()),                                // Start time
 		uint64(subnetVdr1EndTime.Add(time.Second).Add(defaultMinStakingDuration).Unix()), // end time
-		subnetVdr2NodeID, // Node ID
+		nodeIDs[1],       // Node ID
 		testSubnet1.ID(), // Subnet ID
 		[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
+		rsaKeys[1],
+		certificates[1],
 		ids.ShortEmpty, // reward address
 	)
 	if err != nil {
@@ -511,7 +518,7 @@ func TestAdvanceTimeTxRemoveSubnetValidator(t *testing.T) {
 	// Check VM Validators are removed successfully
 	onCommitState.Apply(vm.internalState)
 	assert.NoError(t, vm.internalState.Commit())
-	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), subnetVdr2NodeID))
+	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), nodeIDs[1]))
 	assert.False(t, vm.Validators.Contains(testSubnet1.ID(), nodeIDs[0]))
 }
 
@@ -541,6 +548,8 @@ func TestWhitelistedSubnet(t *testing.T) {
 				nodeIDs[0],                         // Node ID
 				testSubnet1.ID(),                   // Subnet ID
 				[]*crypto.PrivateKeySECP256K1R{keys[0], keys[1]}, // Keys
+				rsaKeys[0],
+				certificates[0],
 				ids.ShortEmpty, // reward address
 			)
 			if err != nil {

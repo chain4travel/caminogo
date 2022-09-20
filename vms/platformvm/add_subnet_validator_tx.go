@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
@@ -33,6 +34,7 @@ var (
 
 	_ UnsignedProposalTx = &UnsignedAddSubnetValidatorTx{}
 	_ TimedTx            = &UnsignedAddSubnetValidatorTx{}
+	_ RSASignedTx        = &UnsignedAddValidatorTx{}
 )
 
 // UnsignedAddSubnetValidatorTx is an unsigned addSubnetValidatorTx
@@ -41,6 +43,8 @@ type UnsignedAddSubnetValidatorTx struct {
 	BaseTx `serialize:"true"`
 	// The validator
 	Validator SubnetValidator `serialize:"true" json:"validator"`
+	// Node x509 certificate raw bytes
+	NodeCertificate []byte `serialize:"true" json:"nodeCertificate"`
 	// Auth that will be allowing this validator into the network
 	SubnetAuth verify.Verifiable `serialize:"true" json:"subnetAuthorization"`
 }
@@ -60,6 +64,10 @@ func (tx *UnsignedAddSubnetValidatorTx) Weight() uint64 {
 	return tx.Validator.Weight()
 }
 
+func (tx *UnsignedAddSubnetValidatorTx) CertBytes() []byte {
+	return tx.NodeCertificate
+}
+
 // SyntacticVerify returns nil if [tx] is valid
 func (tx *UnsignedAddSubnetValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 	switch {
@@ -73,6 +81,10 @@ func (tx *UnsignedAddSubnetValidatorTx) SyntacticVerify(ctx *snow.Context) error
 		return err
 	}
 	if err := verify.All(&tx.Validator, tx.SubnetAuth); err != nil {
+		return err
+	}
+
+	if err := verifyNodeID(tx.NodeCertificate, tx.Validator.NodeID); err != nil {
 		return err
 	}
 
@@ -121,6 +133,10 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		return nil, nil, errStakeTooLong
 	case len(stx.Creds) == 0:
 		return nil, nil, errWrongNumberOfCredentials
+	}
+
+	if err := verifyNodeSignature(stx); err != nil {
+		return nil, nil, fmt.Errorf("failed to verify node signature: %w", err)
 	}
 
 	currentStakers := parentState.CurrentStakerChainState()
@@ -192,8 +208,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 				tx.Validator.Subnet,
 			)
 		}
-
-		baseTxCredsLen := len(stx.Creds) - 1
+		baseTxCredsLen := len(stx.Creds) - 2
 		baseTxCreds := stx.Creds[:baseTxCredsLen]
 		subnetCred := stx.Creds[baseTxCredsLen]
 
@@ -269,6 +284,8 @@ func (vm *VM) newAddSubnetValidatorTx(
 	nodeID ids.ShortID, // ID of the node validating
 	subnetID ids.ID, // ID of the subnet the validator will validate
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to use for adding the validator
+	rsaPrivateKey *rsa.PrivateKey, // node rsa signer
+	nodeCertificate []byte, // node certificate with public key
 	changeAddr ids.ShortID, // Address to send change to, if there is any
 ) (*Tx, error) {
 	ins, outs, _, signers, err := vm.stake(keys, 0, vm.TxFee, changeAddr)
@@ -299,10 +316,14 @@ func (vm *VM) newAddSubnetValidatorTx(
 			},
 			Subnet: subnetID,
 		},
-		SubnetAuth: subnetAuth,
+		NodeCertificate: nodeCertificate,
+		SubnetAuth:      subnetAuth,
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
+		return nil, err
+	}
+	if err := tx.SignWithRSA(Codec, rsaPrivateKey); err != nil {
 		return nil, err
 	}
 	return tx, utx.SyntacticVerify(vm.ctx)

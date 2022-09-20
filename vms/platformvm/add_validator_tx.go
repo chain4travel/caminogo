@@ -42,6 +42,7 @@ var (
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
+	_ RSASignedTx        = &UnsignedAddValidatorTx{}
 )
 
 // UnsignedAddValidatorTx is an unsigned addValidatorTx
@@ -83,6 +84,10 @@ func (tx *UnsignedAddValidatorTx) EndTime() time.Time {
 // Weight of this validator
 func (tx *UnsignedAddValidatorTx) Weight() uint64 {
 	return tx.Validator.Weight()
+}
+
+func (tx *UnsignedAddValidatorTx) CertBytes() []byte {
+	return tx.NodeCertificate
 }
 
 // SyntacticVerify returns nil if [tx] is valid
@@ -299,13 +304,13 @@ func (vm *VM) newAddValidatorTx(
 			End:    endTime,
 			Wght:   bondAmount,
 		},
-		Stake: lockedOuts,
+		NodeCertificate: nodeCertificate,
+		Stake:           lockedOuts,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
 			Addrs:     []ids.ShortID{rewardAddress},
 		},
-		NodeCertificate: nodeCertificate,
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {

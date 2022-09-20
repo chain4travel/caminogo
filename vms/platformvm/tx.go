@@ -40,6 +40,10 @@ type TimedTx interface {
 	Bytes() []byte
 }
 
+type RSASignedTx interface {
+	CertBytes() []byte
+}
+
 // UnsignedTx is an unsigned transaction
 type UnsignedTx interface {
 	// TODO: Remove this initialization pattern from both the platformvm and the
@@ -144,7 +148,8 @@ func (tx *Tx) Sign(
 	return nil
 }
 
-// Sign this transaction with the provided signers
+// Sign this transaction with the provided rsa signer
+// This method should be called after Sign, so rsa credential will be the last
 func (tx *Tx) SignWithRSA(
 	c codec.Manager,
 	rsaSigner *rsa.PrivateKey,
