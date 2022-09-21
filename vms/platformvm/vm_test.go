@@ -21,13 +21,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
-
-	"github.com/chain4travel/caminogo/snow/uptime/mocks"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/chain4travel/caminogo/cache"
 	"github.com/chain4travel/caminogo/chains"
@@ -40,19 +39,17 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/snow/choices"
 	"github.com/chain4travel/caminogo/snow/consensus/snowball"
-	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/snow/engine/common/queue"
 	"github.com/chain4travel/caminogo/snow/engine/common/tracker"
-	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
 	"github.com/chain4travel/caminogo/snow/engine/snowman/bootstrap"
-	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
 	"github.com/chain4travel/caminogo/snow/networking/benchlist"
 	"github.com/chain4travel/caminogo/snow/networking/handler"
 	"github.com/chain4travel/caminogo/snow/networking/router"
 	"github.com/chain4travel/caminogo/snow/networking/sender"
 	"github.com/chain4travel/caminogo/snow/networking/timeout"
 	"github.com/chain4travel/caminogo/snow/uptime"
+	"github.com/chain4travel/caminogo/snow/uptime/mocks"
 	"github.com/chain4travel/caminogo/snow/validators"
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -69,6 +66,11 @@ import (
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	smcon "github.com/chain4travel/caminogo/snow/consensus/snowman"
+	smeng "github.com/chain4travel/caminogo/snow/engine/snowman"
+	snowgetter "github.com/chain4travel/caminogo/snow/engine/snowman/getter"
 )
 
 var (
@@ -131,7 +133,7 @@ const (
 func init() {
 	ctx := defaultContext()
 	factory := crypto.FactorySECP256K1R{}
-	for _, key := range []string{
+	for index, key := range []string{
 		"ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN",
 		"2RWLv6YVEXDiWLpaCbXhhqxtLbnFaKQsWPSSMSPhpWo47uJAeV",
 		"cxb7KpGWhDMALTjNNSJ7UQkkomPesyWAPUaWRGdyeBNzR6f35",
@@ -144,12 +146,22 @@ func init() {
 		ctx.Log.AssertNoError(err)
 		keys = append(keys, pk.(*crypto.PrivateKeySECP256K1R))
 
-		rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
-
+		// ? @charalarg The local path needs to be read from configuration
+		rsaPrivateKey, err := loadRsaPrivateKeyFromFile("../../staking/local/staker" + strconv.Itoa(index+1) + ".key")
+		if err != nil {
+			panic(err)
+		}
+		// ? @charalarg The local path needs to be read from configuration
+		certBytes, err := loadCertFromFile("../../staking/local/staker" + strconv.Itoa(index+1) + ".crt")
+		if err != nil {
+			panic(err)
+		}
+		nodeID := nodeIDFromCertBytes(certBytes.Raw)
 		rsaKeys = append(rsaKeys, rsaPrivateKey)
-		certificates = append(certificates, certBytes)
+		certificates = append(certificates, certBytes.Raw)
 		nodeIDs = append(nodeIDs, nodeID)
 	}
+
 	testSubnet1ControlKeys = keys[0:3]
 }
 
@@ -290,6 +302,30 @@ func newNodeKeyAndCert() (*rsa.PrivateKey, []byte, ids.ShortID) {
 	}
 
 	return key, certBytes, nodeIDFromCertBytes(certBytes)
+}
+
+func loadRsaPrivateKeyFromFile(path string) (*rsa.PrivateKey, error) {
+	privateKeyBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	key, err := parsePKCS1PrivateKeyFromPEM(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+func loadCertFromFile(path string) (*x509.Certificate, error) {
+	certBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := parseX509CertFromPEM(certBytes)
+	if err != nil {
+		return nil, err
+	}
+	return cert, nil
 }
 
 // Returns:

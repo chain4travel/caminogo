@@ -998,7 +998,7 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 	}
 
 	// Parse node private key
-	rsaPrivateKey, err := parseRSAPrivateKeyFromPEM([]byte(args.NodePrivateKey))
+	rsaPrivateKey, err := parsePKCS8PrivateKeyFromPEM([]byte(args.NodePrivateKey))
 	if err != nil {
 		return fmt.Errorf("couldn't parse nodePrivateKey: %w", err)
 	}
@@ -1123,7 +1123,7 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 	}
 
 	// Parse node private key
-	rsaPrivateKey, err := parseRSAPrivateKeyFromPEM([]byte(args.NodePrivateKey))
+	rsaPrivateKey, err := parsePKCS8PrivateKeyFromPEM([]byte(args.NodePrivateKey))
 	if err != nil {
 		return fmt.Errorf("couldn't parse nodePrivateKey: %w", err)
 	}

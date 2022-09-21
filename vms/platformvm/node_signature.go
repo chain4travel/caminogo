@@ -101,7 +101,7 @@ func nodeIDFromCertBytes(certBytes []byte) ids.ShortID {
 	return ids.ShortID(hashing.ComputeHash160Array(hashing.ComputeHash256(certBytes)))
 }
 
-func parseRSAPrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
+func parsePKCS8PrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
 	privDER, _ := pem.Decode(pemBytes)
 	if privDER == nil || privDER.Type != "PRIVATE KEY" {
 		return nil, errMissingPEMPK
@@ -115,6 +115,20 @@ func parseRSAPrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
 	rsaPrivateKey, ok := nodePrivateKey.(*rsa.PrivateKey)
 	if !ok {
 		return nil, errWrongPrivateKeyType
+	}
+
+	return rsaPrivateKey, nil
+}
+
+func parsePKCS1PrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
+	privDER, _ := pem.Decode(pemBytes)
+	if privDER == nil || privDER.Type != "RSA PRIVATE KEY" {
+		return nil, errMissingPEMPK
+	}
+
+	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(privDER.Bytes)
+	if err != nil {
+		return nil, err
 	}
 
 	return rsaPrivateKey, nil

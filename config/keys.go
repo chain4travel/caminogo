@@ -56,6 +56,7 @@ const (
 	StakingPortKey                                     = "staking-port"
 	StakingEnabledKey                                  = "staking-enabled"
 	StakingEphemeralCertEnabledKey                     = "staking-ephemeral-cert-enabled"
+	StakingPath                                        = "staking-tls-folder"
 	StakingKeyPathKey                                  = "staking-tls-key-file"
 	StakingKeyContentKey                               = "staking-tls-key-file-content"
 	StakingCertPathKey                                 = "staking-tls-cert-file"
