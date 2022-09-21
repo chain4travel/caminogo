@@ -17,6 +17,7 @@ package platformvm
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,14 +61,16 @@ func TestTopLevelBondingCases(t *testing.T) {
 		spendMode          spendMode
 	}
 
-	tests := []struct {
+	type testCases struct {
 		name          string
 		args          args
 		generateState func(secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl)
 		msg           string
-	}{
+	}
+
+	tests := []testCases{
 		{
-			name: "Happy path bonding",
+			name: "1. Happy path bonding",
 			args: args{
 				totalAmountToSpend: defAmt / 2,
 				totalAmountToBurn:  vm.AddStakerTxFee,
@@ -77,7 +80,7 @@ func TestTopLevelBondingCases(t *testing.T) {
 				utxos := []avax.UTXO{
 					{
 						UTXOID: avax.UTXOID{
-							TxID:        ids.ID{8, 8},
+							TxID:        ids.ID{1, 1},
 							OutputIndex: 0,
 						},
 						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -96,19 +99,99 @@ func TestTopLevelBondingCases(t *testing.T) {
 			},
 			msg: "OK",
 		},
+		{
+			name: "2. Bond Deposited",
+			args: args{
+				totalAmountToSpend: defAmt,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{2, 2},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{3, 3},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{},
+					deposits: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "OK",
+		},
+		{
+			name: "3. Burned More",
+			args: args{
+				totalAmountToSpend: defAmt / 2,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{4, 4},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{5, 5},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{},
+					deposits: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "OK",
+		},
 	}
 
 	utxo := avax.UTXO{}
-
-	ins := []*avax.TransferableInput{}
-
-	unlockedOuts := []*avax.TransferableOutput{}
-
-	lockedOuts := []*avax.TransferableOutput{}
-
-	inputIndexes := make([]uint32, 2)
-
-	inputIndexes = []uint32{0, 0}
 
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
@@ -125,7 +208,59 @@ func TestTopLevelBondingCases(t *testing.T) {
 	inSigners := make([]*crypto.PrivateKeySECP256K1R, 0, outputOwners.Threshold)
 	inSigners = append(inSigners, basic_key)
 
-	signers = append(signers, inSigners)
+	generateInsAndOuts := func(l_utxos []avax.UTXO, tt testCases, unlockedAmt uint64, lockedAmt uint64) ([]*avax.TransferableInput, []*avax.TransferableOutput, []*avax.TransferableOutput) {
+		ins := []*avax.TransferableInput{}
+
+		unlockedOuts := []*avax.TransferableOutput{}
+
+		lockedOuts := []*avax.TransferableOutput{}
+
+		signers = [][]*crypto.PrivateKeySECP256K1R{}
+
+		for _, l_utxo := range l_utxos {
+			innerOut, _ := l_utxo.Out.(*secp256k1fx.TransferOutput)
+
+			ins = append(ins, &avax.TransferableInput{
+				UTXOID: l_utxo.UTXOID,
+				Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+				In: &secp256k1fx.TransferInput{
+					Amt: innerOut.Amt,
+					Input: secp256k1fx.Input{
+						SigIndices: []uint32{0},
+					},
+				},
+			})
+
+			signers = append(signers, inSigners)
+		}
+		unlockedOuts = append(unlockedOuts, &avax.TransferableOutput{
+			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+			Out: &secp256k1fx.TransferOutput{
+				Amt:          unlockedAmt,
+				OutputOwners: outputOwners,
+			},
+		})
+
+		lockedOuts = append(lockedOuts, &avax.TransferableOutput{
+			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+			Out: &secp256k1fx.TransferOutput{
+				Amt:          lockedAmt,
+				OutputOwners: outputOwners,
+			},
+		})
+
+		return ins, unlockedOuts, lockedOuts
+	}
+
+	testCaseNum := func(name string) ([]uint32, uint64, uint64, uint64) {
+		switch {
+		case strings.HasPrefix(name, "1") || strings.HasPrefix(name, "3") || strings.HasPrefix(name, "7"):
+			return []uint32{0, 0}, defAmt/2 - defaultTxFee, defAmt / 2, defAmt / 2
+		case strings.HasPrefix(name, "2") || strings.HasPrefix(name, "4") || strings.HasPrefix(name, "5") || strings.HasPrefix(name, "6"):
+			return []uint32{0, 1}, defAmt - defaultTxFee, defAmt, defAmt
+		}
+		return nil, 0, 0, 0
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -139,34 +274,9 @@ func TestTopLevelBondingCases(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			innerOut, _ := utxo.Out.(*secp256k1fx.TransferOutput)
+			inputIndexes, unlockedAmt, lockedAmt, validatorWeight := testCaseNum(tt.name)
 
-			ins = append(ins, &avax.TransferableInput{
-				UTXOID: utxo.UTXOID,
-				Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
-				In: &secp256k1fx.TransferInput{
-					Amt: innerOut.Amt,
-					Input: secp256k1fx.Input{
-						SigIndices: []uint32{0},
-					},
-				},
-			})
-
-			unlockedOuts = append(unlockedOuts, &avax.TransferableOutput{
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt:          tt.args.totalAmountToSpend - defaultTxFee,
-					OutputOwners: innerOut.OutputOwners,
-				},
-			})
-
-			lockedOuts = append(lockedOuts, &avax.TransferableOutput{
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt:          tt.args.totalAmountToSpend,
-					OutputOwners: innerOut.OutputOwners,
-				},
-			})
+			ins, unlockedOuts, lockedOuts := generateInsAndOuts(utxos, tt, unlockedAmt, lockedAmt)
 
 			utx := &UnsignedAddValidatorTx{
 				BaseTx: BaseTx{BaseTx: avax.BaseTx{
@@ -179,7 +289,7 @@ func TestTopLevelBondingCases(t *testing.T) {
 					NodeID: nodeID,
 					Start:  uint64(startTime.Unix()),
 					End:    uint64(startTime.Add(defaultMinStakingDuration).Unix()),
-					Wght:   tt.args.totalAmountToSpend,
+					Wght:   validatorWeight,
 				},
 				Bond:         lockedOuts,
 				InputIndexes: inputIndexes,
@@ -201,6 +311,7 @@ func TestTopLevelBondingCases(t *testing.T) {
 			if tt.msg == "OK" {
 				assert.NoError(t, err)
 			} else {
+				fmt.Println(err)
 				assert.Error(t, err)
 			}
 		})
