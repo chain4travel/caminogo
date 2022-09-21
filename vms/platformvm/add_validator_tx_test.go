@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -54,6 +55,10 @@ func TestTopLevelBondingCases(t *testing.T) {
 	defAmt := vm.MinValidatorStake * 2 // 10000000
 
 	startTime := defaultGenesisTime.Add(1 * time.Second)
+
+	alreadyLockedError := errors.New("utxo consumed for locking are already locked")
+	utxoAmountError := errors.New("utxo amount and input amount should be same")
+	producesMoreTokensError := errors.New("produces more tokens than it consumes")
 
 	type args struct {
 		totalAmountToSpend uint64
@@ -189,6 +194,182 @@ func TestTopLevelBondingCases(t *testing.T) {
 			},
 			msg: "OK",
 		},
+		{
+			name: "4. Bonding Bonded UTXO",
+			args: args{
+				totalAmountToSpend: defAmt / 2,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{6, 6},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{7, 7},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+					},
+					deposits: map[ids.ID]ids.Set{},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[1].InputID(): {BondTxID: &utxos[1].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "not OK",
+		},
+		{
+			name: "5. Fee Burning Bonded UTXO",
+			args: args{
+				totalAmountToSpend: defAmt / 2,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{8, 8},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{9, 9},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{
+						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+					},
+					deposits: map[ids.ID]ids.Set{},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "not OK",
+		},
+		{
+			name: "6. Fee Burning Deposited UTXO",
+			args: args{
+				totalAmountToSpend: defAmt,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{10, 10},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt / 2,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{11, 11},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt / 2,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{},
+					deposits: map[ids.ID]ids.Set{
+						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[0].InputID(): {DepositTxID: &utxos[0].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "not OK",
+		},
+		{
+			name: "7. Produced Input is Bad",
+			args: args{
+				totalAmountToSpend: defAmt / 2,
+				totalAmountToBurn:  vm.AddStakerTxFee,
+				spendMode:          spendModeBond,
+			},
+			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
+				utxos := []avax.UTXO{
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{12, 12},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt,
+							OutputOwners: outputOwners,
+						},
+					},
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.ID{13, 13},
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          defAmt / 4,
+							OutputOwners: outputOwners,
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds:       map[ids.ID]ids.Set{},
+					deposits:    map[ids.ID]ids.Set{},
+					lockedUTXOs: map[ids.ID]utxoLockState{},
+				}
+				return utxos, lockedUTXOsState
+			},
+			msg: "not OK",
+		},
 	}
 
 	utxo := avax.UTXO{}
@@ -311,8 +492,13 @@ func TestTopLevelBondingCases(t *testing.T) {
 			if tt.msg == "OK" {
 				assert.NoError(t, err)
 			} else {
-				fmt.Println(err)
-				assert.Error(t, err)
+				if strings.HasPrefix(tt.name, "4") || strings.HasPrefix(tt.name, "5") {
+					assert.ErrorAs(t, err, &alreadyLockedError)
+				} else if strings.HasPrefix(tt.name, "6") {
+					assert.ErrorAs(t, err, &producesMoreTokensError)
+				} else if strings.HasPrefix(tt.name, "7") {
+					assert.ErrorAs(t, err, &utxoAmountError)
+				}
 			}
 		})
 	}
