@@ -15,6 +15,8 @@
 package platformvm
 
 import (
+	"crypto/rsa"
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -128,6 +130,22 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		t.Fatal("should have errored because rewards owner has no addresses")
 	}
 
+	// Case: Node certificate key doesn't match node ID
+	_, _, tempNodeID := newNodeKeyAndCert()
+	if _, err := vm.newAddValidatorTx(
+		uint64(defaultValidateStartTime.Unix()),
+		uint64(defaultValidateEndTime.Unix()),
+		tempNodeID,
+		key.PublicKey().Address(),
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
+		ids.ShortEmpty, // change addr
+
+	); err != errCertificateDontMatch {
+		t.Fatalf("should have errored with: '%s' error", errCertificateDontMatch)
+	}
+
 	// Case: Valid
 	if tx, err := vm.newAddValidatorTx(
 		uint64(defaultValidateStartTime.Unix()),
@@ -163,6 +181,39 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	}
 
 	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+
+	// Case: Valid
+	if tx, err := vm.newAddValidatorTx(
+		uint64(defaultValidateStartTime.Unix())+1,
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		key.PublicKey().Address(),
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
+		ids.ShortEmpty, // change addr
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
+		t.Fatal(err)
+	}
+
+	// Case: Failed signature verification
+	tempPrivateKey, _, _ := newNodeKeyAndCert()
+	if tx, err := vm.newAddValidatorTx(
+		uint64(defaultValidateStartTime.Unix())+1,
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		key.PublicKey().Address(),
+		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		tempPrivateKey,
+		certBytes,
+		ids.ShortEmpty, // change addr
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); errors.Unwrap(err) != rsa.ErrVerification {
+		t.Fatalf("should have errored with: '%s' error", rsa.ErrVerification)
+	}
 
 	// Case: Validator's start time too early
 	if tx, err := vm.newAddValidatorTx(
