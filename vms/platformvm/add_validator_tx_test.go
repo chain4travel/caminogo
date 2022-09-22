@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"testing"
 	"time"
 
@@ -56,31 +55,37 @@ func TestTopLevelBondingCases(t *testing.T) {
 
 	startTime := defaultGenesisTime.Add(1 * time.Second)
 
-	alreadyLockedError := errors.New("utxo consumed for locking are already locked")
-	utxoAmountError := errors.New("utxo amount and input amount should be same")
-	producesMoreTokensError := errors.New("produces more tokens than it consumes")
+	utxo := avax.UTXO{}
 
-	type args struct {
-		totalAmountToSpend uint64
-		totalAmountToBurn  uint64
-		spendMode          spendMode
+	signers := [][]*crypto.PrivateKeySECP256K1R{}
+
+	basic_key := keys[0]
+
+	address := basic_key.PublicKey().Address()
+
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{address},
 	}
 
 	type testCases struct {
-		name          string
-		args          args
-		generateState func(secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl)
-		msg           string
+		name            string
+		inputIndexes    []uint32
+		unlockedAmt     uint64
+		lockedAmt       uint64
+		validatorWeight uint64
+		generateState   func(secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl)
+		expectedError   error
 	}
 
 	tests := []testCases{
 		{
-			name: "1. Happy path bonding",
-			args: args{
-				totalAmountToSpend: defAmt / 2,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "1. Happy path bonding",
+			inputIndexes:    []uint32{0, 0},
+			unlockedAmt:     defAmt/2 - defaultTxFee,
+			lockedAmt:       defAmt / 2,
+			validatorWeight: defAmt / 2,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -102,15 +107,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "OK",
+			expectedError: nil,
 		},
 		{
-			name: "2. Bond Deposited",
-			args: args{
-				totalAmountToSpend: defAmt,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "2. Bond Deposited",
+			inputIndexes:    []uint32{0, 1},
+			unlockedAmt:     defAmt - defaultTxFee,
+			lockedAmt:       defAmt,
+			validatorWeight: defAmt,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -147,15 +151,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "OK",
+			expectedError: nil,
 		},
 		{
-			name: "3. Burned More",
-			args: args{
-				totalAmountToSpend: defAmt / 2,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "3. Burned More",
+			inputIndexes:    []uint32{0, 0},
+			unlockedAmt:     defAmt/2 - defaultTxFee,
+			lockedAmt:       defAmt / 2,
+			validatorWeight: defAmt / 2,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -192,15 +195,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "OK",
+			expectedError: nil,
 		},
 		{
-			name: "4. Bonding Bonded UTXO",
-			args: args{
-				totalAmountToSpend: defAmt / 2,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "4. Bonding Bonded UTXO",
+			inputIndexes:    []uint32{0, 1},
+			unlockedAmt:     defAmt - defaultTxFee,
+			lockedAmt:       defAmt,
+			validatorWeight: defAmt,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -237,15 +239,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "not OK",
+			expectedError: errors.New("utxo consumed for locking are already locked"),
 		},
 		{
-			name: "5. Fee Burning Bonded UTXO",
-			args: args{
-				totalAmountToSpend: defAmt / 2,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "5. Fee Burning Bonded UTXO",
+			inputIndexes:    []uint32{0, 1},
+			unlockedAmt:     defAmt - defaultTxFee,
+			lockedAmt:       defAmt,
+			validatorWeight: defAmt,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -282,15 +283,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "not OK",
+			expectedError: errors.New("utxo consumed for locking are already locked"),
 		},
 		{
-			name: "6. Fee Burning Deposited UTXO",
-			args: args{
-				totalAmountToSpend: defAmt,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "6. Fee Burning Deposited UTXO",
+			inputIndexes:    []uint32{0, 1},
+			unlockedAmt:     defAmt - defaultTxFee,
+			lockedAmt:       defAmt,
+			validatorWeight: defAmt,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -327,15 +327,14 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "not OK",
+			expectedError: errors.New("produces more tokens than it consumes"),
 		},
 		{
-			name: "7. Produced Input is Bad",
-			args: args{
-				totalAmountToSpend: defAmt / 2,
-				totalAmountToBurn:  vm.AddStakerTxFee,
-				spendMode:          spendModeBond,
-			},
+			name:            "7. Produced Input is Bad",
+			inputIndexes:    []uint32{0, 0},
+			unlockedAmt:     defAmt/2 - defaultTxFee,
+			lockedAmt:       defAmt / 2,
+			validatorWeight: defAmt / 2,
 			generateState: func(outputOwners secp256k1fx.OutputOwners) ([]avax.UTXO, *lockedUTXOsChainStateImpl) {
 				utxos := []avax.UTXO{
 					{
@@ -368,22 +367,8 @@ func TestTopLevelBondingCases(t *testing.T) {
 				}
 				return utxos, lockedUTXOsState
 			},
-			msg: "not OK",
+			expectedError: errors.New("utxo amount and input amount should be same"),
 		},
-	}
-
-	utxo := avax.UTXO{}
-
-	signers := [][]*crypto.PrivateKeySECP256K1R{}
-
-	basic_key := keys[0]
-
-	address := basic_key.PublicKey().Address()
-
-	outputOwners := secp256k1fx.OutputOwners{
-		Locktime:  0,
-		Threshold: 1,
-		Addrs:     []ids.ShortID{address},
 	}
 
 	inSigners := make([]*crypto.PrivateKeySECP256K1R, 0, outputOwners.Threshold)
@@ -433,16 +418,6 @@ func TestTopLevelBondingCases(t *testing.T) {
 		return ins, unlockedOuts, lockedOuts
 	}
 
-	testCaseNum := func(name string) ([]uint32, uint64, uint64, uint64) {
-		switch {
-		case strings.HasPrefix(name, "1") || strings.HasPrefix(name, "3") || strings.HasPrefix(name, "7"):
-			return []uint32{0, 0}, defAmt/2 - defaultTxFee, defAmt / 2, defAmt / 2
-		case strings.HasPrefix(name, "2") || strings.HasPrefix(name, "4") || strings.HasPrefix(name, "5") || strings.HasPrefix(name, "6"):
-			return []uint32{0, 1}, defAmt - defaultTxFee, defAmt, defAmt
-		}
-		return nil, 0, 0, 0
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			utxos, lockedUTXOsState := tt.generateState(outputOwners)
@@ -455,9 +430,7 @@ func TestTopLevelBondingCases(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			inputIndexes, unlockedAmt, lockedAmt, validatorWeight := testCaseNum(tt.name)
-
-			ins, unlockedOuts, lockedOuts := generateInsAndOuts(utxos, tt, unlockedAmt, lockedAmt)
+			ins, unlockedOuts, lockedOuts := generateInsAndOuts(utxos, tt, tt.unlockedAmt, tt.lockedAmt)
 
 			utx := &UnsignedAddValidatorTx{
 				BaseTx: BaseTx{BaseTx: avax.BaseTx{
@@ -470,10 +443,10 @@ func TestTopLevelBondingCases(t *testing.T) {
 					NodeID: nodeID,
 					Start:  uint64(startTime.Unix()),
 					End:    uint64(startTime.Add(defaultMinStakingDuration).Unix()),
-					Wght:   validatorWeight,
+					Wght:   tt.validatorWeight,
 				},
 				Bond:         lockedOuts,
-				InputIndexes: inputIndexes,
+				InputIndexes: tt.inputIndexes,
 				RewardsOwner: &secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
@@ -489,16 +462,10 @@ func TestTopLevelBondingCases(t *testing.T) {
 
 			_, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
 
-			if tt.msg == "OK" {
-				assert.NoError(t, err)
+			if err != nil {
+				assert.ErrorAs(t, err, &tt.expectedError)
 			} else {
-				if strings.HasPrefix(tt.name, "4") || strings.HasPrefix(tt.name, "5") {
-					assert.ErrorAs(t, err, &alreadyLockedError)
-				} else if strings.HasPrefix(tt.name, "6") {
-					assert.ErrorAs(t, err, &producesMoreTokensError)
-				} else if strings.HasPrefix(tt.name, "7") {
-					assert.ErrorAs(t, err, &utxoAmountError)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
