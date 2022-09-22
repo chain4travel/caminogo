@@ -15,6 +15,8 @@
 package platformvm
 
 import (
+	"crypto/rsa"
+	"errors"
 	"testing"
 	"time"
 
@@ -129,6 +131,21 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		t.Fatal("should have errored because sig indices weren't unique")
 	}
 
+	// Case: Node certificate key doesn't match node ID
+	if tx, err = vm.newAddSubnetValidatorTx(
+		defaultWeight,
+		uint64(defaultValidateStartTime.Unix()),
+		uint64(defaultValidateEndTime.Unix()),
+		nodeIDs[1],
+		testSubnet1.ID(),
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		rsaKeys[0],
+		certificates[0],
+		ids.ShortEmpty, // change addr
+	); err != errCertificateDontMatch {
+		t.Fatalf("should have errored with: '%s' error", errCertificateDontMatch)
+	}
+
 	// Case: Valid
 	if tx, err = vm.newAddSubnetValidatorTx(
 		defaultWeight,
@@ -156,6 +173,23 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		}
 		vm.ctx.Lock.Unlock()
 	}()
+
+	// Case: Failed signature verification
+	if tx, err := vm.newAddSubnetValidatorTx(
+		defaultWeight,
+		uint64(defaultValidateStartTime.Unix()),
+		uint64(defaultValidateEndTime.Unix()),
+		nodeIDs[0],
+		testSubnet1.ID(),
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		rsaKeys[1],
+		certificates[0],
+		ids.ShortEmpty, // change addr
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); errors.Unwrap(err) != rsa.ErrVerification {
+		t.Fatalf("should have errored with: '%s' error", rsa.ErrVerification)
+	}
 
 	// Case: Proposed validator currently validating primary network
 	// but stops validating subnet after stops validating primary network
