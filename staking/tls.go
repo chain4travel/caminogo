@@ -32,8 +32,11 @@ import (
 )
 
 var (
-	errPrivateKeyNotPKCS8 = errors.New("node accepts only PKCS8 private keys")
-	errParsingKeyPair     = errors.New("failed parsing key pair")
+	ErrPrivateKeyNotPKCS8   = errors.New("node accepts only PKCS8 private keys")
+	ErrParsingKeyPair       = errors.New("failed parsing key pair")
+	ErrParsingPrivateKey    = errors.New("failed parsing private key")
+	ErrWrongPrivateKeyType  = errors.New("wrong private key type")
+	ErrWrongCertificateType = errors.New("wrong certificate type")
 )
 
 // InitNodeStakingKeyPair generates a self-signed TLS key/cert pair to use in
@@ -93,14 +96,17 @@ func InitNodeStakingKeyPair(keyPath, certPath string) error {
 func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) {
 	// Forcing node to accept only PKCS8 private key
 	keyDERBlock, _ := pem.Decode(keyBytes)
+	if keyDERBlock == nil {
+		return nil, ErrParsingPrivateKey
+	}
 	_, err := x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
 	if err != nil {
-		return nil, errPrivateKeyNotPKCS8
+		return nil, ErrPrivateKeyNotPKCS8
 	}
 
 	cert, err := tls.X509KeyPair(certBytes, keyBytes)
 	if err != nil {
-		return nil, errParsingKeyPair
+		return nil, ErrParsingKeyPair
 	}
 
 	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
@@ -117,7 +123,17 @@ func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
 		return &tls.Certificate{}, err
 	}
 
-	return LoadTLSCertFromBytes(keyBytes, certBytes)
+	cert, err := LoadTLSCertFromBytes(keyBytes, certBytes)
+	return cert, err
+}
+
+func LoadRSAKeyPairFromTLSCert(cert *tls.Certificate) (*x509.Certificate, *rsa.PrivateKey, error) {
+	key, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, nil, ErrWrongPrivateKeyType
+	}
+
+	return cert.Leaf, key, nil
 }
 
 func NewTLSCert() (*tls.Certificate, error) {

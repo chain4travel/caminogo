@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kardianos/osext"
+
 	"github.com/chain4travel/caminogo/database/leveldb"
 	"github.com/chain4travel/caminogo/database/memdb"
 	"github.com/chain4travel/caminogo/database/rocksdb"
@@ -29,7 +31,6 @@ import (
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/ulimit"
 	"github.com/chain4travel/caminogo/utils/units"
-	"github.com/kardianos/osext"
 )
 
 // Results of parsing the CLI
@@ -241,7 +242,6 @@ func addNodeFlags(fs *flag.FlagSet) {
 	fs.Uint(StakingPortKey, 9651, "Port of the consensus server")
 	fs.Bool(StakingEnabledKey, true, "Enable staking. If enabled, Network TLS is required")
 	fs.Bool(StakingEphemeralCertEnabledKey, false, "If true, the node uses an ephemeral staking key and certificate, and has an ephemeral node ID")
-	fs.String(StakingPath, defaultStakingPath, "Path to the directory containing TLS private keys and certificates for staking")
 	fs.String(StakingKeyPathKey, defaultStakingKeyPath, fmt.Sprintf("Path to the TLS private key for staking. Ignored if %s is specified", StakingKeyContentKey))
 	fs.String(StakingKeyContentKey, "", "Specifies base64 encoded TLS private key for staking")
 	fs.String(StakingCertPathKey, defaultStakingCertPath, fmt.Sprintf("Path to the TLS certificate for staking. Ignored if %s is specified", StakingCertContentKey))

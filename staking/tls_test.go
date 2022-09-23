@@ -59,7 +59,7 @@ func TestLoadWrongTLSPairType(t *testing.T) {
 	certBytes, keyBytes, err := generatePKCS1KeyPair()
 	assert.NoError(err)
 	_, err = LoadTLSCertFromBytes(keyBytes, certBytes)
-	assert.ErrorIs(err, errPrivateKeyNotPKCS8)
+	assert.ErrorIs(err, ErrPrivateKeyNotPKCS8)
 }
 
 func generatePKCS1KeyPair() ([]byte, []byte, error) {

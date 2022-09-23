@@ -21,12 +21,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"math/big"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/chain4travel/caminogo/staking"
 
 	"github.com/chain4travel/caminogo/cache"
 	"github.com/chain4travel/caminogo/chains"
@@ -83,6 +83,9 @@ var (
 		MintingPeriod:      365 * 24 * time.Hour,
 		SupplyCap:          720 * units.MegaAvax,
 	}
+
+	// Local relative path for local network staking keys and certs
+	localStakingPath = "../../staking/local/"
 
 	// AVAX asset ID in tests
 	avaxAssetID = ids.ID{'y', 'e', 'e', 't'}
@@ -145,20 +148,20 @@ func init() {
 		pk, err := factory.ToPrivateKey(privKeyBytes)
 		ctx.Log.AssertNoError(err)
 		keys = append(keys, pk.(*crypto.PrivateKeySECP256K1R))
+		cert, err := staking.LoadTLSCertFromFiles(
+			localStakingPath+"staker"+strconv.Itoa(index+1)+".key",
+			localStakingPath+"staker"+strconv.Itoa(index+1)+".crt")
+		if err != nil {
+			panic(err)
+		}
 
-		// ? @charalarg The local path needs to be read from configuration
-		rsaPrivateKey, err := loadRsaPrivateKeyFromFile("../../staking/local/staker" + strconv.Itoa(index+1) + ".key")
+		nodeCertificate, nodePrivateKey, err := staking.LoadRSAKeyPairFromTLSCert(cert)
 		if err != nil {
 			panic(err)
 		}
-		// ? @charalarg The local path needs to be read from configuration
-		certBytes, err := loadCertFromFile("../../staking/local/staker" + strconv.Itoa(index+1) + ".crt")
-		if err != nil {
-			panic(err)
-		}
-		nodeID := nodeIDFromCertBytes(certBytes.Raw)
-		rsaKeys = append(rsaKeys, rsaPrivateKey)
-		certificates = append(certificates, certBytes.Raw)
+		nodeID := nodeIDFromCertBytes(nodeCertificate.Raw)
+		rsaKeys = append(rsaKeys, nodePrivateKey)
+		certificates = append(certificates, nodeCertificate.Raw)
 		nodeIDs = append(nodeIDs, nodeID)
 	}
 
@@ -284,13 +287,7 @@ func newNodeKeyAndCert() (*rsa.PrivateKey, []byte, ids.ShortID) {
 	}
 
 	// Create self-signed staking cert
-	certTemplate := &x509.Certificate{
-		SerialNumber:          big.NewInt(0),
-		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
-		NotAfter:              time.Now().AddDate(100, 0, 0),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
-		BasicConstraintsValid: true,
-	}
+	certTemplate := staking.NewCertTemplate()
 	certBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &key.PublicKey, key)
 	if err != nil {
 		panic(fmt.Errorf("couldn't create certificate: %w", err))
@@ -302,30 +299,6 @@ func newNodeKeyAndCert() (*rsa.PrivateKey, []byte, ids.ShortID) {
 	}
 
 	return key, certBytes, nodeIDFromCertBytes(certBytes)
-}
-
-func loadRsaPrivateKeyFromFile(path string) (*rsa.PrivateKey, error) {
-	privateKeyBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	key, err := parsePKCS1PrivateKeyFromPEM(privateKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	return key, nil
-}
-
-func loadCertFromFile(path string) (*x509.Certificate, error) {
-	certBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := parseX509CertFromPEM(certBytes)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
 }
 
 // Returns:

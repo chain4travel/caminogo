@@ -8,23 +8,19 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 
 	"github.com/chain4travel/caminogo/ids"
+	"github.com/chain4travel/caminogo/staking"
 	"github.com/chain4travel/caminogo/utils/formatting"
 	"github.com/chain4travel/caminogo/utils/hashing"
 )
 
 var (
 	errCertificateDontMatch = errors.New("node certificate key doesn't match node ID")
-	errKeyPairDontMatch     = errors.New("public key doesn't match private key")
 	errWrongCredentialType  = errors.New("wrong credential type")
 	errWrongPublicKeyType   = errors.New("wrong public key type")
-	errWrongPrivateKeyType  = errors.New("wrong private key type")
-	errMissingPEMPK         = errors.New("pem encoded bytes doesn't contain PRIVATE KEY pem block")
-	errMissingPEMCert       = errors.New("pem encoded bytes doesn't contain CERTIFICATE pem block")
 	errNilCredential        = errors.New("nil credential")
 )
 
@@ -101,62 +97,16 @@ func nodeIDFromCertBytes(certBytes []byte) ids.ShortID {
 	return ids.ShortID(hashing.ComputeHash160Array(hashing.ComputeHash256(certBytes)))
 }
 
-func parsePKCS8PrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
-	privDER, _ := pem.Decode(pemBytes)
-	if privDER == nil || privDER.Type != "PRIVATE KEY" {
-		return nil, errMissingPEMPK
-	}
-
-	nodePrivateKey, err := x509.ParsePKCS8PrivateKey(privDER.Bytes)
+func LoadRSAKeyPairFromBytes(keyBytes, certBytes []byte) (*x509.Certificate, *rsa.PrivateKey, error) {
+	cert, err := staking.LoadTLSCertFromBytes(keyBytes, certBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	rsaPrivateKey, ok := nodePrivateKey.(*rsa.PrivateKey)
-	if !ok {
-		return nil, errWrongPrivateKeyType
-	}
-
-	return rsaPrivateKey, nil
-}
-
-func parsePKCS1PrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
-	privDER, _ := pem.Decode(pemBytes)
-	if privDER == nil || privDER.Type != "RSA PRIVATE KEY" {
-		return nil, errMissingPEMPK
-	}
-
-	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(privDER.Bytes)
+	nodeCertificate, nodePrivateKey, err := staking.LoadRSAKeyPairFromTLSCert(cert)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return rsaPrivateKey, nil
-}
-
-func parseX509CertFromPEM(pemBytes []byte) (*x509.Certificate, error) {
-	certDER, _ := pem.Decode(pemBytes)
-	if certDER == nil || certDER.Type != "CERTIFICATE" {
-		return nil, errMissingPEMCert
-	}
-
-	x509Cert, err := x509.ParseCertificate(certDER.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return x509Cert, nil
-}
-
-func checkCertificateAndKeyPair(cert *x509.Certificate, privateKey *rsa.PrivateKey) error {
-	rsaPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return errWrongPublicKeyType
-	}
-
-	if rsaPublicKey.N.Cmp(privateKey.N) != 0 {
-		return errKeyPairDontMatch
-	}
-
-	return nil
+	return nodeCertificate, nodePrivateKey, nil
 }

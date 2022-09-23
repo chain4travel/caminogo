@@ -997,21 +997,10 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		}
 	}
 
-	// Parse node private key
-	rsaPrivateKey, err := parsePKCS8PrivateKeyFromPEM([]byte(args.NodePrivateKey))
+	// Parse node key pair
+	x509Cert, rsaPrivateKey, err := LoadRSAKeyPairFromBytes([]byte(args.NodePrivateKey), []byte(args.NodeCertificate))
 	if err != nil {
-		return fmt.Errorf("couldn't parse nodePrivateKey: %w", err)
-	}
-
-	// Parse node certificate
-	x509Cert, err := parseX509CertFromPEM([]byte(args.NodeCertificate))
-	if err != nil {
-		return fmt.Errorf("couldn't parse nodeCertificate: %w", err)
-	}
-
-	// Check that node's certificate public key matches node's private key
-	if err := checkCertificateAndKeyPair(x509Cert, rsaPrivateKey); err != nil {
-		return fmt.Errorf("nodePrivateKey and nodeCertificate doesn't match: %w", err)
+		return fmt.Errorf("couldn't parse node key pair: %w", err)
 	}
 
 	// Create the transaction
@@ -1122,21 +1111,10 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		}
 	}
 
-	// Parse node private key
-	rsaPrivateKey, err := parsePKCS8PrivateKeyFromPEM([]byte(args.NodePrivateKey))
+	// Parse node key pair
+	x509Cert, rsaPrivateKey, err := LoadRSAKeyPairFromBytes([]byte(args.NodePrivateKey), []byte(args.NodeCertificate))
 	if err != nil {
-		return fmt.Errorf("couldn't parse nodePrivateKey: %w", err)
-	}
-
-	// Parse node certificate
-	x509Cert, err := parseX509CertFromPEM([]byte(args.NodeCertificate))
-	if err != nil {
-		return fmt.Errorf("couldn't parse nodeCertificate: %w", err)
-	}
-
-	// Check that node's certificate public key matches node's private key
-	if err := checkCertificateAndKeyPair(x509Cert, rsaPrivateKey); err != nil {
-		return fmt.Errorf("nodePrivateKey and nodeCertificate doesn't match: %w", err)
+		return fmt.Errorf("couldn't parse node key pair: %w", err)
 	}
 
 	// Create the transaction

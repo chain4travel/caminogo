@@ -19,15 +19,15 @@ package platformvm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/chain4travel/caminogo/staking"
 
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/api/keystore"
@@ -43,6 +43,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
 	cjson "github.com/chain4travel/caminogo/utils/json"
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"
@@ -66,6 +68,9 @@ var (
 	// 3cb7d3842e8cee6a0ebd09f1fe884f6861e1b29c
 	// Platform address resulting from the above private key
 	testAddress = "P-testing18jma8ppw3nhx5r4ap8clazz0dps7rv5umpc36y"
+
+	testNodePrivateKey = `-----BEGIN PRIVATE KEY-----\n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\n-----END PRIVATE KEY-----`
+	TestNodeCert       = `-----BEGIN CERTIFICATE-----\nMIIEnTCCAoWgAwIBAgIBADANBgkqhkiG9w0BAQsFADAAMCAXDTk5MTIzMTAwMDAwMFoYDzIxMjIwOTI2MDgzMzAxWjAAMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA7ibpDhdyu4xDFGW3DzOFMC69c53Nw+ikRZ2v7dYaVWeYUfYULwMbnWa1lQrDbOp4GQ2HKf2s47g4bv08Cn/IWGlcDAz/FU4NHrm4JKUlac5nxFP2dIw2ZnCFWDBomSaqGz6hrOZliNwVW9whbATlN2cfy4LUpICEaYyejp6z3k5RmF2kxHn6w6vMdqKYaptkXmOWBHdnlTmSstQtyLGZLny1XR+E6xoXNtrHHdNbjvB/Mom0rqLyWEEMKCh73ZJrwsstvPwv1TGUsvGGfDbZDBKqfo+lJSNu3dwymm3BInrZyGwibMKmyEvZIUPmaGQ5B4Ijqy3VDcC04Su9vr6EshFmyHYTc6qtS9iWdhm//Nm9IYIDoDOxO3x9NnmJxNeNbqvfmr0rFKSg/nCn8mom6oJS7sGttMUnpFpG6hzHySFpbwoAiTFNv0dUGJ6tdf0yGrpfudQvrtJnFdW4Qdq3GDCDOsMFYm01e84GZc7cnIkAfRxe5GhmSZ6Gk3aikHCulys2UGdLiaDuGuY/J1S8VVuk8IKRNMgPsV1VHxX02tmz00LXY0UARoEEkHiEIBB2ZCg93LoNU4w1o2vM8nv2/IFaQ4GENfQZTEKhrdFKuscN+0LJ9j4fJbEDV8RMMdWzqaqQQdN8Z2O7W350HA6Ho1ZMIxm5i8wKE2Y3zqMm1X8CAwEAAaMgMB4wDgYDVR0PAQH/BAQDAgSwMAwGA1UdEwEB/wQCMAAwDQYJKoZIhvcNAQELBQADggIBAC/FkS7EGDuRqRuzlJTb0jMW39ksR4dZZ2/1Xtc04WrplhnMQCmHG32rU8MVDaoHAiDViput2HKPrp2PRNgy8Ugq5mp1lFSbf8g1e5txWr7cCtGB/mTVVBIrOoBncyQuNbzRRLpnUUbQ5xF9ny4AZTZ4+6wISGdpjOqc3KMoUvc+0PaI7dvywO7jxGt2g3TO+98Asyb+R2NhUWRpCnwsoRz+Vek6ejcRa+BXvfqcEN3oEjjWWCpCcIvVifrXjvSeiMP3aw1EUDETt+UdDbXh0dTP4HOvMaeFb/333vc8bfaLFfSnSzwIzstWfWDVNzhv6Azro471BQ/Vx2TDsUmyYE8cPSi1pCkJ4QF2ohNsASc+7ZKjtQV4h2+wLkZEo7W3aZQSfDBQmvaa7urfs45fV8KW6tSRpcmbjLwji5h+s5um8zM+wjRv3IaV5NRY4+P25IQ/WowDa5XPSSg71d3etcxWVhp1LDJd12IqY9xD3Zc0lTodp/xq1ycgVnyjHtViDPvw1yZ0ix/kKExXtv6XZ1BwdgKoSVgCY7ZJV1KC2ao9sI5TEvpg6RW3cPzxECH1SDgYq1pZtrljcYy9cct7qw/xOtOydOHjJf2M6Svhje/QMAXrRoJTAJ8Xt1ohyoaqsjtNkICj3uZwGmqi+bI2p/xVVJ5SdR+nl3EAVNPnBlUN\n-----END CERTIFICATE-----`
 
 	encodings = []formatting.Encoding{
 		formatting.JSON, formatting.Hex, formatting.CB58,
@@ -102,6 +107,48 @@ func defaultAddress(t *testing.T, service *Service) {
 	}
 }
 
+func getAddValidatorArgs(testNodeIndex int, networkId uint32, key, cert string) (AddValidatorArgs, error) {
+	hrp := constants.GetHRP(networkId)
+	rewardAddress, err := formatting.FormatAddress("P", hrp, keys[testNodeIndex].PublicKey().Address().Bytes())
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"rewardAddress":"` + rewardAddress + `",
+					"nodeID":"NodeID-` + nodeIDs[testNodeIndex].String() + `",
+					"nodePrivateKey":"` + key + `",
+					"nodeCertificate":"` + cert + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddValidatorArgs{}
+	err = json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+	return args, nil
+}
+
+func getAddSubnetValidatorArgs(testNodeIndex int, key, cert string) (AddSubnetValidatorArgs, error) {
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"subnetID":"` + ids.GenerateTestID().String() + `",
+					"nodeID":"NodeID-` + nodeIDs[testNodeIndex].String() + `",
+					"nodePrivateKey":"` + key + `",
+					"nodeCertificate":"` + cert + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddSubnetValidatorArgs{}
+	err := json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddSubnetValidatorArgs{}, err
+	}
+	return args, nil
+}
+
 func TestAddValidator(t *testing.T) {
 	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":"","nodePrivateKey":"","nodeCertificate":""}`
 	args := AddValidatorArgs{}
@@ -113,6 +160,104 @@ func TestAddValidator(t *testing.T) {
 	if jsonString != expectedJSONString {
 		t.Fatalf("Expected: %s\nResult: %s", expectedJSONString, jsonString)
 	}
+}
+
+func TestAddValidatorWrongPrivateKey(t *testing.T) {
+	nodePrivateKey := "WrongPrivateKey"
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxIDChangeAddr{}
+	args, err := getAddValidatorArgs(0, service.vm.ctx.NetworkID, nodePrivateKey, TestNodeCert)
+	assert.NoError(t, err)
+	err = service.AddValidator(nil, &args, &reply)
+	switch errors.Unwrap(err) {
+	case
+		staking.ErrPrivateKeyNotPKCS8,
+		staking.ErrWrongPrivateKeyType,
+		staking.ErrWrongCertificateType,
+		staking.ErrParsingPrivateKey:
+		return
+	}
+	t.Fatal("should have errored with privateKey parsing error")
+}
+
+func TestAddValidatorKeyPairMismatch(t *testing.T) {
+	nodeCertificate := `-----BEGIN CERTIFICATE-----\nMIIEnTCCAoWgAwIBAgIBADANBgkqhkiG9w0BAQsFADAAMCAXDTk5MTIzMTAwMDAwMFoYDzIxMjIwOTI2MDgzNDMxWjAAMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw0yM/roBw2Fz9QzISkrZwdR4fHMywHjdXNLgwxjfENxdaevpKh6bV7EFWljAzaoUFY0xlbX6vDOxNLRTXQ8U6tbs38nkc2Xs7ymMMMygGGyhmXx6c3IEMX2vtudO7DnjLpNL/w1zSV+V01N361tpyQ+qxgSitFdLNbkccFCSNRyq8frBnTMJHWnQWZes0buVRl+1PmFyjCRxYZ+FdZnpjfgcnzgoN7zvJBz/cWGEI3ATGpB6+lc+LmnE90dRdcCKWRTHdsf62wT1Vu7KZ1tpjUKuBKrjBjacq9J5Rnf5wIW62uYT3ca7F8dJmXDlxamjEnn+Tf0e63Y39oPThZ47jNopDsnFvYJx7XTcvPa6731w9/pS7yCgsTKdp8MAwtx2NcoAOnDSl/zBjvYQaznnpbuF+ODlvVtzz6qz1bIMm1mIEGLro91G57TcS7FqKliqrIYebFuMsPMTDOwBntIceb2lh3CspBl2oc8THZPWaIBbhEx7o3VR/xudawEIGtbga5DrEYx4gWXSyjqI6EWVMrlCU7FvYwy1b9HtGvUcpnIlfGnzF3oSoQsDii3CThsrCydU7P8WxSV2v56VKa7mJSxHQitXSol1wZ/qoLURQGhAnnOUfuahbVCATAaIVcErwGC4qHsofjp7PbkQa7V4DgGeVFjDtKOEsMXMWxsdlncCAwEAAaMgMB4wDgYDVR0PAQH/BAQDAgSwMAwGA1UdEwEB/wQCMAAwDQYJKoZIhvcNAQELBQADggIBAGZfamC6TzLve+n0sMmWguq810+erQtc5gMciPSwHiBngHPa4l7Bv8HOl0yvnTbZBABaZPDpM/eZhA4hYXp6UPEmVa0OBrCOlqeaJZ+I95XHZd3Vcy61VaOae3oBANVLX0AvS4iOnxrrVvNgh6o5mtkXWWkH5DkUZCF7bQhwMSS5AIz033/IXPWXMJin4LYaq/CGGxAcBUtb4nYYV0sCiUvUrN1ZjtLCFwuyZYHiEphDXfK925pwVIQBoCW1Wzf9QS76V7qS8N1mLO/bONMBsvGfRD6RcFKXU8R2KRv2VqFl+wykljT0p0kwMhqHtMLKdj7e7vCutUj6UoOm+k5V1Dp82bihDWk7TuaUnd7OxyftANFle6mTp5yfw9T5KIIl1td1NBwTpKo0D4+TjNn7Cfq66hDQXS1pfyKuIbenu0J3iaPVUSxEDF2/UQZbXdOFJkV9ChwEiQxI+ExhnZtZihAuHW0MkYMpNdeKA9zSpuipGdy3o5LltySDclBBi6zT1k7fu/CYgsrQKT+gHFjIxv1IYzFtfy5SvNd94ucIErSlc8oR4frSMnXOFvsWZgfbwKDKxTgpPFDJ0xi5b6TchvXxJQSfqRSW4gRUiGeAUKNdQk193SBb7/KkWOn9ieTfCY+euZn9sPvhJx/CWhZakqtD6PNjQRVy9V/+ViJAJSTN\n-----END CERTIFICATE-----`
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxIDChangeAddr{}
+	args, err := getAddValidatorArgs(0, service.vm.ctx.NetworkID, testNodePrivateKey, nodeCertificate)
+	assert.NoError(t, err)
+	err = service.AddValidator(nil, &args, &reply)
+	if errors.Unwrap(err) == staking.ErrParsingKeyPair {
+		return
+	}
+	t.Fatal("should have errored with key pair mismatch error")
+}
+
+func TestAddSubnetValidatorWrongPrivateKey(t *testing.T) {
+	nodePrivateKey := "WrongPrivateKey"
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxIDChangeAddr{}
+	args, err := getAddSubnetValidatorArgs(0, nodePrivateKey, TestNodeCert)
+	assert.NoError(t, err)
+	err = service.AddSubnetValidator(nil, &args, &reply)
+	switch errors.Unwrap(err) {
+	case
+		staking.ErrPrivateKeyNotPKCS8,
+		staking.ErrWrongPrivateKeyType,
+		staking.ErrWrongCertificateType,
+		staking.ErrParsingPrivateKey:
+		return
+	}
+	t.Fatal("should have errored with privateKey parsing error")
+}
+
+func TestAddSubnetValidatorKeyPairMismatch(t *testing.T) {
+	nodeCertificate := `-----BEGIN CERTIFICATE-----\nMIIEnTCCAoWgAwIBAgIBADANBgkqhkiG9w0BAQsFADAAMCAXDTk5MTIzMTAwMDAwMFoYDzIxMjIwOTI2MDgzNDMxWjAAMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw0yM/roBw2Fz9QzISkrZwdR4fHMywHjdXNLgwxjfENxdaevpKh6bV7EFWljAzaoUFY0xlbX6vDOxNLRTXQ8U6tbs38nkc2Xs7ymMMMygGGyhmXx6c3IEMX2vtudO7DnjLpNL/w1zSV+V01N361tpyQ+qxgSitFdLNbkccFCSNRyq8frBnTMJHWnQWZes0buVRl+1PmFyjCRxYZ+FdZnpjfgcnzgoN7zvJBz/cWGEI3ATGpB6+lc+LmnE90dRdcCKWRTHdsf62wT1Vu7KZ1tpjUKuBKrjBjacq9J5Rnf5wIW62uYT3ca7F8dJmXDlxamjEnn+Tf0e63Y39oPThZ47jNopDsnFvYJx7XTcvPa6731w9/pS7yCgsTKdp8MAwtx2NcoAOnDSl/zBjvYQaznnpbuF+ODlvVtzz6qz1bIMm1mIEGLro91G57TcS7FqKliqrIYebFuMsPMTDOwBntIceb2lh3CspBl2oc8THZPWaIBbhEx7o3VR/xudawEIGtbga5DrEYx4gWXSyjqI6EWVMrlCU7FvYwy1b9HtGvUcpnIlfGnzF3oSoQsDii3CThsrCydU7P8WxSV2v56VKa7mJSxHQitXSol1wZ/qoLURQGhAnnOUfuahbVCATAaIVcErwGC4qHsofjp7PbkQa7V4DgGeVFjDtKOEsMXMWxsdlncCAwEAAaMgMB4wDgYDVR0PAQH/BAQDAgSwMAwGA1UdEwEB/wQCMAAwDQYJKoZIhvcNAQELBQADggIBAGZfamC6TzLve+n0sMmWguq810+erQtc5gMciPSwHiBngHPa4l7Bv8HOl0yvnTbZBABaZPDpM/eZhA4hYXp6UPEmVa0OBrCOlqeaJZ+I95XHZd3Vcy61VaOae3oBANVLX0AvS4iOnxrrVvNgh6o5mtkXWWkH5DkUZCF7bQhwMSS5AIz033/IXPWXMJin4LYaq/CGGxAcBUtb4nYYV0sCiUvUrN1ZjtLCFwuyZYHiEphDXfK925pwVIQBoCW1Wzf9QS76V7qS8N1mLO/bONMBsvGfRD6RcFKXU8R2KRv2VqFl+wykljT0p0kwMhqHtMLKdj7e7vCutUj6UoOm+k5V1Dp82bihDWk7TuaUnd7OxyftANFle6mTp5yfw9T5KIIl1td1NBwTpKo0D4+TjNn7Cfq66hDQXS1pfyKuIbenu0J3iaPVUSxEDF2/UQZbXdOFJkV9ChwEiQxI+ExhnZtZihAuHW0MkYMpNdeKA9zSpuipGdy3o5LltySDclBBi6zT1k7fu/CYgsrQKT+gHFjIxv1IYzFtfy5SvNd94ucIErSlc8oR4frSMnXOFvsWZgfbwKDKxTgpPFDJ0xi5b6TchvXxJQSfqRSW4gRUiGeAUKNdQk193SBb7/KkWOn9ieTfCY+euZn9sPvhJx/CWhZakqtD6PNjQRVy9V/+ViJAJSTN\n-----END CERTIFICATE-----`
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxIDChangeAddr{}
+	args, err := getAddSubnetValidatorArgs(0, testNodePrivateKey, nodeCertificate)
+	assert.NoError(t, err)
+	err = service.AddSubnetValidator(nil, &args, &reply)
+	if errors.Unwrap(err) == staking.ErrParsingKeyPair {
+		return
+	}
+	t.Fatal("should have errored with key pair mismatch error")
 }
 
 func TestCreateBlockchainArgsParsing(t *testing.T) {
