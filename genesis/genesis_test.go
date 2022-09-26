@@ -208,23 +208,23 @@ var (
 		],
 		"initialStakers": [
 			{
-				"nodeID": "NodeID-7Xhw2mDxuDS44j42TCB6U5579esbSt3Lg",
+				"nodeID": "NodeID-AuEZMvcizcF3tbGXTKn463ppPWo1Yvjod",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-MFrZFVCXPv5iCn6M9K6XduxGTYp891xXZ",
+				"nodeID": "NodeID-M5bHJNmSPWDucfUwaL44b3PjNRtAqPsib",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-NFBbbJ4qCmNaCzeW7sxErhvWqvEQMnYcN",
+				"nodeID": "NodeID-7j5oUJYqAPWwRrsdsN5W9V3CSoAWDbr19",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-GWPcbFJZFfZreETSoWjPimr846mXEKCtu",
+				"nodeID": "NodeID-JiRgENDnvAhL9SeejL43HhRfCfjdsX8KN",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-P7oB2McjBGgW2NXXWVYjV8JEDFoW9xDE5",
+				"nodeID": "NodeID-2UaFan8QDAN7GVLu8avxtHkMP9Hr17dZS",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			}
 		],
@@ -273,7 +273,7 @@ func TestGenesisFromFile(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "ffbf55f3f19dac850ca759e053823f2af5527e1c86d0c4b7686ad92427b505ee",
+			expected:     "e47018a1ee90a4fa2119ccc2febcae86b22e23c8a3f23190f7dc9c5c2820bfe1",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -352,7 +352,7 @@ func TestGenesisFromFlag(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "ffbf55f3f19dac850ca759e053823f2af5527e1c86d0c4b7686ad92427b505ee",
+			expected:     "e47018a1ee90a4fa2119ccc2febcae86b22e23c8a3f23190f7dc9c5c2820bfe1",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,

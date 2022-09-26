@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -28,6 +29,11 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/perms"
+)
+
+var (
+	errPrivateKeyNotPKCS8 = errors.New("node accepts only PKCS8 private keys")
+	errParsingKeyPair     = errors.New("failed parsing key pair")
 )
 
 // InitNodeStakingKeyPair generates a self-signed TLS key/cert pair to use in
@@ -85,9 +91,16 @@ func InitNodeStakingKeyPair(keyPath, certPath string) error {
 }
 
 func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) {
+	// Forcing node to accept only PKCS8 private key
+	keyDERBlock, _ := pem.Decode(keyBytes)
+	_, err := x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
+	if err != nil {
+		return nil, errPrivateKeyNotPKCS8
+	}
+
 	cert, err := tls.X509KeyPair(certBytes, keyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating cert: %w", err)
+		return nil, errParsingKeyPair
 	}
 
 	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
@@ -95,12 +108,16 @@ func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) 
 }
 
 func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	certBytes, err := os.ReadFile(certPath)
 	if err != nil {
-		return nil, err
+		return &tls.Certificate{}, err
 	}
-	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
-	return &cert, err
+	keyBytes, err := os.ReadFile(keyPath)
+	if err != nil {
+		return &tls.Certificate{}, err
+	}
+
+	return LoadTLSCertFromBytes(keyBytes, certBytes)
 }
 
 func NewTLSCert() (*tls.Certificate, error) {
@@ -126,13 +143,7 @@ func NewCertAndKeyBytes() ([]byte, []byte, error) {
 	}
 
 	// Create self-signed staking cert
-	certTemplate := &x509.Certificate{
-		SerialNumber:          big.NewInt(0),
-		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
-		NotAfter:              time.Now().AddDate(100, 0, 0),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
-		BasicConstraintsValid: true,
-	}
+	certTemplate := NewCertTemplate()
 	certBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &key.PublicKey, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't create certificate: %w", err)
@@ -146,10 +157,19 @@ func NewCertAndKeyBytes() ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't marshal private key: %w", err)
 	}
-
 	var keyBuff bytes.Buffer
 	if err := pem.Encode(&keyBuff, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
 		return nil, nil, fmt.Errorf("couldn't write private key: %w", err)
 	}
 	return certBuff.Bytes(), keyBuff.Bytes(), nil
+}
+
+func NewCertTemplate() *x509.Certificate {
+	return &x509.Certificate{
+		SerialNumber:          big.NewInt(0),
+		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
+		NotAfter:              time.Now().AddDate(100, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
+		BasicConstraintsValid: true,
+	}
 }
