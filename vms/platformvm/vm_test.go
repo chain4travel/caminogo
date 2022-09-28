@@ -16,9 +16,7 @@ package platformvm
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"reflect"
@@ -86,6 +84,7 @@ var (
 
 	// Local relative path for local network staking keys and certs
 	localStakingPath = "../../staking/local/"
+	testStakingPath  = "../../staking/test/"
 
 	// AVAX asset ID in tests
 	avaxAssetID = ids.ID{'y', 'e', 'e', 't'}
@@ -147,22 +146,12 @@ func init() {
 		ctx.Log.AssertNoError(err)
 		pk, err := factory.ToPrivateKey(privKeyBytes)
 		ctx.Log.AssertNoError(err)
-		keys = append(keys, pk.(*crypto.PrivateKeySECP256K1R))
-		cert, err := staking.LoadTLSCertFromFiles(
-			localStakingPath+"staker"+strconv.Itoa(index+1)+".key",
-			localStakingPath+"staker"+strconv.Itoa(index+1)+".crt")
-		if err != nil {
-			panic(err)
-		}
+		nodePrivateKey, nodeCertificate, nodeId := loadNodeKeyPair(localStakingPath, index+1)
 
-		nodeCertificate, nodePrivateKey, err := staking.LoadRSAKeyPairFromTLSCert(cert)
-		if err != nil {
-			panic(err)
-		}
-		nodeID := nodeIDFromCertBytes(nodeCertificate.Raw)
+		keys = append(keys, pk.(*crypto.PrivateKeySECP256K1R))
 		rsaKeys = append(rsaKeys, nodePrivateKey)
-		certificates = append(certificates, nodeCertificate.Raw)
-		nodeIDs = append(nodeIDs, nodeID)
+		certificates = append(certificates, nodeCertificate)
+		nodeIDs = append(nodeIDs, nodeId)
 	}
 
 	testSubnet1ControlKeys = keys[0:3]
@@ -278,27 +267,23 @@ func defaultGenesis() (*BuildGenesisArgs, []byte) {
 	return &buildGenesisArgs, genesisBytes
 }
 
-// newNodeKeyAndCert creates a new staking private key / staking certificate pair.
-// Returns the PEM byte representations of both.
-func newNodeKeyAndCert() (*rsa.PrivateKey, []byte, ids.ShortID) {
-	key, err := rsa.GenerateKey(rand.Reader, 4096)
+// Loads one the generated RSA key pairs by specifying its index
+// If stakingPath is "local" the function returns the key pair of an existing local validator node
+// If stakingPath is "test" the function returns an unused key pair for testing purposes
+func loadNodeKeyPair(stakingPath string, staker int) (*rsa.PrivateKey, []byte, ids.ShortID) {
+	cert, err := staking.LoadTLSCertFromFiles(
+		stakingPath+"staker"+strconv.Itoa(staker)+".key",
+		stakingPath+"staker"+strconv.Itoa(staker)+".crt")
 	if err != nil {
-		panic(fmt.Errorf("couldn't generate rsa key: %w", err))
+		panic(err)
 	}
 
-	// Create self-signed staking cert
-	certTemplate := staking.NewCertTemplate()
-	certBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &key.PublicKey, key)
+	nodeCertificate, nodePrivateKey, err := staking.GetRSAKeyPairFromTLSCert(cert)
 	if err != nil {
-		panic(fmt.Errorf("couldn't create certificate: %w", err))
+		panic(err)
 	}
 
-	_, err = x509.ParseCertificate(certBytes)
-	if err != nil {
-		println(err)
-	}
-
-	return key, certBytes, nodeIDFromCertBytes(certBytes)
+	return nodePrivateKey, nodeCertificate.Raw, nodeIDFromCertBytes(nodeCertificate.Raw)
 }
 
 // Returns:
@@ -623,7 +608,7 @@ func TestAddValidatorCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
@@ -702,7 +687,7 @@ func TestInvalidAddValidatorCommit(t *testing.T) {
 	key, err := vm.factory.NewPrivateKey()
 	assert.NoError(t, err)
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// create invalid tx
 	tx, err := vm.newAddValidatorTx(
@@ -760,7 +745,7 @@ func TestAddValidatorReject(t *testing.T) {
 	key, err := vm.factory.NewPrivateKey()
 	assert.NoError(t, err)
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// create valid tx
 	tx, err := vm.newAddValidatorTx(
@@ -2567,7 +2552,7 @@ func TestRejectedStateRegressionInvalidValidatorTimestamp(t *testing.T) {
 	key, err := vm.factory.NewPrivateKey()
 	assert.NoError(err)
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// Create the tx to add a new validator
 	addValidatorTx, err := vm.newAddValidatorTx(
@@ -2794,7 +2779,7 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 	newValidatorStartTime0 := defaultGenesisTime.Add(syncBound).Add(1 * time.Second)
 	newValidatorEndTime0 := newValidatorStartTime0.Add(defaultMaxStakingDuration)
 
-	rsaPrivateKey0, certBytes0, nodeID0 := newNodeKeyAndCert()
+	rsaPrivateKey0, certBytes0, nodeID0 := loadNodeKeyPair(testStakingPath, 1)
 
 	// Create the tx to add the first new validator
 	addValidatorTx0, err := vm.newAddValidatorTx(
@@ -2981,7 +2966,7 @@ func TestRejectedStateRegressionInvalidValidatorReward(t *testing.T) {
 	newValidatorStartTime1 := newValidatorStartTime0.Add(syncBound).Add(1 * time.Second)
 	newValidatorEndTime1 := newValidatorStartTime1.Add(defaultMaxStakingDuration)
 
-	rsaPrivateKey1, certBytes1, nodeID1 := newNodeKeyAndCert()
+	rsaPrivateKey1, certBytes1, nodeID1 := loadNodeKeyPair(testStakingPath, 2)
 
 	// Create the tx to add the second new validator
 	addValidatorTx1, err := vm.newAddValidatorTx(

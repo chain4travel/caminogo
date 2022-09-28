@@ -236,7 +236,7 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// starts validating primary network 10 seconds after genesis
 	DSStartTime := defaultGenesisTime.Add(10 * time.Second)

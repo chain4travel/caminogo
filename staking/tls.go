@@ -127,7 +127,7 @@ func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
 	return cert, err
 }
 
-func LoadRSAKeyPairFromTLSCert(cert *tls.Certificate) (*x509.Certificate, *rsa.PrivateKey, error) {
+func GetRSAKeyPairFromTLSCert(cert *tls.Certificate) (*x509.Certificate, *rsa.PrivateKey, error) {
 	key, ok := cert.PrivateKey.(*rsa.PrivateKey)
 	if !ok {
 		return nil, nil, ErrWrongPrivateKeyType

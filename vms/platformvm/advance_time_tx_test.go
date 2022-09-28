@@ -51,7 +51,7 @@ func TestAdvanceTimeTxTimestampTooLate(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// Case: Timestamp is after next validator start time
 	// Add a pending validator
@@ -112,7 +112,7 @@ func TestAdvanceTimeTxUpdatePrimaryNetworkStakers(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// Case: Timestamp is after next validator start time
 	// Add a pending validator
@@ -205,11 +205,11 @@ func TestAdvanceTimeTxUpdateStakers(t *testing.T) {
 		expectedSubnetStakers map[ids.ShortID]stakerStatus
 	}
 
-	rsaPrivateKey1, certBytes1, nodeID1 := newNodeKeyAndCert()
-	rsaPrivateKey2, certBytes2, nodeID2 := newNodeKeyAndCert()
-	rsaPrivateKey3, certBytes3, nodeID3 := newNodeKeyAndCert()
-	rsaPrivateKey4, certBytes4, nodeID4 := newNodeKeyAndCert()
-	rsaPrivateKey5, certBytes5, nodeID5 := newNodeKeyAndCert()
+	rsaPrivateKey1, certBytes1, nodeID1 := loadNodeKeyPair(testStakingPath, 1)
+	rsaPrivateKey2, certBytes2, nodeID2 := loadNodeKeyPair(testStakingPath, 2)
+	rsaPrivateKey3, certBytes3, nodeID3 := loadNodeKeyPair(testStakingPath, 3)
+	rsaPrivateKey4, certBytes4, nodeID4 := loadNodeKeyPair(testStakingPath, 4)
+	rsaPrivateKey5, certBytes5, nodeID5 := loadNodeKeyPair(testStakingPath, 5)
 
 	// Chronological order: staker1 start, staker2 start, staker3 start and staker 4 start,
 	//  staker3 and staker4 end, staker2 end and staker5 start, staker1 end

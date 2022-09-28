@@ -468,7 +468,7 @@ func TestGetTx(t *testing.T) {
 		createTx    func(service *Service) (*Tx, error)
 	}
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	tests := []test{
 		{
@@ -690,7 +690,7 @@ func TestGetStake(t *testing.T) {
 
 	// Make sure this works for pending stakers
 	// Add a pending staker
-	rsaPrivateKey, certBytes, pendingStakerNodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, pendingStakerNodeID := loadNodeKeyPair(testStakingPath, 1)
 	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
 	tx, err := service.vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()),

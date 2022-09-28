@@ -43,7 +43,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// Case: tx is nil
 	var unsignedTx *UnsignedAddValidatorTx
@@ -131,7 +131,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 	}
 
 	// Case: Node certificate key doesn't match node ID
-	_, _, tempNodeID := newNodeKeyAndCert()
+	_, _, tempNodeID := loadNodeKeyPair(testStakingPath, 2)
 	if _, err := vm.newAddValidatorTx(
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
@@ -180,7 +180,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsaPrivateKey, certBytes, nodeID := newNodeKeyAndCert()
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
 
 	// Case: Valid
 	if tx, err := vm.newAddValidatorTx(
@@ -199,7 +199,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	}
 
 	// Case: Failed signature verification
-	tempPrivateKey, _, _ := newNodeKeyAndCert()
+	tempPrivateKey, _, _ := loadNodeKeyPair(testStakingPath, 5)
 	if tx, err := vm.newAddValidatorTx(
 		uint64(defaultValidateStartTime.Unix())+1,
 		uint64(defaultValidateEndTime.Unix()),
@@ -269,7 +269,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsaPrivateKey2, certBytes2, nodeID2 := newNodeKeyAndCert()
+	rsaPrivateKey2, certBytes2, nodeID2 := loadNodeKeyPair(testStakingPath, 2)
 
 	startTime := defaultGenesisTime.Add(1 * time.Second)
 	tx, err := vm.newAddValidatorTx(

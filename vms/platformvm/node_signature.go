@@ -103,7 +103,7 @@ func LoadRSAKeyPairFromBytes(keyBytes, certBytes []byte) (*x509.Certificate, *rs
 		return nil, nil, err
 	}
 
-	nodeCertificate, nodePrivateKey, err := staking.LoadRSAKeyPairFromTLSCert(cert)
+	nodeCertificate, nodePrivateKey, err := staking.GetRSAKeyPairFromTLSCert(cert)
 	if err != nil {
 		return nil, nil, err
 	}
