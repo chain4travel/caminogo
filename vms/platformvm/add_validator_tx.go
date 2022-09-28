@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
@@ -41,6 +42,7 @@ var (
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
+	_ RSASignedTx        = &UnsignedAddValidatorTx{}
 )
 
 // UnsignedAddValidatorTx is an unsigned addValidatorTx
@@ -49,6 +51,8 @@ type UnsignedAddValidatorTx struct {
 	BaseTx `serialize:"true"`
 	// Describes the validator
 	Validator Validator `serialize:"true" json:"validator"`
+	// Node x509 certificate raw bytes
+	NodeCertificate []byte `serialize:"true" json:"nodeCertificate"`
 	// Where to send staked tokens when done validating
 	Stake []*avax.TransferableOutput `serialize:"true" json:"stake"`
 	// Where to send staking rewards when done validating
@@ -80,6 +84,10 @@ func (tx *UnsignedAddValidatorTx) EndTime() time.Time {
 // Weight of this validator
 func (tx *UnsignedAddValidatorTx) Weight() uint64 {
 	return tx.Validator.Weight()
+}
+
+func (tx *UnsignedAddValidatorTx) CertBytes() []byte {
+	return tx.NodeCertificate
 }
 
 // SyntacticVerify returns nil if [tx] is valid
@@ -115,6 +123,10 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return errOutputsNotSorted
 	case totalStakeWeight != tx.Validator.Wght:
 		return fmt.Errorf("validator weight %d is not equal to total stake weight %d", tx.Validator.Wght, totalStakeWeight)
+	}
+
+	if err := verifyNodeID(tx.NodeCertificate, tx.Validator.NodeID); err != nil {
+		return err
 	}
 
 	// cache that this is valid
@@ -164,6 +176,10 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		return nil, nil, errStakeTooShort
 	case duration > vm.MaxStakeDuration: // Ensure staking length is not too long
 		return nil, nil, errStakeTooLong
+	}
+
+	if err := verifyNodeSignature(stx); err != nil {
+		return nil, nil, fmt.Errorf("failed to verify node signature: %w", err)
 	}
 
 	currentStakers := parentState.CurrentStakerChainState()
@@ -218,7 +234,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds[:len(stx.Creds)-1], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
 
@@ -264,12 +280,15 @@ func (vm *VM) newAddValidatorTx(
 	nodeID ids.ShortID, // ID of the node we want to validate with
 	rewardAddress ids.ShortID, // Address to send reward to, if applicable
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
+	rsaPrivateKey *rsa.PrivateKey, // node rsa signer
+	nodeCertificate []byte, // node certificate with public key
 ) (*Tx, error) {
 	bondAmount := vm.internalState.GetValidatorBondAmount()
 	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, bondAmount, vm.AddStakerTxFee)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
+
 	// Create the tx
 	utx := &UnsignedAddValidatorTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
@@ -284,7 +303,8 @@ func (vm *VM) newAddValidatorTx(
 			End:    endTime,
 			Wght:   bondAmount,
 		},
-		Stake: lockedOuts,
+		NodeCertificate: nodeCertificate,
+		Stake:           lockedOuts,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
@@ -293,6 +313,9 @@ func (vm *VM) newAddValidatorTx(
 	}
 	tx := &Tx{UnsignedTx: utx}
 	if err := tx.Sign(Codec, signers); err != nil {
+		return nil, err
+	}
+	if err := tx.SignWithRSA(Codec, rsaPrivateKey); err != nil {
 		return nil, err
 	}
 	return tx, utx.SyntacticVerify(vm.ctx)

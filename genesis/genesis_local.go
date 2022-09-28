@@ -89,23 +89,23 @@ var (
 		],
 		"initialStakers": [
 			{
-				"nodeID": "NodeID-7Xhw2mDxuDS44j42TCB6U5579esbSt3Lg",
+				"nodeID": "NodeID-AuEZMvcizcF3tbGXTKn463ppPWo1Yvjod",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-MFrZFVCXPv5iCn6M9K6XduxGTYp891xXZ",
+				"nodeID": "NodeID-M5bHJNmSPWDucfUwaL44b3PjNRtAqPsib",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-NFBbbJ4qCmNaCzeW7sxErhvWqvEQMnYcN",
+				"nodeID": "NodeID-7j5oUJYqAPWwRrsdsN5W9V3CSoAWDbr19",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-GWPcbFJZFfZreETSoWjPimr846mXEKCtu",
+				"nodeID": "NodeID-JiRgENDnvAhL9SeejL43HhRfCfjdsX8KN",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			},
 			{
-				"nodeID": "NodeID-P7oB2McjBGgW2NXXWVYjV8JEDFoW9xDE5",
+				"nodeID": "NodeID-2UaFan8QDAN7GVLu8avxtHkMP9Hr17dZS",
 				"rewardAddress": "X-local18jma8ppw3nhx5r4ap8clazz0dps7rv5u00z96u"
 			}
 		],

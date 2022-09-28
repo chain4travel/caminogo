@@ -74,6 +74,8 @@ func init() {
 
 			c.RegisterType(&StakeableLockIn{}),
 			c.RegisterType(&StakeableLockOut{}),
+
+			c.RegisterType(&RSACredential{}),
 		)
 	}
 	errs.Add(

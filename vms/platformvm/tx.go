@@ -15,6 +15,9 @@
 package platformvm
 
 import (
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"time"
 
@@ -23,7 +26,7 @@ import (
 	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
-	"github.com/chain4travel/caminogo/utils/crypto"
+	cgo_crypto "github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
@@ -35,6 +38,10 @@ type TimedTx interface {
 	EndTime() time.Time
 	Weight() uint64
 	Bytes() []byte
+}
+
+type RSASignedTx interface {
+	CertBytes() []byte
 }
 
 // UnsignedTx is an unsigned transaction
@@ -108,7 +115,10 @@ type Tx struct {
 }
 
 // Sign this transaction with the provided signers
-func (tx *Tx) Sign(c codec.Manager, signers [][]*crypto.PrivateKeySECP256K1R) error {
+func (tx *Tx) Sign(
+	c codec.Manager,
+	signers [][]*cgo_crypto.PrivateKeySECP256K1R,
+) error {
 	unsignedBytes, err := c.Marshal(CodecVersion, &tx.UnsignedTx)
 	if err != nil {
 		return fmt.Errorf("couldn't marshal UnsignedTx: %w", err)
@@ -118,7 +128,7 @@ func (tx *Tx) Sign(c codec.Manager, signers [][]*crypto.PrivateKeySECP256K1R) er
 	hash := hashing.ComputeHash256(unsignedBytes)
 	for _, keys := range signers {
 		cred := &secp256k1fx.Credential{
-			Sigs: make([][crypto.SECP256K1RSigLen]byte, len(keys)),
+			Sigs: make([][cgo_crypto.SECP256K1RSigLen]byte, len(keys)),
 		}
 		for i, key := range keys {
 			sig, err := key.SignHash(hash) // Sign hash
@@ -128,6 +138,38 @@ func (tx *Tx) Sign(c codec.Manager, signers [][]*crypto.PrivateKeySECP256K1R) er
 			copy(cred.Sigs[i][:], sig)
 		}
 		tx.Creds = append(tx.Creds, cred) // Attach credential
+	}
+
+	signedBytes, err := c.Marshal(CodecVersion, tx)
+	if err != nil {
+		return fmt.Errorf("couldn't marshal ProposalTx: %w", err)
+	}
+	tx.Initialize(unsignedBytes, signedBytes)
+	return nil
+}
+
+// Sign this transaction with the provided rsa signer
+// This method should be called after Sign, so rsa credential will be the last
+func (tx *Tx) SignWithRSA(
+	c codec.Manager,
+	rsaSigner *rsa.PrivateKey,
+) error {
+	unsignedBytes, err := c.Marshal(CodecVersion, &tx.UnsignedTx)
+	if err != nil {
+		return fmt.Errorf("couldn't marshal UnsignedTx: %w", err)
+	}
+
+	if rsaSigner != nil {
+		hash := hashing.ComputeHash256(unsignedBytes)
+
+		rsaSignature, err := rsaSigner.Sign(rand.Reader, hash, crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("problem generating credential: %w", err)
+		}
+
+		cred := &RSACredential{*(*[rsaSignatureLen]byte)(rsaSignature)}
+
+		tx.Creds = append(tx.Creds, cred)
 	}
 
 	signedBytes, err := c.Marshal(CodecVersion, tx)

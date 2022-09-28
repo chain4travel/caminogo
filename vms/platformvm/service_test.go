@@ -19,15 +19,15 @@ package platformvm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/chain4travel/caminogo/staking"
 
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/api/keystore"
@@ -43,6 +43,8 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
 	cjson "github.com/chain4travel/caminogo/utils/json"
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"
@@ -102,8 +104,50 @@ func defaultAddress(t *testing.T, service *Service) {
 	}
 }
 
+func getAddValidatorArgs(testNodeIndex int, networkID uint32, key, cert string) (AddValidatorArgs, error) {
+	hrp := constants.GetHRP(networkID)
+	rewardAddress, err := formatting.FormatAddress("P", hrp, keys[testNodeIndex].PublicKey().Address().Bytes())
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"rewardAddress":"` + rewardAddress + `",
+					"nodeID":"NodeID-` + nodeIDs[testNodeIndex].String() + `",
+					"nodePrivateKey":"` + key + `",
+					"nodeCertificate":"` + cert + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddValidatorArgs{}
+	err = json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+	return args, nil
+}
+
+func getAddSubnetValidatorArgs(testNodeIndex int, key, cert string) (AddSubnetValidatorArgs, error) {
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"subnetID":"` + ids.GenerateTestID().String() + `",
+					"nodeID":"NodeID-` + nodeIDs[testNodeIndex].String() + `",
+					"nodePrivateKey":"` + key + `",
+					"nodeCertificate":"` + cert + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddSubnetValidatorArgs{}
+	err := json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddSubnetValidatorArgs{}, err
+	}
+	return args, nil
+}
+
 func TestAddValidator(t *testing.T) {
-	expectedJSONString := `{"username":"","password":"","from":null,"txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":""}`
+	expectedJSONString := `{"username":"","password":"","from":null,"txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":"","nodePrivateKey":"","nodeCertificate":""}`
 	args := AddValidatorArgs{}
 	bytes, err := json.Marshal(&args)
 	if err != nil {
@@ -113,6 +157,126 @@ func TestAddValidator(t *testing.T) {
 	if jsonString != expectedJSONString {
 		t.Fatalf("Expected: %s\nResult: %s", expectedJSONString, jsonString)
 	}
+}
+
+func TestAddValidatorWrongPrivateKey(t *testing.T) {
+	keyString := "WrongPrivateKey"
+
+	certBytes, _, err := staking.ReadRSAKeyPairFiles(testStakingPath+"staker1.key", testStakingPath+"staker1.crt")
+	assert.NoError(t, err)
+
+	certString := staking.FormatPKCS8PemFile(string(certBytes))
+
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxID{}
+	args, err := getAddValidatorArgs(0, service.vm.ctx.NetworkID, keyString, certString)
+	assert.NoError(t, err)
+	err = service.AddValidator(nil, &args, &reply)
+	switch errors.Unwrap(err) {
+	case
+		staking.ErrPrivateKeyNotPKCS8,
+		staking.ErrWrongPrivateKeyType,
+		staking.ErrWrongCertificateType,
+		staking.ErrParsingPrivateKey:
+		return
+	}
+	t.Fatal("should have errored with privateKey parsing error")
+}
+
+func TestAddValidatorKeyPairMismatch(t *testing.T) {
+	certBytes, keyBytes, err := staking.ReadRSAKeyPairFiles(testStakingPath+"staker1.key", testStakingPath+"staker2.crt")
+	assert.NoError(t, err)
+
+	certString := staking.FormatPKCS8PemFile(string(certBytes))
+	keyString := staking.FormatPKCS8PemFile(string(keyBytes))
+
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxID{}
+	args, err := getAddValidatorArgs(0, service.vm.ctx.NetworkID, keyString, certString)
+	assert.NoError(t, err)
+	err = service.AddValidator(nil, &args, &reply)
+	if errors.Unwrap(err) == staking.ErrParsingKeyPair {
+		return
+	}
+	t.Fatal("should have errored with key pair mismatch error")
+}
+
+func TestAddSubnetValidatorWrongPrivateKey(t *testing.T) {
+	keyString := "WrongPrivateKey"
+
+	certBytes, _, err := staking.ReadRSAKeyPairFiles(testStakingPath+"staker1.key", testStakingPath+"staker1.crt")
+	assert.NoError(t, err)
+
+	certString := staking.FormatPKCS8PemFile(string(certBytes))
+
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxID{}
+	args, err := getAddSubnetValidatorArgs(0, keyString, certString)
+	assert.NoError(t, err)
+	err = service.AddSubnetValidator(nil, &args, &reply)
+	switch errors.Unwrap(err) {
+	case
+		staking.ErrPrivateKeyNotPKCS8,
+		staking.ErrWrongPrivateKeyType,
+		staking.ErrWrongCertificateType,
+		staking.ErrParsingPrivateKey:
+		return
+	}
+	t.Fatal("should have errored with privateKey parsing error")
+}
+
+func TestAddSubnetValidatorKeyPairMismatch(t *testing.T) {
+	certBytes, keyBytes, err := staking.ReadRSAKeyPairFiles(testStakingPath+"staker1.key", testStakingPath+"staker2.crt")
+	assert.NoError(t, err)
+
+	certString := staking.FormatPKCS8PemFile(string(certBytes))
+	keyString := staking.FormatPKCS8PemFile(string(keyBytes))
+
+	service := defaultService(t)
+	defaultAddress(t, service)
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxID{}
+	args, err := getAddSubnetValidatorArgs(0, keyString, certString)
+	assert.NoError(t, err)
+	err = service.AddSubnetValidator(nil, &args, &reply)
+	if errors.Unwrap(err) == staking.ErrParsingKeyPair {
+		return
+	}
+	t.Fatal("should have errored with key pair mismatch error")
 }
 
 func TestCreateBlockchainArgsParsing(t *testing.T) {
@@ -323,6 +487,8 @@ func TestGetTx(t *testing.T) {
 		createTx    func(service *Service) (*Tx, error)
 	}
 
+	rsaPrivateKey, certBytes, nodeID := loadNodeKeyPair(testStakingPath, 1)
+
 	tests := []test{
 		{
 			"standard block",
@@ -343,9 +509,11 @@ func TestGetTx(t *testing.T) {
 				return service.vm.newAddValidatorTx( // Test GetTx works for proposal blocks
 					uint64(service.vm.clock.Time().Add(syncBound).Unix()),
 					uint64(service.vm.clock.Time().Add(syncBound).Add(defaultMinStakingDuration).Unix()),
-					ids.GenerateTestShortID(),
+					nodeID,
 					ids.GenerateTestShortID(),
 					[]*crypto.PrivateKeySECP256K1R{keys[0]},
+					rsaPrivateKey,
+					certBytes,
 				)
 			},
 		},
@@ -538,7 +706,7 @@ func TestGetStake(t *testing.T) {
 
 	// Make sure this works for pending stakers
 	// Add a pending staker
-	pendingStakerNodeID := ids.GenerateTestShortID()
+	rsaPrivateKey, certBytes, pendingStakerNodeID := loadNodeKeyPair(testStakingPath, 1)
 	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
 	tx, err := service.vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()),
@@ -546,6 +714,8 @@ func TestGetStake(t *testing.T) {
 		pendingStakerNodeID,
 		ids.GenerateTestShortID(),
 		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		rsaPrivateKey,
+		certBytes,
 	)
 	assert.NoError(err)
 

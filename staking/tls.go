@@ -21,13 +21,23 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/chain4travel/caminogo/utils/perms"
+)
+
+var (
+	ErrPrivateKeyNotPKCS8   = errors.New("node accepts only PKCS8 private keys")
+	ErrParsingKeyPair       = errors.New("failed parsing key pair")
+	ErrParsingPrivateKey    = errors.New("failed parsing private key")
+	ErrWrongPrivateKeyType  = errors.New("wrong private key type")
+	ErrWrongCertificateType = errors.New("wrong certificate type")
 )
 
 // InitNodeStakingKeyPair generates a self-signed TLS key/cert pair to use in
@@ -85,9 +95,19 @@ func InitNodeStakingKeyPair(keyPath, certPath string) error {
 }
 
 func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) {
+	// Forcing node to accept only PKCS8 private key
+	keyDERBlock, _ := pem.Decode(keyBytes)
+	if keyDERBlock == nil {
+		return nil, ErrParsingPrivateKey
+	}
+	_, err := x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
+	if err != nil {
+		return nil, ErrPrivateKeyNotPKCS8
+	}
+
 	cert, err := tls.X509KeyPair(certBytes, keyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating cert: %w", err)
+		return nil, ErrParsingKeyPair
 	}
 
 	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
@@ -95,12 +115,34 @@ func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) 
 }
 
 func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	certBytes, keyBytes, err := ReadRSAKeyPairFiles(keyPath, certPath)
 	if err != nil {
 		return nil, err
 	}
-	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
-	return &cert, err
+
+	cert, err := LoadTLSCertFromBytes(keyBytes, certBytes)
+	return cert, err
+}
+
+func ReadRSAKeyPairFiles(keyPath, certPath string) ([]byte, []byte, error) {
+	certBytes, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	keyBytes, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return certBytes, keyBytes, nil
+}
+
+func GetRSAKeyPairFromTLSCert(cert *tls.Certificate) (*x509.Certificate, *rsa.PrivateKey, error) {
+	key, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, nil, ErrWrongPrivateKeyType
+	}
+
+	return cert.Leaf, key, nil
 }
 
 func NewTLSCert() (*tls.Certificate, error) {
@@ -126,13 +168,7 @@ func NewCertAndKeyBytes() ([]byte, []byte, error) {
 	}
 
 	// Create self-signed staking cert
-	certTemplate := &x509.Certificate{
-		SerialNumber:          big.NewInt(0),
-		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
-		NotAfter:              time.Now().AddDate(100, 0, 0),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
-		BasicConstraintsValid: true,
-	}
+	certTemplate := NewCertTemplate()
 	certBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &key.PublicKey, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't create certificate: %w", err)
@@ -146,10 +182,26 @@ func NewCertAndKeyBytes() ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't marshal private key: %w", err)
 	}
-
 	var keyBuff bytes.Buffer
 	if err := pem.Encode(&keyBuff, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
 		return nil, nil, fmt.Errorf("couldn't write private key: %w", err)
 	}
 	return certBuff.Bytes(), keyBuff.Bytes(), nil
+}
+
+func NewCertTemplate() *x509.Certificate {
+	return &x509.Certificate{
+		SerialNumber:          big.NewInt(0),
+		NotBefore:             time.Date(2000, time.January, 0, 0, 0, 0, 0, time.UTC),
+		NotAfter:              time.Now().AddDate(100, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
+		BasicConstraintsValid: true,
+	}
+}
+
+func FormatPKCS8PemFile(pemFile string) string {
+	pemOneLine := strings.ReplaceAll(pemFile, "\n", "")
+	pemFormatted := pemOneLine[:27] + `\n` + pemOneLine[27:]
+	pemFormatted = pemFormatted[:len(pemFormatted)-25] + `\n` + pemFormatted[len(pemFormatted)-25:]
+	return pemFormatted
 }

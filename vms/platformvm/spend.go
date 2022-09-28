@@ -373,7 +373,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 ) error {
 	if len(ins) != len(creds) {
 		return fmt.Errorf(
-			"there are %d inputs but %d credentials. Should be same number",
+			"there are %d inputs, but %d credentials. Should be same number",
 			len(ins),
 			len(creds),
 		)
