@@ -15,9 +15,12 @@
 package platformvm
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -36,11 +39,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	key, err := vm.factory.NewPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	nodeID := key.PublicKey().Address()
+	nodeKey, nodeID := generateNodeKeyAndID()
 
 	// Case: tx is nil
 	var unsignedTx *UnsignedAddValidatorTx
@@ -54,7 +53,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +71,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +99,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +121,7 @@ func TestAddValidatorTxSyntacticVerify(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if err := tx.UnsignedTx.(*UnsignedAddValidatorTx).SyntacticVerify(vm.ctx); err != nil {
@@ -141,11 +140,34 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	key, err := vm.factory.NewPrivateKey()
-	if err != nil {
+	nodeKey, nodeID := generateNodeKeyAndID()
+
+	// Case: Valid
+	if tx, err := vm.newAddValidatorTx(
+		uint64(defaultValidateStartTime.Unix())+1,
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		nodeID,
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
 		t.Fatal(err)
 	}
-	nodeID := key.PublicKey().Address()
+
+	// Case: Failed node signature verification
+	// In this case the Tx will not even be signed from the node's key
+	if tx, err := vm.newAddValidatorTx(
+		uint64(defaultValidateStartTime.Unix())+1,
+		uint64(defaultValidateEndTime.Unix()),
+		nodeID,
+		nodeID,
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKeys[1]},
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); !errors.Is(err, errNodeSigVerificationFailed) {
+		t.Fatalf("should have errored with: '%s' error", errNodeSigVerificationFailed)
+	}
 
 	// Case: Validator's start time too early
 	if tx, err := vm.newAddValidatorTx(
@@ -153,7 +175,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -166,7 +188,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateStartTime.Add(maxFutureStartTime).Add(defaultMinStakingDuration).Unix()+1),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -179,7 +201,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID, // node ID
 		nodeID, // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -187,17 +209,14 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	}
 
 	// Case: Validator in pending validator set of primary network
-	key2, err := vm.factory.NewPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	nodeKey1, nodeID1 := generateNodeKeyAndID()
 	startTime := defaultGenesisTime.Add(1 * time.Second)
 	tx, err := vm.newAddValidatorTx(
 		uint64(startTime.Unix()),                                // start time
 		uint64(startTime.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,                     // node ID
-		key2.PublicKey().Address(), // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		nodeID,  // node ID
+		nodeID1, // reward address
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey1},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +241,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		uint64(defaultValidateEndTime.Unix()),
 		nodeID,
 		nodeID,
-		[]*crypto.PrivateKeySECP256K1R{keys[0]},
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -238,4 +257,74 @@ func TestAddValidatorTxExecute(t *testing.T) {
 	if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
 		t.Fatal("should have failed because tx fee paying key has no funds")
 	}
+}
+
+func TestAddValidatorTxManuallyWrongSignature(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+	}
+	nodeKey, _ := generateNodeKeyAndID()
+	_, nodeID := generateNodeKeyAndID()
+	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}, {nodeKey}}
+
+	utxo := &avax.UTXO{
+		UTXOID: avax.UTXOID{TxID: ids.ID{byte(1)}},
+		Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+		Out: &secp256k1fx.TransferOutput{
+			Amt:          defaultValidatorStake,
+			OutputOwners: outputOwners,
+		},
+	}
+	vm.internalState.AddUTXO(utxo)
+	err := vm.internalState.Commit()
+	assert.NoError(t, err)
+
+	utx := &UnsignedAddValidatorTx{
+		BaseTx: BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins: []*avax.TransferableInput{{
+				UTXOID: utxo.UTXOID,
+				Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+				In: &secp256k1fx.TransferInput{
+					Amt:   defaultValidatorStake,
+					Input: secp256k1fx.Input{SigIndices: []uint32{0}},
+				},
+			}},
+			Outs: []*avax.TransferableOutput{},
+		}},
+		Validator: Validator{
+			NodeID: nodeID,
+			Start:  uint64(defaultGenesisTime.Add(1 * time.Second).Unix()),
+			End:    uint64(defaultGenesisTime.Add(1*time.Second + defaultMinStakingDuration).Unix()),
+			Wght:   defaultValidatorStake,
+		},
+		Stake: []*avax.TransferableOutput{{
+			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+			Out: &secp256k1fx.TransferOutput{
+				Amt:          defaultValidatorStake,
+				OutputOwners: outputOwners,
+			},
+		}},
+		RewardsOwner: &outputOwners,
+	}
+	tx := &Tx{UnsignedTx: utx}
+
+	if err := tx.Sign(Codec, signers); err != nil {
+		t.Fatal(err)
+	}
+
+	// Testing execute
+	_, _, err = tx.UnsignedTx.(*UnsignedAddValidatorTx).Execute(vm, vm.internalState, tx)
+	assert.Equal(t, errNodeSigVerificationFailed, err)
 }

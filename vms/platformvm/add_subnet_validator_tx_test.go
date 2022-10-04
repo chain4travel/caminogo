@@ -15,8 +15,12 @@
 package platformvm
 
 import (
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/chain4travel/caminogo/vms/components/avax"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
@@ -35,8 +39,6 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	nodeID := keys[0].PublicKey().Address()
-
 	// Case: tx is nil
 	var unsignedTx *UnsignedAddSubnetValidatorTx
 	if err := unsignedTx.SyntacticVerify(vm.ctx); err == nil {
@@ -48,9 +50,9 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -67,9 +69,9 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -86,9 +88,9 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		1,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -105,9 +107,9 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix())-1,
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -124,9 +126,9 @@ func TestAddSubnetValidatorTxSyntacticVerify(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	); err != nil {
 		t.Fatal(err)
 	} else if err := tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).SyntacticVerify(vm.ctx); err != nil {
@@ -144,7 +146,20 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	nodeID := keys[0].PublicKey().Address()
+	// Case: Failed node signature verification
+	// In this case the Tx will not even be signed from the node's key
+	if tx, err := vm.newAddSubnetValidatorTx(
+		defaultWeight,
+		uint64(defaultValidateStartTime.Unix())+1,
+		uint64(defaultValidateEndTime.Unix()),
+		nodeIDs[0],
+		testSubnet1.ID(),
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[1]},
+	); err != nil {
+		t.Fatal(err)
+	} else if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); !errors.Is(err, errNodeSigVerificationFailed) {
+		t.Fatalf("should have errored with: '%s' error", errNodeSigVerificationFailed)
+	}
 
 	// Case: Proposed validator currently validating primary network
 	// but stops validating subnet after stops validating primary network
@@ -153,9 +168,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix())+1,
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -170,33 +185,27 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()+1),
 		uint64(defaultValidateEndTime.Unix()),
-		nodeID,
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
 		t.Fatal(err)
 	}
 
-	// Add a validator to pending validator set of primary network
-	key, err := vm.factory.NewPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	pendingDSValidatorID := key.PublicKey().Address()
+	nodeKey, nodeID := generateNodeKeyAndID()
 
 	// starts validating primary network 10 seconds after genesis
 	DSStartTime := defaultGenesisTime.Add(10 * time.Second)
 	DSEndTime := DSStartTime.Add(5 * defaultMinStakingDuration)
 
 	addDSTx, err := vm.newAddValidatorTx(
-		uint64(DSStartTime.Unix()),              // start time
-		uint64(DSEndTime.Unix()),                // end time
-		pendingDSValidatorID,                    // node ID
-		nodeID,                                  // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
-
+		uint64(DSStartTime.Unix()), // start time
+		uint64(DSEndTime.Unix()),   // end time
+		nodeID,                     // node ID
+		nodeIDs[0],                 // reward address
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey}, // key
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -207,9 +216,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(DSStartTime.Unix()), // start validating subnet before primary network
 		uint64(DSEndTime.Unix()),
-		pendingDSValidatorID,
+		nodeID,
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -233,9 +242,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(DSStartTime.Unix())-1, // start validating subnet before primary network
 		uint64(DSEndTime.Unix()),
-		pendingDSValidatorID,
+		nodeID,
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -249,9 +258,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(DSStartTime.Unix()),
 		uint64(DSEndTime.Unix())+1, // stop validating subnet after stopping validating primary network
-		pendingDSValidatorID,
+		nodeID,
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err = tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -265,9 +274,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,
 		uint64(DSStartTime.Unix()), // same start time as for primary network
 		uint64(DSEndTime.Unix()),   // same end time as for primary network
-		pendingDSValidatorID,
+		nodeID,
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKey},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err != nil {
@@ -283,9 +292,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,               // weight
 		uint64(newTimestamp.Unix()), // start time
 		uint64(newTimestamp.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,           // node ID
+		nodeIDs[0],       // node ID
 		testSubnet1.ID(), // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	); err != nil {
 		t.Fatal(err)
 	} else if _, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx); err == nil {
@@ -301,9 +310,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,                           // weight
 		uint64(defaultValidateStartTime.Unix()), // start time
 		uint64(defaultValidateEndTime.Unix()),   // end time
-		nodeID,                                  // node ID
+		nodeIDs[0],                              // node ID
 		testSubnet1.ID(),                        // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -318,14 +327,14 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Node with ID nodeIDKey.PublicKey().Address() now validating subnet with ID testSubnet1.ID
+	// Node with ID nodeIDs[0] now validating subnet with ID testSubnet1.ID
 	duplicateSubnetTx, err := vm.newAddSubnetValidatorTx(
 		defaultWeight,                           // weight
 		uint64(defaultValidateStartTime.Unix()), // start time
 		uint64(defaultValidateEndTime.Unix()),   // end time
-		nodeID,                                  // node ID
+		nodeIDs[0],                              // node ID
 		testSubnet1.ID(),                        // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -348,9 +357,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,                     // weight
 		uint64(defaultGenesisTime.Unix()), // start time
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())+1, // end time
-		nodeID,           // node ID
+		nodeIDs[0],       // node ID
 		testSubnet1.ID(), // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], testSubnet1ControlKeys[2]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], testSubnet1ControlKeys[2], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -364,9 +373,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,                     // weight
 		uint64(defaultGenesisTime.Unix()), // start time
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,           // node ID
+		nodeIDs[0],       // node ID
 		testSubnet1.ID(), // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[2]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[2], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -384,9 +393,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,                     // weight
 		uint64(defaultGenesisTime.Unix()), // start time
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()), // end time
-		nodeID,           // node ID
+		nodeIDs[0],       // node ID
 		testSubnet1.ID(), // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], keys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], keys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -407,9 +416,9 @@ func TestAddSubnetValidatorTxExecute(t *testing.T) {
 		defaultWeight,                       // weight
 		uint64(defaultGenesisTime.Unix())+1, // start time
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())+1, // end time
-		nodeID,           // node ID
+		nodeIDs[0],       // node ID
 		testSubnet1.ID(), // subnet ID
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -447,9 +456,9 @@ func TestAddSubnetValidatorMarshal(t *testing.T) {
 		defaultWeight,
 		uint64(defaultValidateStartTime.Unix()),
 		uint64(defaultValidateEndTime.Unix()),
-		keys[0].PublicKey().Address(),
+		nodeIDs[0],
 		testSubnet1.ID(),
-		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]},
+		[]*crypto.PrivateKeySECP256K1R{testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0]},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -470,4 +479,69 @@ func TestAddSubnetValidatorMarshal(t *testing.T) {
 	if err := unmarshaledTx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).SyntacticVerify(vm.ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestAddSubnetValidatorTxManuallyWrongSignature(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+	}
+
+	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}, {testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]}, {nodeKeys[0]}}
+
+	utxo := &avax.UTXO{
+		UTXOID: avax.UTXOID{TxID: ids.ID{byte(1)}},
+		Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+		Out: &secp256k1fx.TransferOutput{
+			Amt:          defaultValidatorStake,
+			OutputOwners: outputOwners,
+		},
+	}
+	vm.internalState.AddUTXO(utxo)
+	err := vm.internalState.Commit()
+	assert.NoError(t, err)
+
+	utx := &UnsignedAddSubnetValidatorTx{
+		BaseTx: BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins: []*avax.TransferableInput{{
+				UTXOID: utxo.UTXOID,
+				Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+				In: &secp256k1fx.TransferInput{
+					Amt:   defaultValidatorStake,
+					Input: secp256k1fx.Input{SigIndices: []uint32{0}},
+				},
+			}},
+			Outs: []*avax.TransferableOutput{},
+		}},
+		Validator: SubnetValidator{
+			Validator: Validator{
+				NodeID: nodeIDs[1],
+				Start:  uint64(defaultValidateStartTime.Unix() + 1),
+				End:    uint64(defaultValidateEndTime.Unix() - 1),
+				Wght:   defaultValidatorStake,
+			},
+			Subnet: testSubnet1.ID(),
+		},
+		SubnetAuth: &secp256k1fx.Input{SigIndices: []uint32{0, 1}},
+	}
+	tx := &Tx{UnsignedTx: utx}
+
+	if err := tx.Sign(Codec, signers); err != nil {
+		t.Fatal(err)
+	}
+
+	// Testing execute
+	_, _, err = tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).Execute(vm, vm.internalState, tx)
+	assert.Equal(t, errNodeSigVerificationFailed, err)
 }

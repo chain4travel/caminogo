@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+
 	"github.com/chain4travel/caminogo/database"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
@@ -193,7 +195,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 			)
 		}
 
-		baseTxCredsLen := len(stx.Creds) - 1
+		baseTxCredsLen := len(stx.Creds) - 2
 		baseTxCreds := stx.Creds[:baseTxCredsLen]
 		subnetCred := stx.Creds[baseTxCredsLen]
 
@@ -224,6 +226,14 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		// Verify the flowcheck
 		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, baseTxCreds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, err
+		}
+
+		// Verify that nodeId signature is present
+		if err := vm.fx.VerifyPermission(tx,
+			&secp256k1fx.Input{SigIndices: []uint32{0}},
+			stx.Creds[len(stx.Creds)-1],
+			&secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{tx.Validator.NodeID}}); err != nil {
+			return nil, nil, errNodeSigVerificationFailed
 		}
 
 		// Make sure the tx doesn't start too far in the future. This is done
@@ -280,6 +290,14 @@ func (vm *VM) newAddSubnetValidatorTx(
 		return nil, fmt.Errorf("couldn't authorize tx's subnet restrictions: %w", err)
 	}
 	signers = append(signers, subnetSigners)
+
+	// Add nodeId signer at the end of input signers
+	kc := secp256k1fx.NewKeychain(keys...)
+	nodeIDSigner := make([]*crypto.PrivateKeySECP256K1R, 0, 1)
+	if key, found := kc.Get(nodeID); found {
+		nodeIDSigner = append(nodeIDSigner, key)
+	}
+	signers = append(signers, nodeIDSigner)
 
 	// Create the tx
 	utx := &UnsignedAddSubnetValidatorTx{

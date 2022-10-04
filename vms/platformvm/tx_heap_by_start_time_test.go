@@ -36,9 +36,9 @@ func TestTxHeapByStartTime(t *testing.T) {
 	validator0, err := vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()+1),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+1), // endTime
-		ids.ShortID{},                           // node ID
-		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
+		nodeIDs[0],                       // node ID
+		ids.ShortID{1, 2, 3, 4, 5, 6, 7}, // reward address
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKeys[0]}, // key
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -48,9 +48,9 @@ func TestTxHeapByStartTime(t *testing.T) {
 	validator1, err := vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()+2),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+2), // endTime
-		ids.ShortID{1},                          // node ID
-		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
+		nodeIDs[1],                       // node ID
+		ids.ShortID{1, 2, 3, 4, 5, 6, 7}, // reward address
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKeys[1]}, // key
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -60,9 +60,9 @@ func TestTxHeapByStartTime(t *testing.T) {
 	validator2, err := vm.newAddValidatorTx(
 		uint64(defaultGenesisTime.Unix()+3),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+3), // endTime
-		ids.ShortID{},                           // node ID
-		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
-		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
+		nodeIDs[2],                       // node ID
+		ids.ShortID{1, 2, 3, 4, 5, 6, 7}, // reward address
+		[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKeys[2]}, // key
 	)
 	if err != nil {
 		t.Fatal(err)

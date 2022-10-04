@@ -49,9 +49,15 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
 	// Case 1: Chain timestamp is wrong
-	if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
+	stx, err := vm.newRewardValidatorTx(toRemove.ID())
+	if err != nil {
 		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
+	}
+	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
 		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
 	}
 
@@ -59,9 +65,15 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
 	// Case 2: Wrong validator
-	if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
+	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	if err != nil {
 		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
+	}
+	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
 		t.Fatalf("should have failed because validator ID is wrong")
 	}
 
@@ -128,9 +140,15 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
 	// Case 1: Chain timestamp is wrong
-	if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
+	stx, err := vm.newRewardValidatorTx(toRemove.ID())
+	if err != nil {
 		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
+	}
+	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
 		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
 	}
 
@@ -138,9 +156,15 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
 	// Case 2: Wrong validator
-	if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
+	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	if err != nil {
 		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
+	}
+	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	if !ok {
+		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
+	}
+	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
 		t.Fatalf("should have failed because validator ID is wrong")
 	}
 
@@ -382,7 +406,7 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 	}
 
 	currentStakers := secondVM.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(keys[0].PublicKey().Address())
+	_, err = currentStakers.GetValidator(nodeIDs[4])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -514,7 +538,7 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(keys[0].PublicKey().Address())
+	_, err = currentStakers.GetValidator(nodeIDs[4])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}

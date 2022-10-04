@@ -19,8 +19,10 @@ package platformvm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,7 +87,7 @@ func defaultService(t *testing.T) *Service {
 }
 
 // Give user [testUsername] control of [testPrivateKey] and keys[0] (which is funded)
-func defaultAddress(t *testing.T, service *Service) {
+func defaultAddress(t *testing.T, service *Service, keys ...*crypto.PrivateKeySECP256K1R) {
 	service.vm.ctx.Lock.Lock()
 	defer service.vm.ctx.Lock.Unlock()
 	user, err := vmkeystore.NewUserFromKeystore(service.vm.ctx.Keystore, testUsername, testPassword)
@@ -97,9 +99,50 @@ func defaultAddress(t *testing.T, service *Service) {
 		t.Fatal(err)
 	}
 	privKey := pk.(*crypto.PrivateKeySECP256K1R)
-	if err := user.PutKeys(privKey, keys[0]); err != nil {
-		t.Fatal(err)
+	for _, key := range keys {
+		if err := user.PutKeys(privKey, key); err != nil {
+			t.Fatal(err)
+		}
 	}
+}
+
+func getAddValidatorArgs(nodeID ids.ShortID, networkID uint32) (AddValidatorArgs, error) {
+	hrp := constants.GetHRP(networkID)
+	rewardAddress, err := formatting.FormatAddress("P", hrp, keys[0].PublicKey().Address().Bytes())
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"rewardAddress":"` + rewardAddress + `",
+					"nodeID":"NodeID-` + nodeID.String() + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddValidatorArgs{}
+	err = json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddValidatorArgs{}, err
+	}
+	return args, nil
+}
+
+func getAddSubnetValidatorArgs(nodeID ids.ShortID) (AddSubnetValidatorArgs, error) {
+	jsonString := `{"username":"` + testUsername + `",
+					"password":"` + testPassword + `",
+					"subnetID":"` + testSubnet1.ID().String() + `",
+					"nodeID":"NodeID-` + nodeID.String() + `",
+					"weight":"` + strconv.FormatUint(defaultWeight, 10) + `",
+					"startTime":"` + strconv.FormatUint(uint64(defaultValidateStartTime.Unix()+30), 10) + `",
+					"endTime":"` + strconv.FormatUint(uint64(defaultValidateEndTime.Unix()), 10) + `"}`
+
+	args := AddSubnetValidatorArgs{}
+	err := json.Unmarshal([]byte(jsonString), &args)
+	if err != nil {
+		return AddSubnetValidatorArgs{}, err
+	}
+	return args, nil
 }
 
 func TestAddValidator(t *testing.T) {
@@ -113,6 +156,49 @@ func TestAddValidator(t *testing.T) {
 	if jsonString != expectedJSONString {
 		t.Fatalf("Expected: %s\nResult: %s", expectedJSONString, jsonString)
 	}
+}
+
+func TestAddValidatorNodeSigFailed(t *testing.T) {
+	service := defaultService(t)
+	defaultAddress(t, service, keys[0], nodeKeys[0])
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	_, nodeID := generateNodeKeyAndID()
+	reply := api.JSONTxID{}
+	args, err := getAddValidatorArgs(nodeID, service.vm.ctx.NetworkID)
+	assert.NoError(t, err)
+	err = service.AddValidator(nil, &args, &reply)
+	if errors.Is(err, errNodeSigVerificationFailed) {
+		return
+	}
+	t.Fatal("should have errored with: 'node signature verification failed' error")
+}
+
+func TestAddSubnetValidatorNodeSigFailed(t *testing.T) {
+	service := defaultService(t)
+	defaultAddress(t, service, testSubnet1ControlKeys[0], testSubnet1ControlKeys[1], nodeKeys[0])
+	service.vm.ctx.Lock.Lock()
+	defer func() {
+		if err := service.vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		service.vm.ctx.Lock.Unlock()
+	}()
+
+	reply := api.JSONTxID{}
+	args, err := getAddSubnetValidatorArgs(nodeIDs[1])
+	assert.NoError(t, err)
+	err = service.AddSubnetValidator(nil, &args, &reply)
+	if errors.Is(err, errNodeSigVerificationFailed) {
+		return
+	}
+	t.Fatal("should have errored with: 'node signature verification failed' error")
 }
 
 func TestCreateBlockchainArgsParsing(t *testing.T) {
@@ -136,7 +222,7 @@ func TestExportKey(t *testing.T) {
 	}
 
 	service := defaultService(t)
-	defaultAddress(t, service)
+	defaultAddress(t, service, keys[0])
 	service.vm.ctx.Lock.Lock()
 	defer func() {
 		if err := service.vm.Shutdown(); err != nil {
@@ -192,7 +278,7 @@ func TestImportKey(t *testing.T) {
 // Test issuing a tx and accepted
 func TestGetTxStatus(t *testing.T) {
 	service := defaultService(t)
-	defaultAddress(t, service)
+	defaultAddress(t, service, keys[0])
 	service.vm.ctx.Lock.Lock()
 	defer func() {
 		if err := service.vm.Shutdown(); err != nil {
@@ -323,6 +409,8 @@ func TestGetTx(t *testing.T) {
 		createTx    func(service *Service) (*Tx, error)
 	}
 
+	nodeKey, nodeID := generateNodeKeyAndID()
+
 	tests := []test{
 		{
 			"standard block",
@@ -343,9 +431,9 @@ func TestGetTx(t *testing.T) {
 				return service.vm.newAddValidatorTx( // Test GetTx works for proposal blocks
 					uint64(service.vm.clock.Time().Add(syncBound).Unix()),
 					uint64(service.vm.clock.Time().Add(syncBound).Add(defaultMinStakingDuration).Unix()),
-					ids.GenerateTestShortID(),
-					ids.GenerateTestShortID(),
-					[]*crypto.PrivateKeySECP256K1R{keys[0]},
+					nodeID,
+					nodeID,
+					[]*crypto.PrivateKeySECP256K1R{keys[0], nodeKey},
 				)
 			},
 		},
@@ -365,7 +453,7 @@ func TestGetTx(t *testing.T) {
 	for _, test := range tests {
 		for _, encoding := range encodings {
 			service := defaultService(t)
-			defaultAddress(t, service)
+			defaultAddress(t, service, keys[0])
 			service.vm.ctx.Lock.Lock()
 
 			tx, err := test.createTx(service)
@@ -428,7 +516,7 @@ func TestGetTx(t *testing.T) {
 // Test method GetBalance
 func TestGetBalance(t *testing.T) {
 	service := defaultService(t)
-	defaultAddress(t, service)
+	defaultAddress(t, service, keys[0])
 	service.vm.ctx.Lock.Lock()
 	defer func() {
 		if err := service.vm.Shutdown(); err != nil {
@@ -468,7 +556,7 @@ func TestGetBalance(t *testing.T) {
 func TestGetStake(t *testing.T) {
 	assert := assert.New(t)
 	service := defaultService(t)
-	defaultAddress(t, service)
+	defaultAddress(t, service, keys[0])
 	service.vm.ctx.Lock.Lock()
 	defer func() {
 		err := service.vm.Shutdown()
@@ -578,7 +666,7 @@ func TestGetStake(t *testing.T) {
 // Test method GetCurrentValidators
 func TestGetCurrentValidators(t *testing.T) {
 	service := defaultService(t)
-	defaultAddress(t, service)
+	defaultAddress(t, service, keys[0])
 	service.vm.ctx.Lock.Lock()
 	defer func() {
 		if err := service.vm.Shutdown(); err != nil {

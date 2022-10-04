@@ -15,7 +15,7 @@ func TestValidatorBoundedBy(t *testing.T) {
 	aStartTime := uint64(0)
 	aEndTIme := uint64(1)
 	a := &Validator{
-		NodeID: keys[0].PublicKey().Address(),
+		NodeID: nodeIDs[0],
 		Start:  aStartTime,
 		End:    aEndTIme,
 		Wght:   defaultWeight,
@@ -24,7 +24,7 @@ func TestValidatorBoundedBy(t *testing.T) {
 	bStartTime := uint64(2)
 	bEndTime := uint64(3)
 	b := &Validator{
-		NodeID: keys[0].PublicKey().Address(),
+		NodeID: nodeIDs[0],
 		Start:  bStartTime,
 		End:    bEndTime,
 		Wght:   defaultWeight,

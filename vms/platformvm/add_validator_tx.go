@@ -24,20 +24,20 @@ import (
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/crypto"
+	"github.com/chain4travel/caminogo/utils/math"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
-
-	safemath "github.com/chain4travel/caminogo/utils/math"
 )
 
 var (
-	errNilTx           = errors.New("tx is nil")
-	errWeightTooSmall  = errors.New("weight of this validator is too low")
-	errStakeTooShort   = errors.New("staking period is too short")
-	errStakeTooLong    = errors.New("staking period is too long")
-	errWrongBondAmount = errors.New("wrong bond amount for this validator")
-	errFutureStakeTime = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
+	errNilTx                     = errors.New("tx is nil")
+	errWeightTooSmall            = errors.New("weight of this validator is too low")
+	errStakeTooShort             = errors.New("staking period is too short")
+	errStakeTooLong              = errors.New("staking period is too long")
+	errWrongBondAmount           = errors.New("wrong bond amount for this validator")
+	errFutureStakeTime           = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
+	errNodeSigVerificationFailed = errors.New("node signature verification failed")
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
@@ -103,7 +103,7 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("failed to verify output: %w", err)
 		}
-		newWeight, err := safemath.Add64(totalStakeWeight, out.Output().Amount())
+		newWeight, err := math.Add64(totalStakeWeight, out.Output().Amount())
 		if err != nil {
 			return err
 		}
@@ -216,10 +216,19 @@ func (tx *UnsignedAddValidatorTx) Execute(
 				err,
 			)
 		}
+		baseTxCredsLen := len(stx.Creds) - 1
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds, vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds[:baseTxCredsLen], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
+		}
+
+		// Verify that nodeId signature is present
+		if err := vm.fx.VerifyPermission(tx,
+			&secp256k1fx.Input{SigIndices: []uint32{0}},
+			stx.Creds[baseTxCredsLen],
+			&secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{tx.Validator.NodeID}}); err != nil {
+			return nil, nil, errNodeSigVerificationFailed
 		}
 
 		// Make sure the tx doesn't start too far in the future. This is done
@@ -270,6 +279,15 @@ func (vm *VM) newAddValidatorTx(
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
+
+	// Add nodeId signer at the end of input signers
+	kc := secp256k1fx.NewKeychain(keys...)
+	nodeIDSigner := make([]*crypto.PrivateKeySECP256K1R, 0, 1)
+	if key, found := kc.Get(nodeID); found {
+		nodeIDSigner = append(nodeIDSigner, key)
+	}
+	signers = append(signers, nodeIDSigner)
+
 	// Create the tx
 	utx := &UnsignedAddValidatorTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
