@@ -15,6 +15,8 @@
 package admin
 
 import (
+	"crypto/rsa"
+	"encoding/hex"
 	"errors"
 	"net/http"
 
@@ -24,9 +26,12 @@ import (
 	"github.com/chain4travel/caminogo/api/server"
 	"github.com/chain4travel/caminogo/chains"
 	"github.com/chain4travel/caminogo/ids"
+	"github.com/chain4travel/caminogo/node"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/utils/constants"
+	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/logging"
+	"github.com/chain4travel/caminogo/utils/nodeid"
 	"github.com/chain4travel/caminogo/utils/perms"
 	"github.com/chain4travel/caminogo/utils/profiler"
 	"github.com/chain4travel/caminogo/vms"
@@ -311,4 +316,25 @@ func (service *Admin) LoadVMs(_ *http.Request, _ *struct{}, reply *LoadVMsReply)
 	reply.FailedVMs = failedVMsParsed
 	reply.NewVMs, err = ids.GetRelevantAliases(service.VMManager, loadedVMs)
 	return err
+}
+
+// See GetNodeSigner
+type GetNodeSignerReply struct {
+	PrivateKey string `json:"privateKey"`
+	PublicKey  string `json:"publicKey"`
+}
+
+func (service *Admin) GetNodeSigner(_ *http.Request, _ *struct{}, reply *GetNodeSignerReply) error {
+	service.Log.Debug("Admin: GetNodeSigner called")
+
+	config := service.Config.NodeConfig.(*node.Config)
+
+	rsaPrivKey := config.StakingTLSCert.PrivateKey.(*rsa.PrivateKey)
+	privKey := nodeid.RsaPrivateKeyToSecp256PrivateKey(rsaPrivKey)
+	pubKeyBytes := hashing.PubkeyBytesToAddress(privKey.PubKey().SerializeCompressed())
+
+	reply.PrivateKey = hex.EncodeToString(privKey.Serialize())
+	reply.PublicKey = "0x" + hex.EncodeToString(pubKeyBytes)
+
+	return nil
 }

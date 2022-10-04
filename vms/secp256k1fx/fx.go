@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/chain4travel/caminogo/cache"
+	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/wrappers"
@@ -44,6 +45,8 @@ var (
 	errTooFewSigners                  = errors.New("input has less signers than expected")
 	errInputOutputIndexOutOfBounds    = errors.New("input referenced a nonexistent address in the output")
 	errInputCredentialSignersMismatch = errors.New("input expected a different number of signers than provided in the credential")
+	errWrongSignersNumber             = errors.New("expected exactly one signature for the node signer")
+	errNodeSignatureMismatch          = errors.New("node signature doesn't match node id")
 )
 
 // Fx describes the secp256k1 feature extension
@@ -231,4 +234,39 @@ func (fx *Fx) CreateOutput(amount uint64, ownerIntf interface{}) (interface{}, e
 		Amt:          amount,
 		OutputOwners: *owner,
 	}, nil
+}
+
+// VerifyNodeSignature returns nil if [credIntf] proves that [tx]
+// is signed by it and the signature matches [nodeID]
+func (fx *Fx) VerifyNodeSignature(txIntf interface{}, credIntf verify.Verifiable, nodeID ids.ShortID) error {
+	tx, ok := txIntf.(Tx)
+	if !ok {
+		return errWrongTxType
+	}
+
+	if err := credIntf.Verify(); err != nil {
+		return err
+	}
+
+	cred, ok := credIntf.(*Credential)
+	if !ok {
+		return errWrongCredentialType
+	}
+
+	if len(cred.Sigs) != 1 {
+		return errWrongSignersNumber
+	}
+
+	txHash := hashing.ComputeHash256(tx.UnsignedBytes())
+
+	pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, cred.Sigs[0][:])
+	if err != nil {
+		return err
+	}
+
+	if pk.Address() != nodeID {
+		return errNodeSignatureMismatch
+	}
+
+	return nil
 }

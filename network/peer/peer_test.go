@@ -75,8 +75,10 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 	tlsCert1, err := staking.NewTLSCert()
 	assert.NoError(err)
 
-	nodeID0 := CertToID(tlsCert0.Leaf)
-	nodeID1 := CertToID(tlsCert1.Leaf)
+	nodeID0, err := CertToID(tlsCert0.Leaf)
+	assert.NoError(err)
+	nodeID1, err := CertToID(tlsCert1.Leaf)
+	assert.NoError(err)
 
 	mc := newMessageCreator(t)
 

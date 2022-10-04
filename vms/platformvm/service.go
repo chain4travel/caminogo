@@ -58,6 +58,7 @@ var (
 	errNoRewardAddress            = errors.New("argument 'rewardAddress' not provided")
 	errNoAddresses                = errors.New("no addresses provided")
 	errNoKeys                     = errors.New("user has no keys or funds")
+	errNoNodeKey                  = errors.New("user has no node private key")
 	errNoPrimaryValidators        = errors.New("no default subnet validators")
 	errNoValidators               = errors.New("no subnet validators")
 	errCorruptedReason            = errors.New("tx validity corrupted")
@@ -919,10 +920,6 @@ type AddValidatorArgs struct {
 	APIStaker
 	// The address the staking reward, if applicable, will go to
 	RewardAddress string `json:"rewardAddress"`
-	// Node PEM encoded RSA private key
-	NodePrivateKey string `json:"nodePrivateKey"`
-	// Node PEM encoded x509 certificate with RSA public key
-	NodeCertificate string `json:"nodeCertificate"`
 }
 
 // AddValidator creates and signs and issues a transaction to add a validator to
@@ -989,10 +986,9 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		return errNoKeys
 	}
 
-	// Parse node key pair
-	x509Cert, rsaPrivateKey, err := LoadRSAKeyPairFromBytes([]byte(args.NodePrivateKey), []byte(args.NodeCertificate))
-	if err != nil {
-		return fmt.Errorf("couldn't parse node key pair: %w", err)
+	nodePrivateKey, exist := privKeys.Get(nodeID)
+	if !exist {
+		return errNoNodeKey
 	}
 
 	// Create the transaction
@@ -1002,8 +998,7 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		nodeID,                 // Node ID
 		rewardAddress,          // Reward Address
 		privKeys.Keys,          // Private keys
-		rsaPrivateKey,          // Node private key
-		x509Cert.Raw,           // Node certificate bytes
+		nodePrivateKey,         // Node private key
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)
@@ -1093,10 +1088,9 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		return errNoKeys
 	}
 
-	// Parse node key pair
-	x509Cert, rsaPrivateKey, err := LoadRSAKeyPairFromBytes([]byte(args.NodePrivateKey), []byte(args.NodeCertificate))
-	if err != nil {
-		return fmt.Errorf("couldn't parse node key pair: %w", err)
+	nodePrivateKey, exist := keys.Get(nodeID)
+	if !exist {
+		return errNoNodeKey
 	}
 
 	// Create the transaction
@@ -1107,8 +1101,7 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		nodeID,                 // Node ID
 		subnetID,               // Subnet ID
 		keys.Keys,              // Keys
-		rsaPrivateKey,          // Node private key
-		x509Cert.Raw,           // Node certificate bytes
+		nodePrivateKey,         // Node private key
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create tx: %w", err)

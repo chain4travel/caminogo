@@ -376,7 +376,10 @@ func (n *network) AllowConnection(nodeID ids.ShortID) bool {
 }
 
 func (n *network) Track(ip utils.IPCertDesc) {
-	nodeID := peer.CertToID(ip.Cert)
+	nodeID, err := peer.CertToID(ip.Cert)
+	if err != nil {
+		return
+	}
 
 	// Verify that we do want to attempt to make a connection to this peer
 	// before verifying that the IP has been correctly signed.

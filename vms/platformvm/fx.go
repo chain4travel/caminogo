@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/snow"
 	"github.com/chain4travel/caminogo/vms/components/verify"
 )
@@ -45,6 +46,10 @@ type Fx interface {
 	// CreateOutput creates a new output with the provided control group worth
 	// the specified amount
 	CreateOutput(amount uint64, controlGroup interface{}) (interface{}, error)
+
+	// VerifyNodeSignature returns nil if [credIntf] proves that [tx]
+	// is signed by it and the signature matches [nodeID]
+	VerifyNodeSignature(tx interface{}, credIntf verify.Verifiable, nodeID ids.ShortID) error
 }
 
 type Owner interface {
