@@ -250,6 +250,7 @@ func isTimeoutError(err error) bool {
 }
 
 // isSyscallError checks if an error is one of the given syscall.Errno codes
+//nolint:unused,deadcode
 func isSyscallError(err error, codes ...syscall.Errno) bool {
 	opErr, ok := err.(*net.OpError)
 	if !ok {
