@@ -21,7 +21,7 @@ import (
 	"net"
 
 	"github.com/chain4travel/caminogo/ids"
-	"github.com/chain4travel/caminogo/utils/hashing"
+	"github.com/chain4travel/caminogo/utils/nodeid"
 )
 
 var (
@@ -74,11 +74,15 @@ func connToIDAndCert(conn *tls.Conn) (ids.ShortID, net.Conn, *x509.Certificate, 
 		return ids.ShortID{}, nil, nil, errNoCert
 	}
 	peerCert := state.PeerCertificates[0]
-	return CertToID(peerCert), conn, peerCert, nil
+
+	nodeID, err := CertToID(peerCert)
+	return nodeID, conn, peerCert, err
 }
 
-func CertToID(cert *x509.Certificate) ids.ShortID {
-	return hashing.ComputeHash160Array(
-		hashing.ComputeHash256(cert.Raw),
-	)
+func CertToID(cert *x509.Certificate) (ids.ShortID, error) {
+	pubKeyBytes, err := nodeid.RecoverSecp256PublicKey(cert)
+	if err != nil {
+		return ids.ShortID{}, err
+	}
+	return ids.ToShortID(pubKeyBytes)
 }

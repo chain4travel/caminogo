@@ -111,3 +111,9 @@ func (c *client) LoadVMs(ctx context.Context, options ...rpc.Option) (map[ids.ID
 	err := c.requester.SendRequest(ctx, "loadVMs", struct{}{}, res, options...)
 	return res.NewVMs, res.FailedVMs, err
 }
+
+func (c *client) GetNodeSigner(ctx context.Context, chain string, options ...rpc.Option) (*GetNodeSignerReply, error) {
+	res := &GetNodeSignerReply{}
+	err := c.requester.SendRequest(ctx, "getNodeSigner", nil, res, options...)
+	return res, err
+}

@@ -22,10 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/message"
 	"github.com/chain4travel/caminogo/network/throttling"
@@ -36,6 +32,8 @@ import (
 	"github.com/chain4travel/caminogo/utils/constants"
 	"github.com/chain4travel/caminogo/utils/logging"
 	"github.com/chain4travel/caminogo/version"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
 type testPeer struct {
@@ -75,8 +73,10 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 	tlsCert1, err := staking.NewTLSCert()
 	assert.NoError(err)
 
-	nodeID0 := CertToID(tlsCert0.Leaf)
-	nodeID1 := CertToID(tlsCert1.Leaf)
+	nodeID0, err := CertToID(tlsCert0.Leaf)
+	assert.NoError(err)
+	nodeID1, err := CertToID(tlsCert1.Leaf)
+	assert.NoError(err)
 
 	mc := newMessageCreator(t)
 
