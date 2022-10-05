@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/chain4travel/caminogo/ids"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/vms/components/avax"
 )
@@ -28,9 +29,8 @@ func TestBaseTxMarshalJSON(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		vm.ctx.Lock.Unlock()
 	}()
 
@@ -60,9 +60,9 @@ func TestBaseTxMarshalJSON(t *testing.T) {
 	}}
 
 	txBytes, err := json.Marshal(tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
+	// @parousisv: Seems like an ad hoc check. Not sure if assertion here is meaningful
 	asString := string(txBytes)
 	switch {
 	case !strings.Contains(asString, `"networkID":4`):

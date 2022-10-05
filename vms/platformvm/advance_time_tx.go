@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,6 +27,12 @@ import (
 )
 
 var _ UnsignedProposalTx = &UnsignedAdvanceTimeTx{}
+
+var (
+	ErrorNotAfterCurrentTimestamp = errors.New("proposed timestamp is not after current timestamp")
+	ErrorLaterThanNextStaker      = errors.New("proposed timestamp is later than next staker change time")
+	ErrorTooFarInTheFuture        = errors.New("proposed time is too far in the future relative to local time")
+)
 
 // UnsignedAdvanceTimeTx is a transaction to increase the chain's timestamp.
 // When the chain's timestamp is updated (a AdvanceTimeTx is accepted and
@@ -83,7 +90,8 @@ func (tx *UnsignedAdvanceTimeTx) Execute(
 	localTimestampPlusSync := localTimestamp.Add(syncBound)
 	if localTimestampPlusSync.Before(txTimestamp) {
 		return nil, nil, fmt.Errorf(
-			"proposed time (%s) is too far in the future relative to local time (%s)",
+			"%w Proposed : %s , Current : %s",
+			ErrorTooFarInTheFuture,
 			txTimestamp,
 			localTimestamp,
 		)
@@ -91,7 +99,8 @@ func (tx *UnsignedAdvanceTimeTx) Execute(
 
 	if chainTimestamp := parentState.GetTimestamp(); !txTimestamp.After(chainTimestamp) {
 		return nil, nil, fmt.Errorf(
-			"proposed timestamp (%s), not after current timestamp (%s)",
+			"%w Proposed : %s , Current: %s",
+			ErrorNotAfterCurrentTimestamp,
 			txTimestamp,
 			chainTimestamp,
 		)
@@ -106,7 +115,8 @@ func (tx *UnsignedAdvanceTimeTx) Execute(
 
 	if txTimestamp.After(nextStakerChangeTime) {
 		return nil, nil, fmt.Errorf(
-			"proposed timestamp (%s) later than next staker change time (%s)",
+			"%w Proposed : %s , Current : %s",
+			ErrorLaterThanNextStaker,
 			txTimestamp,
 			nextStakerChangeTime,
 		)

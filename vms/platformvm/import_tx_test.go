@@ -34,9 +34,8 @@ func TestNewImportTx(t *testing.T) {
 	vm, baseDB, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		vm.ctx.Lock.Unlock()
 	}()
 
@@ -52,9 +51,10 @@ func TestNewImportTx(t *testing.T) {
 
 	factory := crypto.FactorySECP256K1R{}
 	sourceKeyIntf, err := factory.NewPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 	sourceKey := sourceKeyIntf.(*crypto.PrivateKeySECP256K1R)
 
 	cnt := new(byte)
@@ -65,9 +65,10 @@ func TestNewImportTx(t *testing.T) {
 		*cnt++
 		m := &atomic.Memory{}
 		err := m.Initialize(logging.NoLog{}, prefixdb.New([]byte{*cnt}, baseDB))
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
 
 		sm := m.NewSharedMemory(vm.ctx.ChainID)
 		peerSharedMemory := m.NewSharedMemory(peerChain)
@@ -89,19 +90,29 @@ func TestNewImportTx(t *testing.T) {
 			},
 		}
 		utxoBytes, err := Codec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
 		inputID := utxo.InputID()
-		if err := peerSharedMemory.Apply(map[ids.ID]*atomic.Requests{vm.ctx.ChainID: {PutRequests: []*atomic.Element{{
+
+		err = peerSharedMemory.Apply(map[ids.ID]*atomic.Requests{vm.ctx.ChainID: {PutRequests: []*atomic.Element{{
 			Key:   inputID[:],
 			Value: utxoBytes,
 			Traits: [][]byte{
 				sourceKey.PublicKey().Address().Bytes(),
 			},
-		}}}}); err != nil {
-			t.Fatal(err)
-		}
+		}}}})
+		assert.NoError(t, err)
+		// if err := peerSharedMemory.Apply(map[ids.ID]*atomic.Requests{vm.ctx.ChainID: {PutRequests: []*atomic.Element{{
+		// 	Key:   inputID[:],
+		// 	Value: utxoBytes,
+		// 	Traits: [][]byte{
+		// 		sourceKey.PublicKey().Address().Bytes(),
+		// 	},
+		// }}}}); err != nil {
+		// 	t.Fatal(err)
+		// }
 
 		return sm
 	}

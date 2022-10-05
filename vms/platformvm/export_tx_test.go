@@ -28,9 +28,8 @@ func TestNewExportTx(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		vm.ctx.Lock.Unlock()
 	}()
 

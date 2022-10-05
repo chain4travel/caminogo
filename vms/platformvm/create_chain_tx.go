@@ -37,6 +37,7 @@ var (
 	errNameTooLong             = errors.New("name too long")
 	errGenesisTooLong          = errors.New("genesis too long")
 	errIllegalNameCharacter    = errors.New("illegal name character")
+	errSubnetNotExist          = errors.New("subnet does not exist")
 
 	_ UnsignedDecisionTx = &UnsignedCreateChainTx{}
 )
@@ -148,7 +149,7 @@ func (tx *UnsignedCreateChainTx) Execute(
 
 	subnetIntf, _, err := vs.GetTx(tx.SubnetID)
 	if err == database.ErrNotFound {
-		return nil, fmt.Errorf("%s isn't a known subnet", tx.SubnetID)
+		return nil, fmt.Errorf("%w (%s)", errSubnetNotExist, tx.SubnetID)
 	}
 	if err != nil {
 		return nil, err

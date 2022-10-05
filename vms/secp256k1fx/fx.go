@@ -43,7 +43,8 @@ var (
 	errTooManySigners                 = errors.New("input has more signers than expected")
 	errTooFewSigners                  = errors.New("input has less signers than expected")
 	errInputOutputIndexOutOfBounds    = errors.New("input referenced a nonexistent address in the output")
-	errInputCredentialSignersMismatch = errors.New("input expected a different number of signers than provided in the credential")
+	ErrInputCredentialSignersMismatch = errors.New("input expected a different number of signers than provided in the credential")
+	ErrExpectedSignature              = errors.New("signature is not the expected")
 )
 
 // Fx describes the secp256k1 feature extension
@@ -189,7 +190,7 @@ func (fx *Fx) VerifyCredentials(tx Tx, in *Input, cred *Credential, out *OutputO
 	case out.Threshold > uint32(numSigs):
 		return errTooFewSigners
 	case numSigs != len(cred.Sigs):
-		return errInputCredentialSignersMismatch
+		return ErrInputCredentialSignersMismatch
 	case !fx.bootstrapped: // disable signature verification during bootstrapping
 		return nil
 	}
@@ -208,7 +209,8 @@ func (fx *Fx) VerifyCredentials(tx Tx, in *Input, cred *Credential, out *OutputO
 			return err
 		}
 		if expectedAddress := out.Addrs[index]; expectedAddress != pk.Address() {
-			return fmt.Errorf("expected signature from %s but got from %s",
+			return fmt.Errorf("%w Expected from: %s but got from %s",
+				ErrExpectedSignature,
 				expectedAddress,
 				pk.Address())
 		}

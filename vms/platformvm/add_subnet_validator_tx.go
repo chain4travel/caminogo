@@ -29,7 +29,9 @@ import (
 )
 
 var (
-	errDSValidatorSubset = errors.New("all subnets' staking period must be a subset of the primary network")
+	errDSValidatorSubset           = errors.New("all subnets' staking period must be a subset of the primary network")
+	errAlreadyValidatingSubnet     = errors.New("already validating subnet")
+	ErrorAtOrAfterCurrentTimestamp = errors.New("validator's start time is at or after current chain timestamp")
 
 	_ UnsignedProposalTx = &UnsignedAddSubnetValidatorTx{}
 	_ TimedTx            = &UnsignedAddSubnetValidatorTx{}
@@ -132,9 +134,10 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		validatorStartTime := tx.StartTime()
 		if !currentTimestamp.Before(validatorStartTime) {
 			return nil, nil, fmt.Errorf(
-				"validator's start time (%s) is at or after current chain timestamp (%s)",
-				currentTimestamp,
+				"%w Start time : %s , Current timestamp: %s",
+				ErrorAtOrAfterCurrentTimestamp,
 				validatorStartTime,
+				currentTimestamp,
 			)
 		}
 
@@ -157,7 +160,8 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 			subnets := currentValidator.SubnetValidators()
 			if _, validates := subnets[tx.Validator.Subnet]; validates {
 				return nil, nil, fmt.Errorf(
-					"already validating subnet %s",
+					"%w %s",
+					errAlreadyValidatingSubnet,
 					tx.Validator.Subnet,
 				)
 			}
@@ -188,7 +192,8 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		subnets := pendingValidator.SubnetValidators()
 		if _, validates := subnets[tx.Validator.Subnet]; validates {
 			return nil, nil, fmt.Errorf(
-				"already validating subnet %s",
+				"%w %s",
+				errAlreadyValidatingSubnet,
 				tx.Validator.Subnet,
 			)
 		}

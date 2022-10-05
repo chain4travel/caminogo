@@ -32,12 +32,14 @@ import (
 )
 
 var (
-	errNilTx           = errors.New("tx is nil")
-	errWeightTooSmall  = errors.New("weight of this validator is too low")
-	errStakeTooShort   = errors.New("staking period is too short")
-	errStakeTooLong    = errors.New("staking period is too long")
-	errWrongBondAmount = errors.New("wrong bond amount for this validator")
-	errFutureStakeTime = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
+	errNilTx                = errors.New("tx is nil")
+	errWeightTooSmall       = errors.New("weight of this validator is too low")
+	errStakeTooShort        = errors.New("staking period is too short")
+	errStakeTooLong         = errors.New("staking period is too long")
+	errWrongBondAmount      = errors.New("wrong bond amount for this validator")
+	errTimeBeforeCurrent    = errors.New("validator's start time is at or before current timestamp")
+	errNodeAlreadyValidator = errors.New("node is already a primary network validator")
+	errFutureStakeTime      = fmt.Errorf("staker is attempting to start staking more than %s ahead of the current chain time", maxFutureStartTime)
 
 	_ UnsignedProposalTx = &UnsignedAddValidatorTx{}
 	_ TimedTx            = &UnsignedAddValidatorTx{}
@@ -179,7 +181,8 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		startTime := tx.StartTime()
 		if !currentTimestamp.Before(startTime) {
 			return nil, nil, fmt.Errorf(
-				"validator's start time (%s) at or before current timestamp (%s)",
+				"%w Start Time: %s Current Timestamp: %s",
+				errTimeBeforeCurrent,
 				startTime,
 				currentTimestamp,
 			)
@@ -189,7 +192,8 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		_, err := currentStakers.GetValidator(tx.Validator.NodeID)
 		if err == nil {
 			return nil, nil, fmt.Errorf(
-				"%s is already a primary network validator",
+				"%w (%s)",
+				errNodeAlreadyValidator,
 				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 			)
 		}

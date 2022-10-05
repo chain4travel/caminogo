@@ -27,7 +27,7 @@ import (
 
 var (
 	errNilOutput            = errors.New("nil output")
-	errOutputUnspendable    = errors.New("output is unspendable")
+	ErrOutputUnspendable    = errors.New("output is unspendable")
 	errOutputUnoptimized    = errors.New("output representation should be optimized")
 	errAddrsNotSortedUnique = errors.New("addresses not sorted and unique")
 	errMarshal              = errors.New("cannot marshal without ctx")
@@ -133,7 +133,7 @@ func (out *OutputOwners) Verify() error {
 	case out == nil:
 		return errNilOutput
 	case out.Threshold > uint32(len(out.Addrs)):
-		return errOutputUnspendable
+		return ErrOutputUnspendable
 	case out.Threshold == 0 && len(out.Addrs) > 0:
 		return errOutputUnoptimized
 	case !ids.IsSortedAndUniqueShortIDs(out.Addrs):

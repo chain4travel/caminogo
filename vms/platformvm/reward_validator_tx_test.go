@@ -29,164 +29,131 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		vm.ctx.Lock.Unlock()
 	}()
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
 	toRemoveTx, _, err := currentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
 	// Case 1: Chain timestamp is wrong
-	if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
-		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	}
+	tx, err := vm.newRewardValidatorTx(toRemove.ID())
+	assert.NoError(t, err)
+
+	_, _, err = toRemove.Execute(vm, vm.internalState, tx)
+	assert.ErrorIs(t, err, errTimeBeforeCurrent)
 
 	// Advance chain timestamp to time that next validator leaves
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
 	// Case 2: Wrong validator
-	if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
-		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-		t.Fatalf("should have failed because validator ID is wrong")
-	}
+	tx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	assert.NoError(t, err)
+
+	_, _, err = toRemove.Execute(vm, vm.internalState, tx)
+	assert.ErrorIs(t, err, errTimeBeforeCurrent)
 
 	// Case 3: Happy path
-	tx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tx, err = vm.newRewardValidatorTx(toRemove.ID())
+	assert.NoError(t, err)
 
 	onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	onCommitCurrentStakers := onCommitState.CurrentStakerChainState()
 	nextToRemoveTx, _, err := onCommitCurrentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if toRemove.ID() == nextToRemoveTx.ID() {
-		t.Fatalf("Should have removed the previous validator")
-	}
+	assert.NoError(t, err)
+
+	assert.NotEqual(t, toRemove.ID(), nextToRemoveTx.ID())
 
 	// check that stake/reward is given back
 	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
 
 	// Get old balances
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	onCommitState.Apply(vm.internalState)
-	if err := vm.internalState.Commit(); err != nil {
-		t.Fatal(err)
-	}
+	err = vm.internalState.Commit()
+	assert.NoError(t, err)
 
 	onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
-	if onCommitBalance != oldBalance+toRemove.Validator.Weight()+13773 {
-		t.Fatalf("on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
-			oldBalance, toRemove.Validator.Weight(), 13773, onCommitBalance)
-	}
+	assert.Equal(t, onCommitBalance, oldBalance+toRemove.Validator.Weight()+13773)
 }
 
 func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	vm, _, _ := defaultVM()
 	vm.ctx.Lock.Lock()
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		vm.ctx.Lock.Unlock()
 	}()
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
 	toRemoveTx, _, err := currentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
 
 	// Case 1: Chain timestamp is wrong
-	if tx, err := vm.newRewardValidatorTx(toRemove.ID()); err != nil {
-		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	}
+	tx, err := vm.newRewardValidatorTx(toRemove.ID())
+	assert.NoError(t, err)
+
+	_, _, err = toRemove.Execute(vm, vm.internalState, tx)
+	assert.ErrorIs(t, err, errTimeBeforeCurrent)
 
 	// Advance chain timestamp to time that next validator leaves
 	vm.internalState.SetTimestamp(toRemove.EndTime())
 
 	// Case 2: Wrong validator
-	if tx, err := vm.newRewardValidatorTx(ids.GenerateTestID()); err != nil {
-		t.Fatal(err)
-	} else if _, _, err := toRemove.Execute(vm, vm.internalState, tx); err == nil {
-		t.Fatalf("should have failed because validator ID is wrong")
-	}
+	tx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
+	assert.NoError(t, err)
+
+	_, _, err = toRemove.Execute(vm, vm.internalState, tx)
+	assert.ErrorIs(t, err, errTimeBeforeCurrent)
 
 	// Case 3: Happy path
-	tx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tx, err = vm.newRewardValidatorTx(toRemove.ID())
+	assert.NoError(t, err)
 
 	_, onAbortState, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	onAbortCurrentStakers := onAbortState.CurrentStakerChainState()
 	nextToRemoveTx, _, err := onAbortCurrentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if toRemove.ID() == nextToRemoveTx.ID() {
-		t.Fatalf("Should have removed the previous validator")
-	}
+	assert.NoError(t, err)
+
+	assert.NotEqual(t, toRemove.ID(), nextToRemoveTx.ID())
 
 	// check that stake/reward isn't given back
 	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
 
 	// Get old balances
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	onAbortState.Apply(vm.internalState)
-	if err := vm.internalState.Commit(); err != nil {
-		t.Fatal(err)
-	}
+	err = vm.internalState.Commit()
+	assert.NoError(t, err)
 
 	onAbortBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
-	if onAbortBalance != oldBalance+toRemove.Validator.Weight() {
-		t.Fatalf("on abort, should have old balance (%d) + staked amount (%d) but have %d",
-			oldBalance, toRemove.Validator.Weight(), onAbortBalance)
-	}
+	assert.Equal(t, onAbortBalance, oldBalance+toRemove.Validator.Weight())
 }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {
@@ -206,27 +173,23 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 	firstCtx.Lock.Lock()
 
 	firstMsgChan := make(chan common.Message, 1)
-	if err := firstVM.Initialize(firstCtx, firstDB, genesisBytes, nil, nil, firstMsgChan, nil, nil); err != nil {
-		t.Fatal(err)
-	}
+	err := firstVM.Initialize(firstCtx, firstDB, genesisBytes, nil, nil, firstMsgChan, nil, nil)
+	assert.NoError(t, err)
 
 	firstVM.clock.Set(defaultGenesisTime)
 	firstVM.uptimeManager.(uptime.TestManager).SetTime(defaultGenesisTime)
 
-	if err := firstVM.SetState(snow.Bootstrapping); err != nil {
-		t.Fatal(err)
-	}
+	err = firstVM.SetState(snow.Bootstrapping)
+	assert.NoError(t, err)
 
-	if err := firstVM.SetState(snow.NormalOp); err != nil {
-		t.Fatal(err)
-	}
+	err = firstVM.SetState(snow.NormalOp)
+	assert.NoError(t, err)
 
 	// Fast forward clock to time for genesis validators to leave
 	firstVM.uptimeManager.(uptime.TestManager).SetTime(defaultValidateEndTime)
 
-	if err := firstVM.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
+	err = firstVM.Shutdown()
+	assert.NoError(t, err)
 	firstCtx.Lock.Unlock()
 
 	secondDB := db.NewPrefixDBManager([]byte{})
@@ -240,152 +203,113 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 	secondCtx := defaultContext()
 	secondCtx.Lock.Lock()
 	defer func() {
-		if err := secondVM.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := secondVM.Shutdown()
+		assert.NoError(t, err)
 		secondCtx.Lock.Unlock()
 	}()
 
 	secondMsgChan := make(chan common.Message, 1)
-	if err := secondVM.Initialize(secondCtx, secondDB, genesisBytes, nil, nil, secondMsgChan, nil, nil); err != nil {
-		t.Fatal(err)
-	}
+	err = secondVM.Initialize(secondCtx, secondDB, genesisBytes, nil, nil, secondMsgChan, nil, nil)
+	assert.NoError(t, err)
 
 	secondVM.clock.Set(defaultValidateStartTime.Add(2 * defaultMinStakingDuration))
 	secondVM.uptimeManager.(uptime.TestManager).SetTime(defaultValidateStartTime.Add(2 * defaultMinStakingDuration))
 
-	if err := secondVM.SetState(snow.Bootstrapping); err != nil {
-		t.Fatal(err)
-	}
+	err = secondVM.SetState(snow.Bootstrapping)
+	assert.NoError(t, err)
 
-	if err := secondVM.SetState(snow.NormalOp); err != nil {
-		t.Fatal(err)
-	}
+	err = secondVM.SetState(snow.NormalOp)
+	assert.NoError(t, err)
 
 	secondVM.clock.Set(defaultValidateEndTime)
 	secondVM.uptimeManager.(uptime.TestManager).SetTime(defaultValidateEndTime)
 
 	blk, err := secondVM.BuildBlock() // should contain proposal to advance time
-	if err != nil {
-		t.Fatal(err)
-	} else if err := blk.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
+	err = blk.Verify()
+	assert.NoError(t, err)
 
 	// Assert preferences are correct
 	block := blk.(*ProposalBlock)
 	options, err := block.Options()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	commit, ok := options[0].(*CommitBlock)
-	if !ok {
-		t.Fatal(errShouldPrefCommit)
-	}
+	assert.True(t, ok, errShouldPrefCommit)
 
 	abort, ok := options[1].(*AbortBlock)
-	if !ok {
-		t.Fatal(errShouldPrefCommit)
-	}
+	assert.True(t, ok, errShouldPrefCommit)
 
-	if err := block.Accept(); err != nil {
-		t.Fatal(err)
-	}
-	if err := commit.Verify(); err != nil {
-		t.Fatal(err)
-	}
-	if err := abort.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	err = block.Accept()
+	assert.NoError(t, err)
+
+	err = commit.Verify()
+	assert.NoError(t, err)
+
+	err = abort.Verify()
+	assert.NoError(t, err)
 
 	onAbortState := abort.onAccept()
 	_, txStatus, err := onAbortState.GetTx(block.Tx.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if txStatus != status.Aborted {
-		t.Fatalf("status should be Aborted but is %s", txStatus)
-	}
+	assert.NoError(t, err)
 
-	if err := commit.Accept(); err != nil { // advance the timestamp
-		t.Fatal(err)
-	}
+	assert.Equal(t, txStatus, status.Aborted)
+
+	err = commit.Accept()
+	assert.NoError(t, err)
 
 	_, txStatus, err = secondVM.internalState.GetTx(block.Tx.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if txStatus != status.Committed {
-		t.Fatalf("status should be Committed but is %s", txStatus)
-	}
+	assert.NoError(t, err)
+
+	assert.Equal(t, txStatus, status.Committed)
 
 	// Verify that chain's timestamp has advanced
 	timestamp := secondVM.internalState.GetTimestamp()
-	if !timestamp.Equal(defaultValidateEndTime) {
-		t.Fatal("expected timestamp to have advanced")
-	}
+	assert.True(t, timestamp.Equal(defaultValidateEndTime))
 
 	blk, err = secondVM.BuildBlock() // should contain proposal to reward genesis validator
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := blk.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
+	err = blk.Verify()
+	assert.NoError(t, err)
 
 	block = blk.(*ProposalBlock)
 	options, err = block.Options()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	commit, ok = options[1].(*CommitBlock)
-	if !ok {
-		t.Fatal(errShouldPrefAbort)
-	}
+	assert.True(t, ok, errShouldPrefAbort)
 
 	abort, ok = options[0].(*AbortBlock)
-	if !ok {
-		t.Fatal(errShouldPrefAbort)
-	}
+	assert.True(t, ok, errShouldPrefAbort)
 
-	if err := blk.Accept(); err != nil {
-		t.Fatal(err)
-	}
-	if err := commit.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	err = blk.Accept()
+	assert.NoError(t, err)
+
+	err = commit.Verify()
+	assert.NoError(t, err)
 
 	onCommitState := commit.onAccept()
 	_, txStatus, err = onCommitState.GetTx(block.Tx.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if txStatus != status.Committed {
-		t.Fatalf("status should be Committed but is %s", txStatus)
-	}
+	assert.NoError(t, err)
 
-	if err := abort.Verify(); err != nil {
-		t.Fatal(err)
-	}
-	if err := abort.Accept(); err != nil { // do not reward the genesis validator
-		t.Fatal(err)
-	}
+	assert.Equal(t, txStatus, status.Committed)
+
+	err = abort.Verify()
+	assert.NoError(t, err)
+
+	err = abort.Accept()
+	assert.NoError(t, err)
 
 	_, txStatus, err = secondVM.internalState.GetTx(block.Tx.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if txStatus != status.Aborted {
-		t.Fatalf("status should be Aborted but is %s", txStatus)
-	}
+	assert.NoError(t, err)
+
+	assert.Equal(t, txStatus, status.Aborted)
 
 	currentStakers := secondVM.internalState.CurrentStakerChainState()
 	_, err = currentStakers.GetValidator(keys[0].PublicKey().Address())
-	if err != database.ErrNotFound {
-		t.Fatal("should have removed a genesis validator")
-	}
+	assert.ErrorIs(t, err, database.ErrNotFound)
 }
 
 func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
@@ -405,23 +329,24 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 
 	msgChan := make(chan common.Message, 1)
 	appSender := &common.SenderTest{T: t}
-	if err := vm.Initialize(ctx, db, genesisBytes, nil, nil, msgChan, nil, appSender); err != nil {
-		t.Fatal(err)
-	}
+
+	err := vm.Initialize(ctx, db, genesisBytes, nil, nil, msgChan, nil, appSender)
+	assert.NoError(t, err)
+
 	defer func() {
-		if err := vm.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
+		err := vm.Shutdown()
+		assert.NoError(t, err)
 		ctx.Lock.Unlock()
 	}()
 
 	vm.clock.Set(defaultGenesisTime)
 	vm.uptimeManager.(uptime.TestManager).SetTime(defaultGenesisTime)
 
-	if err := vm.SetState(snow.Bootstrapping); err != nil {
-		t.Fatal(err)
-	}
+	err = vm.SetState(snow.Bootstrapping)
+	assert.NoError(t, err)
 
+	err = vm.SetState(snow.NormalOp)
+	assert.NoError(t, err)
 	if err := vm.SetState(snow.NormalOp); err != nil {
 		t.Fatal(err)
 	}
@@ -431,91 +356,70 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 	vm.uptimeManager.(uptime.TestManager).SetTime(defaultValidateEndTime)
 
 	blk, err := vm.BuildBlock() // should contain proposal to advance time
-	if err != nil {
-		t.Fatal(err)
-	} else if err := blk.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
+	err = blk.Verify()
+	assert.NoError(t, err)
 
 	// first the time will be advanced.
 	block := blk.(*ProposalBlock)
 	options, err := block.Options()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	commit, ok := options[0].(*CommitBlock)
-	if !ok {
-		t.Fatal(errShouldPrefCommit)
-	}
-	abort, ok := options[1].(*AbortBlock)
-	if !ok {
-		t.Fatal(errShouldPrefCommit)
-	}
+	assert.True(t, ok, errShouldPrefCommit)
 
-	if err := block.Accept(); err != nil {
-		t.Fatal(err)
-	}
-	if err := commit.Verify(); err != nil {
-		t.Fatal(err)
-	}
-	if err := abort.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	abort, ok := options[1].(*AbortBlock)
+	assert.True(t, ok, errShouldPrefCommit)
+
+	err = block.Accept()
+	assert.NoError(t, err)
+
+	err = commit.Verify()
+	assert.NoError(t, err)
+
+	err = abort.Verify()
+	assert.NoError(t, err)
 
 	// advance the timestamp
-	if err := commit.Accept(); err != nil {
-		t.Fatal(err)
-	}
+	err = commit.Accept()
+	assert.NoError(t, err)
 
 	// Verify that chain's timestamp has advanced
 	timestamp := vm.internalState.GetTimestamp()
-	if !timestamp.Equal(defaultValidateEndTime) {
-		t.Fatal("expected timestamp to have advanced")
-	}
+	assert.True(t, timestamp.Equal(defaultValidateEndTime))
 
 	// should contain proposal to reward genesis validator
 	blk, err = vm.BuildBlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := blk.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
+	err = blk.Verify()
+	assert.NoError(t, err)
 
 	block = blk.(*ProposalBlock)
 	options, err = block.Options()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	abort, ok = options[0].(*AbortBlock)
-	if !ok {
-		t.Fatal(errShouldPrefAbort)
-	}
-	commit, ok = options[1].(*CommitBlock)
-	if !ok {
-		t.Fatal(errShouldPrefAbort)
-	}
+	assert.True(t, ok, errShouldPrefAbort)
 
-	if err := blk.Accept(); err != nil {
-		t.Fatal(err)
-	}
-	if err := commit.Verify(); err != nil {
-		t.Fatal(err)
-	}
-	if err := abort.Verify(); err != nil {
-		t.Fatal(err)
-	}
+	commit, ok = options[1].(*CommitBlock)
+	assert.True(t, ok, errShouldPrefAbort)
+
+	err = blk.Accept()
+	assert.NoError(t, err)
+
+	err = commit.Verify()
+	assert.NoError(t, err)
+
+	err = abort.Verify()
+	assert.NoError(t, err)
 
 	// do not reward the genesis validator
-	if err := abort.Accept(); err != nil {
-		t.Fatal(err)
-	}
+	err = abort.Accept()
+	assert.NoError(t, err)
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
 	_, err = currentStakers.GetValidator(keys[0].PublicKey().Address())
-	if err != database.ErrNotFound {
-		t.Fatal("should have removed a genesis validator")
-	}
+	assert.ErrorIs(t, err, database.ErrNotFound)
 }
