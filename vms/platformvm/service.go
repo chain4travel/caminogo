@@ -988,12 +988,12 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 
 	nodePrivateKeys, err := keystore.GetKeychain(user, ids.ShortSet{nodeID: struct{}{}})
 	if err != nil {
-		return errNoNodeKey
+		return fmt.Errorf("couldn't get node private key for %s: %w", args.NodeID, err)
 	}
 
 	nodePrivateKey, exist := nodePrivateKeys.Get(nodeID)
 	if !exist {
-		return errNoNodeKey
+		return fmt.Errorf("user has no node private key for %s: %w", args.NodeID, errNoNodeKey)
 	}
 
 	// Create the transaction

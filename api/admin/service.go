@@ -16,7 +16,6 @@ package admin
 
 import (
 	"crypto/rsa"
-	"encoding/hex"
 	"errors"
 	"net/http"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/chain4travel/caminogo/node"
 	"github.com/chain4travel/caminogo/snow/engine/common"
 	"github.com/chain4travel/caminogo/utils/constants"
+	"github.com/chain4travel/caminogo/utils/formatting"
 	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/logging"
 	"github.com/chain4travel/caminogo/utils/nodeid"
@@ -332,9 +332,18 @@ func (service *Admin) GetNodeSigner(_ *http.Request, _ *struct{}, reply *GetNode
 	rsaPrivKey := config.StakingTLSCert.PrivateKey.(*rsa.PrivateKey)
 	privKey := nodeid.RsaPrivateKeyToSecp256PrivateKey(rsaPrivKey)
 	pubKeyBytes := hashing.PubkeyBytesToAddress(privKey.PubKey().SerializeCompressed())
+	nodeID, err := ids.ToShortID(pubKeyBytes)
+	if err != nil {
+		return err
+	}
 
-	reply.PrivateKey = hex.EncodeToString(privKey.Serialize())
-	reply.PublicKey = "0x" + hex.EncodeToString(pubKeyBytes)
+	privKeyStr, err := formatting.EncodeWithChecksum(formatting.CB58, privKey.Serialize())
+	if err != nil {
+		return err
+	}
+
+	reply.PrivateKey = constants.SecretKeyPrefix + privKeyStr
+	reply.PublicKey = nodeID.String()
 
 	return nil
 }
