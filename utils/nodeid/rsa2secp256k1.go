@@ -60,8 +60,8 @@ func RecoverSecp256PublicKey(cert *x509.Certificate) ([]byte, error) {
 	}
 
 	data := hashing.ComputeHash256(x509.MarshalPKCS1PublicKey(rPubKey))
-	sPubKey, _, error := ecdsa.RecoverCompact(signature, data)
-	if error != nil {
+	sPubKey, _, err := ecdsa.RecoverCompact(signature, data)
+	if err != nil {
 		return nil, fmt.Errorf("cannot recover")
 	}
 	sPubKeyBytes := sPubKey.SerializeCompressed()

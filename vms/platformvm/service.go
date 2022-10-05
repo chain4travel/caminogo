@@ -986,7 +986,12 @@ func (service *Service) AddValidator(_ *http.Request, args *AddValidatorArgs, re
 		return errNoKeys
 	}
 
-	nodePrivateKey, exist := privKeys.Get(nodeID)
+	nodePrivateKeys, err := keystore.GetKeychain(user, ids.ShortSet{nodeID: struct{}{}})
+	if err != nil {
+		return errNoNodeKey
+	}
+
+	nodePrivateKey, exist := nodePrivateKeys.Get(nodeID)
 	if !exist {
 		return errNoNodeKey
 	}
@@ -1088,7 +1093,12 @@ func (service *Service) AddSubnetValidator(_ *http.Request, args *AddSubnetValid
 		return errNoKeys
 	}
 
-	nodePrivateKey, exist := keys.Get(nodeID)
+	nodePrivateKeys, err := keystore.GetKeychain(user, ids.ShortSet{nodeID: struct{}{}})
+	if err != nil {
+		return errNoNodeKey
+	}
+
+	nodePrivateKey, exist := nodePrivateKeys.Get(nodeID)
 	if !exist {
 		return errNoNodeKey
 	}
