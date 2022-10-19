@@ -133,6 +133,51 @@ func SortTransferableOutputs(outs []*TransferableOutput, c codec.Manager) {
 	sort.Sort(&innerSortTransferableOutputs{outs: outs, codec: c})
 }
 
+type innerSortTransferableOutputsWithInputIDs struct {
+	outs     []*TransferableOutput
+	inputIDs []ids.ID
+	codec    codec.Manager
+}
+
+func (outs *innerSortTransferableOutputsWithInputIDs) Less(i, j int) bool {
+	iOut := outs.outs[i]
+	jOut := outs.outs[j]
+
+	iAssetID := iOut.AssetID()
+	jAssetID := jOut.AssetID()
+
+	switch bytes.Compare(iAssetID[:], jAssetID[:]) {
+	case -1:
+		return true
+	case 1:
+		return false
+	}
+
+	iBytes, err := outs.codec.Marshal(codecVersion, &iOut.Out)
+	if err != nil {
+		return false
+	}
+	jBytes, err := outs.codec.Marshal(codecVersion, &jOut.Out)
+	if err != nil {
+		return false
+	}
+	return bytes.Compare(iBytes, jBytes) == -1
+}
+func (outs *innerSortTransferableOutputsWithInputIDs) Len() int { return len(outs.outs) }
+func (outs *innerSortTransferableOutputsWithInputIDs) Swap(i, j int) {
+	outs.outs[j], outs.outs[i] = outs.outs[i], outs.outs[j]
+	outs.inputIDs[j], outs.inputIDs[i] = outs.inputIDs[i], outs.inputIDs[j]
+}
+
+// SortTransferableOutputsWithInputIDs sorts output objects
+func SortTransferableOutputsWithInputIDs(outs []*TransferableOutput, outInputIDs []ids.ID, c codec.Manager) {
+	sort.Sort(&innerSortTransferableOutputsWithInputIDs{
+		outs:     outs,
+		inputIDs: outInputIDs,
+		codec:    c,
+	})
+}
+
 // IsSortedTransferableOutputs returns true if output objects are sorted
 func IsSortedTransferableOutputs(outs []*TransferableOutput, c codec.Manager) bool {
 	return sort.IsSorted(&innerSortTransferableOutputs{outs: outs, codec: c})
