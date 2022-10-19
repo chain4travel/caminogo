@@ -15,12 +15,14 @@
 package platformvm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 
+	"github.com/chain4travel/caminogo/codec"
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
-	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/math"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
@@ -29,34 +31,42 @@ import (
 
 var (
 	errLockedFundsNotMarkedAsLocked = errors.New("locked funds not marked as locked")
-	errWrongLocktime                = errors.New("wrong locktime reported")
-	errUnknownOwners                = errors.New("unknown owners")
+	errWrongLockState               = errors.New("wrong lock state reported")
+	errInvalidTargetLockState       = errors.New("invalid target lock state")
+	errUnknownOwnersType            = errors.New("unknown owners")
 	errCantSign                     = errors.New("can't sign")
+	errInputsCredentialsMismatch    = errors.New("number of inputs is different from number of credentials")
+	errInputsUTXOSMismatch          = errors.New("number of inputs is different from number of utxos")
+	errWrongCredentials             = errors.New("wrong credentials")
 )
 
-// stake the provided amount while deducting the provided fee.
+// spend the provided amount while deducting the provided fee.
 // Arguments:
 // - [keys] are the owners of the funds
-// - [amount] is the amount of funds that are trying to be staked
-// - [fee] is the amount of AVAX that should be burned
+// - [totalAmountToSpend] is the amount of funds that are trying to be spended (changed their state)
+// - [totalAmountToBurn] is the amount of AVAX that should be burned
+// - [appliedLockState] is lockState that will be applied to consumed outs state
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
-// - [returnedOutputs] the outputs that should be immediately returned to the
-//                     UTXO set
-// - [stakedOutputs] the outputs that should be locked for the duration of the
-//                   staking period
+// - [outputs] the outputs produced as result of spending
+// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
 // - [signers] the proof of ownership of the funds being moved
-func (vm *VM) stake(
+func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
-	amount uint64,
-	fee uint64,
+	totalAmountToSpend uint64,
+	totalAmountToBurn uint64,
+	appliedLockState LockState,
 ) (
 	[]*avax.TransferableInput, // inputs
-	[]*avax.TransferableOutput, // returnedOutputs
-	[]*avax.TransferableOutput, // stakedOutputs
+	[]*avax.TransferableOutput, // outputs
+	[]uint32, // inputIndexes
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
+	if appliedLockState != LockStateBonded && appliedLockState != LockStateDeposited {
+		return nil, nil, nil, nil, errInvalidTargetLockState
+	}
+
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
 	for _, key := range keys {
 		addrs.Add(key.PublicKey().Address())
@@ -72,18 +82,18 @@ func (vm *VM) stake(
 	now := uint64(vm.clock.Time().Unix())
 
 	ins := []*avax.TransferableInput{}
-	returnedOuts := []*avax.TransferableOutput{}
-	stakedOuts := []*avax.TransferableOutput{}
+	outs := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
+	outInputIDs := []ids.ID{}
 
-	// Amount of AVAX that has been staked
-	amountStaked := uint64(0)
+	// Amount of AVAX that has been spended
+	amountSpended := uint64(0)
 
 	// Consume locked UTXOs
 	for _, utxo := range utxos {
-		// If we have consumed more AVAX than we are trying to stake, then we
+		// If we have consumed more AVAX than we are trying to spend, then we
 		// have no need to consume more locked AVAX
-		if amountStaked >= amount {
+		if amountSpended >= totalAmountToSpend {
 			break
 		}
 
@@ -91,25 +101,23 @@ func (vm *VM) stake(
 			continue // We only care about staking AVAX, so ignore other assets
 		}
 
-		out, ok := utxo.Out.(*StakeableLockOut)
+		out, ok := utxo.Out.(*LockedOut)
 		if !ok {
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
 			continue
-		}
-		if out.Locktime <= now {
-			// This output is no longer locked, so it will be handled during the
-			// next iteration of the UTXO set
+		} else if appliedLockState&^out.LockState != appliedLockState {
+			// This output can't be locked with target lockState
 			continue
 		}
 
-		inner, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
+		innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
 		if !ok {
 			// We only know how to clone secp256k1 outputs for now
 			continue
 		}
 
-		inIntf, inSigners, err := kc.Spend(out.TransferableOut, now)
+		inIntf, inSigners, err := kc.Spend(innerOut, now)
 		if err != nil {
 			// We couldn't spend the output, so move on to the next one
 			continue
@@ -123,49 +131,52 @@ func (vm *VM) stake(
 		// The remaining value is initially the full value of the input
 		remainingValue := in.Amount()
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			amount-amountStaked, // Amount we still need to stake
-			remainingValue,      // Amount available to stake
+		// Spend any value that should be spended
+		amountToSpend := math.Min64(
+			totalAmountToSpend-amountSpended, // Amount we still need to spend
+			remainingValue,                   // Amount available to spend
 		)
-		amountStaked += amountToStake
-		remainingValue -= amountToStake
+		amountSpended += amountToSpend
+		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
-			In: &StakeableLockIn{
-				Locktime:       out.Locktime,
+			In: &LockedIn{
+				LockState:      out.LockState,
 				TransferableIn: in,
 			},
 		})
+		inputID := utxo.InputID()
 
-		// Add the output to the staked outputs
-		stakedOuts = append(stakedOuts, &avax.TransferableOutput{
+		// Add the output to the transitioned outputs
+		outs = append(outs, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-			Out: &StakeableLockOut{
-				Locktime: out.Locktime,
+			Out: &LockedOut{
+				LockState: out.LockState | appliedLockState,
 				TransferableOut: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
-					OutputOwners: inner.OutputOwners,
+					Amt:          amountToSpend,
+					OutputOwners: innerOut.OutputOwners,
 				},
 			},
 		})
+		outInputIDs = append(outInputIDs, inputID)
 
 		if remainingValue > 0 {
-			// This input provided more value than was needed to be locked.
+			// This input provided more value than was needed to be spended.
 			// Some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &StakeableLockOut{
-					Locktime: out.Locktime,
+				Out: &LockedOut{
+					LockState: out.LockState,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingValue,
-						OutputOwners: inner.OutputOwners,
+						OutputOwners: innerOut.OutputOwners,
 					},
 				},
 			})
+			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -175,11 +186,11 @@ func (vm *VM) stake(
 	// Amount of AVAX that has been burned
 	amountBurned := uint64(0)
 
+	// consume or/and burn unlocked utxos
 	for _, utxo := range utxos {
-		// If we have consumed more AVAX than we are trying to stake, and we
-		// have burned more AVAX then we need to, then we have no need to
+		// If we have burned more AVAX then we need to, then we have no need to
 		// consume more AVAX
-		if amountBurned >= fee && amountStaked >= amount {
+		if amountSpended >= totalAmountToSpend && amountBurned >= totalAmountToBurn {
 			break
 		}
 
@@ -187,25 +198,20 @@ func (vm *VM) stake(
 			continue // We only care about burning AVAX, so ignore other assets
 		}
 
-		out := utxo.Out
-
-		if inner, ok := out.(*StakeableLockOut); ok {
-			if inner.Locktime > now {
-				// This output is currently locked, so this output can't be
-				// burned. Additionally, it may have already been consumed
-				// above. Regardless, we skip to the next UTXO
-				continue
-			}
-			out = inner.TransferableOut
+		if _, ok := utxo.Out.(*LockedOut); ok {
+			// This output is currently locked, so this output can't be
+			// burned. Additionally, it may have already been consumed
+			// above. Regardless, we skip to the next UTXO
+			continue
 		}
 
-		inner, ok := out.(*secp256k1fx.TransferOutput)
+		innerOut, ok := utxo.Out.(*secp256k1fx.TransferOutput)
 		if !ok {
 			// We only know how to clone secp256k1 outputs for now
 			continue
 		}
 
-		inIntf, inSigners, err := kc.Spend(out, now)
+		inIntf, inSigners, err := kc.Spend(innerOut, now)
 		if err != nil {
 			// We couldn't spend this UTXO, so we skip to the next one
 			continue
@@ -222,19 +228,19 @@ func (vm *VM) stake(
 
 		// Burn any value that should be burned
 		amountToBurn := math.Min64(
-			fee-amountBurned, // Amount we still need to burn
-			remainingValue,   // Amount available to burn
+			totalAmountToBurn-amountBurned, // Amount we still need to burn
+			remainingValue,                 // Amount available to burn
 		)
 		amountBurned += amountToBurn
 		remainingValue -= amountToBurn
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			amount-amountStaked, // Amount we still need to stake
-			remainingValue,      // Amount available to stake
+		// Spend any value that should be spended
+		amountToSpend := math.Min64(
+			totalAmountToSpend-amountSpended, // Amount we still need to spend
+			remainingValue,                   // Amount available to spend
 		)
-		amountStaked += amountToStake
-		remainingValue -= amountToStake
+		amountSpended += amountToSpend
+		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
@@ -242,44 +248,247 @@ func (vm *VM) stake(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
+		inputID := utxo.InputID()
 
-		if amountToStake > 0 {
-			// Some of this input was put for staking
-			stakedOuts = append(stakedOuts, &avax.TransferableOutput{
+		if amountToSpend > 0 {
+			// Some of this input was put for spending
+			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
-					OutputOwners: inner.OutputOwners,
+				Out: &LockedOut{
+					LockState: appliedLockState,
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt:          amountToSpend,
+						OutputOwners: innerOut.OutputOwners,
+					},
 				},
 			})
+			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		if remainingValue > 0 {
 			// This input had extra value, so some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
 					Amt:          remainingValue,
-					OutputOwners: inner.OutputOwners,
+					OutputOwners: innerOut.OutputOwners,
 				},
 			})
+			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
 		signers = append(signers, inSigners)
 	}
 
-	if amountBurned < fee || amountStaked < amount {
+	if amountBurned < totalAmountToBurn || amountSpended < totalAmountToSpend {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"provided keys have balance (unlocked, locked) (%d, %d) but need (%d, %d)",
-			amountBurned, amountStaked, fee, amount)
+			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
 	}
 
 	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
-	avax.SortTransferableOutputs(returnedOuts, Codec)    // sort outputs
-	avax.SortTransferableOutputs(stakedOuts, Codec)      // sort outputs
+	// ! @evlekht sort logic is partially duplicated, unhappy with this
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{ // outputs and inputIDs
+		outs:     outs,
+		inputIDs: outInputIDs,
+		codec:    Codec,
+	})
 
-	return ins, returnedOuts, stakedOuts, signers, nil
+	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
+	for inputIndex, in := range ins {
+		inputIndexesMap[in.InputID()] = uint32(inputIndex)
+	}
+
+	inputIndexes := make([]uint32, len(outInputIDs))
+	for i, inputID := range outInputIDs {
+		inputIndexes[i] = inputIndexesMap[inputID]
+	}
+
+	return ins, outs, inputIndexes, signers, nil
+}
+
+// unlock consumes locked utxos created by lock transactions and owned by keys and produce unlocked outs
+//
+// Arguments:
+// - [lockTxIDs] ids of lock transactions
+// - [keys] owners of the funds
+// - [removedLockState] is type of lock that that function will try to unlock (it's either Bonded or Deposited)
+// - [needSigners] do inputs need to be signed
+//
+// Returns:
+// - [inputs] produced inputs
+// - [outputs] produced outputs
+// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
+// - [signers] the proof of ownership of the funds being moved
+func (vm *VM) unlock(
+	state MutableState,
+	lockTxIDs []ids.ID,
+	removedLockState LockState, //nolint // * @evlekht must be fixed with deposit PR
+) (
+	[]*avax.TransferableInput, // inputs
+	[]*avax.TransferableOutput, // outputs
+	[]uint32, // lockedOutInIndexes
+	error,
+) {
+	if removedLockState != LockStateBonded && removedLockState != LockStateDeposited {
+		return nil, nil, nil, errInvalidTargetLockState
+	}
+
+	lockedUTXOsChainState := state.LockedUTXOsChainState()
+
+	var utxos []*avax.UTXO
+	for _, lockTxID := range lockTxIDs {
+		bondedUTXOIDs := lockedUTXOsChainState.GetBondedUTXOIDs(lockTxID)
+		for utxoID := range bondedUTXOIDs {
+			utxo, err := state.GetUTXO(utxoID)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("couldn't get UTXO %s: %w", utxoID, err)
+			}
+			utxos = append(utxos, utxo)
+		}
+	}
+
+	return vm.unlockUTXOs(utxos, removedLockState)
+}
+
+// unlockUTXOs consumes locked utxos owned by keys and produce unlocked outs
+// Arguments:
+// - [utxos] utxos that will be used to consume and unlock
+// - [keys] owners of the funds
+// - [removedLockState] is type of lock that that function will try to unlock
+//               (it's either Bonded or Deposited)
+// - [needSigners] do inputs need to be signed
+// Returns:
+// - [inputs] produced inputs
+// - [outputs] produced outputs
+// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
+// - [signers] the proof of ownership of the funds being moved
+func (vm *VM) unlockUTXOs(
+	utxos []*avax.UTXO,
+	removedLockState LockState,
+) (
+	[]*avax.TransferableInput, // inputs
+	[]*avax.TransferableOutput, // outputs
+	[]uint32, // outInputIndexes
+	error,
+) {
+	if removedLockState != LockStateBonded && removedLockState != LockStateDeposited {
+		return nil, nil, nil, errInvalidTargetLockState
+	}
+
+	ins := []*avax.TransferableInput{}
+	outs := []*avax.TransferableOutput{}
+	signers := [][]*crypto.PrivateKeySECP256K1R{}
+	outInputIDs := []ids.ID{}
+
+	for _, utxo := range utxos {
+		out, ok := utxo.Out.(*LockedOut)
+		if !ok {
+			// This output isn't locked
+			continue
+		} else if removedLockState&out.LockState != removedLockState {
+			// This output doesn't have required lockState
+			continue
+		}
+
+		innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
+		if !ok {
+			// We only know how to clone secp256k1 outputs for now
+			continue
+		}
+
+		// Add the input to the consumed inputs
+		ins = append(ins, &avax.TransferableInput{
+			UTXOID: utxo.UTXOID,
+			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+			In: &LockedIn{
+				LockState: out.LockState,
+				TransferableIn: &secp256k1fx.TransferInput{
+					Amt:   out.Amount(),
+					Input: secp256k1fx.Input{},
+				},
+			},
+		})
+		inputID := utxo.InputID()
+
+		if newLockState := out.LockState &^ removedLockState; newLockState.isLocked() {
+			outs = append(outs, &avax.TransferableOutput{
+				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Out: &LockedOut{
+					LockState: newLockState,
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt:          innerOut.Amount(),
+						OutputOwners: innerOut.OutputOwners,
+					},
+				},
+			})
+		} else {
+			outs = append(outs, &avax.TransferableOutput{
+				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Out: &secp256k1fx.TransferOutput{
+					Amt:          innerOut.Amount(),
+					OutputOwners: innerOut.OutputOwners,
+				},
+			})
+		}
+		outInputIDs = append(outInputIDs, inputID)
+	}
+
+	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
+	sort.Sort(&innerSortTransferableOutputsAndInputIDs{  // sort outputs and inputIDs
+		outs:     outs,
+		inputIDs: outInputIDs,
+		codec:    Codec,
+	})
+
+	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
+	for inputIndex, in := range ins {
+		inputIndexesMap[in.InputID()] = uint32(inputIndex)
+	}
+
+	inputIndexes := make([]uint32, len(outInputIDs))
+	for i, inputID := range outInputIDs {
+		inputIndexes[i] = inputIndexesMap[inputID]
+	}
+
+	return ins, outs, inputIndexes, nil
+}
+
+type innerSortTransferableOutputsAndInputIDs struct {
+	outs     []*avax.TransferableOutput
+	inputIDs []ids.ID
+	codec    codec.Manager
+}
+
+func (outs *innerSortTransferableOutputsAndInputIDs) Less(i, j int) bool {
+	iOut := outs.outs[i]
+	jOut := outs.outs[j]
+
+	iAssetID := iOut.AssetID()
+	jAssetID := jOut.AssetID()
+
+	switch bytes.Compare(iAssetID[:], jAssetID[:]) {
+	case -1:
+		return true
+	case 1:
+		return false
+	}
+
+	iBytes, err := outs.codec.Marshal(CodecVersion, &iOut.Out)
+	if err != nil {
+		return false
+	}
+	jBytes, err := outs.codec.Marshal(CodecVersion, &jOut.Out)
+	if err != nil {
+		return false
+	}
+	return bytes.Compare(iBytes, jBytes) == -1
+}
+func (outs *innerSortTransferableOutputsAndInputIDs) Len() int { return len(outs.outs) }
+func (outs *innerSortTransferableOutputsAndInputIDs) Swap(i, j int) {
+	outs.outs[j], outs.outs[i] = outs.outs[i], outs.outs[j]
+	outs.inputIDs[j], outs.inputIDs[i] = outs.inputIDs[i], outs.inputIDs[j]
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.
@@ -308,7 +517,7 @@ func (vm *VM) authorize(
 	// Make sure the owners of the subnet match the provided keys
 	owner, ok := subnet.Owner.(*secp256k1fx.OutputOwners)
 	if !ok {
-		return nil, nil, errUnknownOwners
+		return nil, nil, errUnknownOwnersType
 	}
 
 	// Add the keys to a keychain
@@ -327,7 +536,7 @@ func (vm *VM) authorize(
 }
 
 // Verify that [tx] is semantically valid.
-// [db] should not be committed if an error is returned
+// [utxoDB] should not be committed if an error is returned
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // Precondition: [tx] has already been syntactically verified
@@ -356,8 +565,16 @@ func (vm *VM) semanticVerifySpend(
 	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
 }
 
+// TODO
 // Verify that [tx] is semantically valid.
-// [db] should not be committed if an error is returned
+// Verify that [tx] is semantically valid. Meaning:
+//
+// - consumed no less tokens, than produced;
+// - ins len equal to creds len;
+// - ins and utxos have expected assetID;
+// - ins have same lockState as utxos;
+// - transfer from utxo to in is valid
+//
 // [ins] and [outs] are the inputs and outputs of [tx].
 // [creds] are the credentials of [tx], which allow [ins] to be spent.
 // [utxos[i]] is the UTXO being consumed by [ins[i]]
@@ -372,36 +589,20 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	feeAssetID ids.ID,
 ) error {
 	if len(ins) != len(creds) {
-		return fmt.Errorf(
-			"there are %d inputs but %d credentials. Should be same number",
-			len(ins),
-			len(creds),
-		)
+		return errInputsCredentialsMismatch
 	}
 	if len(ins) != len(utxos) {
-		return fmt.Errorf(
-			"there are %d inputs but %d utxos. Should be same number",
-			len(ins),
-			len(utxos),
-		)
+		return errInputsUTXOSMismatch
 	}
 	for _, cred := range creds { // Verify credentials are well-formed.
 		if err := cred.Verify(); err != nil {
-			return err
+			return errWrongCredentials
 		}
 	}
 
-	// Time this transaction is being verified
-	now := uint64(vm.clock.Time().Unix())
-
 	// Track the amount of unlocked transfers
-	unlockedProduced := feeAmount
-	unlockedConsumed := uint64(0)
-
-	// Track the amount of locked transfers and their owners
-	// locktime -> ownerID -> amount
-	lockedProduced := make(map[uint64]map[ids.ID]uint64)
-	lockedConsumed := make(map[uint64]map[ids.ID]uint64)
+	producedAmount := feeAmount
+	consumedAmount := uint64(0)
 
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
@@ -414,23 +615,22 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 
 		out := utxo.Out
-		locktime := uint64(0)
-		// Set [locktime] to this UTXO's locktime, if applicable
-		if inner, ok := out.(*StakeableLockOut); ok {
+		lockState := LockStateUnlocked
+		// Set [lockState] to this UTXO's lockState, if applicable
+		if inner, ok := out.(*LockedOut); ok {
 			out = inner.TransferableOut
-			locktime = inner.Locktime
+			lockState = inner.LockState
 		}
 
 		in := input.In
-		// The UTXO says it's locked until [locktime], but this input, which
-		// consumes it, is not locked even though [locktime] hasn't passed. This
-		// is invalid.
-		if inner, ok := in.(*StakeableLockIn); now < locktime && !ok {
+		// The UTXO says it's locked, but this input, which consumes it,
+		// is not locked - this is invalid.
+		if inner, ok := in.(*LockedIn); lockState.isLocked() && !ok {
 			return errLockedFundsNotMarkedAsLocked
 		} else if ok {
-			if inner.Locktime != locktime {
-				// This input is locked, but its locktime is wrong
-				return errWrongLocktime
+			if inner.LockState != lockState {
+				// This input is locked, but its lockState is wrong
+				return errWrongLockState
 			}
 			in = inner.TransferableIn
 		}
@@ -442,35 +642,11 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 		amount := in.Amount()
 
-		if now >= locktime {
-			newUnlockedConsumed, err := math.Add64(unlockedConsumed, amount)
-			if err != nil {
-				return err
-			}
-			unlockedConsumed = newUnlockedConsumed
-			continue
-		}
-
-		owned, ok := out.(Owned)
-		if !ok {
-			return errUnknownOwners
-		}
-		owner := owned.Owners()
-		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
-		if err != nil {
-			return fmt.Errorf("couldn't marshal owner: %w", err)
-		}
-		ownerID := hashing.ComputeHash256Array(ownerBytes)
-		owners, ok := lockedConsumed[locktime]
-		if !ok {
-			owners = make(map[ids.ID]uint64)
-			lockedConsumed[locktime] = owners
-		}
-		newAmount, err := math.Add64(owners[ownerID], amount)
+		newUnlockedConsumed, err := math.Add64(consumedAmount, amount)
 		if err != nil {
 			return err
 		}
-		owners[ownerID] = newAmount
+		consumedAmount = newUnlockedConsumed
 	}
 
 	for _, out := range outs {
@@ -478,76 +654,133 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return errAssetIDMismatch
 		}
 
-		output := out.Output()
-		locktime := uint64(0)
-		// Set [locktime] to this output's locktime, if applicable
-		if inner, ok := output.(*StakeableLockOut); ok {
-			output = inner.TransferableOut
-			locktime = inner.Locktime
-		}
+		amount := out.Out.Amount()
 
-		amount := output.Amount()
-
-		if locktime == 0 {
-			newUnlockedProduced, err := math.Add64(unlockedProduced, amount)
-			if err != nil {
-				return err
-			}
-			unlockedProduced = newUnlockedProduced
-			continue
-		}
-
-		owned, ok := output.(Owned)
-		if !ok {
-			return errUnknownOwners
-		}
-		owner := owned.Owners()
-		ownerBytes, err := Codec.Marshal(CodecVersion, owner)
-		if err != nil {
-			return fmt.Errorf("couldn't marshal owner: %w", err)
-		}
-		ownerID := hashing.ComputeHash256Array(ownerBytes)
-		owners, ok := lockedProduced[locktime]
-		if !ok {
-			owners = make(map[ids.ID]uint64)
-			lockedProduced[locktime] = owners
-		}
-		newAmount, err := math.Add64(owners[ownerID], amount)
+		newUnlockedProduced, err := math.Add64(producedAmount, amount)
 		if err != nil {
 			return err
 		}
-		owners[ownerID] = newAmount
-	}
-
-	// Make sure that for each locktime, tokens produced <= tokens consumed
-	for locktime, producedAmounts := range lockedProduced {
-		consumedAmounts := lockedConsumed[locktime]
-		for ownerID, producedAmount := range producedAmounts {
-			consumedAmount := consumedAmounts[ownerID]
-
-			if producedAmount > consumedAmount {
-				increase := producedAmount - consumedAmount
-				if increase > unlockedConsumed {
-					return fmt.Errorf(
-						"address %s produces %d unlocked and consumes %d unlocked for locktime %d",
-						ownerID,
-						increase,
-						unlockedConsumed,
-						locktime,
-					)
-				}
-				unlockedConsumed -= increase
-			}
-		}
+		producedAmount = newUnlockedProduced
 	}
 
 	// More unlocked tokens produced than consumed. Invalid.
-	if unlockedProduced > unlockedConsumed {
-		return fmt.Errorf(
-			"tx produces more unlocked (%d) than it consumes (%d)",
-			unlockedProduced,
-			unlockedConsumed,
-		)
+	if producedAmount > consumedAmount {
+		return errWrongProducedAmount
+	}
+	return nil
+}
+
+// Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
+// Arguments:
+// - [inputs] are inputs that produced [outputs]
+// - [inputIndexes] inputs[inputIndexes[i]] produce output[i]
+// - [lockState] that expected to be applied/removed to/from inputs lock state in produced outputs
+// - [lock] true if we'r locking, false if unlocking
+func syntacticVerifyLock(
+	inputs []*avax.TransferableInput,
+	inputIndexes []uint32,
+	outputs []*avax.TransferableOutput,
+	lockState LockState,
+	lock bool,
+) error {
+	if lockState != LockStateBonded && lockState != LockStateDeposited {
+		return errInvalidTargetLockState
+	}
+
+	// ? @evlekht do we need this check?
+	if len(inputs) > 4_294_967_295 { // max uint32
+		return fmt.Errorf("inputs len is to big")
+	}
+
+	if len(outputs) != len(inputIndexes) {
+		return errWrongInputIndexesLen
+	}
+
+	producedAmount := make([]uint64, len(inputs))
+
+	for outputIndex, out := range outputs {
+		inputIndex := inputIndexes[outputIndex]
+		in := inputs[inputIndex]
+
+		if in.AssetID() != out.AssetID() {
+			return fmt.Errorf("input[%d] assetID isn't equal to produced output[%d] assetID",
+				inputIndex, outputIndex)
+		}
+
+		inputLockState := LockStateUnlocked
+		if lockedIn, ok := in.In.(*LockedIn); ok {
+			inputLockState = lockedIn.LockState
+		}
+
+		outputLockState := LockStateUnlocked
+		if lockedOut, ok := out.Out.(*LockedOut); ok {
+			outputLockState = lockedOut.LockState
+		}
+
+		// checking that inputLockState is valid for applied/removed lockState
+		// checking that outputLockState is valid for inputLockState and applied/removed lockState
+		if !(lock &&
+			inputLockState&lockState != lockState &&
+			(outputLockState == inputLockState|lockState ||
+				outputLockState == inputLockState) ||
+
+			// only valid if we don't expect unlocked ins for fee burning
+			!lock &&
+				inputLockState&lockState == lockState &&
+				(outputLockState == inputLockState&^lockState ||
+					outputLockState == inputLockState)) { //nolint // newline is intended
+
+			return errWrongLockState
+		}
+
+		newProducedAmount, err := math.Add64(producedAmount[inputIndex], out.Out.Amount())
+		if err != nil {
+			return err
+		}
+		producedAmount[inputIndex] = newProducedAmount
+	}
+
+	// Input state should be checked in previous loop
+	// If not - input is burned to zero
+	// So we still need to check all inputs and see if their state is valid
+	// Also check that ins consumed amount is in accordance with produced amount
+	for i, in := range inputs {
+		inputLockState := LockStateUnlocked
+		if lockedIn, ok := in.In.(*LockedIn); ok {
+			inputLockState = lockedIn.LockState
+		}
+
+		// if input already locked this way, so it can't be used for lock / burn
+		if lock && inputLockState&lockState == lockState {
+			return errLockingLockedUTXO
+		}
+
+		if producedAmount[i] > in.In.Amount() {
+			return errWrongProducedAmount
+		}
+
+		// if input won't possibly be fully unlocked after unlock
+		// we can't allow burning of this input
+		if (!lock && inputLockState&^lockState != LockStateUnlocked || lock && inputLockState.isLocked()) &&
+			producedAmount[i] < in.In.Amount() {
+			return errBurningLockedUTXO
+		}
+	}
+
+	return nil
+}
+
+func verifyInsAndOutsUnlocked(ins []*avax.TransferableInput, outs []*avax.TransferableOutput) error {
+	for _, out := range outs {
+		if _, ok := out.Out.(*LockedOut); ok {
+			return errLockedInsOrOuts
+		}
+	}
+
+	for _, in := range ins {
+		if _, ok := in.In.(*LockedIn); ok {
+			return errLockedInsOrOuts
+		}
 	}
 	return nil
 }

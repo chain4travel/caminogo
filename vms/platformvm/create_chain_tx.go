@@ -101,6 +101,10 @@ func (tx *UnsignedCreateChainTx) SyntacticVerify(ctx *snow.Context) error {
 		return err
 	}
 
+	if err := verifyInsAndOutsUnlocked(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+
 	tx.syntacticallyVerified = true
 	return nil
 }
@@ -111,6 +115,7 @@ func (tx *UnsignedCreateChainTx) SemanticVerify(vm *VM, parentState MutableState
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, vs, stx)
 	return err
@@ -189,7 +194,7 @@ func (vm *VM) newCreateChainTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createBlockchainTxFee := vm.getCreateBlockchainTxFee(timestamp)
-	ins, outs, _, signers, err := vm.stake(keys, 0, createBlockchainTxFee)
+	ins, outs, _, signers, err := vm.spend(keys, 0, createBlockchainTxFee, LockStateDeposited)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

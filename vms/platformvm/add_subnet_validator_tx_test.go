@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/vms/components/avax"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/ids"
@@ -496,7 +497,7 @@ func TestAddSubnetValidatorTxManuallyWrongSignature(t *testing.T) {
 		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
 	}
 
-	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}, {testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]}, {nodeKeys[0]}}
+	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}}
 
 	utxo := &avax.UTXO{
 		UTXOID: avax.UTXOID{TxID: ids.ID{byte(1)}},
@@ -509,6 +510,12 @@ func TestAddSubnetValidatorTxManuallyWrongSignature(t *testing.T) {
 	vm.internalState.AddUTXO(utxo)
 	err := vm.internalState.Commit()
 	assert.NoError(t, err)
+
+	subnetAuth, subnetSigners, err := vm.authorize(vm.internalState, testSubnet1.ID(), testSubnet1ControlKeys)
+	assert.NoError(t, err)
+	signers = append(signers, subnetSigners)
+
+	signers = append(signers, []*crypto.PrivateKeySECP256K1R{nodeKeys[0]})
 
 	utx := &UnsignedAddSubnetValidatorTx{
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
@@ -533,7 +540,7 @@ func TestAddSubnetValidatorTxManuallyWrongSignature(t *testing.T) {
 			},
 			Subnet: testSubnet1.ID(),
 		},
-		SubnetAuth: &secp256k1fx.Input{SigIndices: []uint32{0, 1}},
+		SubnetAuth: subnetAuth,
 	}
 	tx := &Tx{UnsignedTx: utx}
 
@@ -544,4 +551,94 @@ func TestAddSubnetValidatorTxManuallyWrongSignature(t *testing.T) {
 	// Testing execute
 	_, _, err = tx.UnsignedTx.(*UnsignedAddSubnetValidatorTx).Execute(vm, vm.internalState, tx)
 	assert.Equal(t, errNodeSigVerificationFailed, err)
+}
+
+func TestAddSubValidatorLockedInsOrLockedOuts(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+	}
+	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}, {testSubnet1ControlKeys[0], testSubnet1ControlKeys[1]}}
+
+	type test struct {
+		name string
+		outs []*avax.TransferableOutput
+		ins  []*avax.TransferableInput
+		err  error
+	}
+
+	tests := []test{
+		{
+			name: "Locked out",
+			outs: []*avax.TransferableOutput{
+				generateTestOut(vm.ctx.AVAXAssetID, LockStateBonded, defaultValidatorStake, outputOwners),
+			},
+			ins: []*avax.TransferableInput{},
+			err: errLockedInsOrOuts,
+		},
+		{
+			name: "Locked in",
+			outs: []*avax.TransferableOutput{},
+			ins: []*avax.TransferableInput{
+				generateTestIn(vm.ctx.AVAXAssetID, LockStateBonded, defaultValidatorStake),
+			},
+			err: errLockedInsOrOuts,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			utx := &UnsignedAddSubnetValidatorTx{
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    vm.ctx.NetworkID,
+					BlockchainID: vm.ctx.ChainID,
+					Ins:          tt.ins,
+					Outs:         tt.outs,
+				}},
+				Validator: SubnetValidator{
+					Validator: Validator{
+						NodeID: ids.GenerateTestShortID(),
+						Start:  uint64(defaultValidateStartTime.Unix() + 1),
+						End:    uint64(defaultValidateEndTime.Unix() - 1),
+						Wght:   defaultValidatorStake,
+					},
+					Subnet: testSubnet1.ID(),
+				},
+				SubnetAuth: &secp256k1fx.Input{SigIndices: []uint32{0, 1}},
+			}
+			tx := &Tx{UnsignedTx: utx}
+
+			err := tx.Sign(Codec, signers)
+			assert.NoError(t, err)
+
+			// Get the preferred block (which we want to build off)
+			preferred, err := vm.Preferred()
+			assert.NoError(t, err)
+
+			preferredDecision, ok := preferred.(decision)
+			assert.True(t, ok)
+
+			preferredState := preferredDecision.onAccept()
+			fakedState := newVersionedState(
+				preferredState,
+				preferredState.CurrentStakerChainState(),
+				preferredState.PendingStakerChainState(),
+				preferredState.LockedUTXOsChainState(),
+			)
+
+			// Testing execute
+			_, _, err = utx.Execute(vm, fakedState, tx)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }

@@ -226,7 +226,8 @@ func (b *builder) NewAddValidatorTx(
 		b.backend.AVAXAssetID(): validator.Wght,
 	}
 	ops := common.NewOptions(options)
-	inputs, baseOutputs, stakeOutputs, err := b.spend(toBurn, toStake, ops)
+	// inputs, baseOutputs, stakeOutputs, err := b.spend(toBurn, toStake, ops)
+	inputs, baseOutputs, _, err := b.spend(toBurn, toStake, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -240,8 +241,8 @@ func (b *builder) NewAddValidatorTx(
 			Outs:         baseOutputs,
 			Memo:         ops.Memo(),
 		}},
-		Validator:    *validator,
-		Stake:        stakeOutputs,
+		Validator: *validator,
+		// Bond:         stakeOutputs, // TODO@ will need to update spend func here
 		RewardsOwner: rewardsOwner,
 	}, nil
 }
@@ -503,14 +504,15 @@ func (b *builder) getBalance(
 	// Iterate over the UTXOs
 	for _, utxo := range utxos {
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.StakeableLockOut); ok {
-			if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
-				// This output is currently locked, so this output can't be
-				// burned.
-				continue
-			}
-			outIntf = lockedOut.TransferableOut
-		}
+		// ! @evlekht became unsupported
+		// ! must be updated with new options like AllowBonded, AllowDeposited
+		// if !options.AllowStakeableLocked() && lockedOut.Locktime > minIssuanceTime {
+		// 		// This output is currently locked, so this output can't be
+		// 		// burned.
+		// 		continue
+		// 	}
+		// 	outIntf = lockedOut.TransferableOut
+		// }
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 		if !ok {
@@ -532,6 +534,7 @@ func (b *builder) getBalance(
 	return balance, nil
 }
 
+// ! @evlekht feels like a duplicate (partially) of spend func in platformVM - thats bad
 // spend takes in the requested burn amounts and the requested stake amounts.
 //
 //   - [amountsToBurn] maps assetID to the amount of the asset to spend without
@@ -539,18 +542,18 @@ func (b *builder) getBalance(
 //     be used to consume some of an asset that will be produced in separate
 //     outputs, such as ExportedOutputs. Only unlocked UTXOs are able to be
 //     burned here.
-//   - [amountsToStake] maps assetID to the amount of the asset to spend and place
-//     into the staked outputs. First locked UTXOs are attempted to be used for
+//   - [amountsToBond] maps assetID to the amount of the asset to spend and place
+//     into the bonded outputs. First locked UTXOs are attempted to be used for
 //     these funds, and then unlocked UTXOs will be attempted to be used. There is
 //     no preferential ordering on the unlock times.
 func (b *builder) spend(
 	amountsToBurn map[ids.ID]uint64,
-	amountsToStake map[ids.ID]uint64,
+	amountsToBond map[ids.ID]uint64,
 	options *common.Options,
 ) (
 	inputs []*avax.TransferableInput,
 	changeOutputs []*avax.TransferableOutput,
-	stakeOutputs []*avax.TransferableOutput,
+	bondOutputs []*avax.TransferableOutput,
 	err error,
 ) {
 	utxos, err := b.backend.UTXOs(options.Context(), constants.PlatformChainID)
@@ -573,22 +576,17 @@ func (b *builder) spend(
 	// Iterate over the locked UTXOs
 	for _, utxo := range utxos {
 		assetID := utxo.AssetID()
-		remainingAmountToStake := amountsToStake[assetID]
+		remainingAmountToBond := amountsToBond[assetID]
 
-		// If we have staked enough of the asset, then we have no need burn
+		// If we have bonded enough of the asset, then we have no need burn
 		// more.
-		if remainingAmountToStake == 0 {
+		if remainingAmountToBond == 0 {
 			continue
 		}
 
 		outIntf := utxo.Out
-		lockedOut, ok := outIntf.(*platformvm.StakeableLockOut)
+		lockedOut, ok := outIntf.(*platformvm.LockedOut)
 		if !ok {
-			// This output isn't locked, so it will be handled during the next
-			// iteration of the UTXO set
-			continue
-		}
-		if minIssuanceTime >= lockedOut.Locktime {
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
 			continue
@@ -608,8 +606,8 @@ func (b *builder) spend(
 		inputs = append(inputs, &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  utxo.Asset,
-			In: &platformvm.StakeableLockIn{
-				Locktime: lockedOut.Locktime,
+			In: &platformvm.LockedIn{
+				LockState: lockedOut.LockState,
 				TransferableIn: &secp256k1fx.TransferInput{
 					Amt: out.Amt,
 					Input: secp256k1fx.Input{
@@ -619,31 +617,31 @@ func (b *builder) spend(
 			},
 		})
 
-		// Stake any value that should be staked
-		amountToStake := math.Min64(
-			remainingAmountToStake, // Amount we still need to stake
-			out.Amt,                // Amount available to stake
+		// Bond any value that should be bonded
+		amountToBond := math.Min64(
+			remainingAmountToBond, // Amount we still need to bond
+			out.Amt,               // Amount available to bond
 		)
 
-		// Add the output to the staked outputs
-		stakeOutputs = append(stakeOutputs, &avax.TransferableOutput{
+		// Add the output to the bonded outputs
+		bondOutputs = append(bondOutputs, &avax.TransferableOutput{
 			Asset: utxo.Asset,
-			Out: &platformvm.StakeableLockOut{
-				Locktime: lockedOut.Locktime,
+			Out: &platformvm.LockedOut{
+				LockState: lockedOut.LockState,
 				TransferableOut: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
+					Amt:          amountToBond,
 					OutputOwners: out.OutputOwners,
 				},
 			},
 		})
 
-		amountsToStake[assetID] -= amountToStake
-		if remainingAmount := out.Amt - amountToStake; remainingAmount > 0 {
+		amountsToBond[assetID] -= amountToBond
+		if remainingAmount := out.Amt - amountToBond; remainingAmount > 0 {
 			// This input had extra value, so some of it must be returned
 			changeOutputs = append(changeOutputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
-				Out: &platformvm.StakeableLockOut{
-					Locktime: lockedOut.Locktime,
+				Out: &platformvm.LockedOut{
+					LockState: lockedOut.LockState,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingAmount,
 						OutputOwners: out.OutputOwners,
@@ -656,23 +654,18 @@ func (b *builder) spend(
 	// Iterate over the unlocked UTXOs
 	for _, utxo := range utxos {
 		assetID := utxo.AssetID()
-		remainingAmountToStake := amountsToStake[assetID]
+		remainingAmountToBond := amountsToBond[assetID]
 		remainingAmountToBurn := amountsToBurn[assetID]
 
 		// If we have consumed enough of the asset, then we have no need burn
 		// more.
-		if remainingAmountToStake == 0 && remainingAmountToBurn == 0 {
+		if remainingAmountToBond == 0 && remainingAmountToBurn == 0 {
 			continue
 		}
 
 		outIntf := utxo.Out
-		if lockedOut, ok := outIntf.(*platformvm.StakeableLockOut); ok {
-			if lockedOut.Locktime > minIssuanceTime {
-				// This output is currently locked, so this output can't be
-				// burned.
-				continue
-			}
-			outIntf = lockedOut.TransferableOut
+		if _, ok := outIntf.(*platformvm.LockedOut); ok {
+			continue
 		}
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
@@ -704,24 +697,24 @@ func (b *builder) spend(
 		)
 		amountsToBurn[assetID] -= amountToBurn
 
-		amountAvalibleToStake := out.Amt - amountToBurn
+		amountAvalibleToBond := out.Amt - amountToBurn
 		// Burn any value that should be burned
-		amountToStake := math.Min64(
-			remainingAmountToStake, // Amount we still need to stake
-			amountAvalibleToStake,  // Amount available to stake
+		amountToBond := math.Min64(
+			remainingAmountToBond, // Amount we still need to bond
+			amountAvalibleToBond,  // Amount available to bond
 		)
-		amountsToStake[assetID] -= amountToStake
-		if amountToStake > 0 {
+		amountsToBond[assetID] -= amountToBond
+		if amountToBond > 0 {
 			// Some of this input was put for staking
-			stakeOutputs = append(stakeOutputs, &avax.TransferableOutput{
+			bondOutputs = append(bondOutputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
 				Out: &secp256k1fx.TransferOutput{
-					Amt:          amountToStake,
+					Amt:          amountToBond,
 					OutputOwners: *changeOwner,
 				},
 			})
 		}
-		if remainingAmount := amountAvalibleToStake - amountToStake; remainingAmount > 0 {
+		if remainingAmount := amountAvalibleToBond - amountToBond; remainingAmount > 0 {
 			// This input had extra value, so some of it must be returned
 			changeOutputs = append(changeOutputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
@@ -733,10 +726,10 @@ func (b *builder) spend(
 		}
 	}
 
-	for assetID, amount := range amountsToStake {
+	for assetID, amount := range amountsToBond {
 		if amount != 0 {
 			return nil, nil, nil, fmt.Errorf(
-				"%w: provided UTXOs need %d more units of asset %q to stake",
+				"%w: provided UTXOs need %d more units of asset %q to bond",
 				errInsufficientFunds,
 				amount,
 				assetID,
@@ -756,8 +749,8 @@ func (b *builder) spend(
 
 	avax.SortTransferableInputs(inputs)                           // sort inputs
 	avax.SortTransferableOutputs(changeOutputs, platformvm.Codec) // sort the change outputs
-	avax.SortTransferableOutputs(stakeOutputs, platformvm.Codec)  // sort stake outputs
-	return inputs, changeOutputs, stakeOutputs, nil
+	avax.SortTransferableOutputs(bondOutputs, platformvm.Codec)   // sort bond outputs
+	return inputs, changeOutputs, bondOutputs, nil
 }
 
 func (b *builder) authorizeSubnet(subnetID ids.ID, options *common.Options) (*secp256k1fx.Input, error) {

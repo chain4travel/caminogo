@@ -129,15 +129,20 @@ const (
 	defaultWeight = 10000
 )
 
+type output struct {
+	state  LockState
+	amount uint64
+}
+
 func init() {
 	ctx := defaultContext()
 	factory := crypto.FactorySECP256K1R{}
 	for index, key := range []string{
-		"ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN",
-		"2RWLv6YVEXDiWLpaCbXhhqxtLbnFaKQsWPSSMSPhpWo47uJAeV",
-		"cxb7KpGWhDMALTjNNSJ7UQkkomPesyWAPUaWRGdyeBNzR6f35",
 		"2MMvUMsxx6zsHSNXJdFD8yc5XkancvwyKPwpw4xUK3TCGDuNBY",
 		"24jUJ9vZexUM6expyMcT48LBx27k1m7xpraoV62oSQAHdziao5",
+		"2RWLv6YVEXDiWLpaCbXhhqxtLbnFaKQsWPSSMSPhpWo47uJAeV",
+		"ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN",
+		"cxb7KpGWhDMALTjNNSJ7UQkkomPesyWAPUaWRGdyeBNzR6f35",
 	} {
 		privKeyBytes, err := formatting.Decode(formatting.CB58, key)
 		ctx.Log.AssertNoError(err)
@@ -451,6 +456,114 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 	return vm, baseDBManager.Current().Database, appSender
 }
 
+func generateTestLockedState(lockedUTXOs []map[ids.ID]utxoLockState, fillUpdated bool) *lockedUTXOsChainStateImpl {
+	bonds := map[ids.ID]ids.Set{}
+	deposits := map[ids.ID]ids.Set{}
+	locked := map[ids.ID]utxoLockState{}
+	updated := map[ids.ID]utxoLockState{}
+	for _, lockedUTXO := range lockedUTXOs {
+		for utxoID, utxoState := range lockedUTXO {
+			if utxoState.BondTxID != nil {
+				bonds[*utxoState.BondTxID] = map[ids.ID]struct{}{utxoID: {}}
+			}
+			if utxoState.DepositTxID != nil {
+				deposits[*utxoState.DepositTxID] = map[ids.ID]struct{}{utxoID: {}}
+			}
+			locked[utxoID] = utxoState
+		}
+	}
+
+	if fillUpdated {
+		updated = locked
+	}
+
+	return &lockedUTXOsChainStateImpl{
+		bonds:        bonds,
+		deposits:     deposits,
+		lockedUTXOs:  locked,
+		updatedUTXOs: updated,
+	}
+}
+
+func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, lockedState LockState) *avax.UTXO {
+	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
+		Amt:          amount,
+		OutputOwners: outputOwners,
+	}
+	if lockedState.isLocked() {
+		out = &LockedOut{
+			LockState:       lockedState,
+			TransferableOut: out,
+		}
+	}
+	return &avax.UTXO{
+		UTXOID: avax.UTXOID{TxID: txID},
+		Asset:  avax.Asset{ID: assetID},
+		Out:    out,
+	}
+}
+
+func generateTestInFromUTXO(assetID ids.ID, utxo *avax.UTXO, sigIndices []uint32) *avax.TransferableInput {
+	switch out := utxo.Out.(type) {
+	case *secp256k1fx.TransferOutput:
+		return &avax.TransferableInput{
+			UTXOID: utxo.UTXOID,
+			Asset:  avax.Asset{ID: assetID},
+			In: &secp256k1fx.TransferInput{
+				Amt:   out.Amount(),
+				Input: secp256k1fx.Input{SigIndices: sigIndices},
+			},
+		}
+	case *LockedOut:
+		return &avax.TransferableInput{
+			UTXOID: utxo.UTXOID,
+			Asset:  avax.Asset{ID: assetID},
+			In: &LockedIn{
+				LockState: out.LockState,
+				TransferableIn: &secp256k1fx.TransferInput{
+					Amt:   out.TransferableOut.Amount(),
+					Input: secp256k1fx.Input{SigIndices: sigIndices},
+				},
+			},
+		}
+	default:
+		return nil
+	}
+}
+
+func generateTestIn(assetID ids.ID, state LockState, amount uint64) *avax.TransferableInput {
+	var in avax.TransferableIn = &secp256k1fx.TransferInput{
+		Amt: amount,
+	}
+	if state.isLocked() {
+		in = &LockedIn{
+			LockState:      state,
+			TransferableIn: in,
+		}
+	}
+	return &avax.TransferableInput{
+		Asset: avax.Asset{ID: assetID},
+		In:    in,
+	}
+}
+
+func generateTestOut(assetID ids.ID, state LockState, amount uint64, outputOwners secp256k1fx.OutputOwners) *avax.TransferableOutput {
+	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
+		Amt:          amount,
+		OutputOwners: outputOwners,
+	}
+	if state.isLocked() {
+		out = &LockedOut{
+			LockState:       state,
+			TransferableOut: out,
+		}
+	}
+	return &avax.TransferableOutput{
+		Asset: avax.Asset{ID: assetID},
+		Out:   out,
+	}
+}
+
 func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan common.Message, *VM, *atomic.Memory) {
 	var genesisBytes []byte
 
@@ -532,6 +645,8 @@ func TestGenesis(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
+	assert := assert.New(t)
+
 	// Ensure the genesis block has been accepted and stored
 	genesisBlockID, err := vm.LastAccepted() // lastAccepted should be ID of genesis block
 	if err != nil {
@@ -544,38 +659,61 @@ func TestGenesis(t *testing.T) {
 	}
 
 	genesisState, _ := defaultGenesis()
+
+	allGenesisUTXOs := make(map[string][]APIUTXO)
+
+	// grouping utxos by address
+	for _, genesisUTXO := range genesisState.UTXOs {
+		allGenesisUTXOs[genesisUTXO.Address] = append(allGenesisUTXOs[genesisUTXO.Address], genesisUTXO)
+	}
+	for _, validator := range genesisState.Validators {
+		for _, genesisUTXO := range validator.Staked {
+			allGenesisUTXOs[genesisUTXO.Address] = append(allGenesisUTXOs[genesisUTXO.Address], genesisUTXO)
+		}
+	}
+
 	// Ensure all the genesis UTXOs are there
-	for _, utxo := range genesisState.UTXOs {
-		_, addrBytes, err := formatting.ParseBech32(utxo.Address)
-		if err != nil {
-			t.Fatal(err)
-		}
+	for addrStr, genesisUTXOs := range allGenesisUTXOs {
+		assert.Len(genesisUTXOs, 2)
+
+		_, addrBytes, err := formatting.ParseBech32(addrStr)
+		assert.NoError(err)
 		addr, err := ids.ToShortID(addrBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(err)
 		addrs := ids.ShortSet{}
 		addrs.Add(addr)
+
 		utxos, err := avax.GetAllUTXOs(vm.internalState, addrs)
-		if err != nil {
-			t.Fatal("couldn't find UTXO")
-		} else if len(utxos) != 1 {
-			t.Fatal("expected each address to have one UTXO")
-		} else if out, ok := utxos[0].Out.(*secp256k1fx.TransferOutput); !ok {
-			t.Fatal("expected utxo output to be type *secp256k1fx.TransferOutput")
-		} else if out.Amount() != uint64(utxo.Amount) {
-			id := keys[0].PublicKey().Address()
-			hrp := constants.NetworkIDToHRP[testNetworkID]
-			addr, err := formatting.FormatBech32(hrp, id.Bytes())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if utxo.Address == addr { // Address that paid tx fee to create testSubnet1 has less tokens
-				if out.Amount() != uint64(utxo.Amount)-vm.TxFee {
-					t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount)-vm.TxFee, out.Amount())
+		assert.NoError(err)
+		assert.Len(utxos, 2)
+
+		matchingUTXOs := ids.Set{}
+
+		for _, genesisUTXO := range genesisUTXOs {
+			found := false
+			for _, utxo := range utxos {
+				if matchingUTXOs.Contains(utxo.InputID()) {
+					continue
 				}
-			} else {
-				t.Fatalf("expected UTXO to have value %d but has value %d", uint64(utxo.Amount), out.Amount())
+				amount := uint64(0)
+
+				switch out := utxo.Out.(type) {
+				case *LockedOut:
+					amount = out.TransferableOut.Amount()
+				case *secp256k1fx.TransferOutput:
+					amount = out.Amount()
+				}
+
+				if amount == uint64(genesisUTXO.Amount) {
+					matchingUTXOs.Add(utxo.InputID())
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("expected to have UTXO with addr %s and amount %d: ",
+					addrStr, genesisUTXO.Amount)
 			}
 		}
 	}
@@ -1093,7 +1231,7 @@ func TestRewardValidatorAccept(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[4])
+	_, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -1182,7 +1320,7 @@ func TestRewardValidatorReject(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[4])
+	_, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -1269,7 +1407,7 @@ func TestRewardValidatorPreferred(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[4])
+	_, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}

@@ -49,10 +49,9 @@ type StaticService struct{}
 
 // APIUTXO is a UTXO on the Platform Chain that exists at the chain's genesis.
 type APIUTXO struct {
-	Locktime json.Uint64 `json:"locktime"`
-	Amount   json.Uint64 `json:"amount"`
-	Address  string      `json:"address"`
-	Message  string      `json:"message"`
+	Amount  json.Uint64 `json:"amount"`
+	Address string      `json:"address"`
+	Message string      `json:"message"`
 }
 
 // APIStaker is the representation of a staker sent via APIs.
@@ -208,12 +207,6 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				},
 			},
 		}
-		if apiUTXO.Locktime > args.Time {
-			utxo.Out = &StakeableLockOut{
-				Locktime:        uint64(apiUTXO.Locktime),
-				TransferableOut: utxo.Out.(avax.TransferableOut),
-			}
-		}
 		messageBytes, err := formatting.Decode(args.Encoding, apiUTXO.Message)
 		if err != nil {
 			return fmt.Errorf("problem decoding UTXO message bytes: %w", err)
@@ -228,7 +221,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	validators := newTxHeapByEndTime()
 	for _, validator := range args.Validators {
 		weight := uint64(0)
-		stake := make([]*avax.TransferableOutput, len(validator.Staked))
+		bondedOuts := make([]*avax.TransferableOutput, len(validator.Staked))
 		sortAPIUTXOs(validator.Staked)
 		for i, apiUTXO := range validator.Staked {
 			addrID, err := bech32ToID(apiUTXO.Address)
@@ -236,24 +229,20 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				return err
 			}
 
-			utxo := &avax.TransferableOutput{
+			bondedOuts[i] = &avax.TransferableOutput{
 				Asset: avax.Asset{ID: args.AvaxAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: uint64(apiUTXO.Amount),
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{addrID},
+				Out: &LockedOut{
+					LockState: LockStateBonded,
+					TransferableOut: &secp256k1fx.TransferOutput{
+						Amt: uint64(apiUTXO.Amount),
+						OutputOwners: secp256k1fx.OutputOwners{
+							Locktime:  0,
+							Threshold: 1,
+							Addrs:     []ids.ShortID{addrID},
+						},
 					},
 				},
 			}
-			if apiUTXO.Locktime > args.Time {
-				utxo.Out = &StakeableLockOut{
-					Locktime:        uint64(apiUTXO.Locktime),
-					TransferableOut: utxo.Out,
-				}
-			}
-			stake[i] = utxo
 
 			newWeight, err := safemath.Add64(weight, uint64(apiUTXO.Amount))
 			if err != nil {
@@ -293,6 +282,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			BaseTx: BaseTx{BaseTx: avax.BaseTx{
 				NetworkID:    uint32(args.NetworkID),
 				BlockchainID: ids.Empty,
+				Outs:         bondedOuts,
 			}},
 			Validator: Validator{
 				NodeID: nodeID,
@@ -300,7 +290,6 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				End:    uint64(validator.EndTime),
 				Wght:   weight,
 			},
-			Stake:        stake,
 			RewardsOwner: owner,
 		}}
 		if err := tx.Sign(GenesisCodec, nil); err != nil {
@@ -368,12 +357,6 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 type innerSortAPIUTXO []APIUTXO
 
 func (xa innerSortAPIUTXO) Less(i, j int) bool {
-	if xa[i].Locktime < xa[j].Locktime {
-		return true
-	} else if xa[i].Locktime > xa[j].Locktime {
-		return false
-	}
-
 	if xa[i].Amount < xa[j].Amount {
 		return true
 	} else if xa[i].Amount > xa[j].Amount {

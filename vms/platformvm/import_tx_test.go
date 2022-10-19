@@ -177,6 +177,7 @@ func TestNewImportTx(t *testing.T) {
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
+				preferredState.LockedUTXOsChainState(),
 			)
 			fakedState.SetTimestamp(tt.timestamp)
 
@@ -186,6 +187,90 @@ func TestNewImportTx(t *testing.T) {
 			} else {
 				assert.Error(err)
 			}
+		})
+	}
+}
+
+func TestImportLockedInsOrLockedOuts(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+	}
+	signers := [][]*crypto.PrivateKeySECP256K1R{{keys[0]}}
+
+	type test struct {
+		name string
+		outs []*avax.TransferableOutput
+		ins  []*avax.TransferableInput
+		err  error
+	}
+
+	tests := []test{
+		{
+			name: "Locked out",
+			outs: []*avax.TransferableOutput{
+				generateTestOut(vm.ctx.AVAXAssetID, LockStateBonded, 10, outputOwners),
+			},
+			ins: []*avax.TransferableInput{},
+			err: errLockedInsOrOuts,
+		},
+		{
+			name: "Locked in",
+			outs: []*avax.TransferableOutput{},
+			ins: []*avax.TransferableInput{
+				generateTestIn(vm.ctx.AVAXAssetID, LockStateBonded, 10),
+			},
+			err: errLockedInsOrOuts,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			utx := &UnsignedImportTx{
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    vm.ctx.NetworkID,
+					BlockchainID: vm.ctx.ChainID,
+					Outs:         tt.outs,
+					Ins:          tt.ins,
+				}},
+				SourceChain: vm.ctx.XChainID,
+				ImportedInputs: []*avax.TransferableInput{
+					generateTestIn(vm.ctx.AVAXAssetID, LockStateUnlocked, 10),
+				},
+			}
+			tx := &Tx{UnsignedTx: utx}
+
+			err := tx.Sign(Codec, signers)
+			assert.NoError(t, err)
+
+			// Get the preferred block (which we want to build off)
+			preferred, err := vm.Preferred()
+			assert.NoError(t, err)
+
+			preferredDecision, ok := preferred.(decision)
+			assert.True(t, ok)
+
+			preferredState := preferredDecision.onAccept()
+			fakedState := newVersionedState(
+				preferredState,
+				preferredState.CurrentStakerChainState(),
+				preferredState.PendingStakerChainState(),
+				preferredState.LockedUTXOsChainState(),
+			)
+
+			// Testing execute
+			_, err = utx.Execute(vm, fakedState, tx)
+			assert.Equal(t, tt.err, err)
 		})
 	}
 }

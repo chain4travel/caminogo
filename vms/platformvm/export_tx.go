@@ -77,12 +77,16 @@ func (tx *UnsignedExportTx) SyntacticVerify(ctx *snow.Context) error {
 		return err
 	}
 
+	if err := verifyInsAndOutsUnlocked(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+
 	for _, out := range tx.ExportedOutputs {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("output failed verification: %w", err)
 		}
-		if _, ok := out.Output().(*StakeableLockOut); ok {
-			return errWrongLocktime
+		if _, ok := out.Output().(*LockedOut); ok {
+			return errBurningLockedUTXO
 		}
 	}
 	if !avax.IsSortedTransferableOutputs(tx.ExportedOutputs, Codec) {
@@ -176,6 +180,7 @@ func (tx *UnsignedExportTx) AtomicExecute(
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, newState, stx)
 	return newState, err
@@ -201,7 +206,7 @@ func (vm *VM) newExportTx(
 	if err != nil {
 		return nil, errOverflowExport
 	}
-	ins, outs, _, signers, err := vm.stake(keys, 0, toBurn)
+	ins, outs, _, signers, err := vm.spend(keys, 0, toBurn, LockStateDeposited)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -211,11 +216,11 @@ func (vm *VM) newExportTx(
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
-			Ins:          ins,
-			Outs:         outs, // Non-exported outputs
+			Ins:          ins,  // 10 CAM, 100 CAM
+			Outs:         outs, // Non-exported outputs // 9 CAM
 		}},
 		DestinationChain: chainID,
-		ExportedOutputs: []*avax.TransferableOutput{{ // Exported to X-Chain
+		ExportedOutputs: []*avax.TransferableOutput{{ // Exported to X-Chain // 50 CAM
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &secp256k1fx.TransferOutput{
 				Amt: amount,

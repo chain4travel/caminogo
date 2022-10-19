@@ -29,6 +29,7 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
@@ -42,84 +43,268 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 	}()
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	toRemoveTx, _, err := currentStakers.GetNextStaker()
+	stakerToRemoveTx, _, err := currentStakers.GetNextStaker()
 	if err != nil {
 		t.Fatal(err)
 	}
-	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
+	addValidatorTxID := stakerToRemoveTx.ID()
+	addValidatorTx, ok := stakerToRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
+	assert.True(t, ok)
 
-	// Case 1: Chain timestamp is wrong
-	stx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
-	if !ok {
-		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
-	}
-	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
-		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	}
+	t.Run("Chain timestamp is wrong", func(t *testing.T) {
+		assert := assert.New(t)
+		stx, err := vm.newRewardValidatorTx(addValidatorTxID)
+		assert.NoError(err)
+		utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+		assert.True(ok)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errToEarlyValidatorRemoval)
+	})
 
 	// Advance chain timestamp to time that next validator leaves
-	vm.internalState.SetTimestamp(toRemove.EndTime())
+	vm.internalState.SetTimestamp(addValidatorTx.EndTime())
 
-	// Case 2: Wrong validator
-	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
-	if !ok {
-		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
-	}
-	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
-		t.Fatalf("should have failed because validator ID is wrong")
-	}
+	t.Run("Not zero creds", func(t *testing.T) {
+		assert := assert.New(t)
+		stx, err := vm.newRewardValidatorTx(addValidatorTxID)
+		assert.NoError(err)
+		stx.Creds = append(stx.Creds, &secp256k1fx.Credential{})
+		utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+		assert.True(ok)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errWrongNumberOfCredentials)
+	})
 
-	// Case 3: Happy path
-	tx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("Wrong validator", func(t *testing.T) {
+		assert := assert.New(t)
+		stx, err := vm.newRewardValidatorTx(ids.GenerateTestID())
+		assert.NoError(err)
+		utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
+		assert.True(ok)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errWrongValidatorRemoval)
+	})
 
-	onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("Invalid ins len (one excess)", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		assert.NoError(err)
 
-	onCommitCurrentStakers := onCommitState.CurrentStakerChainState()
-	nextToRemoveTx, _, err := onCommitCurrentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if toRemove.ID() == nextToRemoveTx.ID() {
-		t.Fatalf("Should have removed the previous validator")
-	}
+		ins = append(ins, &avax.TransferableInput{In: &secp256k1fx.TransferInput{}}) // invalid len
 
-	// check that stake/reward is given back
-	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins, // invalid len
+			Outs:          outs,
+			InputIndexes:  inputIndexes,
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
 
-	// Get old balances
-	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("Invalid outs len (one excess)", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded) // invalid len
+		assert.NoError(err)
 
-	onCommitState.Apply(vm.internalState)
-	if err := vm.internalState.Commit(); err != nil {
-		t.Fatal(err)
-	}
+		outs = append(outs, &avax.TransferableOutput{Out: &secp256k1fx.TransferOutput{}})
 
-	onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins,
+			Outs:          outs, // invalid len
+			InputIndexes:  inputIndexes,
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
 
-	if onCommitBalance != oldBalance+toRemove.Validator.Weight()+13773 {
-		t.Fatalf("on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
-			oldBalance, toRemove.Validator.Weight(), 13773, onCommitBalance)
-	}
+	t.Run("Invalid inputIndexes len (one excess)", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		assert.NoError(err)
+
+		inputIndexes = append(inputIndexes, 0) // invalid len
+
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins,
+			Outs:          outs,
+			InputIndexes:  inputIndexes, // invalid len
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
+
+	t.Run("Invalid input", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		assert.NoError(err)
+
+		assert.Greater(len(ins), 0)
+		inputLockState := LockStateUnlocked
+		if in, ok := ins[0].In.(*LockedIn); ok {
+			inputLockState = in.LockState
+		}
+		ins[0] = &avax.TransferableInput{
+			UTXOID: ins[0].UTXOID,
+			Asset:  ins[0].Asset,
+			In: &LockedIn{
+				LockState: inputLockState,
+				TransferableIn: &secp256k1fx.TransferInput{
+					Amt: ins[0].In.Amount() - 1, // invalid
+				},
+			},
+		}
+
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins, // invalid
+			Outs:          outs,
+			InputIndexes:  inputIndexes,
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
+
+	t.Run("Invalid output", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		assert.NoError(err)
+
+		assert.Greater(len(outs), 0)
+		outputLockState := LockStateUnlocked
+		innerOut := outs[0].Out
+		if out, ok := innerOut.(*LockedOut); ok {
+			outputLockState = out.LockState
+			innerOut = out.TransferableOut
+		}
+		secpOut, ok := innerOut.(*secp256k1fx.TransferOutput)
+		assert.True(ok)
+		var outerOut avax.TransferableOut = &secp256k1fx.TransferOutput{
+			Amt:          outs[0].Out.Amount() - 1, // invalid
+			OutputOwners: secpOut.OutputOwners,
+		}
+		if outputLockState.isLocked() {
+			outerOut = &LockedOut{
+				LockState:       outputLockState,
+				TransferableOut: outerOut,
+			}
+		}
+		outs[0] = &avax.TransferableOutput{
+			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+			Out:   outerOut,
+		}
+
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins,
+			Outs:          outs, // invalid
+			InputIndexes:  inputIndexes,
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
+
+	t.Run("Invalid input index", func(t *testing.T) {
+		assert := assert.New(t)
+		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		assert.NoError(err)
+
+		assert.Greater(len(inputIndexes), 0)
+		inputIndexes[0]++ // invalid
+
+		utx := &UnsignedRewardValidatorTx{
+			Ins:           ins,
+			Outs:          outs,
+			InputIndexes:  inputIndexes, // invalid
+			ValidatorTxID: addValidatorTxID,
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err = stx.Sign(Codec, nil)
+		assert.NoError(err)
+		_, _, err = utx.Execute(vm, vm.internalState, stx)
+		assert.ErrorIs(err, errTxBodyMissmatch)
+	})
+
+	t.Run("Happy path", func(t *testing.T) {
+		assert := assert.New(t)
+		tx, err := vm.newRewardValidatorTx(addValidatorTxID)
+		assert.NoError(err)
+
+		onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
+		assert.NoError(err)
+
+		// Checking onCommitState
+
+		onCommitCurrentStakers := onCommitState.CurrentStakerChainState()
+		nextToRemoveTx, _, err := onCommitCurrentStakers.GetNextStaker()
+		assert.NoError(err)
+		assert.NotEqual(addValidatorTxID, nextToRemoveTx.ID(),
+			"Should have removed the previous validator")
+
+		// check that stake/reward is given back
+		innerOut := addValidatorTx.Outs[0].Out.(*LockedOut)
+		stakeOwners := innerOut.TransferableOut.(*secp256k1fx.TransferOutput).AddressesSet()
+
+		// Get old balances
+		oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
+		assert.NoError(err)
+
+		lockChainStateBefore := vm.internalState.LockedUTXOsChainState()
+		bondedUTXOIDs := lockChainStateBefore.GetBondedUTXOIDs(addValidatorTxID)
+
+		onCommitState.Apply(vm.internalState)
+		err = vm.internalState.Commit()
+		assert.NoError(err)
+
+		// ! @evlekht also, those execute tests currently green only
+		// ! cause LockedOut doesn't support Amounter interface
+		// ! tests use avax.GetBalance which iterates over utxos
+		// ! trying to get values with Amounter
+		// ! LockedOut probably should support Amounter,
+		// ! but that could have a lot of consequences
+		// ! (and at least we'll need to update those balance checks,
+		// ! but that sounds right)
+		onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
+		assert.NoError(err)
+
+		const reward uint64 = 13773
+
+		assert.Equalf(onCommitBalance, oldBalance+reward,
+			"on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
+			oldBalance, addValidatorTx.Validator.Weight(), reward, onCommitBalance)
+
+		lockChainStateAfter := vm.internalState.LockedUTXOsChainState()
+
+		//  on commit, utxos bonded by addValidatorTxID should consumed to produce unbonded
+		for bondedUTXOID := range bondedUTXOIDs {
+			_, err := vm.internalState.GetUTXO(bondedUTXOID)
+			assert.ErrorIs(err, database.ErrNotFound)
+
+			utxoLockStateAfter := lockChainStateAfter.GetUTXOLockState(bondedUTXOID)
+			assert.Nil(utxoLockStateAfter.BondTxID)
+			assert.Nil(utxoLockStateAfter.DepositTxID)
+		}
+
+		bondedUTXOIDs = lockChainStateAfter.GetBondedUTXOIDs(addValidatorTxID)
+		assert.Empty(bondedUTXOIDs)
+	})
 }
 
 func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
@@ -132,85 +317,69 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 		vm.ctx.Lock.Unlock()
 	}()
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	toRemoveTx, _, err := currentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	toRemove := toRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
+	assert := assert.New(t)
 
-	// Case 1: Chain timestamp is wrong
-	stx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
-	if !ok {
-		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
-	}
-	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
-		t.Fatalf("should have failed because validator end time doesn't match chain timestamp")
-	}
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	stakerToRemoveTx, _, err := currentStakers.GetNextStaker()
+	assert.NoError(err)
+	addValidatorTxID := stakerToRemoveTx.ID()
+	addValidatorTx, ok := stakerToRemoveTx.UnsignedTx.(*UnsignedAddValidatorTx)
+	assert.True(ok)
 
 	// Advance chain timestamp to time that next validator leaves
-	vm.internalState.SetTimestamp(toRemove.EndTime())
+	vm.internalState.SetTimestamp(addValidatorTx.EndTime())
 
-	// Case 2: Wrong validator
-	stx, err = vm.newRewardValidatorTx(ids.GenerateTestID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	utx, ok = stx.UnsignedTx.(*UnsignedRewardValidatorTx)
-	if !ok {
-		t.Fatal("Could not cast rewardValidatorTx to an UnsignedRewardValidatorTx")
-	}
-	if _, _, err = utx.Execute(vm, vm.internalState, stx); err == nil {
-		t.Fatalf("should have failed because validator ID is wrong")
-	}
-
-	// Case 3: Happy path
-	tx, err := vm.newRewardValidatorTx(toRemove.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	tx, err := vm.newRewardValidatorTx(addValidatorTxID)
+	assert.NoError(err)
 
 	_, onAbortState, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(err)
 
 	onAbortCurrentStakers := onAbortState.CurrentStakerChainState()
 	nextToRemoveTx, _, err := onAbortCurrentStakers.GetNextStaker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if toRemove.ID() == nextToRemoveTx.ID() {
-		t.Fatalf("Should have removed the previous validator")
-	}
+	assert.NoError(err)
+	assert.NotEqual(addValidatorTxID, nextToRemoveTx.ID(),
+		"Should have removed the previous validator")
 
 	// check that stake/reward isn't given back
-	stakeOwners := toRemove.Stake[0].Out.(*secp256k1fx.TransferOutput).AddressesSet()
+	innerOut := addValidatorTx.Outs[0].Out.(*LockedOut)
+	stakeOwners := innerOut.TransferableOut.(*secp256k1fx.TransferOutput).AddressesSet()
 
 	// Get old balances
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(err)
+
+	lockChainStateBefore := vm.internalState.LockedUTXOsChainState()
+	bondedUTXOIDs := lockChainStateBefore.GetBondedUTXOIDs(addValidatorTxID)
 
 	onAbortState.Apply(vm.internalState)
-	if err := vm.internalState.Commit(); err != nil {
-		t.Fatal(err)
-	}
+	err = vm.internalState.Commit()
+	assert.NoError(err)
 
 	onAbortBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
-	if err != nil {
-		t.Fatal(err)
+	assert.NoError(err)
+
+	assert.Equalf(onAbortBalance, oldBalance,
+		"on abort, should have old balance (%d) + staked amount (%d) but have %d",
+		oldBalance, addValidatorTx.Validator.Weight(), onAbortBalance)
+
+	lockChainStateAfter := vm.internalState.LockedUTXOsChainState()
+
+	for bondedUTXOID := range bondedUTXOIDs {
+		_, err := vm.internalState.GetUTXO(bondedUTXOID)
+		assert.ErrorIs(err, database.ErrNotFound,
+			"on abort, utxos bonded by addValidatorTxID should consumed to produce unbonded")
+
+		utxoLockStateAfter := lockChainStateAfter.GetUTXOLockState(bondedUTXOID)
+		assert.Nil(utxoLockStateAfter.BondTxID,
+			"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
+		assert.Nil(utxoLockStateAfter.DepositTxID,
+			"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
 	}
 
-	if onAbortBalance != oldBalance+toRemove.Validator.Weight() {
-		t.Fatalf("on abort, should have old balance (%d) + staked amount (%d) but have %d",
-			oldBalance, toRemove.Validator.Weight(), onAbortBalance)
-	}
+	bondedUTXOIDs = lockChainStateAfter.GetBondedUTXOIDs(addValidatorTxID)
+	assert.Empty(bondedUTXOIDs,
+		"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
 }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {
@@ -406,7 +575,7 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 	}
 
 	currentStakers := secondVM.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[4])
+	_, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -538,8 +707,43 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[4])
+	_, err = currentStakers.GetValidator(nodeIDs[0])
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
+}
+
+func TestRewardValidatorTxSyntacticVerify(t *testing.T) {
+	vm, _, _ := defaultVM()
+	vm.ctx.Lock.Lock()
+	defer func() {
+		if err := vm.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		vm.ctx.Lock.Unlock()
+	}()
+
+	stakerToRemoveTx, _, err := vm.internalState.CurrentStakerChainState().GetNextStaker()
+	assert.NoError(t, err)
+	addValidatorTxID := stakerToRemoveTx.ID()
+
+	t.Run("valid", func(t *testing.T) {
+		_, err := vm.newRewardValidatorTx(addValidatorTxID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("tx is nil", func(t *testing.T) {
+		var tx *UnsignedRewardValidatorTx
+		err := tx.SyntacticVerify(vm.ctx)
+		assert.ErrorIs(t, err, errNilTx)
+	})
+
+	t.Run("empty validatorTxID", func(t *testing.T) {
+		tx, err := vm.newRewardValidatorTx(addValidatorTxID)
+		assert.NoError(t, err)
+		tx.UnsignedTx.(*UnsignedRewardValidatorTx).ValidatorTxID = ids.Empty
+		tx.UnsignedTx.(*UnsignedRewardValidatorTx).syntacticallyVerified = false
+		err = tx.SyntacticVerify(vm.ctx)
+		assert.ErrorIs(t, err, errInvalidID)
+	})
 }

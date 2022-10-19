@@ -47,10 +47,15 @@ var (
 type UnsignedAddValidatorTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
+
 	// Describes the validator
 	Validator Validator `serialize:"true" json:"validator"`
-	// Where to send staked tokens when done validating
-	Stake []*avax.TransferableOutput `serialize:"true" json:"stake"`
+
+	// Input indexes that produced outputs
+	// (output[i] produced by inputs[inputIndexes[i]]).
+	// First for not locked outs, then for locked
+	InputIndexes []uint32 `serialize:"true" json:"inputIndexes"`
+
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 }
@@ -60,10 +65,6 @@ type UnsignedAddValidatorTx struct {
 // the addresses can be json marshalled into human readable format
 func (tx *UnsignedAddValidatorTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
-	for _, out := range tx.Stake {
-		out.FxID = secp256k1fx.ID
-		out.InitCtx(ctx)
-	}
 	tx.RewardsOwner.InitCtx(ctx)
 }
 
@@ -75,6 +76,16 @@ func (tx *UnsignedAddValidatorTx) StartTime() time.Time {
 // EndTime of this validator
 func (tx *UnsignedAddValidatorTx) EndTime() time.Time {
 	return tx.Validator.EndTime()
+}
+
+func (tx *UnsignedAddValidatorTx) Bond() []*avax.TransferableOutput {
+	var bond []*avax.TransferableOutput
+	for _, output := range tx.Outs {
+		if out, ok := output.Out.(*LockedOut); ok && out.LockState.isBonded() {
+			bond = append(bond, output)
+		}
+	}
+	return bond
 }
 
 // Weight of this validator
@@ -98,23 +109,23 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("failed to verify validator or rewards owner: %w", err)
 	}
 
-	totalStakeWeight := uint64(0)
-	for _, out := range tx.Stake {
-		if err := out.Verify(); err != nil {
-			return fmt.Errorf("failed to verify output: %w", err)
+	totalBond := uint64(0)
+	for _, out := range tx.Outs {
+		if lockedOut, ok := out.Out.(*LockedOut); ok && lockedOut.LockState.isBonded() {
+			newTotalBond, err := math.Add64(totalBond, lockedOut.Amount())
+			if err != nil {
+				return err
+			}
+			totalBond = newTotalBond
 		}
-		newWeight, err := math.Add64(totalStakeWeight, out.Output().Amount())
-		if err != nil {
-			return err
-		}
-		totalStakeWeight = newWeight
 	}
 
-	switch {
-	case !avax.IsSortedTransferableOutputs(tx.Stake, Codec):
-		return errOutputsNotSorted
-	case totalStakeWeight != tx.Validator.Wght:
-		return fmt.Errorf("validator weight %d is not equal to total stake weight %d", tx.Validator.Wght, totalStakeWeight)
+	if totalBond != tx.Validator.Wght {
+		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
+	}
+
+	if err := syntacticVerifyLock(tx.Ins, tx.InputIndexes, tx.Outs, LockStateBonded, true); err != nil {
+		return err
 	}
 
 	// cache that this is valid
@@ -168,10 +179,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
-
-	outs := make([]*avax.TransferableOutput, len(tx.Outs)+len(tx.Stake))
-	copy(outs, tx.Outs)
-	copy(outs[len(tx.Outs):], tx.Stake)
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
@@ -186,14 +194,12 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 
 		// Ensure this validator isn't currently a validator.
-		_, err := currentStakers.GetValidator(tx.Validator.NodeID)
-		if err == nil {
+		if _, err := currentStakers.GetValidator(tx.Validator.NodeID); err == nil {
 			return nil, nil, fmt.Errorf(
 				"%s is already a primary network validator",
 				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 			)
-		}
-		if err != database.ErrNotFound {
+		} else if err != database.ErrNotFound {
 			return nil, nil, fmt.Errorf(
 				"failed to find whether %s is a validator: %w",
 				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
@@ -202,24 +208,23 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		}
 
 		// Ensure this validator isn't about to become a validator.
-		_, err = pendingStakers.GetValidatorTx(tx.Validator.NodeID)
-		if err == nil {
+		if _, err := pendingStakers.GetValidatorTx(tx.Validator.NodeID); err == nil {
 			return nil, nil, fmt.Errorf(
 				"%s is about to become a primary network validator",
 				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 			)
-		}
-		if err != database.ErrNotFound {
+		} else if err != database.ErrNotFound {
 			return nil, nil, fmt.Errorf(
 				"failed to find whether %s is about to become a validator: %w",
 				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 				err,
 			)
 		}
+
 		baseTxCredsLen := len(stx.Creds) - 1
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, outs, stx.Creds[:baseTxCredsLen], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, stx.Creds[:baseTxCredsLen], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
 
@@ -241,21 +246,34 @@ func (tx *UnsignedAddValidatorTx) Execute(
 	}
 
 	// Set up the state if this tx is committed
+
+	txID := tx.ID()
+
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
+
+	updatedUTXOLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
+		tx.Ins,
+		tx.InputIndexes,
+		tx.Outs,
+		txID,
+	)
+
+	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(updatedUTXOLockStates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, newlyLockedUTXOsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	txID := tx.ID()
-	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
+	for _, utxo := range utxos {
+		onCommitState.AddUTXO(utxo)
+	}
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
-	// Consume the UTXOS
-	consumeInputs(onAbortState, tx.Ins)
-	// Produce the UTXOS
-	produceOutputs(onAbortState, txID, vm.ctx.AVAXAssetID, outs)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
 
 	return onCommitState, onAbortState, nil
 }
@@ -266,7 +284,7 @@ func (tx *UnsignedAddValidatorTx) InitiallyPrefersCommit(vm *VM) bool {
 	return tx.StartTime().After(vm.clock.Time())
 }
 
-// NewAddValidatorTx returns a new NewAddValidatorTx
+// NewAddValidatorTx returns a new addValidatorTx
 func (vm *VM) newAddValidatorTx(
 	startTime, // Unix time they start validating
 	endTime uint64, // Unix time they stop validating
@@ -275,12 +293,12 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 ) (*Tx, error) {
 	bondAmount := vm.internalState.GetValidatorBondAmount()
-	ins, unlockedOuts, lockedOuts, signers, err := vm.stake(keys, bondAmount, vm.AddStakerTxFee)
+	ins, outs, inputIndexes, signers, err := vm.spend(keys, bondAmount, vm.AddStakerTxFee, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	// Add nodeId signer at the end of input signers
+	// Add nodeID signer at the end of input signers
 	kc := secp256k1fx.NewKeychain(keys...)
 	nodeIDSigner := make([]*crypto.PrivateKeySECP256K1R, 0, 1)
 	if key, found := kc.Get(nodeID); found {
@@ -294,7 +312,7 @@ func (vm *VM) newAddValidatorTx(
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
 			Ins:          ins,
-			Outs:         unlockedOuts,
+			Outs:         outs,
 		}},
 		Validator: Validator{
 			NodeID: nodeID,
@@ -302,7 +320,7 @@ func (vm *VM) newAddValidatorTx(
 			End:    endTime,
 			Wght:   bondAmount,
 		},
-		Stake: lockedOuts,
+		InputIndexes: inputIndexes,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,

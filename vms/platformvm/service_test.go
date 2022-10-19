@@ -12,7 +12,7 @@
 // Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-//go:generate mockgen -source cache_internal_state.go -destination mock_cache_internal_state.go -package platformvm -aux_files github.com/chain4travel/caminogo/vms/platformvm=cache_versioned_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_validator_state.go
+//go:generate mockgen -source cache_internal_state.go -destination mock_cache_internal_state.go -package platformvm -aux_files github.com/chain4travel/caminogo/vms/platformvm=cache_versioned_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_validator_state.go,github.com/chain4travel/caminogo/vms/platformvm=cache_locked_utxos_state.go
 
 package platformvm
 
@@ -26,10 +26,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/golang/mock/gomock"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/chain4travel/caminogo/api"
 	"github.com/chain4travel/caminogo/api/keystore"
@@ -45,8 +41,9 @@ import (
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
-	cjson "github.com/chain4travel/caminogo/utils/json"
 	vmkeystore "github.com/chain4travel/caminogo/vms/components/keystore"
 )
 
@@ -525,30 +522,176 @@ func TestGetBalance(t *testing.T) {
 		service.vm.ctx.Lock.Unlock()
 	}()
 
-	// Ensure GetStake is correct for each of the genesis validators
-	genesis, _ := defaultGenesis()
-	for _, utxo := range genesis.UTXOs {
-		request := GetBalanceRequest{
-			Addresses: []string{
-				fmt.Sprintf("P-%s", utxo.Address),
+	response := &GetBalanceResponse{
+		Balance:            0,
+		Unlocked:           0,
+		Deposited:          0,
+		Bonded:             0,
+		DepositedAndBonded: 0,
+	}
+
+	tests := []struct {
+		name          string
+		GenerateState func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string)
+		want          *GetBalanceResponse
+		wantErr       bool
+		addUtxos      bool
+		msg           string
+	}{
+		{
+			name: "Address wrong format",
+			GenerateState: func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string) {
+				utxos := []avax.UTXO{}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{}
+				return utxos, lockedUTXOsState, "DummyWrongAddress"
 			},
-		}
-		reply := GetBalanceResponse{}
-		if err := service.GetBalance(nil, &request, &reply); err != nil {
-			t.Fatal(err)
-		}
-		if reply.Balance != cjson.Uint64(defaultBalance) {
-			t.Fatalf("Wrong balance. Expected %d ; Returned %d", defaultBalance, reply.Balance)
-		}
-		if reply.Unlocked != cjson.Uint64(defaultBalance) {
-			t.Fatalf("Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
-		}
-		if reply.LockedStakeable != 0 {
-			t.Fatalf("Wrong locked stakeable balance. Expected %d ; Returned %d", reply.LockedStakeable, 0)
-		}
-		if reply.LockedNotStakeable != 0 {
-			t.Fatalf("Wrong locked not stakeable balance. Expected %d ; Returned %d", reply.LockedNotStakeable, 0)
-		}
+			want:     response,
+			wantErr:  true,
+			addUtxos: false,
+			msg:      "Should have failed because address has wrong format",
+		},
+		{
+			name: "Happy path",
+			GenerateState: func() ([]avax.UTXO, *lockedUTXOsChainStateImpl, string) {
+				key, _ := service.vm.factory.NewPrivateKey()
+				testKey := key.PublicKey().Address()
+				localAddr, _ := service.vm.FormatLocalAddress(testKey)
+				utxos := []avax.UTXO{
+					// Bonded UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &LockedOut{
+							LockState: LockStateBonded,
+							TransferableOut: &secp256k1fx.TransferOutput{
+								Amt: 10,
+								OutputOwners: secp256k1fx.OutputOwners{
+									Locktime:  0,
+									Threshold: 1,
+									Addrs:     []ids.ShortID{testKey},
+								},
+							},
+						},
+					},
+					// Deposited UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &LockedOut{
+							LockState: LockStateDeposited,
+							TransferableOut: &secp256k1fx.TransferOutput{
+								Amt: 20,
+								OutputOwners: secp256k1fx.OutputOwners{
+									Locktime:  0,
+									Threshold: 1,
+									Addrs:     []ids.ShortID{testKey},
+								},
+							},
+						},
+					},
+					// Deposited and bonded UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &LockedOut{
+							LockState: LockStateDepositedBonded,
+							TransferableOut: &secp256k1fx.TransferOutput{
+								Amt: 100,
+								OutputOwners: secp256k1fx.OutputOwners{
+									Locktime:  0,
+									Threshold: 1,
+									Addrs:     []ids.ShortID{testKey},
+								},
+							},
+						},
+					},
+					// Unlocked UTXO
+					{
+						UTXOID: avax.UTXOID{
+							TxID:        ids.GenerateTestID(),
+							OutputIndex: 0,
+						},
+						Asset: avax.Asset{ID: service.vm.ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 5,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 1,
+								Addrs:     []ids.ShortID{testKey},
+							},
+						},
+					},
+				}
+				lockedUTXOsState := &lockedUTXOsChainStateImpl{
+					bonds: map[ids.ID]ids.Set{
+						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					},
+					deposits: map[ids.ID]ids.Set{
+						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					},
+					lockedUTXOs: map[ids.ID]utxoLockState{
+						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
+						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},
+						utxos[2].InputID(): {BondTxID: &utxos[2].TxID, DepositTxID: &utxos[2].TxID},
+					},
+				}
+				return utxos, lockedUTXOsState, localAddr
+			},
+			want: &GetBalanceResponse{
+				Balance:            135,
+				Unlocked:           5,
+				Deposited:          20,
+				Bonded:             10,
+				DepositedAndBonded: 100,
+			},
+			wantErr:  false,
+			addUtxos: true,
+			msg:      "Happy path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			UTXOIDs := []*avax.UTXOID{}
+			utxos, lockedUTXOsState, localAddr := tt.GenerateState()
+			requestArgs := &GetBalanceRequest{
+				Addresses: []string{localAddr},
+			}
+			for _, utxo := range utxos {
+				utxo := utxo
+				service.vm.internalState.AddUTXO(&utxo)
+				UTXOIDs = append(UTXOIDs, &utxo.UTXOID)
+			}
+			service.vm.internalState.SetLockedUTXOsChainState(lockedUTXOsState)
+			err := service.vm.internalState.Commit()
+			assert.NoError(t, err)
+			err = service.GetBalance(nil, requestArgs, response)
+			assert.Equal(t, tt.wantErr, err != nil, tt.msg)
+			// assert the balances without the UTXOs
+			assert.Equal(t, tt.want, &GetBalanceResponse{
+				Balance:            response.Balance,
+				Unlocked:           response.Unlocked,
+				Deposited:          response.Deposited,
+				Bonded:             response.Bonded,
+				DepositedAndBonded: response.DepositedAndBonded,
+			})
+			// assert the UTXOs
+			if tt.addUtxos {
+				tt.want.UTXOIDs = UTXOIDs
+			}
+			assert.ElementsMatchf(t, tt.want.UTXOIDs, response.UTXOIDs, tt.msg)
+		})
 	}
 }
 
@@ -587,7 +730,10 @@ func TestGetStake(t *testing.T) {
 		var output avax.TransferableOutput
 		_, err = Codec.Unmarshal(outputBytes, &output)
 		assert.NoError(err)
-		out, ok := output.Out.(*secp256k1fx.TransferOutput)
+		lockedOut, ok := output.Out.(*LockedOut)
+		assert.True(ok)
+		innerOut := lockedOut.TransferableOut
+		out, ok := innerOut.(*secp256k1fx.TransferOutput)
 		assert.True(ok)
 		assert.EqualValues(out.Amount(), defaultValidatorStake)
 		assert.EqualValues(out.Threshold, 1)
@@ -614,7 +760,10 @@ func TestGetStake(t *testing.T) {
 		var output avax.TransferableOutput
 		_, err = Codec.Unmarshal(outputBytes, &output)
 		assert.NoError(err)
-		out, ok := output.Out.(*secp256k1fx.TransferOutput)
+		lockedOut, ok := output.Out.(*LockedOut)
+		assert.True(ok)
+		innerOut := lockedOut.TransferableOut
+		out, ok := innerOut.(*secp256k1fx.TransferOutput)
 		assert.True(ok)
 		assert.EqualValues(defaultValidatorStake, out.Amount())
 		assert.EqualValues(out.Threshold, 1)

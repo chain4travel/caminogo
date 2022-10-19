@@ -267,8 +267,6 @@ func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
 func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	hrp := constants.GetHRP(config.NetworkID)
 
-	amount := uint64(0)
-
 	// Specify the genesis state of the AVM
 	avmArgs := avm.BuildGenesisArgs{
 		NetworkID: json.Uint32(config.NetworkID),
@@ -301,7 +299,6 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				Address: addr,
 			})
 			memoBytes = append(memoBytes, allocation.ETHAddr.Bytes()...)
-			amount += allocation.InitialAmount
 		}
 
 		var err error
@@ -367,13 +364,15 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				}
 				platformvmArgs.UTXOs = append(platformvmArgs.UTXOs,
 					platformvm.APIUTXO{
-						Locktime: json.Uint64(unlock.Locktime),
-						Amount:   json.Uint64(unlock.Amount),
-						Address:  addr,
-						Message:  msgStr,
+						// ! @evlekht while we don't have deposit & unlock & reward system
+						// ! there is no possibility to describe deposited allocations
+						// ! without even deposite rule offers.
+						// ! that will be covered by dedicated PRs
+						Amount:  json.Uint64(unlock.Amount),
+						Address: addr,
+						Message: msgStr,
 					},
 				)
-				amount += unlock.Amount
 			}
 		}
 	}
@@ -403,12 +402,14 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 					return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 				}
 				utxos = append(utxos, platformvm.APIUTXO{
-					Locktime: json.Uint64(unlock.Locktime),
-					Amount:   json.Uint64(unlock.Amount),
-					Address:  addr,
-					Message:  msgStr,
+					// ! @evlekht while we don't have deposit & unlock & reward system
+					// ! there is no possibility to describe deposited allocations
+					// ! without even deposite rule offers.
+					// ! that will be covered by dedicated PRs
+					Amount:  json.Uint64(unlock.Amount),
+					Address: addr,
+					Message: msgStr,
 				})
-				amount += unlock.Amount
 			}
 		}
 

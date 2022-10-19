@@ -78,6 +78,10 @@ func (tx *UnsignedAddSubnetValidatorTx) SyntacticVerify(ctx *snow.Context) error
 		return err
 	}
 
+	if err := verifyInsAndOutsUnlocked(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+
 	// cache that this is valid
 	tx.syntacticallyVerified = true
 	return nil
@@ -247,7 +251,9 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 
 	// Set up the state if this tx is committed
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
+	lockedUTXOsState := parentState.LockedUTXOsChainState()
+
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, lockedUTXOsState)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
@@ -256,7 +262,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
@@ -280,7 +286,7 @@ func (vm *VM) newAddSubnetValidatorTx(
 	subnetID ids.ID, // ID of the subnet the validator will validate
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to use for adding the validator
 ) (*Tx, error) {
-	ins, outs, _, signers, err := vm.stake(keys, 0, vm.TxFee)
+	ins, outs, _, signers, err := vm.spend(keys, 0, vm.TxFee, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -291,7 +297,7 @@ func (vm *VM) newAddSubnetValidatorTx(
 	}
 	signers = append(signers, subnetSigners)
 
-	// Add nodeId signer at the end of input signers
+	// Add nodeID signer at the end of input signers
 	kc := secp256k1fx.NewKeychain(keys...)
 	nodeIDSigner := make([]*crypto.PrivateKeySECP256K1R, 0, 1)
 	if key, found := kc.Get(nodeID); found {

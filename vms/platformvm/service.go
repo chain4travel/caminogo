@@ -15,6 +15,7 @@
 package platformvm
 
 import (
+	encodingJson "encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,28 +53,27 @@ const (
 )
 
 var (
-	errMissingDecisionBlock       = errors.New("should have a decision block within the past two blocks")
-	errNoFunds                    = errors.New("no spendable funds were found")
-	errNoSubnetID                 = errors.New("argument 'subnetID' not provided")
-	errNoRewardAddress            = errors.New("argument 'rewardAddress' not provided")
-	errNoAddresses                = errors.New("no addresses provided")
-	errNoKeys                     = errors.New("user has no keys or funds")
-	errNoPrimaryValidators        = errors.New("no default subnet validators")
-	errNoValidators               = errors.New("no subnet validators")
-	errCorruptedReason            = errors.New("tx validity corrupted")
-	errStartTimeTooSoon           = fmt.Errorf("start time must be at least %s in the future", minAddStakerDelay)
-	errStartTimeTooLate           = errors.New("start time is too far in the future")
-	errTotalOverflow              = errors.New("overflow while calculating total balance")
-	errUnlockedOverflow           = errors.New("overflow while calculating unlocked balance")
-	errLockedOverflow             = errors.New("overflow while calculating locked balance")
-	errNotStakeableOverflow       = errors.New("overflow while calculating locked not stakeable balance")
-	errLockedNotStakeableOverflow = errors.New("overflow while calculating locked not stakeable balance")
-	errUnlockedStakeableOverflow  = errors.New("overflow while calculating unlocked stakeable balance")
-	errNamedSubnetCantBePrimary   = errors.New("subnet validator attempts to validate primary network")
-	errNoAmount                   = errors.New("argument 'amount' must be > 0")
-	errMissingName                = errors.New("argument 'name' not given")
-	errMissingVMID                = errors.New("argument 'vmID' not given")
-	errMissingBlockchainID        = errors.New("argument 'blockchainID' not given")
+	errMissingDecisionBlock              = errors.New("should have a decision block within the past two blocks")
+	errNoFunds                           = errors.New("no spendable funds were found")
+	errNoSubnetID                        = errors.New("argument 'subnetID' not provided")
+	errNoRewardAddress                   = errors.New("argument 'rewardAddress' not provided")
+	errNoAddresses                       = errors.New("no addresses provided")
+	errNoKeys                            = errors.New("user has no keys or funds")
+	errNoPrimaryValidators               = errors.New("no default subnet validators")
+	errNoValidators                      = errors.New("no subnet validators")
+	errCorruptedReason                   = errors.New("tx validity corrupted")
+	errStartTimeTooSoon                  = fmt.Errorf("start time must be at least %s in the future", minAddStakerDelay)
+	errStartTimeTooLate                  = errors.New("start time is too far in the future")
+	errTotalOverflow                     = errors.New("overflow while calculating total balance")
+	errUnlockedBalanceOverflow           = errors.New("overflow while calculating unlocked balance")
+	errBondedBalanceOverflow             = errors.New("overflow while calculating bonded balance")
+	errDepositedBalanceOverflow          = errors.New("overflow while calculating deposited balance")
+	errDepositedAndBondedBalanceOverflow = errors.New("overflow while calculating deposited & bonded balance")
+	errNamedSubnetCantBePrimary          = errors.New("subnet validator attempts to validate primary network")
+	errNoAmount                          = errors.New("argument 'amount' must be > 0")
+	errMissingName                       = errors.New("argument 'name' not given")
+	errMissingVMID                       = errors.New("argument 'vmID' not given")
+	errMissingBlockchainID               = errors.New("argument 'blockchainID' not given")
 )
 
 // Service defines the API calls that can be made to the platform chain
@@ -197,8 +197,9 @@ type GetBalanceResponse struct {
 	// Balance, in nAVAX, of the address
 	Balance            json.Uint64    `json:"balance"`
 	Unlocked           json.Uint64    `json:"unlocked"`
-	LockedStakeable    json.Uint64    `json:"lockedStakeable"`
-	LockedNotStakeable json.Uint64    `json:"lockedNotStakeable"`
+	Deposited          json.Uint64    `json:"deposited"`
+	Bonded             json.Uint64    `json:"bonded"`
+	DepositedAndBonded json.Uint64    `json:"depositedAndBonded"`
 	UTXOIDs            []*avax.UTXOID `json:"utxoIDs"`
 }
 
@@ -225,75 +226,70 @@ func (service *Service) GetBalance(_ *http.Request, args *GetBalanceRequest, res
 		return fmt.Errorf("couldn't get UTXO set of %v: %w", args.Addresses, err)
 	}
 
-	currentTime := service.vm.clock.Unix()
-
-	unlocked := uint64(0)
-	lockedStakeable := uint64(0)
-	lockedNotStakeable := uint64(0)
+	var unlocked, deposited, bonded, depositedAndBonded uint64
 
 utxoFor:
 	for _, utxo := range utxos {
 		switch out := utxo.Out.(type) {
 		case *secp256k1fx.TransferOutput:
-			if out.Locktime <= currentTime {
-				newBalance, err := math.Add64(unlocked, out.Amount())
-				if err != nil {
-					return errUnlockedOverflow
-				}
-				unlocked = newBalance
-			} else {
-				newBalance, err := math.Add64(lockedNotStakeable, out.Amount())
-				if err != nil {
-					return errNotStakeableOverflow
-				}
-				lockedNotStakeable = newBalance
+			newBalance, err := math.Add64(unlocked, out.Amount())
+			if err != nil {
+				return errUnlockedBalanceOverflow
 			}
-		case *StakeableLockOut:
-			innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
-			switch {
-			case !ok:
-				service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T",
-					out.TransferableOut)
-				continue utxoFor
-			case innerOut.Locktime > currentTime:
-				newBalance, err := math.Add64(lockedNotStakeable, out.Amount())
+			unlocked = newBalance
+		case *LockedOut:
+			switch out.LockState {
+			case LockStateDepositedBonded:
+				newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 				if err != nil {
-					return errLockedNotStakeableOverflow
+					return errDepositedAndBondedBalanceOverflow
 				}
-				lockedNotStakeable = newBalance
-			case out.Locktime <= currentTime:
-				newBalance, err := math.Add64(unlocked, out.Amount())
+				depositedAndBonded = newBalance
+			case LockStateBonded:
+				newBalance, err := math.Add64(bonded, out.Amount())
 				if err != nil {
-					return errUnlockedOverflow
+					return errBondedBalanceOverflow
 				}
-				unlocked = newBalance
+				bonded = newBalance
+			case LockStateDeposited:
+				newBalance, err := math.Add64(deposited, out.Amount())
+				if err != nil {
+					return errDepositedBalanceOverflow
+				}
+				deposited = newBalance
 			default:
-				newBalance, err := math.Add64(lockedStakeable, out.Amount())
-				if err != nil {
-					return errUnlockedStakeableOverflow
-				}
-				lockedStakeable = newBalance
+				service.vm.ctx.Log.Warn("Unexpected utxo lock state")
+				continue utxoFor
 			}
 		default:
+			service.vm.ctx.Log.Warn("Unexpected Output type in UTXO: %T", out)
 			continue utxoFor
 		}
 
 		response.UTXOIDs = append(response.UTXOIDs, &utxo.UTXOID)
 	}
 
-	lockedBalance, err := math.Add64(lockedStakeable, lockedNotStakeable)
+	balance, err := math.Add64(unlocked, deposited)
 	if err != nil {
-		return errLockedOverflow
+		return errTotalOverflow
 	}
-	balance, err := math.Add64(unlocked, lockedBalance)
+
+	balance, err = math.Add64(balance, bonded)
+	if err != nil {
+		return errTotalOverflow
+	}
+
+	balance, err = math.Add64(balance, depositedAndBonded)
 	if err != nil {
 		return errTotalOverflow
 	}
 
 	response.Balance = json.Uint64(balance)
 	response.Unlocked = json.Uint64(unlocked)
-	response.LockedStakeable = json.Uint64(lockedStakeable)
-	response.LockedNotStakeable = json.Uint64(lockedNotStakeable)
+	response.Deposited = json.Uint64(deposited)
+	response.Bonded = json.Uint64(bonded)
+	response.DepositedAndBonded = json.Uint64(depositedAndBonded)
+
 	return nil
 }
 
@@ -464,13 +460,22 @@ func (service *Service) GetUTXOs(_ *http.Request, args *GetUTXOsArgs, response *
 
 	response.UTXOs = make([]string, len(utxos))
 	for i, utxo := range utxos {
-		bytes, err := Codec.Marshal(CodecVersion, utxo)
-		if err != nil {
-			return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
-		}
-		response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
-		if err != nil {
-			return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+		if args.Encoding == formatting.JSON {
+			utxo.Out.InitCtx(service.vm.ctx)
+			bytes, err := encodingJson.Marshal(utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i] = string(bytes)
+		} else {
+			bytes, err := Codec.Marshal(CodecVersion, utxo)
+			if err != nil {
+				return fmt.Errorf("couldn't serialize UTXO %q: %w", utxo.InputID(), err)
+			}
+			response.UTXOs[i], err = formatting.EncodeWithChecksum(args.Encoding, bytes)
+			if err != nil {
+				return fmt.Errorf("couldn't encode UTXO %s as string: %w", utxo.InputID(), err)
+			}
 		}
 	}
 
@@ -589,7 +594,7 @@ func (service *Service) GetSubnets(_ *http.Request, args *GetSubnetsArgs, respon
 		}
 		owner, ok := subnet.Owner.(*secp256k1fx.OutputOwners)
 		if !ok {
-			return errUnknownOwners
+			return errUnknownOwnersType
 		}
 
 		controlAddrs := make([]string, len(owner.Addrs))
@@ -1800,6 +1805,9 @@ type GetStakeArgs struct {
 	Encoding formatting.Encoding `json:"encoding"`
 }
 
+// ! @evlekht could be not needed anymore:
+// ! the only diff from GetBalance that GetBalance returns []UTXOID
+// ! and GetStake returns []UTXO
 // GetStakeReply is the response from calling GetStake.
 type GetStakeReply struct {
 	Staked json.Uint64 `json:"staked"`
@@ -1815,10 +1823,10 @@ type GetStakeReply struct {
 // 1) The total amount staked by addresses in [addrs]
 // 2) The staked outputs
 func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []avax.TransferableOutput, error) {
-	var outs []*avax.TransferableOutput
+	var bondedOuts []*avax.TransferableOutput
 	switch staker := tx.UnsignedTx.(type) {
 	case *UnsignedAddValidatorTx:
-		outs = staker.Stake
+		bondedOuts = staker.Bond()
 	case *UnsignedAddSubnetValidatorTx:
 		return 0, nil, nil
 	default:
@@ -1830,26 +1838,25 @@ func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []av
 	var (
 		totalAmountStaked uint64
 		err               error
-		stakedOuts        = make([]avax.TransferableOutput, 0, len(outs))
+		stakedOuts        = make([]avax.TransferableOutput, 0, len(bondedOuts))
 	)
-	// Go through all of the staked outputs
-	for _, stake := range outs {
+	// Go through all of the bonded outputs
+	for _, bondedOut := range bondedOuts {
 		// This output isn't AVAX. Ignore.
-		if stake.AssetID() != service.vm.ctx.AVAXAssetID {
+		if bondedOut.AssetID() != service.vm.ctx.AVAXAssetID {
 			continue
 		}
-		out := stake.Out
-		if lockedOut, ok := out.(*StakeableLockOut); ok {
-			// This output can only be used for staking until [stakeOnlyUntil]
+		out := bondedOut.Out
+		if lockedOut, ok := bondedOut.Out.(*LockedOut); ok {
 			out = lockedOut.TransferableOut
 		}
-		secpOut, ok := out.(*secp256k1fx.TransferOutput)
+		innerOut, ok := out.(*secp256k1fx.TransferOutput)
 		if !ok {
 			continue
 		}
 		// Check whether this output is owned by one of the given addresses
 		contains := false
-		for _, addr := range secpOut.Addrs {
+		for _, addr := range innerOut.Addrs {
 			if addrs.Contains(addr) {
 				contains = true
 				break
@@ -1859,13 +1866,13 @@ func (service *Service) getStakeHelper(tx *Tx, addrs ids.ShortSet) (uint64, []av
 			// This output isn't owned by one of the given addresses. Ignore.
 			continue
 		}
-		totalAmountStaked, err = math.Add64(totalAmountStaked, stake.Out.Amount())
+		totalAmountStaked, err = math.Add64(totalAmountStaked, bondedOut.Out.Amount())
 		if err != nil {
 			return 0, stakedOuts, err
 		}
 		stakedOuts = append(
 			stakedOuts,
-			*stake,
+			*bondedOut,
 		)
 	}
 	return totalAmountStaked, stakedOuts, nil

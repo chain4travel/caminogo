@@ -67,6 +67,10 @@ func (tx *UnsignedCreateSubnetTx) SyntacticVerify(ctx *snow.Context) error {
 		return err
 	}
 
+	if err := verifyInsAndOutsUnlocked(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+
 	tx.syntacticallyVerified = true
 	return nil
 }
@@ -77,6 +81,7 @@ func (tx *UnsignedCreateSubnetTx) SemanticVerify(vm *VM, parentState MutableStat
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, vs, stx)
 	return err
@@ -123,7 +128,7 @@ func (vm *VM) newCreateSubnetTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createSubnetTxFee := vm.getCreateSubnetTxFee(timestamp)
-	ins, outs, _, signers, err := vm.stake(keys, 0, createSubnetTxFee)
+	ins, outs, _, signers, err := vm.spend(keys, 0, createSubnetTxFee, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

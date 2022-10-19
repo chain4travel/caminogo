@@ -90,6 +90,10 @@ func (tx *UnsignedImportTx) SyntacticVerify(ctx *snow.Context) error {
 		return err
 	}
 
+	if err := verifyInsAndOutsUnlocked(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+
 	for _, in := range tx.ImportedInputs {
 		if err := in.Verify(); err != nil {
 			return fmt.Errorf("input failed verification: %w", err)
@@ -189,6 +193,7 @@ func (tx *UnsignedImportTx) AtomicExecute(
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
+		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, newState, stx)
 	return newState, err
@@ -258,7 +263,7 @@ func (vm *VM) newImportTx(
 	outs := []*avax.TransferableOutput{}
 	if importedAmount < vm.TxFee { // imported amount goes toward paying tx fee
 		var baseSigners [][]*crypto.PrivateKeySECP256K1R
-		ins, outs, _, baseSigners, err = vm.stake(keys, 0, vm.TxFee-importedAmount)
+		ins, outs, _, baseSigners, err = vm.spend(keys, 0, vm.TxFee-importedAmount, LockStateDeposited)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 		}
