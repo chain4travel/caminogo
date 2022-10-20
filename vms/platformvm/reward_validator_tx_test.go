@@ -273,14 +273,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		err = vm.internalState.Commit()
 		assert.NoError(err)
 
-		// ! @evlekht also, those execute tests currently green only
-		// ! cause LockedOut doesn't support Amounter interface
-		// ! tests use avax.GetBalance which iterates over utxos
-		// ! trying to get values with Amounter
-		// ! LockedOut probably should support Amounter,
-		// ! but that could have a lot of consequences
-		// ! (and at least we'll need to update those balance checks,
-		// ! but that sounds right)
 		onCommitBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
 		assert.NoError(err)
 
@@ -291,7 +283,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 			oldBalance, addValidatorTx.Validator.Weight(), reward, onCommitBalance)
 
 		lockChainStateAfter := vm.internalState.LockedUTXOsChainState()
-
+		// TODO@ test bond unbonded
 		//  on commit, utxos bonded by addValidatorTxID should consumed to produce unbonded
 		for bondedUTXOID := range bondedUTXOIDs {
 			_, err := vm.internalState.GetUTXO(bondedUTXOID)
