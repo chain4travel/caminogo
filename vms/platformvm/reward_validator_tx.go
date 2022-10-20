@@ -57,9 +57,7 @@ type UnsignedRewardValidatorTx struct {
 	// The outputs of this transaction
 	Outs []*avax.TransferableOutput `serialize:"true" json:"outputs"`
 
-	// Input indexes that produced outputs
-	// (output[i] produced by inputs[inputIndexes[i]]).
-	// First for not locked outs, then for locked
+	// Input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
 	InputIndexes []uint32 `serialize:"true" json:"inputIndexes"`
 
 	// ID of the tx that created the validator being removed/rewarded

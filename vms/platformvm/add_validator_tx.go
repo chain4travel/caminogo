@@ -51,9 +51,7 @@ type UnsignedAddValidatorTx struct {
 	// Describes the validator
 	Validator Validator `serialize:"true" json:"validator"`
 
-	// Input indexes that produced outputs
-	// (output[i] produced by inputs[inputIndexes[i]]).
-	// First for not locked outs, then for locked
+	// Input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
 	InputIndexes []uint32 `serialize:"true" json:"inputIndexes"`
 
 	// Where to send staking rewards when done validating
