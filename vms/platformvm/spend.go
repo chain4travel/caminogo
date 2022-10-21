@@ -517,8 +517,6 @@ func (vm *VM) semanticVerifySpend(
 	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
 }
 
-// TODO
-// Verify that [tx] is semantically valid.
 // Verify that [tx] is semantically valid. Meaning:
 //
 // - consumed no less tokens, than produced;
