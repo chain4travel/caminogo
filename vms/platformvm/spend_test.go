@@ -317,6 +317,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 		vm.clock.Set(now)
 
 		t.Run(test.description, func(t *testing.T) {
+			assert := assert.New(t)
 			err := vm.semanticVerifySpendUTXOs(
 				&unsignedTx,
 				test.utxos,
@@ -326,7 +327,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				test.fee,
 				test.assetID,
 			)
-			assert.Equal(t, test.wantErr, err)
+			assert.ErrorIs(err, test.wantErr)
 		})
 	}
 }
@@ -1043,7 +1044,10 @@ func TestUnlockUTXOs(t *testing.T) {
 				}
 				vm.ctx.Lock.Unlock()
 			}()
-			key, _ := vm.factory.NewPrivateKey()
+			assert := assert.New(t)
+
+			key, err := vm.factory.NewPrivateKey()
+			assert.NoError(err)
 			address := key.PublicKey().Address()
 			outputOwners := secp256k1fx.OutputOwners{
 				Locktime:  0,
@@ -1055,10 +1059,10 @@ func TestUnlockUTXOs(t *testing.T) {
 			ins, outs, indexes, err := vm.unlockUTXOs(utxos, tt.lockState)
 			expected := tt.generateWant(utxos, outputOwners)
 
-			assert.Equal(t, expected.ins, ins)
-			assert.Equal(t, expected.outs, outs)
-			assert.Equal(t, expected.indexes, indexes)
-			assert.Equal(t, tt.wantErr, err)
+			assert.Equal(expected.ins, ins)
+			assert.Equal(expected.outs, outs)
+			assert.Equal(expected.indexes, indexes)
+			assert.ErrorIs(tt.wantErr, err)
 		})
 	}
 }

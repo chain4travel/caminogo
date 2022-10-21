@@ -539,10 +539,20 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	feeAssetID ids.ID,
 ) error {
 	if len(ins) != len(creds) {
-		return errInputsCredentialsMismatch
+		return fmt.Errorf(
+			"there are %d inputs and %d credentials: %w",
+			len(ins),
+			len(creds),
+			errInputsCredentialsMismatch,
+		)
 	}
 	if len(ins) != len(utxos) {
-		return errInputsUTXOSMismatch
+		return fmt.Errorf(
+			"there are %d inputs and %d utxos: %w",
+			len(ins),
+			len(creds),
+			errInputsUTXOSMismatch,
+		)
 	}
 	for _, cred := range creds { // Verify credentials are well-formed.
 		if err := cred.Verify(); err != nil {
@@ -592,11 +602,11 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 		amount := in.Amount()
 
-		newUnlockedConsumed, err := math.Add64(consumedAmount, amount)
+		newConsumedAmount, err := math.Add64(consumedAmount, amount)
 		if err != nil {
 			return err
 		}
-		consumedAmount = newUnlockedConsumed
+		consumedAmount = newConsumedAmount
 	}
 
 	for _, out := range outs {
@@ -606,11 +616,11 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 		amount := out.Out.Amount()
 
-		newUnlockedProduced, err := math.Add64(producedAmount, amount)
+		newProducedAmount, err := math.Add64(producedAmount, amount)
 		if err != nil {
 			return err
 		}
-		producedAmount = newUnlockedProduced
+		producedAmount = newProducedAmount
 	}
 
 	// More unlocked tokens produced than consumed. Invalid.
