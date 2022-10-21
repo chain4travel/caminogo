@@ -249,14 +249,14 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
 
-	updatedUTXOLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
+	utxoLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
 		tx.Ins,
 		tx.InputIndexes,
 		tx.Outs,
 		txID,
 	)
 
-	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(updatedUTXOLockStates)
+	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
 	if err != nil {
 		return nil, nil, err
 	}

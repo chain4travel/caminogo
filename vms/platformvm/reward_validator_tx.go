@@ -192,14 +192,14 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 	rewardValidatorTxID := tx.ID()
 
-	updatedUTXOLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
+	utxoLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
 		tx.Ins,
 		tx.InputIndexes,
 		tx.Outs,
 		rewardValidatorTxID,
 	)
 
-	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(updatedUTXOLockStates)
+	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
 	if err != nil {
 		return nil, nil, err
 	}

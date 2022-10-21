@@ -216,11 +216,11 @@ func (vm *VM) newExportTx(
 		BaseTx: BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    vm.ctx.NetworkID,
 			BlockchainID: vm.ctx.ChainID,
-			Ins:          ins,  // 10 CAM, 100 CAM
-			Outs:         outs, // Non-exported outputs // 9 CAM
+			Ins:          ins,
+			Outs:         outs,
 		}},
 		DestinationChain: chainID,
-		ExportedOutputs: []*avax.TransferableOutput{{ // Exported to X-Chain // 50 CAM
+		ExportedOutputs: []*avax.TransferableOutput{{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &secp256k1fx.TransferOutput{
 				Amt: amount,

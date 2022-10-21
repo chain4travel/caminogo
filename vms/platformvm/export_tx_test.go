@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/chain4travel/caminogo/vms/components/avax"
-	secp256k1fx "github.com/chain4travel/caminogo/vms/secp256k1fx"
+	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 
 	"github.com/stretchr/testify/assert"
 
