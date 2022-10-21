@@ -1807,7 +1807,7 @@ type GetStakeArgs struct {
 
 // ! @evlekht could be not needed anymore:
 // ! the only diff from GetBalance that GetBalance returns []UTXOID
-// ! and GetStake returns []UTXO
+// ! and GetStake returns []TransferableOutput
 // GetStakeReply is the response from calling GetStake.
 type GetStakeReply struct {
 	Staked json.Uint64 `json:"staked"`
