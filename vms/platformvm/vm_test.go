@@ -129,11 +129,6 @@ const (
 	defaultWeight = 10000
 )
 
-type output struct {
-	state  LockState
-	amount uint64
-}
-
 func init() {
 	ctx := defaultContext()
 	factory := crypto.FactorySECP256K1R{}

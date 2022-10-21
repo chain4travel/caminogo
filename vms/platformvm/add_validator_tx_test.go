@@ -106,6 +106,11 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 
 	// Test cases
 
+	type output struct {
+		state  LockState
+		amount uint64
+	}
+
 	tests := map[string]struct {
 		inputUTXOIDs  []ids.ID
 		outAmounts    []output
