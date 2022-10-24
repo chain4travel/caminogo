@@ -69,7 +69,7 @@ func TestCreateSubnetTxAP3FeeChange(t *testing.T) {
 				vm.ctx.Lock.Unlock()
 			}()
 
-			ins, outs, _, signers, err := vm.spend(keys, 0, test.fee, LockStateDeposited)
+			ins, outs, signers, err := vm.spend(keys, 0, test.fee, LockStateDeposited)
 			assert.NoError(err)
 
 			// Create the tx

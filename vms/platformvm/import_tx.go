@@ -263,7 +263,7 @@ func (vm *VM) newImportTx(
 	outs := []*avax.TransferableOutput{}
 	if importedAmount < vm.TxFee { // imported amount goes toward paying tx fee
 		var baseSigners [][]*crypto.PrivateKeySECP256K1R
-		ins, outs, _, baseSigners, err = vm.spend(keys, 0, vm.TxFee-importedAmount, LockStateDeposited)
+		ins, outs, baseSigners, err = vm.spend(keys, 0, vm.TxFee-importedAmount, LockStateDeposited)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 		}

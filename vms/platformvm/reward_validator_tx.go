@@ -57,9 +57,6 @@ type UnsignedRewardValidatorTx struct {
 	// The outputs of this transaction
 	Outs []*avax.TransferableOutput `serialize:"true" json:"outputs"`
 
-	// Input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
-	InputIndexes []uint32 `serialize:"true" json:"inputIndexes"`
-
 	// ID of the tx that created the validator being removed/rewarded
 	ValidatorTxID ids.ID `serialize:"true" json:"validatorTxID"`
 
@@ -168,7 +165,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 	// Verify that tx body is valid
 
-	ins, outs, inputIndexes, err := vm.unlock(parentState, []ids.ID{validatorTxID}, LockStateBonded)
+	ins, outs, err := vm.unlock(parentState, []ids.ID{validatorTxID}, LockStateBonded)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -176,7 +173,6 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	var expectedTx UnsignedTx = &UnsignedRewardValidatorTx{
 		Ins:           ins,
 		Outs:          outs,
-		InputIndexes:  inputIndexes,
 		ValidatorTxID: validatorTxID,
 	}
 	expectedBytes, err := Codec.Marshal(CodecVersion, &expectedTx)
@@ -192,12 +188,16 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 	rewardValidatorTxID := tx.ID()
 
-	utxoLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
+	utxoLockStates, utxos, err := lockedUTXOsState.ProduceUTXOsAndLockState(
+		parentState,
 		tx.Ins,
-		tx.InputIndexes,
 		tx.Outs,
+		LockStateBonded,
 		rewardValidatorTxID,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
 	if err != nil {
@@ -288,7 +288,7 @@ func (tx *UnsignedRewardValidatorTx) InitiallyPrefersCommit(*VM) bool {
 // RewardStakerTx creates a new transaction that proposes to remove the staker
 // [validatorID] from the default validator set.
 func (vm *VM) newRewardValidatorTx(validatorTxID ids.ID) (*Tx, error) {
-	ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{validatorTxID}, LockStateBonded)
+	ins, outs, err := vm.unlock(vm.internalState, []ids.ID{validatorTxID}, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -296,7 +296,6 @@ func (vm *VM) newRewardValidatorTx(validatorTxID ids.ID) (*Tx, error) {
 	utx := &UnsignedRewardValidatorTx{
 		Ins:           ins,
 		Outs:          outs,
-		InputIndexes:  inputIndexes,
 		ValidatorTxID: validatorTxID,
 	}
 	tx := &Tx{UnsignedTx: utx}

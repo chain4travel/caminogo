@@ -87,7 +87,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 
 	t.Run("Invalid ins len (one excess)", func(t *testing.T) {
 		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		ins, outs, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
 		assert.NoError(err)
 
 		ins = append(ins, &avax.TransferableInput{In: &secp256k1fx.TransferInput{}}) // invalid len
@@ -95,7 +95,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		utx := &UnsignedRewardValidatorTx{
 			Ins:           ins, // invalid len
 			Outs:          outs,
-			InputIndexes:  inputIndexes,
 			ValidatorTxID: addValidatorTxID,
 		}
 		stx := &Tx{UnsignedTx: utx}
@@ -107,7 +106,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 
 	t.Run("Invalid outs len (one excess)", func(t *testing.T) {
 		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded) // invalid len
+		ins, outs, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded) // invalid len
 		assert.NoError(err)
 
 		outs = append(outs, &avax.TransferableOutput{Out: &secp256k1fx.TransferOutput{}})
@@ -115,27 +114,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		utx := &UnsignedRewardValidatorTx{
 			Ins:           ins,
 			Outs:          outs, // invalid len
-			InputIndexes:  inputIndexes,
-			ValidatorTxID: addValidatorTxID,
-		}
-		stx := &Tx{UnsignedTx: utx}
-		err = stx.Sign(Codec, nil)
-		assert.NoError(err)
-		_, _, err = utx.Execute(vm, vm.internalState, stx)
-		assert.ErrorIs(err, errTxBodyMissmatch)
-	})
-
-	t.Run("Invalid inputIndexes len (one excess)", func(t *testing.T) {
-		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
-		assert.NoError(err)
-
-		inputIndexes = append(inputIndexes, 0) // invalid len
-
-		utx := &UnsignedRewardValidatorTx{
-			Ins:           ins,
-			Outs:          outs,
-			InputIndexes:  inputIndexes, // invalid len
 			ValidatorTxID: addValidatorTxID,
 		}
 		stx := &Tx{UnsignedTx: utx}
@@ -147,7 +125,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 
 	t.Run("Invalid input", func(t *testing.T) {
 		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		ins, outs, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
 		assert.NoError(err)
 
 		assert.Greater(len(ins), 0)
@@ -169,7 +147,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		utx := &UnsignedRewardValidatorTx{
 			Ins:           ins, // invalid
 			Outs:          outs,
-			InputIndexes:  inputIndexes,
 			ValidatorTxID: addValidatorTxID,
 		}
 		stx := &Tx{UnsignedTx: utx}
@@ -181,7 +158,7 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 
 	t.Run("Invalid output", func(t *testing.T) {
 		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
+		ins, outs, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
 		assert.NoError(err)
 
 		assert.Greater(len(outs), 0)
@@ -211,28 +188,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		utx := &UnsignedRewardValidatorTx{
 			Ins:           ins,
 			Outs:          outs, // invalid
-			InputIndexes:  inputIndexes,
-			ValidatorTxID: addValidatorTxID,
-		}
-		stx := &Tx{UnsignedTx: utx}
-		err = stx.Sign(Codec, nil)
-		assert.NoError(err)
-		_, _, err = utx.Execute(vm, vm.internalState, stx)
-		assert.ErrorIs(err, errTxBodyMissmatch)
-	})
-
-	t.Run("Invalid input index", func(t *testing.T) {
-		assert := assert.New(t)
-		ins, outs, inputIndexes, err := vm.unlock(vm.internalState, []ids.ID{addValidatorTxID}, LockStateBonded)
-		assert.NoError(err)
-
-		assert.Greater(len(inputIndexes), 0)
-		inputIndexes[0]++ // invalid
-
-		utx := &UnsignedRewardValidatorTx{
-			Ins:           ins,
-			Outs:          outs,
-			InputIndexes:  inputIndexes, // invalid
 			ValidatorTxID: addValidatorTxID,
 		}
 		stx := &Tx{UnsignedTx: utx}

@@ -632,14 +632,14 @@ func TestGetBalance(t *testing.T) {
 					},
 				}
 				lockedUTXOsState := &lockedUTXOsChainStateImpl{
-					bonds: map[ids.ID]ids.Set{
-						utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
-						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
-					},
-					deposits: map[ids.ID]ids.Set{
-						utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
-						utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
-					},
+					// bonds: map[ids.ID]ids.Set{
+					// 	utxos[0].TxID: map[ids.ID]struct{}{utxos[0].InputID(): {}},
+					// 	utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					// },
+					// deposits: map[ids.ID]ids.Set{
+					// 	utxos[1].TxID: map[ids.ID]struct{}{utxos[1].InputID(): {}},
+					// 	utxos[2].TxID: map[ids.ID]struct{}{utxos[2].InputID(): {}},
+					// },
 					lockedUTXOs: map[ids.ID]utxoLockState{
 						utxos[0].InputID(): {BondTxID: &utxos[0].TxID},
 						utxos[1].InputID(): {DepositTxID: &utxos[1].TxID},

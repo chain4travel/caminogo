@@ -580,8 +580,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 5, outputOwners),
@@ -616,8 +616,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 4, outputOwners),
@@ -652,8 +652,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 4, outputOwners),
@@ -690,8 +690,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 4, outputOwners),
@@ -768,8 +768,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 5, outputOwners),
@@ -804,8 +804,8 @@ func TestSpend(t *testing.T) {
 				}
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, &utxos[0], []uint32{0}),
-						generateTestInFromUTXO(avaxAssetID, &utxos[1], []uint32{0}),
+						generateTestInFromUTXO(&utxos[0], []uint32{0}),
+						generateTestInFromUTXO(&utxos[1], []uint32{0}),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 4, outputOwners),
@@ -895,14 +895,13 @@ func TestSpend(t *testing.T) {
 			oldInternalState := vm.internalState
 			// set the mocked internalState as the vm's internalState
 			vm.internalState = internalState
-			ins, outs, inputIndexes, signers, err := vm.spend(
+			ins, outs, signers, err := vm.spend(
 				[]*crypto.PrivateKeySECP256K1R{key.(*crypto.PrivateKeySECP256K1R)},
 				tt.args.totalAmountToSpend,
 				tt.args.totalAmountToBurn,
 				tt.args.appliedLockState)
 			assert.Equal(t, want.ins, ins)
 			assert.Equal(t, want.outs, outs)
-			assert.Equal(t, want.inputIndexes, inputIndexes)
 			assert.Equal(t, want.signers, signers)
 			assert.Equal(t, want.err, err != nil, tt.msg)
 			vm.internalState = oldInternalState
@@ -934,7 +933,7 @@ func TestUnlockUTXOs(t *testing.T) {
 			generateWant: func(utxos []*avax.UTXO, outputOwners secp256k1fx.OutputOwners) want {
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, utxos[0], nil),
+						generateTestInFromUTXO(utxos[0], nil),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 5, outputOwners),
@@ -954,7 +953,7 @@ func TestUnlockUTXOs(t *testing.T) {
 			generateWant: func(utxos []*avax.UTXO, outputOwners secp256k1fx.OutputOwners) want {
 				return want{
 					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(avaxAssetID, utxos[0], nil),
+						generateTestInFromUTXO(utxos[0], nil),
 					},
 					outs: []*avax.TransferableOutput{
 						generateTestOut(avaxAssetID, LockStateUnlocked, 5, outputOwners),
@@ -1056,12 +1055,11 @@ func TestUnlockUTXOs(t *testing.T) {
 			}
 			utxos := tt.generateUTXOs(outputOwners)
 
-			ins, outs, indexes, err := vm.unlockUTXOs(utxos, tt.lockState)
+			ins, outs, err := vm.unlockUTXOs(utxos, tt.lockState)
 			expected := tt.generateWant(utxos, outputOwners)
 
 			assert.Equal(expected.ins, ins)
 			assert.Equal(expected.outs, outs)
-			assert.Equal(expected.indexes, indexes)
 			assert.ErrorIs(tt.wantErr, err)
 		})
 	}

@@ -56,12 +56,11 @@ func (vm *VM) spend(
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
-	[]uint32, // inputIndexes
 	[][]*crypto.PrivateKeySECP256K1R, // signers
 	error,
 ) {
 	if appliedLockState != LockStateBonded && appliedLockState != LockStateDeposited {
-		return nil, nil, nil, nil, errInvalidTargetLockState
+		return nil, nil, nil, errInvalidTargetLockState
 	}
 
 	addrs := ids.NewShortSet(len(keys)) // The addresses controlled by [keys]
@@ -70,7 +69,7 @@ func (vm *VM) spend(
 	}
 	utxos, err := avax.GetAllUTXOs(vm.internalState, addrs) // The UTXOs controlled by [keys]
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
+		return nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
 	}
 
 	kc := secp256k1fx.NewKeychain(keys...) // Keychain consumes UTXOs and creates new ones
@@ -81,7 +80,6 @@ func (vm *VM) spend(
 	ins := []*avax.TransferableInput{}
 	outs := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	outInputIDs := []ids.ID{}
 
 	// Amount of AVAX that has been spended
 	amountSpended := uint64(0)
@@ -145,7 +143,6 @@ func (vm *VM) spend(
 				TransferableIn: in,
 			},
 		})
-		inputID := utxo.InputID()
 
 		// Add the output to the transitioned outputs
 		outs = append(outs, &avax.TransferableOutput{
@@ -158,7 +155,6 @@ func (vm *VM) spend(
 				},
 			},
 		})
-		outInputIDs = append(outInputIDs, inputID)
 
 		if remainingValue > 0 {
 			// This input provided more value than was needed to be spended.
@@ -173,7 +169,6 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -245,7 +240,6 @@ func (vm *VM) spend(
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In:     in,
 		})
-		inputID := utxo.InputID()
 
 		if amountToSpend > 0 {
 			// Some of this input was put for spending
@@ -259,7 +253,6 @@ func (vm *VM) spend(
 					},
 				},
 			})
-			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		if remainingValue > 0 {
@@ -271,7 +264,6 @@ func (vm *VM) spend(
 					OutputOwners: innerOut.OutputOwners,
 				},
 			})
-			outInputIDs = append(outInputIDs, inputID)
 		}
 
 		// Add the signers needed for this input to the set of signers
@@ -279,25 +271,15 @@ func (vm *VM) spend(
 	}
 
 	if amountBurned < totalAmountToBurn || amountSpended < totalAmountToSpend {
-		return nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, fmt.Errorf(
 			"provided keys have balance (unlocked, locked) (%d, %d) but need (%d, %d)",
 			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
 	}
 
-	avax.SortTransferableInputsWithSigners(ins, signers)               // sort inputs and keys
-	avax.SortTransferableOutputsWithInputIDs(outs, outInputIDs, Codec) // sort outputs and inputIDs
+	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
+	avax.SortTransferableOutputs(outs, Codec)            // sort outputs
 
-	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
-	for inputIndex, in := range ins {
-		inputIndexesMap[in.InputID()] = uint32(inputIndex)
-	}
-
-	inputIndexes := make([]uint32, len(outInputIDs))
-	for i, inputID := range outInputIDs {
-		inputIndexes[i] = inputIndexesMap[inputID]
-	}
-
-	return ins, outs, inputIndexes, signers, nil
+	return ins, outs, signers, nil
 }
 
 // unlock consumes locked utxos created by lock transactions and owned by keys and produce unlocked outs
@@ -311,7 +293,6 @@ func (vm *VM) spend(
 // Returns:
 // - [inputs] produced inputs
 // - [outputs] produced outputs
-// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
 // - [signers] the proof of ownership of the funds being moved
 func (vm *VM) unlock(
 	state MutableState,
@@ -320,11 +301,10 @@ func (vm *VM) unlock(
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
-	[]uint32, // lockedOutInIndexes
 	error,
 ) {
 	if removedLockState != LockStateBonded && removedLockState != LockStateDeposited {
-		return nil, nil, nil, errInvalidTargetLockState
+		return nil, nil, errInvalidTargetLockState
 	}
 
 	lockedUTXOsChainState := state.LockedUTXOsChainState()
@@ -335,7 +315,7 @@ func (vm *VM) unlock(
 		for utxoID := range bondedUTXOIDs {
 			utxo, err := state.GetUTXO(utxoID)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("couldn't get UTXO %s: %w", utxoID, err)
+				return nil, nil, fmt.Errorf("couldn't get UTXO %s: %w", utxoID, err)
 			}
 			utxos = append(utxos, utxo)
 		}
@@ -362,17 +342,14 @@ func (vm *VM) unlockUTXOs(
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
-	[]uint32, // outInputIndexes
 	error,
 ) {
 	if removedLockState != LockStateBonded && removedLockState != LockStateDeposited {
-		return nil, nil, nil, errInvalidTargetLockState
+		return nil, nil, errInvalidTargetLockState
 	}
 
 	ins := []*avax.TransferableInput{}
 	outs := []*avax.TransferableOutput{}
-	signers := [][]*crypto.PrivateKeySECP256K1R{}
-	outInputIDs := []ids.ID{}
 
 	for _, utxo := range utxos {
 		out, ok := utxo.Out.(*LockedOut)
@@ -402,7 +379,6 @@ func (vm *VM) unlockUTXOs(
 				},
 			},
 		})
-		inputID := utxo.InputID()
 
 		if newLockState := out.LockState &^ removedLockState; newLockState.isLocked() {
 			outs = append(outs, &avax.TransferableOutput{
@@ -424,23 +400,12 @@ func (vm *VM) unlockUTXOs(
 				},
 			})
 		}
-		outInputIDs = append(outInputIDs, inputID)
 	}
 
-	avax.SortTransferableInputsWithSigners(ins, signers)               // sort inputs and keys
-	avax.SortTransferableOutputsWithInputIDs(outs, outInputIDs, Codec) // sort outputs and inputIDs
+	avax.SortTransferableInputs(ins)          // sort inputs
+	avax.SortTransferableOutputs(outs, Codec) // sort outputs
 
-	inputIndexesMap := make(map[ids.ID]uint32, len(ins))
-	for inputIndex, in := range ins {
-		inputIndexesMap[in.InputID()] = uint32(inputIndex)
-	}
-
-	inputIndexes := make([]uint32, len(outInputIDs))
-	for i, inputID := range outInputIDs {
-		inputIndexes[i] = inputIndexesMap[inputID]
-	}
-
-	return ins, outs, inputIndexes, nil
+	return ins, outs, nil
 }
 
 // authorize an operation on behalf of the named subnet with the provided keys.

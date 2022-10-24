@@ -78,13 +78,13 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 		vm.internalState.AddUTXO(utxo)
 	}
 	lockedUTXOsState := &lockedUTXOsChainStateImpl{
-		bonds: map[ids.ID]ids.Set{
-			bondedUTXO.TxID: map[ids.ID]struct{}{bondedUTXO.InputID(): {}},
-		},
-		deposits: map[ids.ID]ids.Set{
-			depositedUTXO.TxID:          map[ids.ID]struct{}{depositedUTXO.InputID(): {}},
-			depositedAndBondedUTXO.TxID: map[ids.ID]struct{}{depositedAndBondedUTXO.InputID(): {}},
-		},
+		// bonds: map[ids.ID]ids.Set{
+		// 	bondedUTXO.TxID: map[ids.ID]struct{}{bondedUTXO.InputID(): {}},
+		// },
+		// deposits: map[ids.ID]ids.Set{
+		// 	depositedUTXO.TxID:          map[ids.ID]struct{}{depositedUTXO.InputID(): {}},
+		// 	depositedAndBondedUTXO.TxID: map[ids.ID]struct{}{depositedAndBondedUTXO.InputID(): {}},
+		// },
 		lockedUTXOs: map[ids.ID]utxoLockState{
 			bondedUTXO.InputID():             {BondTxID: &bondedUTXO.TxID},
 			depositedUTXO.InputID():          {DepositTxID: &depositedUTXO.TxID},
@@ -174,7 +174,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 
 			for i, inputID := range tt.inputUTXOIDs {
 				utxo := utxosByID[inputID]
-				ins[i] = generateTestInFromUTXO(vm.ctx.AVAXAssetID, utxo, []uint32{0})
+				ins[i] = generateTestInFromUTXO(utxo, []uint32{0})
 				signers[i] = inputSigners
 			}
 
@@ -201,7 +201,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 					End:    endTime,
 					Wght:   totalBondAmount,
 				},
-				InputIndexes: tt.inputIndexes,
 				RewardsOwner: &outputOwners,
 			}
 			tx := &Tx{UnsignedTx: utx}
@@ -702,7 +701,6 @@ func TestAddValidatorTxManuallyWrongSignature(t *testing.T) {
 				},
 			}},
 		}},
-		InputIndexes: []uint32{0},
 		Validator: Validator{
 			NodeID: nodeID,
 			Start:  uint64(defaultGenesisTime.Add(1 * time.Second).Unix()),

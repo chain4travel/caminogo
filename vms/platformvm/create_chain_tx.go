@@ -194,7 +194,7 @@ func (vm *VM) newCreateChainTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createBlockchainTxFee := vm.getCreateBlockchainTxFee(timestamp)
-	ins, outs, _, signers, err := vm.spend(keys, 0, createBlockchainTxFee, LockStateDeposited)
+	ins, outs, signers, err := vm.spend(keys, 0, createBlockchainTxFee, LockStateDeposited)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

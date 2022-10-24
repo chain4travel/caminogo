@@ -5,8 +5,10 @@ package platformvm
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/chain4travel/caminogo/ids"
+	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 )
 
@@ -30,11 +32,12 @@ type lockedUTXOsChainState interface {
 	GetBondedUTXOIDs(bondTxID ids.ID) ids.Set
 	GetDepositedUTXOIDs(depositTxID ids.ID) ids.Set
 	ProduceUTXOsAndLockState(
+		utxoDB UTXOGetter,
 		inputs []*avax.TransferableInput,
-		inputIndexes []uint32,
 		outputs []*avax.TransferableOutput,
+		lockState LockState,
 		txID ids.ID,
-	) (map[ids.ID]utxoLockState, []*avax.UTXO)
+	) (map[ids.ID]utxoLockState, []*avax.UTXO, error)
 	UpdateLockState(updatedUTXOStates map[ids.ID]utxoLockState) (lockedUTXOsChainState, error)
 	Apply(InternalState)
 }
@@ -124,75 +127,185 @@ func (cs *lockedUTXOsChainStateImpl) Apply(is InternalState) {
 // - [producedUTXOs] utxos with produced outputs
 // Precondition: arguments must be syntacticly valid in conjunction
 func (cs *lockedUTXOsChainStateImpl) ProduceUTXOsAndLockState(
+	utxoDB UTXOGetter,
 	inputs []*avax.TransferableInput,
-	inputIndexes []uint32,
 	outputs []*avax.TransferableOutput,
+	lockState LockState,
 	txID ids.ID,
 ) (
 	map[ids.ID]utxoLockState, // updatedUTXOLockStates
 	[]*avax.UTXO, // producedUTXOs
+	error,
 ) {
+	if lockState != LockStateBonded && lockState != LockStateDeposited {
+		return nil, nil, errInvalidTargetLockState
+	}
+
 	producedUTXOs := make([]*avax.UTXO, len(outputs))
 	updatedUTXOLockStates := make(map[ids.ID]utxoLockState, len(outputs)*2)
 
-	for outIndex, out := range outputs {
-		input := inputs[inputIndexes[outIndex]]
-		out := out.Output()
-		consumedUTXOID := input.InputID()
+	insOutIndexes, err := GetInsOuts(utxoDB, inputs, outputs, lockState)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		// produce new UTXO
-		producedUTXO := &avax.UTXO{
-			UTXOID: avax.UTXOID{
-				TxID:        txID,
-				OutputIndex: uint32(outIndex),
-			},
-			Asset: avax.Asset{ID: input.AssetID()},
-			Out:   out,
-		}
-		producedUTXOs[outIndex] = producedUTXO
+	for inputIndex, outIndexes := range insOutIndexes {
+		input := inputs[inputIndex]
+		for _, outIndex := range outIndexes {
+			output := outputs[outIndex]
+			consumedUTXOID := input.InputID()
 
-		inLockState := LockStateUnlocked
-		if lockedIn, ok := input.In.(*LockedIn); ok {
-			inLockState = lockedIn.LockState
-		}
+			// produce new UTXO
+			producedUTXO := &avax.UTXO{
+				UTXOID: avax.UTXOID{
+					TxID:        txID,
+					OutputIndex: uint32(inputIndex),
+				},
+				Asset: avax.Asset{ID: input.AssetID()},
+				Out:   output.Out,
+			}
+			producedUTXOs[inputIndex] = producedUTXO
 
-		outLockState := LockStateUnlocked
-		if lockedOut, ok := out.(*LockedOut); ok {
-			outLockState = lockedOut.LockState
-		}
+			inLockState := LockStateUnlocked
+			if lockedIn, ok := input.In.(*LockedIn); ok {
+				inLockState = lockedIn.LockState
+			}
 
-		var depositTxID *ids.ID
-		var bondTxID *ids.ID
+			outLockState := LockStateUnlocked
+			if lockedOut, ok := output.Out.(*LockedOut); ok {
+				outLockState = lockedOut.LockState
+			}
 
-		switch {
-		case inLockState.isDeposited() && !outLockState.isDeposited():
-			depositTxID = nil
-		case inLockState.isDeposited() && outLockState.isDeposited():
-			depositTxID = cs.lockedUTXOs[consumedUTXOID].DepositTxID
-		case !inLockState.isDeposited() && outLockState.isDeposited():
-			depositTxID = &txID
-		}
+			var depositTxID *ids.ID
+			var bondTxID *ids.ID
 
-		switch {
-		case inLockState.isBonded() && !outLockState.isBonded():
-			bondTxID = nil
-		case inLockState.isBonded() && outLockState.isBonded():
-			bondTxID = cs.lockedUTXOs[consumedUTXOID].BondTxID
-		case !inLockState.isBonded() && outLockState.isBonded():
-			bondTxID = &txID
-		}
+			switch {
+			case inLockState.isDeposited() && !outLockState.isDeposited():
+				depositTxID = nil
+			case inLockState.isDeposited() && outLockState.isDeposited():
+				depositTxID = cs.lockedUTXOs[consumedUTXOID].DepositTxID
+			case !inLockState.isDeposited() && outLockState.isDeposited():
+				depositTxID = &txID
+			}
 
-		updatedUTXOLockStates[producedUTXO.InputID()] = utxoLockState{
-			BondTxID:    bondTxID,
-			DepositTxID: depositTxID,
-		}
+			switch {
+			case inLockState.isBonded() && !outLockState.isBonded():
+				bondTxID = nil
+			case inLockState.isBonded() && outLockState.isBonded():
+				bondTxID = cs.lockedUTXOs[consumedUTXOID].BondTxID
+			case !inLockState.isBonded() && outLockState.isBonded():
+				bondTxID = &txID
+			}
 
-		// removing consumed utxo from lock state
-		updatedUTXOLockStates[consumedUTXOID] = utxoLockState{
-			BondTxID:    nil,
-			DepositTxID: nil,
+			updatedUTXOLockStates[producedUTXO.InputID()] = utxoLockState{
+				BondTxID:    bondTxID,
+				DepositTxID: depositTxID,
+			}
+
+			// removing consumed utxo from lock state
+			updatedUTXOLockStates[consumedUTXOID] = utxoLockState{
+				BondTxID:    nil,
+				DepositTxID: nil,
+			}
 		}
 	}
 
-	return updatedUTXOLockStates, producedUTXOs
+	return updatedUTXOLockStates, producedUTXOs, nil
+}
+
+func GetInsOuts(
+	utxoDB UTXOGetter,
+	inputs []*avax.TransferableInput,
+	outputs []*avax.TransferableOutput,
+	lockState LockState,
+) (
+	outs [][]int,
+	err error,
+) {
+	if lockState != LockStateBonded && lockState != LockStateDeposited {
+		return nil, errInvalidTargetLockState
+	}
+
+	inputOuts := make([][]int, len(inputs))
+	trackedOuts := make(map[int]struct{}, len(outputs))
+
+	for inputIndex, in := range inputs {
+		utxo, err := utxoDB.GetUTXO(in.InputID())
+		if err != nil {
+			return nil, err
+		}
+		out := utxo.Out
+		if lockedOut, ok := utxo.Out.(*LockedOut); ok {
+			out = lockedOut.TransferableOut
+		}
+		consumedOwnerID, err := getOwnerID(out)
+		if err != nil {
+			return nil, err
+		}
+
+		inputLockState := LockStateUnlocked
+		if lockedIn, ok := in.In.(*LockedIn); ok {
+			inputLockState = lockedIn.LockState
+		}
+
+		trackedAmount := uint64(0)
+
+		for outIndex, output := range outputs {
+			if _, ok := trackedOuts[outIndex]; ok {
+				continue
+			}
+
+			out := output.Out
+
+			sum := trackedAmount + out.Amount()
+			if trackedAmount != 0 && sum != in.In.Amount() {
+				continue
+			}
+
+			outputLockState := LockStateUnlocked
+			if lockedOut, ok := out.(*LockedOut); ok {
+				outputLockState = lockedOut.LockState
+				out = lockedOut.TransferableOut
+			}
+
+			if inputLockState|lockState != outputLockState {
+				continue
+			}
+
+			ownerID, err := getOwnerID(out)
+			if err != nil {
+				return nil, err
+			}
+
+			if ownerID != consumedOwnerID {
+				continue
+			}
+
+			inputOuts[inputIndex] = append(inputOuts[inputIndex], outIndex)
+			trackedOuts[outIndex] = struct{}{}
+			trackedAmount = sum
+
+			if sum == in.In.Amount() {
+				break
+			}
+		}
+		if trackedAmount != in.In.Amount() {
+			return nil, errors.New("error") // TODO@ err
+		}
+	}
+	return inputOuts, nil
+}
+
+func getOwnerID(out interface{}) (ids.ID, error) {
+	owned, ok := out.(Owned)
+	if !ok {
+		return ids.Empty, errUnknownOwnersType
+	}
+	owner := owned.Owners()
+	ownerBytes, err := Codec.Marshal(CodecVersion, owner)
+	if err != nil {
+		return ids.Empty, fmt.Errorf("couldn't marshal owner: %w", err)
+	}
+
+	return hashing.ComputeHash256Array(ownerBytes), nil
 }

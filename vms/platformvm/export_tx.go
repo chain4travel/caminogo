@@ -206,7 +206,7 @@ func (vm *VM) newExportTx(
 	if err != nil {
 		return nil, errOverflowExport
 	}
-	ins, outs, _, signers, err := vm.spend(keys, 0, toBurn, LockStateDeposited)
+	ins, outs, signers, err := vm.spend(keys, 0, toBurn, LockStateDeposited)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}

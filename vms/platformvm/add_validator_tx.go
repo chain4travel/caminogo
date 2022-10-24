@@ -51,9 +51,6 @@ type UnsignedAddValidatorTx struct {
 	// Describes the validator
 	Validator Validator `serialize:"true" json:"validator"`
 
-	// Input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
-	InputIndexes []uint32 `serialize:"true" json:"inputIndexes"`
-
 	// Where to send staking rewards when done validating
 	RewardsOwner Owner `serialize:"true" json:"rewardsOwner"`
 }
@@ -122,9 +119,10 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
 	}
 
-	if err := syntacticVerifyLock(tx.Ins, tx.InputIndexes, tx.Outs, LockStateBonded, true); err != nil {
-		return err
-	}
+	// TODO@
+	// if err := syntacticVerifyLock(tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
+	// 	return err
+	// }
 
 	// cache that this is valid
 	tx.syntacticallyVerified = true
@@ -249,12 +247,16 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
 
-	utxoLockStates, utxos := lockedUTXOsState.ProduceUTXOsAndLockState(
+	utxoLockStates, utxos, err := lockedUTXOsState.ProduceUTXOsAndLockState(
+		parentState,
 		tx.Ins,
-		tx.InputIndexes,
 		tx.Outs,
+		LockStateBonded,
 		txID,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
 	if err != nil {
@@ -291,7 +293,7 @@ func (vm *VM) newAddValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R, // Keys providing the staked tokens
 ) (*Tx, error) {
 	bondAmount := vm.internalState.GetValidatorBondAmount()
-	ins, outs, inputIndexes, signers, err := vm.spend(keys, bondAmount, vm.AddStakerTxFee, LockStateBonded)
+	ins, outs, signers, err := vm.spend(keys, bondAmount, vm.AddStakerTxFee, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -318,7 +320,6 @@ func (vm *VM) newAddValidatorTx(
 			End:    endTime,
 			Wght:   bondAmount,
 		},
-		InputIndexes: inputIndexes,
 		RewardsOwner: &secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,

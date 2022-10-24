@@ -473,8 +473,8 @@ func generateTestLockedState(lockedUTXOs []map[ids.ID]utxoLockState, fillUpdated
 	}
 
 	return &lockedUTXOsChainStateImpl{
-		bonds:        bonds,
-		deposits:     deposits,
+		// bonds:        bonds,
+		// deposits:     deposits,
 		lockedUTXOs:  locked,
 		updatedUTXOs: updated,
 	}
@@ -498,12 +498,12 @@ func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners s
 	}
 }
 
-func generateTestInFromUTXO(assetID ids.ID, utxo *avax.UTXO, sigIndices []uint32) *avax.TransferableInput {
+func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.TransferableInput {
 	switch out := utxo.Out.(type) {
 	case *secp256k1fx.TransferOutput:
 		return &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
-			Asset:  avax.Asset{ID: assetID},
+			Asset:  utxo.Asset,
 			In: &secp256k1fx.TransferInput{
 				Amt:   out.Amount(),
 				Input: secp256k1fx.Input{SigIndices: sigIndices},
@@ -512,7 +512,7 @@ func generateTestInFromUTXO(assetID ids.ID, utxo *avax.UTXO, sigIndices []uint32
 	case *LockedOut:
 		return &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
-			Asset:  avax.Asset{ID: assetID},
+			Asset:  utxo.Asset,
 			In: &LockedIn{
 				LockState: out.LockState,
 				TransferableIn: &secp256k1fx.TransferInput{

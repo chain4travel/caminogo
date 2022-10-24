@@ -128,7 +128,7 @@ func (vm *VM) newCreateSubnetTx(
 ) (*Tx, error) {
 	timestamp := vm.internalState.GetTimestamp()
 	createSubnetTxFee := vm.getCreateSubnetTxFee(timestamp)
-	ins, outs, _, signers, err := vm.spend(keys, 0, createSubnetTxFee, LockStateBonded)
+	ins, outs, signers, err := vm.spend(keys, 0, createSubnetTxFee, LockStateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
