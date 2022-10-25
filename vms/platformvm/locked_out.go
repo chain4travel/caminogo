@@ -7,13 +7,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/chain4travel/caminogo/ids"
+	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 )
 
 var (
 	errInvalidLockState = errors.New("invalid lockState")
 	errNestedLocks      = errors.New("shouldn't nest locks")
+	thisTxID            ids.ID // TODO@ const ?
 )
+
+func init() { // TODO@ remove
+	thisTxID, _ = ids.ToID(hashing.ComputeHash256([]byte("this tx id")))
+}
 
 type LockState byte
 
@@ -58,8 +65,46 @@ func (ls LockState) isLocked() bool {
 	return ls != LockStateUnlocked
 }
 
+type LockIDs struct {
+	DepositTxID ids.ID `serialize:"true" json:"depositTxID"`
+	BondTxID    ids.ID `serialize:"true" json:"bondTxID"`
+}
+
+func (lock LockIDs) LockState() LockState {
+	lockState := LockStateUnlocked
+	if lock.DepositTxID != ids.Empty {
+		lockState = LockStateDeposited
+	}
+	if lock.BondTxID != ids.Empty {
+		lockState |= LockStateBonded
+	}
+	return lockState
+}
+
+func (lock LockIDs) Lock(lockState LockState) LockIDs {
+	newLockIDs := lock
+	if lockState.isDeposited() {
+		newLockIDs.DepositTxID = thisTxID
+	}
+	if lockState.isBonded() {
+		newLockIDs.BondTxID = thisTxID
+	}
+	return newLockIDs
+}
+
+func (lock LockIDs) Unlock(lockState LockState) LockIDs {
+	newLockIDs := lock
+	if lockState.isDeposited() {
+		newLockIDs.DepositTxID = ids.Empty
+	}
+	if lockState.isBonded() {
+		newLockIDs.BondTxID = ids.Empty
+	}
+	return newLockIDs
+}
+
 type LockedOut struct {
-	LockState            LockState `serialize:"true" json:"lockState"`
+	LockIDs              `serialize:"true" json:"lockIDs"`
 	avax.TransferableOut `serialize:"true" json:"output"`
 }
 
@@ -71,9 +116,6 @@ func (out *LockedOut) Addresses() [][]byte {
 }
 
 func (out *LockedOut) Verify() error {
-	if out.LockState < LockStateDeposited || LockStateDepositedBonded < out.LockState {
-		return errInvalidLockState
-	}
 	if _, nested := out.TransferableOut.(*LockedOut); nested {
 		return errNestedLocks
 	}
@@ -81,14 +123,11 @@ func (out *LockedOut) Verify() error {
 }
 
 type LockedIn struct {
-	LockState           LockState `serialize:"true" json:"lockState"`
+	LockIDs             `serialize:"true" json:"lockIDs"`
 	avax.TransferableIn `serialize:"true" json:"input"`
 }
 
 func (in *LockedIn) Verify() error {
-	if in.LockState < LockStateDeposited || LockStateDepositedBonded < in.LockState {
-		return errInvalidLockState
-	}
 	if _, nested := in.TransferableIn.(*LockedIn); nested {
 		return errNestedLocks
 	}

@@ -633,7 +633,6 @@ func TestAddSubValidatorLockedInsOrLockedOuts(t *testing.T) {
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
-				preferredState.LockedUTXOsChainState(),
 			)
 
 			// Testing execute

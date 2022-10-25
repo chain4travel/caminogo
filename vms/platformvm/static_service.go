@@ -217,6 +217,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 		})
 	}
 
+	lockIDsBonded := LockIDs{}.Lock(LockStateBonded)
+
 	// Specify the validators that are validating the primary network at genesis.
 	validators := newTxHeapByEndTime()
 	for _, validator := range args.Validators {
@@ -232,7 +234,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			bondedOuts[i] = &avax.TransferableOutput{
 				Asset: avax.Asset{ID: args.AvaxAssetID},
 				Out: &LockedOut{
-					LockState: LockStateBonded,
+					LockIDs: lockIDsBonded,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt: uint64(apiUTXO.Amount),
 						OutputOwners: secp256k1fx.OutputOwners{

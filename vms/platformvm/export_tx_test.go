@@ -90,7 +90,6 @@ func TestNewExportTx(t *testing.T) {
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
-				preferredState.LockedUTXOsChainState(),
 			)
 			fakedState.SetTimestamp(tt.timestamp)
 
@@ -178,7 +177,6 @@ func TestExportLockedInsOrLockedOuts(t *testing.T) {
 				preferredState,
 				preferredState.CurrentStakerChainState(),
 				preferredState.PendingStakerChainState(),
-				preferredState.LockedUTXOsChainState(),
 			)
 
 			// Testing execute

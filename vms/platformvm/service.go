@@ -238,7 +238,7 @@ utxoFor:
 			}
 			unlocked = newBalance
 		case *LockedOut:
-			switch out.LockState {
+			switch out.LockState() {
 			case LockStateDepositedBonded:
 				newBalance, err := math.Add64(depositedAndBonded, out.Amount())
 				if err != nil {

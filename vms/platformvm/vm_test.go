@@ -451,35 +451,6 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 	return vm, baseDBManager.Current().Database, appSender
 }
 
-func generateTestLockedState(lockedUTXOs []map[ids.ID]utxoLockState, fillUpdated bool) *lockedUTXOsChainStateImpl {
-	bonds := map[ids.ID]ids.Set{}
-	deposits := map[ids.ID]ids.Set{}
-	locked := map[ids.ID]utxoLockState{}
-	updated := map[ids.ID]utxoLockState{}
-	for _, lockedUTXO := range lockedUTXOs {
-		for utxoID, utxoState := range lockedUTXO {
-			if utxoState.BondTxID != nil {
-				bonds[*utxoState.BondTxID] = map[ids.ID]struct{}{utxoID: {}}
-			}
-			if utxoState.DepositTxID != nil {
-				deposits[*utxoState.DepositTxID] = map[ids.ID]struct{}{utxoID: {}}
-			}
-			locked[utxoID] = utxoState
-		}
-	}
-
-	if fillUpdated {
-		updated = locked
-	}
-
-	return &lockedUTXOsChainStateImpl{
-		// bonds:        bonds,
-		// deposits:     deposits,
-		lockedUTXOs:  locked,
-		updatedUTXOs: updated,
-	}
-}
-
 func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, lockedState LockState) *avax.UTXO {
 	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
 		Amt:          amount,

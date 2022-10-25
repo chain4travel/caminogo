@@ -81,7 +81,6 @@ func (tx *UnsignedCreateSubnetTx) SemanticVerify(vm *VM, parentState MutableStat
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
-		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, vs, stx)
 	return err

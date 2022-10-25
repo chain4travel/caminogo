@@ -161,8 +161,6 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		)
 	}
 
-	lockedUTXOsState := parentState.LockedUTXOsChainState()
-
 	// Verify that tx body is valid
 
 	ins, outs, err := vm.unlock(parentState, []ids.ID{validatorTxID}, LockStateBonded)
@@ -186,24 +184,6 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 	// Set up the state if this tx is committed
 
-	rewardValidatorTxID := tx.ID()
-
-	utxoLockStates, utxos, err := lockedUTXOsState.ProduceUTXOsAndLockState(
-		parentState,
-		tx.Ins,
-		tx.Outs,
-		LockStateBonded,
-		rewardValidatorTxID,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	newlyCurrentStakers, err := currentStakers.DeleteNextStaker()
 	if err != nil {
 		return nil, nil, err
@@ -211,14 +191,14 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 	pendingStakers := parentState.PendingStakerChainState()
 
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, newlyLockedUTXOsState)
+	onCommitState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers)
+
+	txID := tx.ID()
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	for _, utxo := range utxos {
-		onCommitState.AddUTXO(utxo)
-	}
+	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Provide the reward here
 	if stakerReward > 0 {
@@ -233,7 +213,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 
 		utxo := &avax.UTXO{
 			UTXOID: avax.UTXOID{
-				TxID:        rewardValidatorTxID,
+				TxID:        txID,
 				OutputIndex: uint32(len(addValidatorTx.Outs)),
 			},
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -241,17 +221,15 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 		}
 
 		onCommitState.AddUTXO(utxo)
-		onCommitState.AddRewardUTXO(rewardValidatorTxID, utxo)
+		onCommitState.AddRewardUTXO(txID, utxo)
 	}
 
-	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers, newlyLockedUTXOsState)
+	onAbortState := newVersionedState(parentState, newlyCurrentStakers, pendingStakers)
 
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
-	for _, utxo := range utxos {
-		onAbortState.AddUTXO(utxo)
-	}
+	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// If the reward is aborted, then the current supply should be decreased.
 	currentSupply := onAbortState.GetCurrentSupply()

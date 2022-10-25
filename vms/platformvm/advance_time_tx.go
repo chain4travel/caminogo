@@ -192,14 +192,12 @@ currentStakerLoop:
 		return nil, nil, err
 	}
 
-	lockedUTXOsState := parentState.LockedUTXOsChainState()
-
-	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers, lockedUTXOsState)
+	onCommitState := newVersionedState(parentState, newlyCurrentStakers, newlyPendingStakers)
 	onCommitState.SetTimestamp(txTimestamp)
 	onCommitState.SetCurrentSupply(currentSupply)
 
 	// State doesn't change if this proposal is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
 
 	return onCommitState, onAbortState, nil
 }

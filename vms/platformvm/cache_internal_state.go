@@ -53,7 +53,6 @@ var (
 	subnetPrefix          = []byte("subnet")
 	chainPrefix           = []byte("chain")
 	singletonPrefix       = []byte("singleton")
-	lockedUTXOsPrefix     = []byte("lockedUTXOs")
 
 	timestampKey           = []byte("timestamp")
 	currentSupplyKey       = []byte("current supply")
@@ -96,11 +95,8 @@ type InternalState interface {
 	AddPendingStaker(tx *Tx)
 	DeletePendingStaker(tx *Tx)
 
-	UpdateLockedUTXO(utxoID ids.ID, utxoLockState utxoLockState)
-
 	SetCurrentStakerChainState(currentStakerChainState)
 	SetPendingStakerChainState(pendingStakerChainState)
-	SetLockedUTXOsChainState(lockedUTXOsChainState)
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(ids.ID)
@@ -152,14 +148,12 @@ type InternalState interface {
  * | '-. subnetID
  * |   '-. list
  * |     '-- txID -> nil
- * |-. singletons
- * | |-- initializedKey -> nil
- * | |-- timestampKey -> timestamp
- * | |-- currentSupplyKey -> currentSupply
- * | |-- lastAcceptedKey -> lastAccepted
- * | '-- validatorBondAmountKey -> validatorBondAmount
- * '-. lockedUTXOs
- *   '-- utxoID -> lockState { bondTxID, depositTxID }
+ * '-. singletons
+ *   |-- initializedKey -> nil
+ *   |-- timestampKey -> timestamp
+ *   |-- currentSupplyKey -> currentSupply
+ *   |-- lastAcceptedKey -> lastAccepted
+ *   '-- validatorBondAmountKey -> validatorBondAmount
  */
 type internalStateImpl struct {
 	vm *VM
@@ -168,7 +162,6 @@ type internalStateImpl struct {
 
 	currentStakerChainState currentStakerChainState
 	pendingStakerChainState pendingStakerChainState
-	lockedUTXOsChainState   lockedUTXOsChainState
 
 	currentHeight         uint64
 	addedCurrentStakers   []*validatorReward
@@ -224,10 +217,6 @@ type internalStateImpl struct {
 	originalValidatorBondAmount, validatorBondAmount uint64
 	originalLastAccepted, lastAccepted               ids.ID
 	singletonDB                                      database.Database
-
-	updatedLockedUTXOs []lockedUTXOState
-	lockedUTXOsDB      database.Database
-	lockedUTXOsList    linkeddb.LinkedDB
 }
 
 type ValidatorWeightDiff struct {
@@ -269,8 +258,6 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 	utxoDB := prefixdb.New(utxoPrefix, baseDB)
 	subnetBaseDB := prefixdb.New(subnetPrefix, baseDB)
 
-	lockedUTXOsDB := prefixdb.New(lockedUTXOsPrefix, baseDB)
-
 	return &internalStateImpl{
 		vm: vm,
 
@@ -311,9 +298,6 @@ func newInternalStateDatabases(vm *VM, db database.Database) *internalStateImpl 
 		chainDB:     prefixdb.New(chainPrefix, baseDB),
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
-
-		lockedUTXOsDB:   lockedUTXOsDB,
-		lockedUTXOsList: linkeddb.NewDefault(lockedUTXOsDB),
 	}
 }
 
@@ -707,20 +691,12 @@ func (st *internalStateImpl) PendingStakerChainState() pendingStakerChainState {
 	return st.pendingStakerChainState
 }
 
-func (st *internalStateImpl) LockedUTXOsChainState() lockedUTXOsChainState {
-	return st.lockedUTXOsChainState
-}
-
 func (st *internalStateImpl) SetCurrentStakerChainState(cs currentStakerChainState) {
 	st.currentStakerChainState = cs
 }
 
 func (st *internalStateImpl) SetPendingStakerChainState(ps pendingStakerChainState) {
 	st.pendingStakerChainState = ps
-}
-
-func (st *internalStateImpl) SetLockedUTXOsChainState(cs lockedUTXOsChainState) {
-	st.lockedUTXOsChainState = cs
 }
 
 func (st *internalStateImpl) GetUptime(nodeID ids.ShortID) (upDuration time.Duration, lastUpdated time.Time, err error) {
@@ -812,19 +788,6 @@ func (st *internalStateImpl) GetValidatorWeightDiffs(height uint64, subnetID ids
 	return weightDiffs, nil
 }
 
-func (st *internalStateImpl) UpdateLockedUTXO(utxoID ids.ID, utxoLockState utxoLockState) {
-	lockedUTXOState := lockedUTXOState{
-		utxoID: utxoID,
-	}
-	if utxoLockState.BondTxID != nil {
-		lockedUTXOState.BondTxID = *utxoLockState.BondTxID
-	}
-	if utxoLockState.DepositTxID != nil {
-		lockedUTXOState.DepositTxID = *utxoLockState.DepositTxID
-	}
-	st.updatedLockedUTXOs = append(st.updatedLockedUTXOs, lockedUTXOState)
-}
-
 func (st *internalStateImpl) Abort() {
 	st.baseDB.Abort()
 }
@@ -869,9 +832,6 @@ func (st *internalStateImpl) CommitBatch() (database.Batch, error) {
 	if err := st.writeSingletons(); err != nil {
 		return nil, fmt.Errorf("failed to write singletons with: %w", err)
 	}
-	if err := st.writeLockedUTXOs(); err != nil {
-		return nil, fmt.Errorf("failed to write locked utxos with: %w", err)
-	}
 
 	return st.baseDB.CommitBatch()
 }
@@ -893,7 +853,6 @@ func (st *internalStateImpl) Close() error {
 		st.subnetBaseDB.Close(),
 		st.chainDB.Close(),
 		st.singletonDB.Close(),
-		st.lockedUTXOsDB.Close(),
 		st.baseDB.Close(),
 	)
 	return errs.Err
@@ -1288,44 +1247,6 @@ func (st *internalStateImpl) writeSingletons() error {
 	return nil
 }
 
-type lockedUTXOState struct {
-	utxoID ids.ID
-	// GenesisCodec can't serialize nil, so we can't use fields
-	// BondTxID, DepositTxID *ids.ID
-	BondTxID    ids.ID `serialize:"true"`
-	DepositTxID ids.ID `serialize:"true"`
-}
-
-func (ls lockedUTXOState) bondTxID() *ids.ID {
-	if ls.BondTxID == ids.Empty {
-		return nil
-	}
-	return &ls.BondTxID
-}
-
-func (ls lockedUTXOState) depositTxID() *ids.ID {
-	if ls.DepositTxID == ids.Empty {
-		return nil
-	}
-	return &ls.DepositTxID
-}
-
-func (st *internalStateImpl) writeLockedUTXOs() error {
-	for _, updatedLockedUTXO := range st.updatedLockedUTXOs {
-		utxoLockStateBytes, err := GenesisCodec.Marshal(CodecVersion, updatedLockedUTXO)
-		if err != nil {
-			return err
-		}
-
-		utxoID := updatedLockedUTXO.utxoID
-		if err := st.lockedUTXOsList.Put(utxoID[:], utxoLockStateBytes); err != nil {
-			return err
-		}
-	}
-	st.updatedLockedUTXOs = nil
-	return nil
-}
-
 func (st *internalStateImpl) load() error {
 	if err := st.loadSingletons(); err != nil {
 		return err
@@ -1333,10 +1254,7 @@ func (st *internalStateImpl) load() error {
 	if err := st.loadCurrentValidators(); err != nil {
 		return err
 	}
-	if err := st.loadPendingValidators(); err != nil {
-		return err
-	}
-	return st.loadLockedUTXOs()
+	return st.loadPendingValidators()
 }
 
 func (st *internalStateImpl) loadSingletons() error {
@@ -1531,42 +1449,6 @@ func (st *internalStateImpl) loadPendingValidators() error {
 	return nil
 }
 
-func (st *internalStateImpl) loadLockedUTXOs() error {
-	cs := &lockedUTXOsChainStateImpl{
-		lockedUTXOs: make(map[ids.ID]utxoLockState),
-	}
-
-	lockedUTXOsIt := st.lockedUTXOsList.NewIterator()
-	defer lockedUTXOsIt.Release()
-	for lockedUTXOsIt.Next() {
-		utxoIDBytes := lockedUTXOsIt.Key()
-		utxoID, err := ids.ToID(utxoIDBytes)
-		if err != nil {
-			return err
-		}
-
-		utxoLockStateBytes := lockedUTXOsIt.Value()
-		lockedUTXOState := lockedUTXOState{}
-		if _, err := GenesisCodec.Unmarshal(utxoLockStateBytes, &lockedUTXOState); err != nil {
-			return err
-		}
-
-		bondTxIDPtr := lockedUTXOState.bondTxID()
-		depositTxIDPtr := lockedUTXOState.depositTxID()
-
-		cs.lockedUTXOs[utxoID] = utxoLockState{
-			BondTxID:    bondTxIDPtr,
-			DepositTxID: depositTxIDPtr,
-		}
-	}
-	if err := lockedUTXOsIt.Error(); err != nil {
-		return err
-	}
-
-	st.lockedUTXOsChainState = cs
-	return nil
-}
-
 func (st *internalStateImpl) shouldInit() (bool, error) {
 	has, err := st.singletonDB.Has(initializedKey)
 	return !has, err
@@ -1598,30 +1480,13 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 		if !ok {
 			return errWrongTxType
 		}
-		txID := tx.ID()
-		for i, bondedOut := range tx.Outs {
-			if out, ok := bondedOut.Out.(*LockedOut); !ok || !out.LockState.isBonded() {
+		for _, out := range tx.Outs {
+			if lockedOut, ok := out.Out.(*LockedOut); !ok || !lockedOut.LockState().isBonded() {
 				return errWrongLockState
 			}
-			utxo := &avax.UTXO{
-				UTXOID: avax.UTXOID{
-					TxID:        txID,
-					OutputIndex: uint32(len(tx.Outs) + i),
-				},
-				Asset: avax.Asset{ID: st.vm.ctx.AVAXAssetID},
-				Out:   bondedOut.Output(),
-			}
-			st.AddUTXO(utxo)
-			st.UpdateLockedUTXO(
-				utxo.InputID(),
-				utxoLockState{
-					BondTxID: &txID,
-					// ! @evlekht in current genesis implementation,
-					// ! allocation can only be staked or deposited.
-					// ! must be updated with deposit PR
-					DepositTxID: nil,
-				})
 		}
+
+		produceOutputs(st, tx.ID(), st.vm.ctx.AVAXAssetID, tx.Outs)
 
 		stakeAmount := tx.Validator.Wght
 		stakeDuration := tx.Validator.Duration()

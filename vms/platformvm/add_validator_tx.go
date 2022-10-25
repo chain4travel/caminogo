@@ -76,7 +76,7 @@ func (tx *UnsignedAddValidatorTx) EndTime() time.Time {
 func (tx *UnsignedAddValidatorTx) Bond() []*avax.TransferableOutput {
 	var bond []*avax.TransferableOutput
 	for _, output := range tx.Outs {
-		if out, ok := output.Out.(*LockedOut); ok && out.LockState.isBonded() {
+		if out, ok := output.Out.(*LockedOut); ok && out.LockState().isBonded() {
 			bond = append(bond, output)
 		}
 	}
@@ -106,7 +106,7 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 
 	totalBond := uint64(0)
 	for _, out := range tx.Outs {
-		if lockedOut, ok := out.Out.(*LockedOut); ok && lockedOut.LockState.isBonded() {
+		if lockedOut, ok := out.Out.(*LockedOut); ok && lockedOut.LockState().isBonded() {
 			newTotalBond, err := math.Add64(totalBond, lockedOut.Amount())
 			if err != nil {
 				return err
@@ -119,10 +119,9 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
 	}
 
-	// TODO@
-	// if err := syntacticVerifyLock(tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
-	// 	return err
-	// }
+	if err := syntacticVerifyLock(tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
+		return err
+	}
 
 	// cache that this is valid
 	tx.syntacticallyVerified = true
@@ -175,7 +174,6 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	currentStakers := parentState.CurrentStakerChainState()
 	pendingStakers := parentState.PendingStakerChainState()
-	lockedUTXOsState := parentState.LockedUTXOsChainState()
 
 	if vm.bootstrapped.GetValue() {
 		currentTimestamp := parentState.GetTimestamp()
@@ -247,33 +245,15 @@ func (tx *UnsignedAddValidatorTx) Execute(
 
 	newlyPendingStakers := pendingStakers.AddStaker(stx)
 
-	utxoLockStates, utxos, err := lockedUTXOsState.ProduceUTXOsAndLockState(
-		parentState,
-		tx.Ins,
-		tx.Outs,
-		LockStateBonded,
-		txID,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	newlyLockedUTXOsState, err := lockedUTXOsState.UpdateLockState(utxoLockStates)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers, newlyLockedUTXOsState)
+	onCommitState := newVersionedState(parentState, currentStakers, newlyPendingStakers)
 
 	// Consume the UTXOS
 	consumeInputs(onCommitState, tx.Ins)
 	// Produce the UTXOS
-	for _, utxo := range utxos {
-		onCommitState.AddUTXO(utxo)
-	}
+	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// Set up the state if this tx is aborted
-	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers, lockedUTXOsState)
+	onAbortState := newVersionedState(parentState, currentStakers, pendingStakers)
 
 	return onCommitState, onAbortState, nil
 }

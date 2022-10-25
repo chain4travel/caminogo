@@ -180,7 +180,6 @@ func (tx *UnsignedExportTx) AtomicExecute(
 		parentState,
 		parentState.CurrentStakerChainState(),
 		parentState.PendingStakerChainState(),
-		parentState.LockedUTXOsChainState(),
 	)
 	_, err := tx.Execute(vm, newState, stx)
 	return newState, err
