@@ -20,6 +20,7 @@ import (
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
+	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/utils/math"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
@@ -610,12 +611,15 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	return nil
 }
 
+// TODO@ probably merge with semanticVerifySpend
+// TODO@ take fee into account
 // Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
 // Arguments:
 // - [inputs] are inputs that produced [outputs]
 // - [lockState] that expected to be applied/removed to/from inputs lock state in produced outputs
 // - [lock] true if we'r locking, false if unlocking
-func syntacticVerifyLock(
+func semanticVerifyLock(
+	utxoDB UTXOGetter,
 	inputs []*avax.TransferableInput,
 	outputs []*avax.TransferableOutput,
 	lockState LockState,
@@ -625,75 +629,66 @@ func syntacticVerifyLock(
 		return errInvalidTargetLockState
 	}
 
-	producedAmount := make([]uint64, len(inputs))
+	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
+	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
+
+	for _, out := range outputs {
+		ownerID, err := getOwnerID(out.Out)
+		if err != nil {
+			return err
+		}
+		lockIDs := LockIDs{}
+		if lockedOut, ok := out.Out.(*LockedOut); ok {
+			lockIDs = lockedOut.LockIDs
+		}
+
+		newProducedAmount, err := math.Add64(producedAmounts[ownerID][lockIDs], out.Out.Amount())
+		if err != nil {
+			return err
+		}
+		producedAmounts[ownerID][lockIDs] = newProducedAmount
+	}
+
+	for _, in := range inputs {
+		utxo, err := utxoDB.GetUTXO(in.InputID())
+		if err != nil {
+			return err
+		}
+
+		ownerID, err := getOwnerID(utxo.Out)
+		if err != nil {
+			return err
+		}
+
+		lockIDs := LockIDs{}
+		if lockedIn, ok := in.In.(*LockedIn); ok {
+			lockIDs = lockedIn.LockIDs
+		}
+		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][lockIDs], in.In.Amount())
+		if err != nil {
+			return err
+		}
+		consumedAmounts[ownerID][lockIDs] = newConsumedAmounts
+	}
 
 	// TODO @evlekht this must check correct transitions from ins to outs
 	// TODO taking LockIDs (and LockState, but probably its included) and amount into account
 
-	for outputIndex, out := range outputs {
-		in := inputs[inputIndex]
-
-		inputLockState := LockStateUnlocked
-		if lockedIn, ok := in.In.(*LockedIn); ok {
-			inputLockState = lockedIn.LockState()
-		}
-
-		outputLockState := LockStateUnlocked
-		if lockedOut, ok := out.Out.(*LockedOut); ok {
-			outputLockState = lockedOut.LockState()
-		}
-
-		// checking that inputLockState is valid for applied/removed lockState
-		// checking that outputLockState is valid for inputLockState and applied/removed lockState
-		if !(lock &&
-			inputLockState&lockState != lockState &&
-			(outputLockState == inputLockState|lockState ||
-				outputLockState == inputLockState) ||
-
-			// only valid if we don't expect unlocked ins for fee burning
-			!lock &&
-				inputLockState&lockState == lockState &&
-				(outputLockState == inputLockState&^lockState ||
-					outputLockState == inputLockState)) { //nolint // newline is intended
-
-			return errWrongLockState
-		}
-
-		newProducedAmount, err := math.Add64(producedAmount[inputIndex], out.Out.Amount())
-		if err != nil {
-			return err
-		}
-		producedAmount[inputIndex] = newProducedAmount
-	}
-
-	// Input state should be checked in previous loop
-	// If not - input is burned to zero
-	// So we still need to check all inputs and see if their state is valid
-	// Also check that ins consumed amount is in accordance with produced amount
-	for i, in := range inputs {
-		inputLockState := LockStateUnlocked
-		if lockedIn, ok := in.In.(*LockedIn); ok {
-			inputLockState = lockedIn.LockState()
-		}
-
-		// if input already locked this way, so it can't be used for lock / burn
-		if lock && inputLockState&lockState == lockState {
-			return errLockingLockedUTXO
-		}
-
-		if producedAmount[i] > in.In.Amount() {
-			return errWrongProducedAmount
-		}
-
-		// if input won't possibly be fully unlocked after unlock
-		// we can't allow burning of this input
-		if (!lock && inputLockState&^lockState != LockStateUnlocked || lock && inputLockState.isLocked()) &&
-			producedAmount[i] < in.In.Amount() {
-			return errBurningLockedUTXO
-		}
-	}
-
 	return nil
+}
+
+func getOwnerID(out interface{}) (ids.ID, error) {
+	owned, ok := out.(Owned)
+	if !ok {
+		return ids.Empty, errUnknownOwnersType
+	}
+	owner := owned.Owners()
+	ownerBytes, err := Codec.Marshal(CodecVersion, owner)
+	if err != nil {
+		return ids.Empty, fmt.Errorf("couldn't marshal owner: %w", err)
+	}
+
+	return hashing.ComputeHash256Array(ownerBytes), nil
 }
 
 func verifyInsAndOutsUnlocked(ins []*avax.TransferableInput, outs []*avax.TransferableOutput) error {

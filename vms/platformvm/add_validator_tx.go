@@ -119,10 +119,6 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("validator weight %d is not equal to total bond amount %d", tx.Validator.Wght, totalBond)
 	}
 
-	if err := syntacticVerifyLock(tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
-		return err
-	}
-
 	// cache that this is valid
 	tx.syntacticallyVerified = true
 	return nil
@@ -220,6 +216,10 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		// Verify the flowcheck
 		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, stx.Creds[:baseTxCredsLen], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
+		}
+
+		if err := semanticVerifyLock(parentState, tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
+			return nil, nil, err
 		}
 
 		// Verify that nodeId signature is present
