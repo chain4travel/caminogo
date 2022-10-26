@@ -82,25 +82,23 @@ func (lock LockIDs) LockState() LockState {
 }
 
 func (lock LockIDs) Lock(lockState LockState) LockIDs {
-	newLockIDs := lock
 	if lockState.isDeposited() {
-		newLockIDs.DepositTxID = thisTxID
+		lock.DepositTxID = thisTxID
 	}
 	if lockState.isBonded() {
-		newLockIDs.BondTxID = thisTxID
+		lock.BondTxID = thisTxID
 	}
-	return newLockIDs
+	return lock
 }
 
 func (lock LockIDs) Unlock(lockState LockState) LockIDs {
-	newLockIDs := lock
 	if lockState.isDeposited() {
-		newLockIDs.DepositTxID = ids.Empty
+		lock.DepositTxID = ids.Empty
 	}
 	if lockState.isBonded() {
-		newLockIDs.BondTxID = ids.Empty
+		lock.BondTxID = ids.Empty
 	}
-	return newLockIDs
+	return lock
 }
 
 type LockedOut struct {

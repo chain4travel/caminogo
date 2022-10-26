@@ -585,7 +585,7 @@ func (b *builder) spend(
 		assetID := utxo.AssetID()
 		remainingAmountToSpend := amountsToSpend[assetID]
 
-		// If we have spended enough of the asset, then we have no need spend
+		// If we have spent enough of the asset, then we have no need spend
 		// more.
 		if remainingAmountToSpend == 0 {
 			continue
@@ -628,7 +628,7 @@ func (b *builder) spend(
 		})
 		inputID := utxo.InputID()
 
-		// Spend any value that should be spended
+		// Spend any value that should be spent
 		amountToSpend := math.Min64(
 			remainingAmountToSpend, // Amount we still need to spend
 			out.Amt,                // Amount available to spend
@@ -719,7 +719,7 @@ func (b *builder) spend(
 		)
 		amountsToSpend[assetID] -= amountToSpend
 		if amountToSpend > 0 {
-			// Some of this input was spended
+			// Some of this input was spent
 			outputs = append(outputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
 				Out: &platformvm.LockedOut{

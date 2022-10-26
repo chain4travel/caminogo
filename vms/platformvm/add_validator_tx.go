@@ -76,7 +76,7 @@ func (tx *UnsignedAddValidatorTx) EndTime() time.Time {
 func (tx *UnsignedAddValidatorTx) Bond() []*avax.TransferableOutput {
 	var bond []*avax.TransferableOutput
 	for _, output := range tx.Outs {
-		if out, ok := output.Out.(*LockedOut); ok && out.LockState().isBonded() {
+		if lockedOut, ok := output.Out.(*LockedOut); ok && lockedOut.BondTxID == thisTxID {
 			bond = append(bond, output)
 		}
 	}
@@ -106,7 +106,7 @@ func (tx *UnsignedAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 
 	totalBond := uint64(0)
 	for _, out := range tx.Outs {
-		if lockedOut, ok := out.Out.(*LockedOut); ok && lockedOut.LockState().isBonded() {
+		if lockedOut, ok := out.Out.(*LockedOut); ok && lockedOut.BondTxID == thisTxID {
 			newTotalBond, err := math.Add64(totalBond, lockedOut.Amount())
 			if err != nil {
 				return err

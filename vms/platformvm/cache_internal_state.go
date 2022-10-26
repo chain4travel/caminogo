@@ -1481,6 +1481,7 @@ func (st *internalStateImpl) init(genesisBytes []byte) error {
 			return errWrongTxType
 		}
 		for _, out := range tx.Outs {
+			// TODO@ ?
 			if lockedOut, ok := out.Out.(*LockedOut); !ok || !lockedOut.LockState().isBonded() {
 				return errWrongLockState
 			}

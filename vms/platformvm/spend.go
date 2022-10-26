@@ -42,12 +42,13 @@ var (
 	errBurningLockedUTXO    = errors.New("trying to burn locked utxo")
 	errLockedInsOrOuts      = errors.New("transaction body has locked inputs or outs, but that's now allowed")
 	errWrongProducedAmount  = errors.New("produced more tokens, than input had")
+	errNotBurnedEnough      = errors.New("") // TODO@
 )
 
 // spend the provided amount while deducting the provided fee.
 // Arguments:
 // - [keys] are the owners of the funds
-// - [totalAmountToSpend] is the amount of funds that are trying to be spended (changed their state)
+// - [totalAmountToSpend] is the amount of funds that are trying to be spent (changed their state)
 // - [totalAmountToBurn] is the amount of AVAX that should be burned
 // - [appliedLockState] is lockState that will be applied to consumed outs state
 // Returns:
@@ -88,14 +89,14 @@ func (vm *VM) spend(
 	outs := []*avax.TransferableOutput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
-	// Amount of AVAX that has been spended
-	amountSpended := uint64(0)
+	// Amount of AVAX that has been spent
+	amountSpent := uint64(0)
 
 	// Consume locked UTXOs
 	for _, utxo := range utxos {
 		// If we have consumed more AVAX than we are trying to spend, then we
 		// have no need to consume more locked AVAX
-		if amountSpended >= totalAmountToSpend {
+		if amountSpent >= totalAmountToSpend {
 			break
 		}
 
@@ -133,12 +134,12 @@ func (vm *VM) spend(
 		// The remaining value is initially the full value of the input
 		remainingValue := in.Amount()
 
-		// Spend any value that should be spended
+		// Spend any value that should be spent
 		amountToSpend := math.Min64(
-			totalAmountToSpend-amountSpended, // Amount we still need to spend
-			remainingValue,                   // Amount available to spend
+			totalAmountToSpend-amountSpent, // Amount we still need to spend
+			remainingValue,                 // Amount available to spend
 		)
-		amountSpended += amountToSpend
+		amountSpent += amountToSpend
 		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
@@ -164,7 +165,7 @@ func (vm *VM) spend(
 		})
 
 		if remainingValue > 0 {
-			// This input provided more value than was needed to be spended.
+			// This input provided more value than was needed to be spent.
 			// Some of it must be returned
 			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -189,7 +190,7 @@ func (vm *VM) spend(
 	for _, utxo := range utxos {
 		// If we have burned more AVAX then we need to, then we have no need to
 		// consume more AVAX
-		if amountSpended >= totalAmountToSpend && amountBurned >= totalAmountToBurn {
+		if amountSpent >= totalAmountToSpend && amountBurned >= totalAmountToBurn {
 			break
 		}
 
@@ -233,12 +234,12 @@ func (vm *VM) spend(
 		amountBurned += amountToBurn
 		remainingValue -= amountToBurn
 
-		// Spend any value that should be spended
+		// Spend any value that should be spent
 		amountToSpend := math.Min64(
-			totalAmountToSpend-amountSpended, // Amount we still need to spend
-			remainingValue,                   // Amount available to spend
+			totalAmountToSpend-amountSpent, // Amount we still need to spend
+			remainingValue,                 // Amount available to spend
 		)
-		amountSpended += amountToSpend
+		amountSpent += amountToSpend
 		remainingValue -= amountToSpend
 
 		// Add the input to the consumed inputs
@@ -277,10 +278,10 @@ func (vm *VM) spend(
 		signers = append(signers, inSigners)
 	}
 
-	if amountBurned < totalAmountToBurn || amountSpended < totalAmountToSpend {
+	if amountBurned < totalAmountToBurn || amountSpent < totalAmountToSpend {
 		return nil, nil, nil, fmt.Errorf(
 			"provided keys have balance (unlocked, locked) (%d, %d) but need (%d, %d)",
-			amountBurned, amountSpended, totalAmountToBurn, totalAmountToSpend)
+			amountBurned, amountSpent, totalAmountToBurn, totalAmountToSpend)
 	}
 
 	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
@@ -531,7 +532,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		return fmt.Errorf(
 			"there are %d inputs and %d utxos: %w",
 			len(ins),
-			len(creds),
+			len(utxos),
 			errInputsUTXOSMismatch,
 		)
 	}
@@ -655,7 +656,12 @@ func semanticVerifyLockUTXOs(
 	}
 
 	if len(inputs) != len(utxos) {
-		return nil // TODO@ err
+		return fmt.Errorf(
+			"there are %d inputs and %d utxos: %w",
+			len(inputs),
+			len(utxos),
+			errInputsUTXOSMismatch,
+		)
 	}
 
 	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
@@ -701,28 +707,39 @@ func semanticVerifyLockUTXOs(
 		producedAmounts[ownerID][lockIDs] = newProducedAmount
 	}
 
-	unlockedBurned := uint64(0) // TODO@
-	var err error
+	unlockedBurned := uint64(0)
 	for ownerID, ownerProducedAmounts := range producedAmounts {
 		for lockIDs, producedAmount := range ownerProducedAmounts {
-			// TODO@ take not-locked into account // probably done
-			changedConsumedLockIDs := lockIDs.Unlock(appliedLockState)
 			consumedAmount := uint64(0)
+			changedConsumedLockIDs := lockIDs.Unlock(appliedLockState)
 			if ownerConsumedAmounts, ok := consumedAmounts[ownerID]; ok {
-				consumedAmount = ownerConsumedAmounts[changedConsumedLockIDs]                   // state changed
-				consumedAmount, err = math.Add64(consumedAmount, ownerConsumedAmounts[lockIDs]) // state not changed
+				consumedAmount = ownerConsumedAmounts[changedConsumedLockIDs]                       // state changed
+				newConsumedAmount, err := math.Add64(consumedAmount, ownerConsumedAmounts[lockIDs]) // state not changed
 				if err != nil {
 					return err
 				}
+				consumedAmount = newConsumedAmount
 			}
+			// TODO@ take not-locked into account // probably done
 			if producedAmount > consumedAmount {
-				return nil // TODO@ err
+				return errWrongProducedAmount
+			}
+			if !lockIDs.LockState().isLocked() && producedAmount != consumedAmount {
+				burnedAmount, err := math.Sub64(consumedAmount, producedAmount)
+				if err != nil {
+					return err
+				}
+				newUnlockedBurned, err := math.Add64(unlockedBurned, burnedAmount)
+				if err != nil {
+					return err
+				}
+				unlockedBurned = newUnlockedBurned
 			}
 		}
 	}
 
 	if unlockedBurned < unlockedMustBurnAmount {
-		return nil // TODO@ err
+		return errNotBurnedEnough
 	}
 
 	return nil
