@@ -124,7 +124,16 @@ func (tx *UnsignedExportTx) Execute(
 	}
 
 	// Verify the flowcheck
-	if err := vm.semanticVerifySpend(vs, tx, tx.Ins, outs, stx.Creds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
+	if err := vm.semanticVerifySpend(
+		vs,
+		tx,
+		tx.Ins,
+		outs,
+		LockStateBonded,
+		stx.Creds,
+		vm.TxFee,
+		vm.ctx.AVAXAssetID,
+	); err != nil {
 		return nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 	}
 

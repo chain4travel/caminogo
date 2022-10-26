@@ -214,12 +214,17 @@ func (tx *UnsignedAddValidatorTx) Execute(
 		baseTxCredsLen := len(stx.Creds) - 1
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, stx.Creds[:baseTxCredsLen], vm.AddStakerTxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(
+			parentState,
+			tx,
+			tx.Ins,
+			tx.Outs,
+			LockStateBonded,
+			stx.Creds[:baseTxCredsLen],
+			vm.AddStakerTxFee,
+			vm.ctx.AVAXAssetID,
+		); err != nil {
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
-		}
-
-		if err := semanticVerifyLock(parentState, tx.Ins, tx.Outs, LockStateBonded, vm.AddStakerTxFee); err != nil {
-			return nil, nil, err
 		}
 
 		// Verify that nodeId signature is present

@@ -469,22 +469,26 @@ func (vm *VM) authorize(
 	return &secp256k1fx.Input{SigIndices: indices}, signers, nil
 }
 
-// Verify that [tx] is semantically valid.
-// [utxoDB] should not be committed if an error is returned
-// [ins] and [outs] are the inputs and outputs of [tx].
-// [creds] are the credentials of [tx], which allow [ins] to be spent.
+// Verify that lock [tx] is semanticly valid.
+// Arguments:
+// - [utxoDB] should not be committed if an error is returned
+// - [creds] are the credentials of [tx], which allow [inputs] to be spent.
+// - [inputs] are inputs that produced [outputs] by [tx].
+// - [appliedLockState] is the lock state that expected to be applied to inputs lock state in produced output
+// - [unlockedMustBurnAmount] is the minimum amout the we expect to burn
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpend(
 	utxoDB UTXOGetter,
 	tx UnsignedTx,
-	ins []*avax.TransferableInput,
-	outs []*avax.TransferableOutput,
+	inputs []*avax.TransferableInput,
+	outputs []*avax.TransferableOutput,
+	appliedLockState LockState,
 	creds []verify.Verifiable,
-	feeAmount uint64,
-	feeAssetID ids.ID,
+	unlockedMustBurnAmount uint64,
+	assetID ids.ID,
 ) error {
-	utxos := make([]*avax.UTXO, len(ins))
-	for index, input := range ins {
+	utxos := make([]*avax.UTXO, len(inputs))
+	for i, input := range inputs {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
 		if err != nil {
 			return fmt.Errorf(
@@ -493,166 +497,50 @@ func (vm *VM) semanticVerifySpend(
 				err,
 			)
 		}
-		utxos[index] = utxo
+		utxos[i] = utxo
 	}
 
-	return vm.semanticVerifySpendUTXOs(tx, utxos, ins, outs, creds, feeAmount, feeAssetID)
+	return vm.semanticVerifySpendUTXOs(
+		tx,
+		utxos,
+		inputs,
+		outputs,
+		appliedLockState,
+		creds,
+		unlockedMustBurnAmount,
+		assetID,
+	)
 }
 
-// Verify that [tx] is semantically valid. Meaning:
-//
-// - consumed no less tokens, than produced;
-// - ins len equal to creds len;
-// - ins and utxos have expected assetID;
-// - ins have same lockState as utxos;
-// - transfer from utxo to in is valid
-//
-// [ins] and [outs] are the inputs and outputs of [tx].
-// [creds] are the credentials of [tx], which allow [ins] to be spent.
-// [utxos[i]] is the UTXO being consumed by [ins[i]]
+// Verify that lock [tx] is semanticly valid.
+// Arguments:
+// - [utxos] are consumed by [inputs]
+// - [creds] are the credentials of [tx], which allow [inputs] to be spent.
+// - [inputs] are inputs that produced [outputs] by [tx].
+// - [appliedLockState] is the lock state that expected to be applied to inputs lock state in produced output
+// - [unlockedMustBurnAmount] is the minimum amout the we expect to burn
 // Precondition: [tx] has already been syntactically verified
 func (vm *VM) semanticVerifySpendUTXOs(
 	tx UnsignedTx,
 	utxos []*avax.UTXO,
-	ins []*avax.TransferableInput,
-	outs []*avax.TransferableOutput,
+	inputs []*avax.TransferableInput,
+	outputs []*avax.TransferableOutput,
+	appliedLockState LockState,
 	creds []verify.Verifiable,
-	feeAmount uint64,
-	feeAssetID ids.ID,
-) error {
-	if len(ins) != len(creds) {
-		return fmt.Errorf(
-			"there are %d inputs and %d credentials: %w",
-			len(ins),
-			len(creds),
-			errInputsCredentialsMismatch,
-		)
-	}
-	if len(ins) != len(utxos) {
-		return fmt.Errorf(
-			"there are %d inputs and %d utxos: %w",
-			len(ins),
-			len(utxos),
-			errInputsUTXOSMismatch,
-		)
-	}
-	for _, cred := range creds { // Verify credentials are well-formed.
-		if err := cred.Verify(); err != nil {
-			return errWrongCredentials
-		}
-	}
-
-	// Track the amount of unlocked transfers
-	producedAmount := feeAmount
-	consumedAmount := uint64(0)
-
-	for index, input := range ins {
-		utxo := utxos[index] // The UTXO consumed by [input]
-
-		if assetID := utxo.AssetID(); assetID != feeAssetID {
-			return errAssetIDMismatch
-		}
-		if assetID := input.AssetID(); assetID != feeAssetID {
-			return errAssetIDMismatch
-		}
-
-		out := utxo.Out
-		lockState := LockStateUnlocked
-		// Set [lockState] to this UTXO's lockState, if applicable
-		if inner, ok := out.(*LockedOut); ok {
-			out = inner.TransferableOut
-			lockState = inner.LockState()
-		}
-
-		in := input.In
-		// The UTXO says it's locked, but this input, which consumes it,
-		// is not locked - this is invalid.
-		if inner, ok := in.(*LockedIn); lockState.isLocked() && !ok {
-			return errLockedFundsNotMarkedAsLocked
-		} else if ok {
-			if inner.LockState() != lockState {
-				// This input is locked, but its lockState is wrong
-				return errWrongLockState
-			}
-			in = inner.TransferableIn
-		}
-
-		// Verify that this tx's credentials allow [in] to be spent
-		if err := vm.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
-			return fmt.Errorf("failed to verify transfer: %w", err)
-		}
-
-		amount := in.Amount()
-
-		newConsumedAmount, err := math.Add64(consumedAmount, amount)
-		if err != nil {
-			return err
-		}
-		consumedAmount = newConsumedAmount
-	}
-
-	for _, out := range outs {
-		if assetID := out.AssetID(); assetID != feeAssetID {
-			return errAssetIDMismatch
-		}
-
-		amount := out.Out.Amount()
-
-		newProducedAmount, err := math.Add64(producedAmount, amount)
-		if err != nil {
-			return err
-		}
-		producedAmount = newProducedAmount
-	}
-
-	// More unlocked tokens produced than consumed. Invalid.
-	if producedAmount > consumedAmount {
-		return errWrongProducedAmount
-	}
-	return nil
-}
-
-// TODO@ ? merge with semanticVerifySpend ?
-// TODO@ update comment (utxoDB, unlockedMustBurnAmount)
-// Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
-// Arguments:
-// - [inputs] are inputs that produced [outputs]
-// - [lockState] that expected to be applied to inputs lock state in produced outputs
-func semanticVerifyLock(
-	utxoDB UTXOGetter,
-	inputs []*avax.TransferableInput,
-	outputs []*avax.TransferableOutput,
-	appliedLockState LockState,
 	unlockedMustBurnAmount uint64,
-) error {
-	utxos := make([]*avax.UTXO, len(inputs))
-
-	for i, in := range inputs {
-		utxo, err := utxoDB.GetUTXO(in.InputID())
-		if err != nil {
-			return err
-		}
-		utxos[i] = utxo
-	}
-
-	return semanticVerifyLockUTXOs(utxos, inputs, outputs, appliedLockState, unlockedMustBurnAmount)
-}
-
-// TODO@ ? merge with semanticVerifySpend ?
-// TODO@ update comment (utxos, unlockedMustBurnAmount)
-// Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
-// Arguments:
-// - [inputs] are inputs that produced [outputs]
-// - [lockState] that expected to be applied to inputs lock state in produced outputsemanticVerifyLockUTXOs(
-func semanticVerifyLockUTXOs(
-	utxos []*avax.UTXO,
-	inputs []*avax.TransferableInput,
-	outputs []*avax.TransferableOutput,
-	appliedLockState LockState,
-	unlockedMustBurnAmount uint64,
+	assetID ids.ID,
 ) error {
 	if appliedLockState != LockStateBonded && appliedLockState != LockStateDeposited {
 		return errInvalidTargetLockState
+	}
+
+	if len(inputs) != len(creds) {
+		return fmt.Errorf(
+			"there are %d inputs and %d credentials: %w",
+			len(inputs),
+			len(creds),
+			errInputsCredentialsMismatch,
+		)
 	}
 
 	if len(inputs) != len(utxos) {
@@ -664,33 +552,69 @@ func semanticVerifyLockUTXOs(
 		)
 	}
 
+	for _, cred := range creds {
+		if err := cred.Verify(); err != nil {
+			return errWrongCredentials
+		}
+	}
+
 	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
-	// TODO@ compare utxo against input ? its in semantic spend verify
+	for i, input := range inputs {
+		utxo := utxos[i]
 
-	for i, in := range inputs {
-		ownerID, err := getOwnerID(utxos[i].Out)
-		if err != nil {
-			return err
+		if utxo.AssetID() != assetID || input.AssetID() != assetID {
+			return errAssetIDMismatch
 		}
 
-		lockIDs := LockIDs{}
-		if lockedIn, ok := in.In.(*LockedIn); ok {
-			lockIDs = lockedIn.LockIDs
+		consumedOut := utxo.Out
+		utxoLockIDs := LockIDs{}
+		// Set [lockState] to this UTXO's lockState, if applicable
+		if lockedOut, ok := consumedOut.(*LockedOut); ok {
+			consumedOut = lockedOut.TransferableOut
+			utxoLockIDs = lockedOut.LockIDs
+		}
+
+		in := input.In
+		if lockedIn, ok := in.(*LockedIn); ok {
 			if lockedIn.LockState()&appliedLockState == appliedLockState {
 				return errLockingLockedUTXO
 			}
+			// This input is locked, but its lockState is wrong
+			if utxoLockIDs != lockedIn.LockIDs {
+				return errWrongLockState
+			}
+			in = lockedIn.TransferableIn
+		} else if utxoLockIDs.LockState().isLocked() {
+			// The UTXO says it's locked, but this input, which consumes it,
+			// is not locked - this is invalid.
+			return errLockedFundsNotMarkedAsLocked
 		}
-		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][lockIDs], in.In.Amount())
+
+		// Verify that this tx's credentials allow [in] to be spent
+		if err := vm.fx.VerifyTransfer(tx, in, creds[i], consumedOut); err != nil {
+			return fmt.Errorf("failed to verify transfer: %w", err)
+		}
+
+		ownerID, err := getOwnerID(consumedOut)
 		if err != nil {
 			return err
 		}
-		consumedAmounts[ownerID][lockIDs] = newConsumedAmounts
+
+		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][utxoLockIDs], in.Amount())
+		if err != nil {
+			return err
+		}
+		consumedAmounts[ownerID][utxoLockIDs] = newConsumedAmounts
 	}
 
 	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
 	for _, out := range outputs {
+		if out.AssetID() != assetID {
+			return errAssetIDMismatch
+		}
+
 		ownerID, err := getOwnerID(out.Out)
 		if err != nil {
 			return err

@@ -228,7 +228,16 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		}
 
 		// Verify the flowcheck
-		if err := vm.semanticVerifySpend(parentState, tx, tx.Ins, tx.Outs, baseTxCreds, vm.TxFee, vm.ctx.AVAXAssetID); err != nil {
+		if err := vm.semanticVerifySpend(
+			parentState,
+			tx,
+			tx.Ins,
+			tx.Outs,
+			LockStateBonded,
+			baseTxCreds,
+			vm.TxFee,
+			vm.ctx.AVAXAssetID,
+		); err != nil {
 			return nil, nil, err
 		}
 
