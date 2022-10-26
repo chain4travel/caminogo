@@ -338,7 +338,7 @@ func (vm *VM) unlock(
 		}
 	}
 
-	return vm.unlockUTXOs(allUTXOs, removedLockState)
+	return vm.unlockUTXOs(utxos, removedLockState)
 }
 
 // unlockUTXOs consumes locked utxos owned by keys and produce unlocked outs
@@ -611,26 +611,78 @@ func (vm *VM) semanticVerifySpendUTXOs(
 	return nil
 }
 
-// TODO@ probably merge with semanticVerifySpend
-// TODO@ take fee into account
+// TODO@ ? merge with semanticVerifySpend ?
+// TODO@ update comment (utxoDB, unlockedMustBurnAmount)
 // Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
 // Arguments:
 // - [inputs] are inputs that produced [outputs]
-// - [lockState] that expected to be applied/removed to/from inputs lock state in produced outputs
-// - [lock] true if we'r locking, false if unlocking
+// - [lockState] that expected to be applied to inputs lock state in produced outputs
 func semanticVerifyLock(
 	utxoDB UTXOGetter,
 	inputs []*avax.TransferableInput,
 	outputs []*avax.TransferableOutput,
-	lockState LockState,
-	lock bool,
+	appliedLockState LockState,
+	unlockedMustBurnAmount uint64,
 ) error {
-	if lockState != LockStateBonded && lockState != LockStateDeposited {
+	utxos := make([]*avax.UTXO, len(inputs))
+
+	for i, in := range inputs {
+		utxo, err := utxoDB.GetUTXO(in.InputID())
+		if err != nil {
+			return err
+		}
+		utxos[i] = utxo
+	}
+
+	return semanticVerifyLockUTXOs(utxos, inputs, outputs, appliedLockState, unlockedMustBurnAmount)
+}
+
+// TODO@ ? merge with semanticVerifySpend ?
+// TODO@ update comment (utxos, unlockedMustBurnAmount)
+// Verify that [inputs], their [inputIndexes] and [outputs] are syntacticly valid in conjunction for applied/removed [lockState].
+// Arguments:
+// - [inputs] are inputs that produced [outputs]
+// - [lockState] that expected to be applied to inputs lock state in produced outputsemanticVerifyLockUTXOs(
+func semanticVerifyLockUTXOs(
+	utxos []*avax.UTXO,
+	inputs []*avax.TransferableInput,
+	outputs []*avax.TransferableOutput,
+	appliedLockState LockState,
+	unlockedMustBurnAmount uint64,
+) error {
+	if appliedLockState != LockStateBonded && appliedLockState != LockStateDeposited {
 		return errInvalidTargetLockState
 	}
 
-	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
+	if len(inputs) != len(utxos) {
+		return nil // TODO@ err
+	}
+
 	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
+
+	// TODO@ compare utxo against input ? its in semantic spend verify
+
+	for i, in := range inputs {
+		ownerID, err := getOwnerID(utxos[i].Out)
+		if err != nil {
+			return err
+		}
+
+		lockIDs := LockIDs{}
+		if lockedIn, ok := in.In.(*LockedIn); ok {
+			lockIDs = lockedIn.LockIDs
+			if lockedIn.LockState()&appliedLockState == appliedLockState {
+				return errLockingLockedUTXO
+			}
+		}
+		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][lockIDs], in.In.Amount())
+		if err != nil {
+			return err
+		}
+		consumedAmounts[ownerID][lockIDs] = newConsumedAmounts
+	}
+
+	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
 	for _, out := range outputs {
 		ownerID, err := getOwnerID(out.Out)
@@ -649,30 +701,29 @@ func semanticVerifyLock(
 		producedAmounts[ownerID][lockIDs] = newProducedAmount
 	}
 
-	for _, in := range inputs {
-		utxo, err := utxoDB.GetUTXO(in.InputID())
-		if err != nil {
-			return err
+	unlockedBurned := uint64(0) // TODO@
+	var err error
+	for ownerID, ownerProducedAmounts := range producedAmounts {
+		for lockIDs, producedAmount := range ownerProducedAmounts {
+			// TODO@ take not-locked into account // probably done
+			changedConsumedLockIDs := lockIDs.Unlock(appliedLockState)
+			consumedAmount := uint64(0)
+			if ownerConsumedAmounts, ok := consumedAmounts[ownerID]; ok {
+				consumedAmount = ownerConsumedAmounts[changedConsumedLockIDs]                   // state changed
+				consumedAmount, err = math.Add64(consumedAmount, ownerConsumedAmounts[lockIDs]) // state not changed
+				if err != nil {
+					return err
+				}
+			}
+			if producedAmount > consumedAmount {
+				return nil // TODO@ err
+			}
 		}
-
-		ownerID, err := getOwnerID(utxo.Out)
-		if err != nil {
-			return err
-		}
-
-		lockIDs := LockIDs{}
-		if lockedIn, ok := in.In.(*LockedIn); ok {
-			lockIDs = lockedIn.LockIDs
-		}
-		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][lockIDs], in.In.Amount())
-		if err != nil {
-			return err
-		}
-		consumedAmounts[ownerID][lockIDs] = newConsumedAmounts
 	}
 
-	// TODO @evlekht this must check correct transitions from ins to outs
-	// TODO taking LockIDs (and LockState, but probably its included) and amount into account
+	if unlockedBurned < unlockedMustBurnAmount {
+		return nil // TODO@ err
+	}
 
 	return nil
 }

@@ -218,7 +218,7 @@ func (tx *UnsignedAddValidatorTx) Execute(
 			return nil, nil, fmt.Errorf("failed semanticVerifySpend: %w", err)
 		}
 
-		if err := semanticVerifyLock(parentState, tx.Ins, tx.Outs, LockStateBonded, true); err != nil {
+		if err := semanticVerifyLock(parentState, tx.Ins, tx.Outs, LockStateBonded, vm.AddStakerTxFee); err != nil {
 			return nil, nil, err
 		}
 
