@@ -318,7 +318,9 @@ func (vm *VM) unlock(
 	for _, lockTxID := range lockTxIDs {
 		lockTxIDsSet.Add(lockTxID)
 
-		tx, s, err := state.GetTx(lockTxID) // @jax this call might be expensive
+		// @jax this call might be expensive
+		// @evlekht no more expensive, than getting utxos, imo
+		tx, s, err := state.GetTx(lockTxID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to fetch lockedTx %s: %v", lockTxID, err)
 		}
@@ -331,21 +333,22 @@ func (vm *VM) unlock(
 			return nil, nil, fmt.Errorf("tx %s is not a addValidatorTx", lockTxID)
 		}
 
-		for i, valOut := range addValTx.Outs {
-			lockedOut, ok := valOut.Out.(*LockedOut)
-			if !ok {
-				return nil, nil, fmt.Errorf("could not cast out no. %d to locked out from tx %s", i, lockTxID)
+		for i, output := range addValTx.Outs {
+			out := output.Out
+			if lockedOut, ok := out.(*LockedOut); ok {
+				out = lockedOut.TransferableOut
 			}
-			out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
+			innerOut, ok := out.(*secp256k1fx.TransferOutput)
 			if !ok {
 				return nil, nil, fmt.Errorf("could not cast locked out no. %d to transerfableOut from tx %s", i, lockTxID)
 			}
-			addrs.Add(out.Addrs...)
+			addrs.Add(innerOut.Addrs...)
 		}
 
 	}
 
-	// TODO@ think on optimizing it to get not ALL allUTXOs
+	// TODO@ must use state MutableState instead of vm.internalState
+	// TODO@ (cause it could be called from Execute)
 	allUTXOs, err := avax.GetAllUTXOs(vm.internalState, addrs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
