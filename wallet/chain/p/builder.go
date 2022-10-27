@@ -198,7 +198,7 @@ func (b *builder) NewBaseTx(
 	toStake := map[ids.ID]uint64{}
 
 	ops := common.NewOptions(options)
-	inputs, changeOutputs, _, err := b.spend(toBurn, toStake, platformvm.LockStateBonded, ops)
+	inputs, changeOutputs, err := b.spend(toBurn, toStake, platformvm.LockStateBonded, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (b *builder) NewAddValidatorTx(
 		b.backend.AVAXAssetID(): validator.Wght,
 	}
 	ops := common.NewOptions(options)
-	inputs, outputs, inputIndexes, err := b.spend(toBurn, toStake, platformvm.LockStateBonded, ops)
+	inputs, outputs, err := b.spend(toBurn, toStake, platformvm.LockStateBonded, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,6 @@ func (b *builder) NewAddValidatorTx(
 			Outs:         outputs,
 			Memo:         ops.Memo(),
 		}},
-		InputIndexes: inputIndexes,
 		Validator:    *validator,
 		RewardsOwner: rewardsOwner,
 	}, nil
@@ -256,7 +255,7 @@ func (b *builder) NewAddSubnetValidatorTx(
 	}
 	toStake := map[ids.ID]uint64{}
 	ops := common.NewOptions(options)
-	inputs, outputs, _, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
+	inputs, outputs, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +291,7 @@ func (b *builder) NewCreateChainTx(
 	}
 	toStake := map[ids.ID]uint64{}
 	ops := common.NewOptions(options)
-	inputs, outputs, _, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
+	inputs, outputs, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +328,7 @@ func (b *builder) NewCreateSubnetTx(
 	}
 	toStake := map[ids.ID]uint64{}
 	ops := common.NewOptions(options)
-	inputs, outputs, _, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
+	inputs, outputs, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +419,7 @@ func (b *builder) NewImportTx(
 		}
 		toStake := map[ids.ID]uint64{}
 		var err error
-		inputs, outputs, _, err = b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
+		inputs, outputs, err = b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 		}
@@ -466,7 +465,7 @@ func (b *builder) NewExportTx(
 
 	toStake := map[ids.ID]uint64{}
 	ops := common.NewOptions(options)
-	inputs, changeOutputs, _, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
+	inputs, changeOutputs, err := b.spend(toBurn, toStake, platformvm.LockStateDeposited, ops)
 	if err != nil {
 		return nil, err
 	}
@@ -554,16 +553,15 @@ func (b *builder) spend(
 ) (
 	inputs []*avax.TransferableInput,
 	outputs []*avax.TransferableOutput,
-	inputIndexes []uint32,
 	err error,
 ) {
 	if appliedLockState != platformvm.LockStateBonded && appliedLockState != platformvm.LockStateDeposited {
-		return nil, nil, nil, errInvalidTargetLockState
+		return nil, nil, errInvalidTargetLockState
 	}
 
 	utxos, err := b.backend.UTXOs(options.Context(), constants.PlatformChainID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	addrs := options.Addresses(b.addrs)
@@ -571,7 +569,7 @@ func (b *builder) spend(
 
 	addr, ok := addrs.Peek()
 	if !ok {
-		return nil, nil, nil, errNoChangeAddress
+		return nil, nil, errNoChangeAddress
 	}
 	changeOwner := options.ChangeOwner(&secp256k1fx.OutputOwners{
 		Threshold: 1,
@@ -597,17 +595,17 @@ func (b *builder) spend(
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
 			continue
-		} else if appliedLockState&^lockedOut.LockState != appliedLockState {
+		} else if lockedOut.LockState().IsLockedWith(appliedLockState) {
 			// This output can't be locked with target lockState
 			continue
 		}
 
-		out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
+		innerOut, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
 		if !ok {
-			return nil, nil, nil, errUnknownOutputType
+			return nil, nil, errUnknownOutputType
 		}
 
-		inputSigIndices, ok := common.MatchOwners(&out.OutputOwners, addrs, minIssuanceTime)
+		inputSigIndices, ok := common.MatchOwners(&innerOut.OutputOwners, addrs, minIssuanceTime)
 		if !ok {
 			// We couldn't spend this UTXO, so we skip to the next one
 			continue
@@ -617,9 +615,9 @@ func (b *builder) spend(
 			UTXOID: utxo.UTXOID,
 			Asset:  utxo.Asset,
 			In: &platformvm.LockedIn{
-				LockState: lockedOut.LockState,
+				LockIDs: lockedOut.LockIDs,
 				TransferableIn: &secp256k1fx.TransferInput{
-					Amt: out.Amt,
+					Amt: innerOut.Amt,
 					Input: secp256k1fx.Input{
 						SigIndices: inputSigIndices,
 					},
@@ -631,32 +629,32 @@ func (b *builder) spend(
 		// Spend any value that should be spent
 		amountToSpend := math.Min64(
 			remainingAmountToSpend, // Amount we still need to spend
-			out.Amt,                // Amount available to spend
+			innerOut.Amt,           // Amount available to spend
 		)
 
 		// Add the output to the outputs
 		outputs = append(outputs, &avax.TransferableOutput{
 			Asset: utxo.Asset,
 			Out: &platformvm.LockedOut{
-				LockState: lockedOut.LockState | appliedLockState,
+				LockIDs: lockedOut.LockIDs.Lock(appliedLockState),
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt:          amountToSpend,
-					OutputOwners: out.OutputOwners,
+					OutputOwners: innerOut.OutputOwners,
 				},
 			},
 		})
 		outInputIDs = append(outInputIDs, inputID)
 
 		amountsToSpend[assetID] -= amountToSpend
-		if remainingAmount := out.Amt - amountToSpend; remainingAmount > 0 {
+		if remainingAmount := innerOut.Amt - amountToSpend; remainingAmount > 0 {
 			// This input had extra value, so some of it must be returned
 			outputs = append(outputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
 				Out: &platformvm.LockedOut{
-					LockState: lockedOut.LockState,
+					LockIDs: lockedOut.LockIDs,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingAmount,
-						OutputOwners: out.OutputOwners,
+						OutputOwners: innerOut.OutputOwners,
 					},
 				},
 			})
@@ -683,7 +681,7 @@ func (b *builder) spend(
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 		if !ok {
-			return nil, nil, nil, errUnknownOutputType
+			return nil, nil, errUnknownOutputType
 		}
 
 		inputSigIndices, ok := common.MatchOwners(&out.OutputOwners, addrs, minIssuanceTime)
@@ -723,7 +721,7 @@ func (b *builder) spend(
 			outputs = append(outputs, &avax.TransferableOutput{
 				Asset: utxo.Asset,
 				Out: &platformvm.LockedOut{
-					LockState: appliedLockState,
+					LockIDs: platformvm.LockIDs{}.Lock(appliedLockState),
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          amountToSpend,
 						OutputOwners: *changeOwner,
@@ -747,7 +745,7 @@ func (b *builder) spend(
 
 	for assetID, amount := range amountsToSpend {
 		if amount != 0 {
-			return nil, nil, nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"%w: provided UTXOs need %d more units of asset %q to bond",
 				errInsufficientFunds,
 				amount,
@@ -757,7 +755,7 @@ func (b *builder) spend(
 	}
 	for assetID, amount := range amountsToBurn {
 		if amount != 0 {
-			return nil, nil, nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"%w: provided UTXOs need %d more units of asset %q",
 				errInsufficientFunds,
 				amount,
@@ -769,17 +767,7 @@ func (b *builder) spend(
 	avax.SortTransferableInputs(inputs)                     // sort inputs
 	avax.SortTransferableOutputs(outputs, platformvm.Codec) // sort outputs
 
-	inputIndexesMap := make(map[ids.ID]uint32, len(inputs))
-	for inputIndex, in := range inputs {
-		inputIndexesMap[in.InputID()] = uint32(inputIndex)
-	}
-
-	inputIndexes = make([]uint32, len(outInputIDs))
-	for i, inputID := range outInputIDs {
-		inputIndexes[i] = inputIndexesMap[inputID]
-	}
-
-	return inputs, outputs, inputIndexes, nil
+	return inputs, outputs, nil
 }
 
 func (b *builder) authorizeSubnet(subnetID ids.ID, options *common.Options) (*secp256k1fx.Input, error) {

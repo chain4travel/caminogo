@@ -104,17 +104,17 @@ func (vm *VM) spend(
 			continue // We only care about staking AVAX, so ignore other assets
 		}
 
-		out, ok := utxo.Out.(*LockedOut)
+		lockedOut, ok := utxo.Out.(*LockedOut)
 		if !ok {
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
 			continue
-		} else if appliedLockState&^out.LockState() != appliedLockState {
+		} else if lockedOut.LockState().IsLockedWith(appliedLockState) {
 			// This output can't be locked with target lockState
 			continue
 		}
 
-		innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
+		innerOut, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
 		if !ok {
 			// We only know how to clone secp256k1 outputs for now
 			continue
@@ -147,7 +147,7 @@ func (vm *VM) spend(
 			UTXOID: utxo.UTXOID,
 			Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
 			In: &LockedIn{
-				LockIDs:        out.LockIDs,
+				LockIDs:        lockedOut.LockIDs,
 				TransferableIn: in,
 			},
 		})
@@ -156,7 +156,7 @@ func (vm *VM) spend(
 		outs = append(outs, &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 			Out: &LockedOut{
-				LockIDs: out.LockIDs.Lock(appliedLockState),
+				LockIDs: lockedOut.LockIDs.Lock(appliedLockState),
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt:          amountToSpend,
 					OutputOwners: innerOut.OutputOwners,
@@ -170,7 +170,7 @@ func (vm *VM) spend(
 			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &LockedOut{
-					LockIDs: out.LockIDs.Lock(appliedLockState),
+					LockIDs: lockedOut.LockIDs,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingValue,
 						OutputOwners: innerOut.OutputOwners,
@@ -373,7 +373,7 @@ func (vm *VM) unlockUTXOs(
 		if !ok {
 			// This output isn't locked
 			continue
-		} else if removedLockState&out.LockState() != removedLockState {
+		} else if !out.LockState().IsLockedWith(removedLockState) {
 			// This output doesn't have required lockState
 			continue
 		}
@@ -397,11 +397,11 @@ func (vm *VM) unlockUTXOs(
 			},
 		})
 
-		if newLockState := out.LockState() &^ removedLockState; newLockState.isLocked() {
+		if newLockIDs := out.LockIDs.Unlock(removedLockState); newLockIDs.LockState().IsLocked() {
 			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &LockedOut{
-					LockIDs: out.LockIDs.Unlock(removedLockState),
+					LockIDs: newLockIDs,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          innerOut.Amount(),
 						OutputOwners: innerOut.OutputOwners,
@@ -558,6 +558,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		}
 	}
 
+	// ownerID -> LockIDs -> amount
 	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
 	for i, input := range inputs {
@@ -577,7 +578,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 		in := input.In
 		if lockedIn, ok := in.(*LockedIn); ok {
-			if lockedIn.LockState()&appliedLockState == appliedLockState {
+			if lockedIn.LockIDs.LockState().IsLockedWith(appliedLockState) {
 				return errLockingLockedUTXO
 			}
 			// This input is locked, but its lockState is wrong
@@ -585,7 +586,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 				return errWrongLockState
 			}
 			in = lockedIn.TransferableIn
-		} else if utxoLockIDs.LockState().isLocked() {
+		} else if utxoLockIDs.LockState().IsLocked() {
 			// The UTXO says it's locked, but this input, which consumes it,
 			// is not locked - this is invalid.
 			return errLockedFundsNotMarkedAsLocked
@@ -644,11 +645,10 @@ func (vm *VM) semanticVerifySpendUTXOs(
 				}
 				consumedAmount = newConsumedAmount
 			}
-			// TODO@ take not-locked into account // probably done
 			if producedAmount > consumedAmount {
 				return errWrongProducedAmount
 			}
-			if !lockIDs.LockState().isLocked() && producedAmount != consumedAmount {
+			if !lockIDs.LockState().IsLocked() && producedAmount != consumedAmount {
 				burnedAmount, err := math.Sub64(consumedAmount, producedAmount)
 				if err != nil {
 					return err

@@ -53,15 +53,19 @@ func (ls LockState) Verify() error {
 	return nil
 }
 
-func (ls LockState) isBonded() bool {
+func (ls LockState) IsBonded() bool {
 	return LockStateBonded&ls == LockStateBonded
 }
 
-func (ls LockState) isDeposited() bool {
+func (ls LockState) IsDeposited() bool {
 	return LockStateDeposited&ls == LockStateDeposited
 }
 
-func (ls LockState) isLocked() bool {
+func (ls LockState) IsLockedWith(lockState LockState) bool {
+	return ls&lockState == lockState
+}
+
+func (ls LockState) IsLocked() bool {
 	return ls != LockStateUnlocked
 }
 
@@ -82,20 +86,20 @@ func (lock LockIDs) LockState() LockState {
 }
 
 func (lock LockIDs) Lock(lockState LockState) LockIDs {
-	if lockState.isDeposited() {
+	if lockState.IsDeposited() {
 		lock.DepositTxID = thisTxID
 	}
-	if lockState.isBonded() {
+	if lockState.IsBonded() {
 		lock.BondTxID = thisTxID
 	}
 	return lock
 }
 
 func (lock LockIDs) Unlock(lockState LockState) LockIDs {
-	if lockState.isDeposited() {
+	if lockState.IsDeposited() {
 		lock.DepositTxID = ids.Empty
 	}
-	if lockState.isBonded() {
+	if lockState.IsBonded() {
 		lock.BondTxID = ids.Empty
 	}
 	return lock
