@@ -127,7 +127,7 @@ func TestCreateSubnetLockedInsOrLockedOuts(t *testing.T) {
 		{
 			name: "Locked out",
 			outs: []*avax.TransferableOutput{
-				generateTestOut(vm.ctx.AVAXAssetID, LockStateBonded, 10, outputOwners),
+				generateTestOut(vm.ctx.AVAXAssetID, 10, outputOwners, ids.Empty, someBondTxID),
 			},
 			ins: []*avax.TransferableInput{},
 			err: errLockedInsOrOuts,
@@ -136,7 +136,7 @@ func TestCreateSubnetLockedInsOrLockedOuts(t *testing.T) {
 			name: "Locked in",
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(vm.ctx.AVAXAssetID, LockStateBonded, 10),
+				generateTestIn(vm.ctx.AVAXAssetID, 10, ids.Empty, someBondTxID),
 			},
 			err: errLockedInsOrOuts,
 		},

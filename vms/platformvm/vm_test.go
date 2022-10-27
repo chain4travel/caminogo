@@ -451,14 +451,17 @@ func defaultVM() (*VM, database.Database, *common.SenderTest) {
 	return vm, baseDBManager.Current().Database, appSender
 }
 
-func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, lockedState LockState) *avax.UTXO {
+func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, depositTxID, bondTxID ids.ID) *avax.UTXO {
 	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
 		Amt:          amount,
 		OutputOwners: outputOwners,
 	}
-	if lockedState.isLocked() {
+	if depositTxID != ids.Empty || bondTxID != ids.Empty {
 		out = &LockedOut{
-			LockState:       lockedState,
+			LockIDs: LockIDs{
+				DepositTxID: depositTxID,
+				BondTxID:    bondTxID,
+			},
 			TransferableOut: out,
 		}
 	}
@@ -470,40 +473,40 @@ func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners s
 }
 
 func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.TransferableInput {
+	var in avax.TransferableIn
 	switch out := utxo.Out.(type) {
 	case *secp256k1fx.TransferOutput:
-		return &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  utxo.Asset,
-			In: &secp256k1fx.TransferInput{
+		in = &secp256k1fx.TransferInput{
+			Amt:   out.Amount(),
+			Input: secp256k1fx.Input{SigIndices: sigIndices},
+		}
+	case *LockedOut:
+		in = &LockedIn{
+			LockIDs: out.LockIDs,
+			TransferableIn: &secp256k1fx.TransferInput{
 				Amt:   out.Amount(),
 				Input: secp256k1fx.Input{SigIndices: sigIndices},
 			},
 		}
-	case *LockedOut:
-		return &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  utxo.Asset,
-			In: &LockedIn{
-				LockState: out.LockState,
-				TransferableIn: &secp256k1fx.TransferInput{
-					Amt:   out.TransferableOut.Amount(),
-					Input: secp256k1fx.Input{SigIndices: sigIndices},
-				},
-			},
-		}
-	default:
-		return nil
+	}
+
+	return &avax.TransferableInput{
+		UTXOID: utxo.UTXOID,
+		Asset:  utxo.Asset,
+		In:     in,
 	}
 }
 
-func generateTestIn(assetID ids.ID, state LockState, amount uint64) *avax.TransferableInput {
+func generateTestIn(assetID ids.ID, amount uint64, depositTxID, bondTxID ids.ID) *avax.TransferableInput {
 	var in avax.TransferableIn = &secp256k1fx.TransferInput{
 		Amt: amount,
 	}
-	if state.isLocked() {
+	if depositTxID != ids.Empty || bondTxID != ids.Empty {
 		in = &LockedIn{
-			LockState:      state,
+			LockIDs: LockIDs{
+				DepositTxID: depositTxID,
+				BondTxID:    bondTxID,
+			},
 			TransferableIn: in,
 		}
 	}
@@ -513,14 +516,17 @@ func generateTestIn(assetID ids.ID, state LockState, amount uint64) *avax.Transf
 	}
 }
 
-func generateTestOut(assetID ids.ID, state LockState, amount uint64, outputOwners secp256k1fx.OutputOwners) *avax.TransferableOutput {
+func generateTestOut(assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, depositTxID, bondTxID ids.ID) *avax.TransferableOutput {
 	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
 		Amt:          amount,
 		OutputOwners: outputOwners,
 	}
-	if state.isLocked() {
+	if depositTxID != ids.Empty || bondTxID != ids.Empty {
 		out = &LockedOut{
-			LockState:       state,
+			LockIDs: LockIDs{
+				DepositTxID: depositTxID,
+				BondTxID:    bondTxID,
+			},
 			TransferableOut: out,
 		}
 	}

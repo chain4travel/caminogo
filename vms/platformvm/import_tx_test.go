@@ -218,7 +218,7 @@ func TestImportLockedInsOrLockedOuts(t *testing.T) {
 		{
 			name: "Locked out",
 			outs: []*avax.TransferableOutput{
-				generateTestOut(vm.ctx.AVAXAssetID, LockStateBonded, 10, outputOwners),
+				generateTestOut(vm.ctx.AVAXAssetID, 10, outputOwners, ids.Empty, someBondTxID),
 			},
 			ins: []*avax.TransferableInput{},
 			err: errLockedInsOrOuts,
@@ -227,7 +227,7 @@ func TestImportLockedInsOrLockedOuts(t *testing.T) {
 			name: "Locked in",
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(vm.ctx.AVAXAssetID, LockStateBonded, 10),
+				generateTestIn(vm.ctx.AVAXAssetID, 10, ids.Empty, someBondTxID),
 			},
 			err: errLockedInsOrOuts,
 		},
@@ -244,7 +244,7 @@ func TestImportLockedInsOrLockedOuts(t *testing.T) {
 				}},
 				SourceChain: vm.ctx.XChainID,
 				ImportedInputs: []*avax.TransferableInput{
-					generateTestIn(vm.ctx.AVAXAssetID, LockStateUnlocked, 10),
+					generateTestIn(vm.ctx.AVAXAssetID, 10, ids.Empty, ids.Empty),
 				},
 			}
 			tx := &Tx{UnsignedTx: utx}

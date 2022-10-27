@@ -575,7 +575,7 @@ func TestAddValidatorTxExecute(t *testing.T) {
 
 	// Add tokens to key in order to be able to execute AddValidator Tx
 	utxos := []*avax.UTXO{
-		generateTestUTXO(ids.ID{9, 9}, avaxAssetID, defaultValidatorStake, outputOwners, LockStateUnlocked),
+		generateTestUTXO(ids.ID{9, 9}, avaxAssetID, defaultValidatorStake, outputOwners, ids.Empty, ids.Empty),
 	}
 	for _, utxo := range utxos {
 		vm.internalState.AddUTXO(utxo)
