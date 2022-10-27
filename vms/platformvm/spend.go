@@ -630,11 +630,17 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return err
 		}
 
-		newConsumedAmounts, err := math.Add64(consumedAmounts[ownerID][utxoLockIDs], in.Amount())
+		ownerConsumedAmounts, ok := consumedAmounts[ownerID]
+		if !ok {
+			ownerConsumedAmounts = map[LockIDs]uint64{}
+			consumedAmounts[ownerID] = ownerConsumedAmounts
+		}
+
+		newConsumedAmounts, err := math.Add64(ownerConsumedAmounts[utxoLockIDs], in.Amount())
 		if err != nil {
 			return err
 		}
-		consumedAmounts[ownerID][utxoLockIDs] = newConsumedAmounts
+		ownerConsumedAmounts[utxoLockIDs] = newConsumedAmounts
 	}
 
 	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
@@ -653,11 +659,17 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			lockIDs = lockedOut.LockIDs
 		}
 
-		newProducedAmount, err := math.Add64(producedAmounts[ownerID][lockIDs], out.Out.Amount())
+		ownerProducedAmounts, ok := producedAmounts[ownerID]
+		if !ok {
+			ownerProducedAmounts = map[LockIDs]uint64{}
+			producedAmounts[ownerID] = ownerProducedAmounts
+		}
+
+		newProducedAmount, err := math.Add64(ownerProducedAmounts[lockIDs], out.Out.Amount())
 		if err != nil {
 			return err
 		}
-		producedAmounts[ownerID][lockIDs] = newProducedAmount
+		ownerProducedAmounts[lockIDs] = newProducedAmount
 	}
 
 	unlockedBurned := uint64(0)
