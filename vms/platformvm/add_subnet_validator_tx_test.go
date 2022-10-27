@@ -581,7 +581,7 @@ func TestAddSubValidatorLockedInsOrLockedOuts(t *testing.T) {
 		{
 			name: "Locked out",
 			outs: []*avax.TransferableOutput{
-				generateTestOut(vm.ctx.AVAXAssetID, defaultValidatorStake, outputOwners, ids.Empty, someBondTxID),
+				generateTestOut(vm.ctx.AVAXAssetID, defaultValidatorStake, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins: []*avax.TransferableInput{},
 			err: errLockedInsOrOuts,
@@ -590,7 +590,7 @@ func TestAddSubValidatorLockedInsOrLockedOuts(t *testing.T) {
 			name: "Locked in",
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(vm.ctx.AVAXAssetID, defaultValidatorStake, ids.Empty, someBondTxID),
+				generateTestIn(vm.ctx.AVAXAssetID, defaultValidatorStake, ids.Empty, ids.GenerateTestID()),
 			},
 			err: errLockedInsOrOuts,
 		},

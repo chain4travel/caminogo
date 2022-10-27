@@ -131,7 +131,7 @@ func TestExportLockedInsOrLockedOuts(t *testing.T) {
 		{
 			name: "Locked out",
 			outs: []*avax.TransferableOutput{
-				generateTestOut(vm.ctx.AVAXAssetID, 10, outputOwners, ids.Empty, someBondTxID),
+				generateTestOut(vm.ctx.AVAXAssetID, 10, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins: []*avax.TransferableInput{},
 			err: errLockedInsOrOuts,
@@ -140,7 +140,7 @@ func TestExportLockedInsOrLockedOuts(t *testing.T) {
 			name: "Locked in",
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(vm.ctx.AVAXAssetID, 10, ids.Empty, someBondTxID),
+				generateTestIn(vm.ctx.AVAXAssetID, 10, ids.Empty, ids.GenerateTestID()),
 			},
 			err: errLockedInsOrOuts,
 		},
