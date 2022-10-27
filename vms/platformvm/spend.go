@@ -344,7 +344,6 @@ func (vm *VM) unlock(
 			}
 			addrs.Add(innerOut.Addrs...)
 		}
-
 	}
 
 	// TODO@ must use state MutableState instead of vm.internalState

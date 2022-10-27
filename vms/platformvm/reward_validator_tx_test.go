@@ -129,15 +129,15 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Greater(len(ins), 0)
-		inputLockState := LockStateUnlocked
-		if in, ok := ins[0].In.(*LockedIn); ok {
-			inputLockState = in.LockState
+		inputLockIDs := LockIDs{}
+		if lockedIn, ok := ins[0].In.(*LockedIn); ok {
+			inputLockIDs = lockedIn.LockIDs
 		}
 		ins[0] = &avax.TransferableInput{
 			UTXOID: ins[0].UTXOID,
 			Asset:  ins[0].Asset,
 			In: &LockedIn{
-				LockState: inputLockState,
+				LockIDs: inputLockIDs,
 				TransferableIn: &secp256k1fx.TransferInput{
 					Amt: ins[0].In.Amount() - 1, // invalid
 				},
@@ -162,27 +162,26 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Greater(len(outs), 0)
-		outputLockState := LockStateUnlocked
-		innerOut := outs[0].Out
-		if out, ok := innerOut.(*LockedOut); ok {
-			outputLockState = out.LockState
-			innerOut = out.TransferableOut
+		validOut := outs[0].Out
+		if lockedOut, ok := validOut.(*LockedOut); ok {
+			validOut = lockedOut.TransferableOut
 		}
-		secpOut, ok := innerOut.(*secp256k1fx.TransferOutput)
+		secpOut, ok := validOut.(*secp256k1fx.TransferOutput)
 		assert.True(ok)
-		var outerOut avax.TransferableOut = &secp256k1fx.TransferOutput{
-			Amt:          outs[0].Out.Amount() - 1, // invalid
+
+		var invalidOut avax.TransferableOut = &secp256k1fx.TransferOutput{
+			Amt:          secpOut.Amt - 1, // invalid
 			OutputOwners: secpOut.OutputOwners,
 		}
-		if outputLockState.isLocked() {
-			outerOut = &LockedOut{
-				LockState:       outputLockState,
-				TransferableOut: outerOut,
+		if lockedOut, ok := validOut.(*LockedOut); ok {
+			invalidOut = &LockedOut{
+				LockIDs:         lockedOut.LockIDs,
+				TransferableOut: invalidOut,
 			}
 		}
 		outs[0] = &avax.TransferableOutput{
 			Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-			Out:   outerOut,
+			Out:   invalidOut,
 		}
 
 		utx := &UnsignedRewardValidatorTx{
@@ -202,7 +201,10 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		tx, err := vm.newRewardValidatorTx(addValidatorTxID)
 		assert.NoError(err)
 
-		onCommitState, _, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
+		rewardValidatorTx, ok := tx.UnsignedTx.(*UnsignedRewardValidatorTx)
+		assert.True(ok)
+
+		onCommitState, _, err := rewardValidatorTx.Execute(vm, vm.internalState, tx)
 		assert.NoError(err)
 
 		// Checking onCommitState
@@ -221,9 +223,6 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 		oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
 		assert.NoError(err)
 
-		lockChainStateBefore := vm.internalState.LockedUTXOsChainState()
-		bondedUTXOIDs := lockChainStateBefore.GetBondedUTXOIDs(addValidatorTxID)
-
 		onCommitState.Apply(vm.internalState)
 		err = vm.internalState.Commit()
 		assert.NoError(err)
@@ -237,20 +236,38 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 			"on commit, should have old balance (%d) + staked amount (%d) + reward (%d) but have %d",
 			oldBalance, addValidatorTx.Validator.Weight(), reward, onCommitBalance)
 
-		lockChainStateAfter := vm.internalState.LockedUTXOsChainState()
+		rewardValidatorTxID := tx.ID()
+		bondedOuts := addValidatorTx.Bond()
 		// TODO@ test bond unbonded
 		//  on commit, utxos bonded by addValidatorTxID should consumed to produce unbonded
-		for bondedUTXOID := range bondedUTXOIDs {
-			_, err := vm.internalState.GetUTXO(bondedUTXOID)
+		for i := range bondedOuts {
+			_, err := vm.internalState.GetUTXO(addValidatorTxID.Prefix(uint64(i)))
 			assert.ErrorIs(err, database.ErrNotFound)
-
-			utxoLockStateAfter := lockChainStateAfter.GetUTXOLockState(bondedUTXOID)
-			assert.Nil(utxoLockStateAfter.BondTxID)
-			assert.Nil(utxoLockStateAfter.DepositTxID)
 		}
 
-		bondedUTXOIDs = lockChainStateAfter.GetBondedUTXOIDs(addValidatorTxID)
-		assert.Empty(bondedUTXOIDs)
+		for i, unbondedOut := range rewardValidatorTx.Outs {
+			unbondedUTXO, err := vm.internalState.GetUTXO(rewardValidatorTxID.Prefix(uint64(i)))
+			assert.NoError(err)
+
+			assert.Equal(unbondedUTXO.TxID, rewardValidatorTxID)
+			assert.Equal(unbondedUTXO.OutputIndex, i)
+			assert.Equal(unbondedUTXO.Asset, unbondedOut.Asset)
+			assert.Equal(unbondedUTXO.Out, unbondedOut.Out) // TODO@ wont work, fix
+
+			// TODO@
+			// txOutLockIDs := LockIDs{}
+			// if lockedOut, ok := unbondedOut.Out.(*LockedOut); ok {
+			// 	txOutLockIDs = lockedOut.LockIDs
+			// }
+
+			// utxoOutLockIDs := LockIDs{}
+			// if lockedOut, ok := unbondedUTXO.Out.(*LockedOut); ok {
+			// 	utxoOutLockIDs = lockedOut.LockIDs
+			// }
+
+			// assert.Equal(utxoOutLockIDs.BondTxID, txID)
+			// assert.Equal(utxoOutLockIDs.DepositTxID)
+		}
 	})
 }
 
@@ -279,7 +296,10 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	tx, err := vm.newRewardValidatorTx(addValidatorTxID)
 	assert.NoError(err)
 
-	_, onAbortState, err := tx.UnsignedTx.(UnsignedProposalTx).Execute(vm, vm.internalState, tx)
+	rewardValidatorTx, ok := tx.UnsignedTx.(*UnsignedRewardValidatorTx)
+	assert.True(ok)
+
+	_, onAbortState, err := rewardValidatorTx.Execute(vm, vm.internalState, tx)
 	assert.NoError(err)
 
 	onAbortCurrentStakers := onAbortState.CurrentStakerChainState()
@@ -296,9 +316,6 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 	oldBalance, err := avax.GetBalance(vm.internalState, stakeOwners)
 	assert.NoError(err)
 
-	lockChainStateBefore := vm.internalState.LockedUTXOsChainState()
-	bondedUTXOIDs := lockChainStateBefore.GetBondedUTXOIDs(addValidatorTxID)
-
 	onAbortState.Apply(vm.internalState)
 	err = vm.internalState.Commit()
 	assert.NoError(err)
@@ -310,23 +327,38 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 		"on abort, should have old balance (%d) + staked amount (%d) but have %d",
 		oldBalance, addValidatorTx.Validator.Weight(), onAbortBalance)
 
-	lockChainStateAfter := vm.internalState.LockedUTXOsChainState()
-
-	for bondedUTXOID := range bondedUTXOIDs {
-		_, err := vm.internalState.GetUTXO(bondedUTXOID)
-		assert.ErrorIs(err, database.ErrNotFound,
-			"on abort, utxos bonded by addValidatorTxID should consumed to produce unbonded")
-
-		utxoLockStateAfter := lockChainStateAfter.GetUTXOLockState(bondedUTXOID)
-		assert.Nil(utxoLockStateAfter.BondTxID,
-			"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
-		assert.Nil(utxoLockStateAfter.DepositTxID,
-			"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
+	rewardValidatorTxID := tx.ID()
+	bondedOuts := addValidatorTx.Bond()
+	// TODO@ test bond unbonded
+	//  on commit, utxos bonded by addValidatorTxID should consumed to produce unbonded
+	for i := range bondedOuts {
+		_, err := vm.internalState.GetUTXO(addValidatorTxID.Prefix(uint64(i)))
+		assert.ErrorIs(err, database.ErrNotFound)
 	}
 
-	bondedUTXOIDs = lockChainStateAfter.GetBondedUTXOIDs(addValidatorTxID)
-	assert.Empty(bondedUTXOIDs,
-		"on abort, utxos bonded by addValidatorTxID should be consumed to produce unbonded")
+	for i, unbondedOut := range rewardValidatorTx.Outs {
+		unbondedUTXO, err := vm.internalState.GetUTXO(rewardValidatorTxID.Prefix(uint64(i)))
+		assert.NoError(err)
+
+		assert.Equal(unbondedUTXO.TxID, rewardValidatorTxID)
+		assert.Equal(unbondedUTXO.OutputIndex, i)
+		assert.Equal(unbondedUTXO.Asset, unbondedOut.Asset)
+		assert.Equal(unbondedUTXO.Out, unbondedOut.Out) // TODO@ wont work, fix
+
+		// TODO@
+		// txOutLockIDs := LockIDs{}
+		// if lockedOut, ok := unbondedOut.Out.(*LockedOut); ok {
+		// 	txOutLockIDs = lockedOut.LockIDs
+		// }
+
+		// utxoOutLockIDs := LockIDs{}
+		// if lockedOut, ok := unbondedUTXO.Out.(*LockedOut); ok {
+		// 	utxoOutLockIDs = lockedOut.LockIDs
+		// }
+
+		// assert.Equal(utxoOutLockIDs.BondTxID, txID)
+		// assert.Equal(utxoOutLockIDs.DepositTxID)
+	}
 }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {
