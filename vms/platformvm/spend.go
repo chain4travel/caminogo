@@ -24,6 +24,7 @@ import (
 	"github.com/chain4travel/caminogo/utils/math"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/components/verify"
+	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
 )
 
@@ -313,12 +314,35 @@ func (vm *VM) unlock(
 	}
 
 	lockTxIDsSet := ids.NewSet(len(lockTxIDs))
+	addrs := ids.ShortSet{}
 	for _, lockTxID := range lockTxIDs {
 		lockTxIDsSet.Add(lockTxID)
+
+		tx, s, err := state.GetTx(lockTxID) // @jax this call might be expensive
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to fetch lockedTx %s: %v", lockTxID, err)
+		}
+		if s != status.Committed {
+			return nil, nil, fmt.Errorf("%s is not a commited tx", lockTxID)
+		}
+
+		addValTx, ok := tx.UnsignedTx.(*UnsignedAddValidatorTx) // @jax this is not generic
+		if !ok {
+			return nil, nil, fmt.Errorf("tx %s is not a addValidatorTx", lockTxID)
+		}
+
+		for i, valOut := range addValTx.Outs {
+			out, ok := valOut.Out.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return nil, nil, fmt.Errorf("could not cast outs no. %d from tx %s", i, lockTxID)
+			}
+			addrs.Add(out.Addrs...)
+		}
+
 	}
 
 	// TODO@ think on optimizing it to get not ALL allUTXOs
-	allUTXOs, err := avax.GetAllUTXOs(vm.internalState, ids.ShortSet{ids.ShortEmpty: struct{}{}})
+	allUTXOs, err := avax.GetAllUTXOs(vm.internalState, addrs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
 	}
@@ -341,11 +365,12 @@ func (vm *VM) unlock(
 
 // unlockUTXOs consumes locked utxos owned by keys and produce unlocked outs
 // Arguments:
-// - [utxos] utxos that will be used to consume and unlock
-// - [keys] owners of the funds
-// - [removedLockState] is type of lock that that function will try to unlock
-//               (it's either Bonded or Deposited)
-// - [needSigners] do inputs need to be signed
+//   - [utxos] utxos that will be used to consume and unlock
+//   - [keys] owners of the funds
+//   - [removedLockState] is type of lock that that function will try to unlock
+//     (it's either Bonded or Deposited)
+//   - [needSigners] do inputs need to be signed
+//
 // Returns:
 // - [inputs] produced inputs
 // - [outputs] produced outputs
