@@ -59,7 +59,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 	// Test cases
 
 	tests := map[string]struct {
-		inputUTXOIDs  []ids.ID
 		utxos         []*avax.UTXO
 		outputs       []*avax.TransferableOutput
 		inputIndexes  []uint32
@@ -168,8 +167,8 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				vm.internalState.PendingStakerChainState(),
 			)
 
-			ins := make([]*avax.TransferableInput, len(tt.inputUTXOIDs))
-			signers := make([][]*crypto.PrivateKeySECP256K1R, len(tt.inputUTXOIDs)+1)
+			ins := make([]*avax.TransferableInput, len(tt.utxos))
+			signers := make([][]*crypto.PrivateKeySECP256K1R, len(tt.utxos)+1)
 			for i, utxo := range tt.utxos {
 				state.AddUTXO(utxo)
 				ins[i] = generateTestInFromUTXO(utxo, []uint32{0})
