@@ -488,6 +488,8 @@ func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.Transfer
 				Input: secp256k1fx.Input{SigIndices: sigIndices},
 			},
 		}
+	default:
+		panic("unknown utxo.Out type")
 	}
 
 	return &avax.TransferableInput{
