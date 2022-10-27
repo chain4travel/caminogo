@@ -332,9 +332,13 @@ func (vm *VM) unlock(
 		}
 
 		for i, valOut := range addValTx.Outs {
-			out, ok := valOut.Out.(*secp256k1fx.TransferOutput)
+			lockedOut, ok := valOut.Out.(*LockedOut)
 			if !ok {
-				return nil, nil, fmt.Errorf("could not cast outs no. %d from tx %s", i, lockTxID)
+				return nil, nil, fmt.Errorf("could not cast out no. %d to locked out from tx %s", i, lockTxID)
+			}
+			out, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return nil, nil, fmt.Errorf("could not cast locked out no. %d to transerfableOut from tx %s", i, lockTxID)
 			}
 			addrs.Add(out.Addrs...)
 		}
