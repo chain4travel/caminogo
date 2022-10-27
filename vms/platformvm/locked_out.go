@@ -8,19 +8,14 @@ import (
 	"fmt"
 
 	"github.com/chain4travel/caminogo/ids"
-	"github.com/chain4travel/caminogo/utils/hashing"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 )
 
 var (
 	errInvalidLockState = errors.New("invalid lockState")
 	errNestedLocks      = errors.New("shouldn't nest locks")
-	thisTxID            ids.ID // TODO@ const ?
+	thisTxID            = ids.ID{'t', 'h', 'i', 's', ' ', 't', 'x', ' ', 'i', 'd'}
 )
-
-func init() { // TODO@ remove
-	thisTxID, _ = ids.ToID(hashing.ComputeHash256([]byte("this tx id")))
-}
 
 type LockState byte
 

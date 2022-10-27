@@ -36,13 +36,10 @@ var (
 	errInputsCredentialsMismatch    = errors.New("number of inputs is different from number of credentials")
 	errInputsUTXOSMismatch          = errors.New("number of inputs is different from number of utxos")
 	errWrongCredentials             = errors.New("wrong credentials")
-
-	errLockingLockedUTXO    = errors.New("utxo consumed for locking are already locked")
-	errWrongInputIndexesLen = errors.New("inputIndexes len doesn't match outputs len")
-	errBurningLockedUTXO    = errors.New("trying to burn locked utxo")
-	errLockedInsOrOuts      = errors.New("transaction body has locked inputs or outs, but that's now allowed")
-	errWrongProducedAmount  = errors.New("produced more tokens, than input had")
-	errNotBurnedEnough      = errors.New("") // TODO@
+	errLockingLockedUTXO            = errors.New("utxo consumed for locking are already locked")
+	errLockedInsOrOuts              = errors.New("transaction body has locked inputs or outs, but that's now allowed")
+	errWrongProducedAmount          = errors.New("produced more tokens, than input had")
+	errNotBurnedEnough              = errors.New("burned less tokens, than we need to")
 )
 
 // spend the provided amount while deducting the provided fee.
@@ -646,7 +643,15 @@ func (vm *VM) semanticVerifySpendUTXOs(
 				consumedAmount = newConsumedAmount
 			}
 			if producedAmount > consumedAmount {
-				return errWrongProducedAmount
+				return fmt.Errorf(
+					"ownerID %s produces %d unlocked and consumes %d unlocked for lockIDs %+v with applied lockState %s: %w",
+					ownerID,
+					producedAmount,
+					consumedAmount,
+					lockIDs,
+					appliedLockState,
+					errWrongProducedAmount,
+				)
 			}
 			if !lockIDs.LockState().IsLocked() && producedAmount != consumedAmount {
 				burnedAmount, err := math.Sub64(consumedAmount, producedAmount)

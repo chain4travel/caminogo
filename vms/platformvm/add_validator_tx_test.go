@@ -140,7 +140,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 			inputUTXOIDs:  []ids.ID{unlockedUTXO.InputID(), depositedUTXO.InputID()},
 			outAmounts:    []output{{LockStateUnlocked, defAmt/2 - fee}, {LockStateDeposited, defAmt / 2}, {LockStateBonded, defAmt / 2}},
 			inputIndexes:  []uint32{0, 1, 0},
-			expectedError: errBurningLockedUTXO,
+			expectedError: errExportLockedUTXO,
 		},
 		"Fee burning bonded UTXO": {
 			inputUTXOIDs:  []ids.ID{unlockedUTXO.InputID(), bondedUTXO.InputID()},
@@ -152,7 +152,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 			inputUTXOIDs:  []ids.ID{unlockedUTXO.InputID(), depositedUTXO.InputID()},
 			outAmounts:    []output{{LockStateUnlocked, defAmt / 2}, {LockStateDeposited, defAmt/2 - fee}, {LockStateBonded, defAmt / 2}},
 			inputIndexes:  []uint32{0, 1, 0},
-			expectedError: errBurningLockedUTXO,
+			expectedError: errExportLockedUTXO,
 		},
 		"Produced out linked with input by index has amount greater than input's ": {
 			inputUTXOIDs:  []ids.ID{unlockedUTXO.InputID(), unlockedSmallUTXO.InputID()},

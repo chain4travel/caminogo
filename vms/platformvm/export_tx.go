@@ -33,6 +33,7 @@ var (
 	errNoExportOutputs  = errors.New("no export outputs")
 	errOutputsNotSorted = errors.New("outputs not sorted")
 	errOverflowExport   = errors.New("overflow when computing export amount + txFee")
+	errExportLockedUTXO = errors.New("trying to export locked utxo")
 
 	_ UnsignedAtomicTx = &UnsignedExportTx{}
 )
@@ -86,7 +87,7 @@ func (tx *UnsignedExportTx) SyntacticVerify(ctx *snow.Context) error {
 			return fmt.Errorf("output failed verification: %w", err)
 		}
 		if _, ok := out.Output().(*LockedOut); ok {
-			return errBurningLockedUTXO
+			return errExportLockedUTXO
 		}
 	}
 	if !avax.IsSortedTransferableOutputs(tx.ExportedOutputs, Codec) {
