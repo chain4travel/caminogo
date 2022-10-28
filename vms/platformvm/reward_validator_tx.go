@@ -229,7 +229,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	// Consume the UTXOS
 	consumeInputs(onAbortState, tx.Ins)
 	// Produce the UTXOS
-	produceOutputs(onCommitState, txID, vm.ctx.AVAXAssetID, tx.Outs)
+	produceOutputs(onAbortState, txID, vm.ctx.AVAXAssetID, tx.Outs)
 
 	// If the reward is aborted, then the current supply should be decreased.
 	currentSupply := onAbortState.GetCurrentSupply()

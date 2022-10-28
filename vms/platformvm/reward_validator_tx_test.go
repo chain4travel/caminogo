@@ -77,10 +77,12 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 
 	t.Run("Wrong validator", func(t *testing.T) {
 		assert := assert.New(t)
-		stx, err := vm.newRewardValidatorTx(ids.GenerateTestID())
+		utx := &UnsignedRewardValidatorTx{
+			ValidatorTxID: ids.GenerateTestID(),
+		}
+		stx := &Tx{UnsignedTx: utx}
+		err := stx.Sign(Codec, nil)
 		assert.NoError(err)
-		utx, ok := stx.UnsignedTx.(*UnsignedRewardValidatorTx)
-		assert.True(ok)
 		_, _, err = utx.Execute(vm, vm.internalState, stx)
 		assert.ErrorIs(err, errWrongValidatorRemoval)
 	})
@@ -310,21 +312,13 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 		"on abort, should have old balance (%d) + staked amount (%d) but have %d",
 		oldBalance, addValidatorTx.Validator.Weight(), onAbortBalance)
 
-	rewardValidatorTxID := tx.ID()
 	bondedOuts := addValidatorTx.Bond()
-	// TODO@ test bond unbonded
-	//  on commit, utxos bonded by addValidatorTxID should consumed to produce unbonded
 	for i := range bondedOuts {
 		_, err := vm.internalState.GetUTXO(addValidatorTxID.Prefix(uint64(i)))
 		assert.ErrorIs(err, database.ErrNotFound)
 	}
 
-	assertOutsProducedUTXOs(
-		assert,
-		vm.internalState,
-		rewardValidatorTxID,
-		rewardValidatorTx.Outs,
-	)
+	assertOutsProducedUTXOs(assert, vm.internalState, tx.ID(), rewardValidatorTx.Outs)
 }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {

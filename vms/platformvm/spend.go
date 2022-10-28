@@ -780,17 +780,14 @@ func produceOutputs(
 	for index, output := range outs {
 		out := output.Out
 		if lockedOut, ok := out.(*LockedOut); ok {
-			lockedOut := &LockedOut{
-				LockIDs:         lockedOut.LockIDs,
-				TransferableOut: lockedOut.TransferableOut,
+			utxoLockedOut := *lockedOut
+			if utxoLockedOut.BondTxID == thisTxID {
+				utxoLockedOut.BondTxID = txID
 			}
-			if lockedOut.BondTxID == thisTxID {
-				lockedOut.BondTxID = txID
+			if utxoLockedOut.DepositTxID == thisTxID {
+				utxoLockedOut.DepositTxID = txID
 			}
-			if lockedOut.DepositTxID == thisTxID {
-				lockedOut.DepositTxID = txID
-			}
-			out = lockedOut
+			out = &utxoLockedOut
 		}
 		utxoDB.AddUTXO(&avax.UTXO{
 			UTXOID: avax.UTXOID{
