@@ -458,6 +458,13 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 		t.Fatal("expected timestamp to have advanced")
 	}
 
+	currentStakers := secondVM.internalState.CurrentStakerChainState()
+	stakerTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorToRemoveTx := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
 	blk, err = secondVM.BuildBlock() // should contain proposal to reward genesis validator
 	if err != nil {
 		t.Fatal(err)
@@ -513,8 +520,8 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 		t.Fatalf("status should be Aborted but is %s", txStatus)
 	}
 
-	currentStakers := secondVM.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[0])
+	currentStakers = secondVM.internalState.CurrentStakerChainState()
+	_, err = currentStakers.GetValidator(validatorToRemoveTx.Validator.NodeID)
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -606,6 +613,13 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 		t.Fatal("expected timestamp to have advanced")
 	}
 
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	stakerTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorToRemoveTx := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
 	// should contain proposal to reward genesis validator
 	blk, err = vm.BuildBlock()
 	if err != nil {
@@ -645,8 +659,8 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[0])
+	currentStakers = vm.internalState.CurrentStakerChainState()
+	_, err = currentStakers.GetValidator(validatorToRemoveTx.Validator.NodeID)
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}

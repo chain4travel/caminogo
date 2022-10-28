@@ -1201,6 +1201,13 @@ func TestRewardValidatorAccept(t *testing.T) {
 		t.Fatal("expected timestamp to have advanced")
 	}
 
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	stakerTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorToRemoveTx := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
 	blk, err = vm.BuildBlock() // should contain proposal to reward genesis validator
 	if err != nil {
 		t.Fatal(err)
@@ -1237,8 +1244,8 @@ func TestRewardValidatorAccept(t *testing.T) {
 		t.Fatalf("status should be Committed but is %s", txStatus)
 	}
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[0])
+	currentStakers = vm.internalState.CurrentStakerChainState()
+	_, err = currentStakers.GetValidator(validatorToRemoveTx.Validator.NodeID)
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -1295,6 +1302,13 @@ func TestRewardValidatorReject(t *testing.T) {
 		t.Fatal("expected timestamp to have advanced")
 	}
 
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	stakerTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorToRemoveTx := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
 	if blk, err = vm.BuildBlock(); err != nil { // should contain proposal to reward genesis validator
 		t.Fatal(err)
 	} else if err := blk.Verify(); err != nil {
@@ -1326,8 +1340,8 @@ func TestRewardValidatorReject(t *testing.T) {
 		t.Fatalf("status should be Aborted but is %s", txStatus)
 	}
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[0])
+	currentStakers = vm.internalState.CurrentStakerChainState()
+	_, err = currentStakers.GetValidator(validatorToRemoveTx.Validator.NodeID)
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -1382,6 +1396,13 @@ func TestRewardValidatorPreferred(t *testing.T) {
 		t.Fatal("expected timestamp to have advanced")
 	}
 
+	currentStakers := vm.internalState.CurrentStakerChainState()
+	stakerTx, _, err := currentStakers.GetNextStaker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorToRemoveTx := stakerTx.UnsignedTx.(*UnsignedAddValidatorTx)
+
 	if blk, err = vm.BuildBlock(); err != nil { // should contain proposal to reward genesis validator
 		t.Fatal(err)
 	} else if err := blk.Verify(); err != nil {
@@ -1413,8 +1434,8 @@ func TestRewardValidatorPreferred(t *testing.T) {
 		t.Fatalf("status should be Aborted but is %s", txStatus)
 	}
 
-	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(nodeIDs[0])
+	currentStakers = vm.internalState.CurrentStakerChainState()
+	_, err = currentStakers.GetValidator(validatorToRemoveTx.Validator.NodeID)
 	if err != database.ErrNotFound {
 		t.Fatal("should have removed a genesis validator")
 	}
