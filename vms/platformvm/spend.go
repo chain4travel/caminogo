@@ -588,6 +588,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 	// ownerID -> LockIDs -> amount
 	consumedAmounts := map[ids.ID]map[LockIDs]uint64{}
+	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
 	for i, input := range inputs {
 		utxo := utxos[i]
@@ -641,9 +642,18 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			return err
 		}
 		ownerConsumedAmounts[utxoLockIDs] = newConsumedAmounts
-	}
 
-	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
+		// cause we will iterate over producedAmounts and check against consumed
+		// and we also need to keep track of unlocked burned amont
+		// we want to have all consumed ownerIDs/LockIDs in place
+
+		ownerProducedAmounts, ok := producedAmounts[ownerID]
+		if !ok {
+			ownerProducedAmounts = map[LockIDs]uint64{}
+			producedAmounts[ownerID] = ownerProducedAmounts
+		}
+		ownerProducedAmounts[utxoLockIDs] = 0
+	}
 
 	for _, output := range outputs {
 		if output.AssetID() != assetID {
@@ -674,8 +684,6 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		ownerProducedAmounts[lockIDs] = newProducedAmount
 	}
 
-	// TODO@ ?! iterate through consumed 1st ?!
-	// ! currently it fails for unlockedMustBurnAmount > 0 && producedAmounts == 0
 	unlockedBurned := uint64(0)
 	for ownerID, ownerProducedAmounts := range producedAmounts {
 		for producedLockIDs, producedAmount := range ownerProducedAmounts {
