@@ -63,7 +63,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 	tests := map[string]struct {
 		utxos         []*avax.UTXO
 		outputs       []*avax.TransferableOutput
-		inputIndexes  []uint32
 		expectedError error
 	}{
 		"Happy path bonding": {
@@ -74,7 +73,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
 			},
-			inputIndexes:  []uint32{0, 0},
 			expectedError: nil,
 		},
 		"Happy path bond deposited": {
@@ -87,7 +85,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, ids.Empty),
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, thisTxID),
 			},
-			inputIndexes:  []uint32{0, 1, 1},
 			expectedError: nil,
 		},
 		"Happy path bond deposited and unlocked": {
@@ -100,7 +97,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
 				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, existingTxID, thisTxID),
 			},
-			inputIndexes:  []uint32{0, 1, 1},
 			expectedError: nil,
 		},
 		"Bonding bonded UTXO": {
@@ -112,7 +108,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
 			},
-			inputIndexes:  []uint32{0, 1},
 			expectedError: errLockingLockedUTXO,
 		},
 		"Fee burning bonded UTXO": {
@@ -124,7 +119,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
 				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, existingTxID),
 			},
-			inputIndexes: []uint32{0, 1, 0},
 			// fails, cause we using bonded utxo in tx that does bonding
 			expectedError: errLockingLockedUTXO,
 		},
@@ -136,7 +130,6 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, existingTxID, ids.Empty),
 				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, thisTxID),
 			},
-			inputIndexes:  []uint32{0, 1, 0},
 			expectedError: errNotBurnedEnough,
 		},
 	}

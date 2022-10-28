@@ -52,7 +52,6 @@ var (
 // Returns:
 // - [inputs] the inputs that should be consumed to fund the outputs
 // - [outputs] the outputs produced as result of spending
-// - [inputIndexes] input indexes that produced outputs (output[i] produced by inputs[inputIndexes[i]])
 // - [signers] the proof of ownership of the funds being moved
 func (vm *VM) spend(
 	keys []*crypto.PrivateKeySECP256K1R,
