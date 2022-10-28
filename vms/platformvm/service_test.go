@@ -542,8 +542,6 @@ func TestGetBalance(t *testing.T) {
 			Addresses: []string{localAddr},
 		}
 
-		bondTxID := ids.GenerateTestID()
-		depositTxID := ids.GenerateTestID()
 		outputOwners := secp256k1fx.OutputOwners{
 			Locktime:  0,
 			Threshold: 1,
@@ -551,9 +549,9 @@ func TestGetBalance(t *testing.T) {
 		}
 
 		utxos := []*avax.UTXO{
-			generateTestUTXO(bondTxID, avaxAssetID, 10, outputOwners, ids.Empty, bondTxID),
-			generateTestUTXO(depositTxID, avaxAssetID, 20, outputOwners, depositTxID, ids.Empty),
-			generateTestUTXO(bondTxID, avaxAssetID, 100, outputOwners, depositTxID, bondTxID),
+			generateTestUTXO(ids.GenerateTestID(), avaxAssetID, 10, outputOwners, ids.Empty, ids.GenerateTestID()),
+			generateTestUTXO(ids.GenerateTestID(), avaxAssetID, 20, outputOwners, ids.GenerateTestID(), ids.Empty),
+			generateTestUTXO(ids.GenerateTestID(), avaxAssetID, 100, outputOwners, ids.GenerateTestID(), ids.GenerateTestID()),
 			generateTestUTXO(ids.GenerateTestID(), avaxAssetID, 5, outputOwners, ids.Empty, ids.Empty),
 		}
 
@@ -577,14 +575,12 @@ func TestGetBalance(t *testing.T) {
 			DepositedAndBonded: 100,
 		}
 
-		// TODO@ check if needed separate
 		// assert the UTXOs
 		assert.ElementsMatch(expectedUTXOIDs, response.UTXOIDs)
 
 		// assert the balances without the UTXOs
 		response.UTXOIDs = nil
 		assert.Equal(expected, response)
-
 	})
 }
 
