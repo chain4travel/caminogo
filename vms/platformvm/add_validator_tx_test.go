@@ -22,6 +22,7 @@ import (
 
 	"github.com/chain4travel/caminogo/ids"
 	"github.com/chain4travel/caminogo/utils/crypto"
+	"github.com/chain4travel/caminogo/utils/units"
 	"github.com/chain4travel/caminogo/vms/components/avax"
 	"github.com/chain4travel/caminogo/vms/platformvm/status"
 	"github.com/chain4travel/caminogo/vms/secp256k1fx"
@@ -37,6 +38,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 		}
 		vm.ctx.Lock.Unlock()
 	}()
+	vm.AddStakerTxFee = units.NanoAvax
 
 	// Common data
 
@@ -46,14 +48,14 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 		Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
 	}
 
-	defAmt := vm.internalState.GetValidatorBondAmount() * 2 // 10000000
+	fee := vm.AddStakerTxFee
+	validatorBond := vm.internalState.GetValidatorBondAmount()
 
 	inputSigners := []*crypto.PrivateKeySECP256K1R{keys[0]}
 	nodeKey, nodeID := generateNodeKeyAndID()
 	startTime := uint64(defaultGenesisTime.Add(1 * time.Second).Unix())
 	endTime := uint64(defaultGenesisTime.Add(1*time.Second + defaultMinStakingDuration).Unix())
 
-	fee := defaultTxFee
 	existingTxID := ids.GenerateTestID()
 
 	// Test cases
@@ -66,93 +68,77 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 	}{
 		"Happy path bonding": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt/2-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 0},
 			expectedError: nil,
 		},
 		"Happy path bond deposited": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond*2, outputOwners, existingTxID, ids.Empty),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, existingTxID, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1, 1},
 			expectedError: nil,
 		},
-		// TODO @evlekht recheck "Burning bonded utxo" skipped cause if will fail with errLockingLockedUTXO
-		"Bonding bonded UTXO": {
+		"Happy path bond deposited and unlocked": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond/2, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, ids.Empty),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond/2-fee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, existingTxID, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, existingTxID, thisTxID),
+			},
+			inputIndexes:  []uint32{0, 1, 1},
+			expectedError: nil,
+		},
+		"Bonding bonded UTXO": {
+			utxos: []*avax.UTXO{
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, existingTxID),
+			},
+			outputs: []*avax.TransferableOutput{
+				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1},
 			expectedError: errWrongLockState,
 		},
-		"Burning deposited UTXO (not for fee, just burning)": {
-			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, existingTxID, ids.Empty),
-			},
-			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt/2-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
-			},
-			inputIndexes:  []uint32{0, 1, 0},
-			expectedError: errExportLockedUTXO,
-		},
 		"Fee burning bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, existingTxID),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2-fee, outputOwners, ids.Empty, existingTxID),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond/2-fee, outputOwners, ids.Empty, existingTxID),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1, 0},
 			expectedError: errWrongLockState,
 		},
 		"Fee burning deposited UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond*2, outputOwners, existingTxID, ids.Empty),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2-fee, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, existingTxID, ids.Empty),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, existingTxID, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1, 0},
-			expectedError: errExportLockedUTXO,
+			expectedError: errNotBurnedEnough,
 		},
-		// TODO@ ? remove ?
-		// "Produced out linked with input by index has amount greater than input's ": {
-		// 	utxos: []*avax.UTXO{
-		// 		generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt, outputOwners, ids.Empty, ids.Empty),
-		// 		generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defAmt/4, outputOwners, ids.Empty, ids.Empty),
-		// 	},
-		// 	outputs: []*avax.TransferableOutput{
-		// 		generateTestOut(avaxAssetID, defAmt/2-fee, outputOwners, ids.Empty, ids.Empty),
-		// 		generateTestOut(avaxAssetID, defAmt/2, outputOwners, ids.Empty, thisTxID),
-		// 	},
-		// 	inputIndexes:  []uint32{0, 1},
-		// 	expectedError: errWrongProducedAmount,
-		// },
 	}
 
 	for name, tt := range tests {
@@ -167,11 +153,11 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				vm.internalState.PendingStakerChainState(),
 			)
 
-			ins := make([]*avax.TransferableInput, len(tt.utxos))
+			inputs := make([]*avax.TransferableInput, len(tt.utxos))
 			signers := make([][]*crypto.PrivateKeySECP256K1R, len(tt.utxos)+1)
 			for i, utxo := range tt.utxos {
 				state.AddUTXO(utxo)
-				ins[i] = generateTestInFromUTXO(utxo, []uint32{0})
+				inputs[i] = generateTestInFromUTXO(utxo, []uint32{0})
 				signers[i] = inputSigners
 			}
 
@@ -184,12 +170,15 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 
 			signers[len(signers)-1] = []*crypto.PrivateKeySECP256K1R{nodeKey}
 
+			// avax.SortTransferableOutputs(tt.outputs, Codec)
+			avax.SortTransferableInputsWithSigners(inputs, signers)
+
 			// Preparing tx
 			utx := &UnsignedAddValidatorTx{
 				BaseTx: BaseTx{BaseTx: avax.BaseTx{
 					NetworkID:    vm.ctx.NetworkID,
 					BlockchainID: vm.ctx.ChainID,
-					Ins:          ins,
+					Ins:          inputs,
 					Outs:         tt.outputs,
 				}},
 				Validator: Validator{
@@ -610,31 +599,9 @@ func TestAddValidatorTxExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check balance and lock state from lockedChainState
+	// TODO@ balance check?
 
-	for i, bondedOut := range utx.Outs {
-		bondedUTXO, err := vm.internalState.GetUTXO(txID.Prefix(uint64(i)))
-		assert.NoError(err)
-
-		assert.Equal(bondedUTXO.TxID, txID)
-		assert.Equal(bondedUTXO.OutputIndex, i)
-		assert.Equal(bondedUTXO.Asset, bondedOut.Asset)
-		assert.Equal(bondedUTXO.Out, bondedOut.Out) // TODO@ wont work, fix
-
-		// TODO@
-		// txOutLockIDs := LockIDs{}
-		// if lockedOut, ok := bondedOut.Out.(*LockedOut); ok {
-		// 	txOutLockIDs = lockedOut.LockIDs
-		// }
-
-		// utxoOutLockIDs := LockIDs{}
-		// if lockedOut, ok := bondedUTXO.Out.(*LockedOut); ok {
-		// 	utxoOutLockIDs = lockedOut.LockIDs
-		// }
-
-		// assert.Equal(utxoOutLockIDs.BondTxID, txID)
-		// assert.Equal(utxoOutLockIDs.DepositTxID)
-	}
+	assertOutsProducedUTXOs(assert, vm.internalState, txID, utx.Outs)
 }
 
 func TestAddValidatorTxManuallyWrongSignature(t *testing.T) {

@@ -538,6 +538,36 @@ func generateTestOut(assetID ids.ID, amount uint64, outputOwners secp256k1fx.Out
 	}
 }
 
+func assertOutsProducedUTXOs(assert *assert.Assertions, utxoDB UTXOGetter, txID ids.ID, outs []*avax.TransferableOutput) {
+	for i, txOutput := range outs {
+		utxo, err := utxoDB.GetUTXO(txID.Prefix(uint64(i)))
+		assert.NoError(err)
+
+		assert.Equal(utxo.TxID, txID)
+		assert.Equal(utxo.OutputIndex, uint32(i))
+		assert.Equal(utxo.Asset, txOutput.Asset)
+
+		txLockedOut, txOutIsLocked := txOutput.Out.(*LockedOut)
+		utxoLockedOut, utxoOutIsLocked := utxo.Out.(*LockedOut)
+		assert.Equal(txOutIsLocked, utxoOutIsLocked)
+		if txOutIsLocked {
+			if txLockedOut.BondTxID == thisTxID {
+				assert.Equal(txID, utxoLockedOut.BondTxID)
+			} else {
+				assert.Equal(txLockedOut.BondTxID, utxoLockedOut.BondTxID)
+			}
+			if txLockedOut.DepositTxID == thisTxID {
+				assert.Equal(txID, utxoLockedOut.DepositTxID)
+			} else {
+				assert.Equal(txLockedOut.DepositTxID, utxoLockedOut.DepositTxID)
+			}
+			assert.Equal(txLockedOut.TransferableOut, utxoLockedOut.TransferableOut)
+		} else {
+			assert.Equal(txOutput.Out, utxo.Out)
+		}
+	}
+}
+
 func GenesisVMWithArgs(t *testing.T, args *BuildGenesisArgs) ([]byte, chan common.Message, *VM, *atomic.Memory) {
 	var genesisBytes []byte
 

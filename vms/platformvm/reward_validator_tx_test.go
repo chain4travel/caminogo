@@ -245,29 +245,12 @@ func TestUnsignedRewardValidatorTxExecuteOnCommit(t *testing.T) {
 			assert.ErrorIs(err, database.ErrNotFound)
 		}
 
-		for i, unbondedOut := range rewardValidatorTx.Outs {
-			unbondedUTXO, err := vm.internalState.GetUTXO(rewardValidatorTxID.Prefix(uint64(i)))
-			assert.NoError(err)
-
-			assert.Equal(unbondedUTXO.TxID, rewardValidatorTxID)
-			assert.Equal(unbondedUTXO.OutputIndex, i)
-			assert.Equal(unbondedUTXO.Asset, unbondedOut.Asset)
-			assert.Equal(unbondedUTXO.Out, unbondedOut.Out) // TODO@ wont work, fix
-
-			// TODO@
-			// txOutLockIDs := LockIDs{}
-			// if lockedOut, ok := unbondedOut.Out.(*LockedOut); ok {
-			// 	txOutLockIDs = lockedOut.LockIDs
-			// }
-
-			// utxoOutLockIDs := LockIDs{}
-			// if lockedOut, ok := unbondedUTXO.Out.(*LockedOut); ok {
-			// 	utxoOutLockIDs = lockedOut.LockIDs
-			// }
-
-			// assert.Equal(utxoOutLockIDs.BondTxID, txID)
-			// assert.Equal(utxoOutLockIDs.DepositTxID)
-		}
+		assertOutsProducedUTXOs(
+			assert,
+			vm.internalState,
+			rewardValidatorTxID,
+			rewardValidatorTx.Outs,
+		)
 	})
 }
 
@@ -336,29 +319,12 @@ func TestUnsignedRewardValidatorTxExecuteOnAbort(t *testing.T) {
 		assert.ErrorIs(err, database.ErrNotFound)
 	}
 
-	for i, unbondedOut := range rewardValidatorTx.Outs {
-		unbondedUTXO, err := vm.internalState.GetUTXO(rewardValidatorTxID.Prefix(uint64(i)))
-		assert.NoError(err)
-
-		assert.Equal(unbondedUTXO.TxID, rewardValidatorTxID)
-		assert.Equal(unbondedUTXO.OutputIndex, i)
-		assert.Equal(unbondedUTXO.Asset, unbondedOut.Asset)
-		assert.Equal(unbondedUTXO.Out, unbondedOut.Out) // TODO@ wont work, fix
-
-		// TODO@
-		// txOutLockIDs := LockIDs{}
-		// if lockedOut, ok := unbondedOut.Out.(*LockedOut); ok {
-		// 	txOutLockIDs = lockedOut.LockIDs
-		// }
-
-		// utxoOutLockIDs := LockIDs{}
-		// if lockedOut, ok := unbondedUTXO.Out.(*LockedOut); ok {
-		// 	utxoOutLockIDs = lockedOut.LockIDs
-		// }
-
-		// assert.Equal(utxoOutLockIDs.BondTxID, txID)
-		// assert.Equal(utxoOutLockIDs.DepositTxID)
-	}
+	assertOutsProducedUTXOs(
+		assert,
+		vm.internalState,
+		rewardValidatorTxID,
+		rewardValidatorTx.Outs,
+	)
 }
 
 func TestUptimeDisallowedWithRestart(t *testing.T) {

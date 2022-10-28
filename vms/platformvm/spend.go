@@ -645,18 +645,20 @@ func (vm *VM) semanticVerifySpendUTXOs(
 
 	producedAmounts := map[ids.ID]map[LockIDs]uint64{}
 
-	for _, out := range outputs {
-		if out.AssetID() != assetID {
+	for _, output := range outputs {
+		if output.AssetID() != assetID {
 			return errAssetIDMismatch
 		}
+		out := output.Out
+		lockIDs := LockIDs{}
+		if lockedOut, ok := out.(*LockedOut); ok {
+			lockIDs = lockedOut.LockIDs
+			out = lockedOut.TransferableOut
+		}
 
-		ownerID, err := getOwnerID(out.Out)
+		ownerID, err := getOwnerID(out)
 		if err != nil {
 			return err
-		}
-		lockIDs := LockIDs{}
-		if lockedOut, ok := out.Out.(*LockedOut); ok {
-			lockIDs = lockedOut.LockIDs
 		}
 
 		ownerProducedAmounts, ok := producedAmounts[ownerID]
@@ -665,38 +667,42 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			producedAmounts[ownerID] = ownerProducedAmounts
 		}
 
-		newProducedAmount, err := math.Add64(ownerProducedAmounts[lockIDs], out.Out.Amount())
+		newProducedAmount, err := math.Add64(ownerProducedAmounts[lockIDs], out.Amount())
 		if err != nil {
 			return err
 		}
 		ownerProducedAmounts[lockIDs] = newProducedAmount
 	}
 
+	// TODO@ ?! iterate through consumed 1st ?!
+	// ! currently it fails for unlockedMustBurnAmount > 0 && producedAmounts == 0
 	unlockedBurned := uint64(0)
 	for ownerID, ownerProducedAmounts := range producedAmounts {
-		for lockIDs, producedAmount := range ownerProducedAmounts {
+		for producedLockIDs, producedAmount := range ownerProducedAmounts {
 			consumedAmount := uint64(0)
-			changedConsumedLockIDs := lockIDs.Unlock(appliedLockState)
 			if ownerConsumedAmounts, ok := consumedAmounts[ownerID]; ok {
-				consumedAmount = ownerConsumedAmounts[changedConsumedLockIDs]                       // state changed
-				newConsumedAmount, err := math.Add64(consumedAmount, ownerConsumedAmounts[lockIDs]) // state not changed
-				if err != nil {
-					return err
+				consumedAmount = ownerConsumedAmounts[producedLockIDs]
+				if producedLockIDs.LockState().IsLockedWith(appliedLockState) {
+					consumedLockIDs := producedLockIDs.Unlock(appliedLockState)
+					newConsumedAmount, err := math.Add64(consumedAmount, ownerConsumedAmounts[consumedLockIDs])
+					if err != nil {
+						return err
+					}
+					consumedAmount = newConsumedAmount
 				}
-				consumedAmount = newConsumedAmount
 			}
 			if producedAmount > consumedAmount {
 				return fmt.Errorf(
-					"ownerID %s produces %d unlocked and consumes %d unlocked for lockIDs %+v with applied lockState %s: %w",
+					"ownerID %s produces %d and consumes %d for lockIDs %+v with applied lockState {%s}: %w",
 					ownerID,
 					producedAmount,
 					consumedAmount,
-					lockIDs,
+					producedLockIDs,
 					appliedLockState,
 					errWrongProducedAmount,
 				)
 			}
-			if !lockIDs.LockState().IsLocked() && producedAmount != consumedAmount {
+			if !producedLockIDs.LockState().IsLocked() && producedAmount != consumedAmount {
 				burnedAmount, err := math.Sub64(consumedAmount, producedAmount)
 				if err != nil {
 					return err

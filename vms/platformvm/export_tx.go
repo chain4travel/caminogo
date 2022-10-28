@@ -236,7 +236,10 @@ func (vm *VM) newExportTx(
 				OutputOwners: secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
-					Addrs:     []ids.ShortID{to},
+					// ! @evlekht don't work with semanticSpendVerify now,
+					// ! cause its transfer to another address
+					// ! same probably for import
+					Addrs: []ids.ShortID{to},
 				},
 			},
 		}},
