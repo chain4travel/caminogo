@@ -58,38 +58,36 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 
 	// Note that setting [chainTimestamp] also set's the VM's clock.
 	// Adjust input/output locktimes accordingly.
-	tests := []struct {
-		description      string
+	tests := map[string]struct {
 		utxos            []*avax.UTXO
 		ins              []*avax.TransferableInput
 		outs             []*avax.TransferableOutput
 		creds            []verify.Verifiable
 		fee              uint64
 		assetID          ids.ID
-		appliedLockState LockState // TODO@ put into test cases
+		appliedLockState LockState
 		wantErr          error
 	}{
-		{
-			description: "no inputs, no outputs, no fee",
-			utxos:       []*avax.UTXO{},
-			ins:         []*avax.TransferableInput{},
-			outs:        []*avax.TransferableOutput{},
-			creds:       []verify.Verifiable{},
-			fee:         0,
-			assetID:     vm.ctx.AVAXAssetID,
+		"no inputs, no outputs, no fee": {
+			utxos:            []*avax.UTXO{},
+			ins:              []*avax.TransferableInput{},
+			outs:             []*avax.TransferableOutput{},
+			creds:            []verify.Verifiable{},
+			appliedLockState: LockStateBonded,
+			fee:              0,
+			assetID:          vm.ctx.AVAXAssetID,
 		},
-		{
-			description: "no inputs, no outputs, positive fee",
-			utxos:       []*avax.UTXO{},
-			ins:         []*avax.TransferableInput{},
-			outs:        []*avax.TransferableOutput{},
-			creds:       []verify.Verifiable{},
-			fee:         1,
-			assetID:     vm.ctx.AVAXAssetID,
-			wantErr:     errWrongProducedAmount,
+		"no inputs, no outputs, positive fee": {
+			utxos:            []*avax.UTXO{},
+			ins:              []*avax.TransferableInput{},
+			outs:             []*avax.TransferableOutput{},
+			creds:            []verify.Verifiable{},
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errNotBurnedEnough,
 		},
-		{
-			description: "one input, no outputs, positive fee",
+		"one input, no outputs, positive fee": {
 			utxos: []*avax.UTXO{{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
@@ -106,11 +104,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
 		},
-		{
-			description: "wrong number of credentials",
+		"wrong number of credentials": {
 			utxos: []*avax.UTXO{{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
@@ -123,15 +121,15 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 					Amt: 1,
 				},
 			}},
-			outs:    []*avax.TransferableOutput{},
-			creds:   []verify.Verifiable{},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
-			wantErr: errInputsCredentialsMismatch,
+			outs:             []*avax.TransferableOutput{},
+			creds:            []verify.Verifiable{},
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errInputsCredentialsMismatch,
 		},
-		{
-			description: "wrong number of UTXOs",
-			utxos:       []*avax.UTXO{},
+		"wrong number of UTXOs": {
+			utxos: []*avax.UTXO{},
 			ins: []*avax.TransferableInput{{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				In: &secp256k1fx.TransferInput{
@@ -142,12 +140,12 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
-			wantErr: errInputsUTXOSMismatch,
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errInputsUTXOSMismatch,
 		},
-		{
-			description: "invalid credential",
+		"invalid credential": {
 			utxos: []*avax.UTXO{{
 				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
@@ -164,33 +162,12 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				(*secp256k1fx.Credential)(nil),
 			},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
-			wantErr: errWrongCredentials,
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errWrongCredentials,
 		},
-		{
-			description: "one input, no outputs, positive fee",
-			utxos: []*avax.UTXO{{
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: 1,
-				},
-			}},
-			ins: []*avax.TransferableInput{{
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
-				In: &secp256k1fx.TransferInput{
-					Amt: 1,
-				},
-			}},
-			outs: []*avax.TransferableOutput{},
-			creds: []verify.Verifiable{
-				&secp256k1fx.Credential{},
-			},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
-		},
-		{
-			description: "one input, one output, positive fee",
+		"one input, one output, positive fee": {
 			utxos: []*avax.UTXO{
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -218,11 +195,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     1,
-			assetID: vm.ctx.AVAXAssetID,
+			appliedLockState: LockStateBonded,
+			fee:              1,
+			assetID:          vm.ctx.AVAXAssetID,
 		},
-		{
-			description: "one input, one output, zero fee",
+		"one input, one output, zero fee": {
 			utxos: []*avax.UTXO{
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -250,11 +227,11 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     0,
-			assetID: vm.ctx.AVAXAssetID,
+			appliedLockState: LockStateBonded,
+			fee:              0,
+			assetID:          vm.ctx.AVAXAssetID,
 		},
-		{
-			description: "UTXO state is locked but input state is unlocked",
+		"UTXO state is locked but input state is unlocked": {
 			utxos: []*avax.UTXO{
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -278,12 +255,12 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     0,
-			assetID: vm.ctx.AVAXAssetID,
-			wantErr: errLockedFundsNotMarkedAsLocked,
+			appliedLockState: LockStateBonded,
+			fee:              0,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errLockedFundsNotMarkedAsLocked,
 		},
-		{
-			description: "UTXO state has different locked state than the input",
+		"UTXO state has different locked state than the input": {
 			utxos: []*avax.UTXO{
 				{
 					Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
@@ -310,17 +287,18 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			creds: []verify.Verifiable{
 				&secp256k1fx.Credential{},
 			},
-			fee:     0,
-			assetID: vm.ctx.AVAXAssetID,
-			wantErr: errWrongLockState,
+			appliedLockState: LockStateBonded,
+			fee:              0,
+			assetID:          vm.ctx.AVAXAssetID,
+			wantErr:          errWrongLockState,
 		},
+		// TODO@ add test cases
 	}
 
-	for _, test := range tests {
+	for name, test := range tests {
 		vm.clock.Set(now)
 
-		t.Run(test.description, func(t *testing.T) {
-			assert := assert.New(t)
+		t.Run(name, func(t *testing.T) {
 			err := vm.semanticVerifySpendUTXOs(
 				&unsignedTx,
 				test.utxos,
@@ -331,7 +309,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 				test.fee,
 				test.assetID,
 			)
-			assert.ErrorIs(err, test.wantErr)
+			assert.ErrorIs(t, err, test.wantErr)
 		})
 	}
 }
@@ -584,33 +562,6 @@ func TestSpend(t *testing.T) {
 			},
 			msg: "Happy path bonding",
 		},
-		"Happy path bonding (different output order)": {
-			// In this test, spend function consumes the UTXOs with the given order,
-			// but the outputs should be sorted with ascending order (based on amount)
-			args: args{
-				totalAmountToSpend: 10,
-				totalAmountToBurn:  1,
-				appliedLockState:   LockStateBonded,
-			},
-			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{8, 8}, avaxAssetID, 10, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{9, 9}, avaxAssetID, 5, outputOwners, ids.Empty, ids.Empty),
-			},
-			generateWant: func(utxos []*avax.UTXO) want {
-				return want{
-					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(utxos[0], []uint32{0}),
-						generateTestInFromUTXO(utxos[1], []uint32{0}),
-					},
-					outs: []*avax.TransferableOutput{
-						generateTestOut(avaxAssetID, 4, outputOwners, ids.Empty, ids.Empty),
-						generateTestOut(avaxAssetID, 1, outputOwners, ids.Empty, thisTxID),
-						generateTestOut(avaxAssetID, 9, outputOwners, ids.Empty, thisTxID),
-					},
-				}
-			},
-			msg: "Happy path bonding (different output order)",
-		},
 		"Happy path bonding deposited amount": {
 			args: args{
 				totalAmountToSpend: 9,
@@ -635,33 +586,6 @@ func TestSpend(t *testing.T) {
 				}
 			},
 			msg: "Happy path bonding deposited amount",
-		},
-		"Happy path bonding deposited amount (different input order)": {
-			// In this test, spend function consumes the UTXOs with the given order,
-			// but the inputs should be sorted with ascending order (based on UTXO's TxID)
-			args: args{
-				totalAmountToSpend: 9,
-				totalAmountToBurn:  1,
-				appliedLockState:   LockStateBonded,
-			},
-			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{9, 9}, avaxAssetID, 5, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{8, 8}, avaxAssetID, 10, outputOwners, existingTxID, ids.Empty),
-			},
-			generateWant: func(utxos []*avax.UTXO) want {
-				return want{
-					ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(utxos[1], []uint32{0}),
-						generateTestInFromUTXO(utxos[0], []uint32{0}),
-					},
-					outs: []*avax.TransferableOutput{
-						generateTestOut(avaxAssetID, 4, outputOwners, ids.Empty, ids.Empty),
-						generateTestOut(avaxAssetID, 1, outputOwners, existingTxID, ids.Empty),
-						generateTestOut(avaxAssetID, 9, outputOwners, existingTxID, thisTxID),
-					},
-				}
-			},
-			msg: "Happy path bonding deposited amount (different input order)",
 		},
 		"Bonding already bonded amount": {
 			args: args{
@@ -769,9 +693,10 @@ func TestSpend(t *testing.T) {
 
 			internalState := NewMockInternalState(ctrl)
 			utxoIDs := []ids.ID{}
-			want := tt.generateWant(tt.utxos)
+			var want want
 			var expectedSigners [][]*crypto.PrivateKeySECP256K1R
-			if tt.expectError {
+			if !tt.expectError {
+				want = tt.generateWant(tt.utxos)
 				expectedSigners = make([][]*crypto.PrivateKeySECP256K1R, len(want.ins))
 				for i := range want.ins {
 					expectedSigners[i] = []*crypto.PrivateKeySECP256K1R{secpKey}
@@ -779,7 +704,6 @@ func TestSpend(t *testing.T) {
 			}
 
 			for _, utxo := range tt.utxos {
-				utxo := utxo
 				vm.internalState.AddUTXO(utxo)
 				utxoIDs = append(utxoIDs, utxo.InputID())
 				internalState.EXPECT().GetUTXO(utxo.InputID()).Return(vm.internalState.GetUTXO(utxo.InputID()))

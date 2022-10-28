@@ -473,6 +473,7 @@ func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners s
 }
 
 func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.TransferableInput {
+
 	var in avax.TransferableIn
 	switch out := utxo.Out.(type) {
 	case *secp256k1fx.TransferOutput:
@@ -492,6 +493,8 @@ func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.Transfer
 		panic("unknown utxo.Out type")
 	}
 
+	// to be sure that utxoid.id is set in both entities
+	utxo.InputID()
 	return &avax.TransferableInput{
 		UTXOID: utxo.UTXOID,
 		Asset:  utxo.Asset,

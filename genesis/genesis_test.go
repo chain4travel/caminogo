@@ -273,7 +273,7 @@ func TestGenesisFromFile(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "69e3d57dca311cb81f3feed74d1133ae465e99ac4c6beae94e9fc01a577c3f18",
+			expected:     "fea30daeb6ad4a0cd5a276052f2e68b7c7bd47421d9e2d5146550701b8bb17c8",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -352,7 +352,7 @@ func TestGenesisFromFlag(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "69e3d57dca311cb81f3feed74d1133ae465e99ac4c6beae94e9fc01a577c3f18",
+			expected:     "fea30daeb6ad4a0cd5a276052f2e68b7c7bd47421d9e2d5146550701b8bb17c8",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
