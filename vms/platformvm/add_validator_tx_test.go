@@ -97,7 +97,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 			},
 			outputs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, validatorBond/2-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, existingTxID, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
 				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, existingTxID, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1, 1},
@@ -110,10 +110,10 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 			},
 			outputs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
 			},
 			inputIndexes:  []uint32{0, 1},
-			expectedError: errWrongLockState,
+			expectedError: errLockingLockedUTXO,
 		},
 		"Fee burning bonded UTXO": {
 			utxos: []*avax.UTXO{
@@ -121,12 +121,12 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, validatorBond, outputOwners, ids.Empty, existingTxID),
 			},
 			outputs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, validatorBond/2-fee, outputOwners, ids.Empty, existingTxID),
-				generateTestOut(avaxAssetID, validatorBond/2, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond, outputOwners, ids.Empty, thisTxID),
+				generateTestOut(avaxAssetID, validatorBond-fee, outputOwners, ids.Empty, existingTxID),
 			},
-			inputIndexes:  []uint32{0, 1, 0},
-			expectedError: errWrongLockState,
+			inputIndexes: []uint32{0, 1, 0},
+			// fails, cause we using bonded utxo in tx that does bonding
+			expectedError: errLockingLockedUTXO,
 		},
 		"Fee burning deposited UTXO": {
 			utxos: []*avax.UTXO{
@@ -170,7 +170,7 @@ func TestAddValidatorTxExecuteBonding(t *testing.T) {
 
 			signers[len(signers)-1] = []*crypto.PrivateKeySECP256K1R{nodeKey}
 
-			// avax.SortTransferableOutputs(tt.outputs, Codec)
+			avax.SortTransferableOutputs(tt.outputs, Codec)
 			avax.SortTransferableInputsWithSigners(inputs, signers)
 
 			// Preparing tx
