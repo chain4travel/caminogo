@@ -26,7 +26,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.4
 	github.com/holiman/bloomfilter/v2 v2.0.3
 	github.com/huin/goupnp v1.0.3
-	github.com/jackpal/gateway v1.0.6
+	github.com/jackpal/gateway v1.0.7
 	github.com/jackpal/go-nat-pmp v1.0.2
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/mr-tron/base58 v1.2.0
