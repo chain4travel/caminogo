@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,10 +71,10 @@ func getPublicKey(t *testing.T, tlsCert *tls.Certificate) []byte {
 	var nodePrivateKey crypto.PrivateKey
 
 	rsaPrivateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
-	assert.True(t, ok)
+	require.True(t, ok)
 	secpPrivateKey := RsaPrivateKeyToSecp256PrivateKey(rsaPrivateKey)
 	nodePrivateKey, err := secp256Factory.ToPrivateKey(secpPrivateKey.Serialize())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return nodePrivateKey.PublicKey().Address().Bytes()
 }
 
