@@ -40,7 +40,8 @@ func (b *caminoBuilder) NewAddValidatorTx(
 		return nil, err
 	}
 
-	if !caminoGenesis.LockModeBondDeposit {
+	if !caminoGenesis.LockModeBondDeposit &&
+		!caminoGenesis.VerifyNodeSignature {
 		return b.builder.NewAddValidatorTx(
 			stakeAmount,
 			startTime,
@@ -53,7 +54,18 @@ func (b *caminoBuilder) NewAddValidatorTx(
 		)
 	}
 
-	ins, outs, signers, err := b.Lock(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, locked.StateBonded, changeAddr)
+	var (
+		utx             txs.UnsignedTx
+		signers         [][]*crypto.PrivateKeySECP256K1R
+		ins             []*avax.TransferableInput
+		outs, stakeOuts []*avax.TransferableOutput
+	)
+
+	if caminoGenesis.LockModeBondDeposit {
+		ins, outs, signers, err = b.Lock(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, locked.StateBonded, changeAddr)
+	} else {
+		ins, outs, stakeOuts, signers, err = b.Spend(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, changeAddr)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -66,7 +78,7 @@ func (b *caminoBuilder) NewAddValidatorTx(
 		signers = append(signers, nodeSigners)
 	}
 
-	utx := &txs.CaminoAddValidatorTx{
+	addValidatorTx := &txs.CaminoAddValidatorTx{
 		AddValidatorTx: txs.AddValidatorTx{
 			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 				NetworkID:    b.ctx.NetworkID,
@@ -80,6 +92,7 @@ func (b *caminoBuilder) NewAddValidatorTx(
 				End:    endTime,
 				Wght:   stakeAmount,
 			},
+			StakeOuts: stakeOuts,
 			RewardsOwner: &secp256k1fx.OutputOwners{
 				Locktime:  0,
 				Threshold: 1,
@@ -88,6 +101,13 @@ func (b *caminoBuilder) NewAddValidatorTx(
 			DelegationShares: shares,
 		},
 	}
+
+	if caminoGenesis.LockModeBondDeposit {
+		utx = addValidatorTx
+	} else {
+		utx = &addValidatorTx.AddValidatorTx
+	}
+
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {
 		return nil, err
