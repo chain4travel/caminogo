@@ -40,9 +40,8 @@ func (b *caminoBuilder) NewAddValidatorTx(
 		return nil, err
 	}
 
-	if !caminoGenesis.LockModeBondDeposit &&
-		!caminoGenesis.VerifyNodeSignature {
-		return b.builder.NewAddValidatorTx(
+	if !caminoGenesis.LockModeBondDeposit {
+		tx, err := b.builder.NewAddValidatorTx(
 			stakeAmount,
 			startTime,
 			endTime,
@@ -52,20 +51,29 @@ func (b *caminoBuilder) NewAddValidatorTx(
 			keys,
 			changeAddr,
 		)
+		if err != nil {
+			return nil, err
+		}
+
+		if caminoGenesis, err := b.builder.state.CaminoGenesisState(); err != nil {
+			return nil, err
+		} else if !caminoGenesis.VerifyNodeSignature {
+			return tx, nil
+		}
+
+		nodeSigners, err := getNodeSigners(keys, nodeID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := tx.Sign(txs.Codec, [][]*crypto.PrivateKeySECP256K1R{nodeSigners}); err != nil {
+			return nil, err
+		}
+
+		return tx, tx.SyntacticVerify(b.ctx)
 	}
 
-	var (
-		utx             txs.UnsignedTx
-		signers         [][]*crypto.PrivateKeySECP256K1R
-		ins             []*avax.TransferableInput
-		outs, stakeOuts []*avax.TransferableOutput
-	)
-
-	if caminoGenesis.LockModeBondDeposit {
-		ins, outs, signers, err = b.Lock(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, locked.StateBonded, changeAddr)
-	} else {
-		ins, outs, stakeOuts, signers, err = b.Spend(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, changeAddr)
-	}
+	ins, outs, signers, err := b.Lock(keys, stakeAmount, b.cfg.AddPrimaryNetworkValidatorFee, locked.StateBonded, changeAddr)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -78,7 +86,7 @@ func (b *caminoBuilder) NewAddValidatorTx(
 		signers = append(signers, nodeSigners)
 	}
 
-	addValidatorTx := &txs.CaminoAddValidatorTx{
+	utx := &txs.CaminoAddValidatorTx{
 		AddValidatorTx: txs.AddValidatorTx{
 			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 				NetworkID:    b.ctx.NetworkID,
@@ -92,7 +100,6 @@ func (b *caminoBuilder) NewAddValidatorTx(
 				End:    endTime,
 				Wght:   stakeAmount,
 			},
-			StakeOuts: stakeOuts,
 			RewardsOwner: &secp256k1fx.OutputOwners{
 				Locktime:  0,
 				Threshold: 1,
@@ -100,12 +107,6 @@ func (b *caminoBuilder) NewAddValidatorTx(
 			},
 			DelegationShares: shares,
 		},
-	}
-
-	if caminoGenesis.LockModeBondDeposit {
-		utx = addValidatorTx
-	} else {
-		utx = &addValidatorTx.AddValidatorTx
 	}
 
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
@@ -124,60 +125,34 @@ func (b *caminoBuilder) NewAddSubnetValidatorTx(
 	keys []*crypto.PrivateKeySECP256K1R,
 	changeAddr ids.ShortID,
 ) (*txs.Tx, error) {
+	tx, err := b.builder.NewAddSubnetValidatorTx(
+		weight,
+		startTime,
+		endTime,
+		nodeID,
+		subnetID,
+		keys,
+		changeAddr,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	if caminoGenesis, err := b.builder.state.CaminoGenesisState(); err != nil {
 		return nil, err
 	} else if !caminoGenesis.VerifyNodeSignature {
-		return b.builder.NewAddSubnetValidatorTx(
-			weight,
-			startTime,
-			endTime,
-			nodeID,
-			subnetID,
-			keys,
-			changeAddr,
-		)
+		return tx, nil
 	}
-
-	ins, outs, signers, err := b.Lock(keys, 0, b.cfg.TxFee, locked.StateUnlocked, changeAddr)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
-	subnetAuth, subnetSigners, err := b.Authorize(b.state, subnetID, keys)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't authorize tx's subnet restrictions: %w", err)
-	}
-	signers = append(signers, subnetSigners)
 
 	nodeSigners, err := getNodeSigners(keys, nodeID)
 	if err != nil {
 		return nil, err
 	}
-	signers = append(signers, nodeSigners)
 
-	// Create the tx
-	utx := &txs.AddSubnetValidatorTx{
-		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    b.ctx.NetworkID,
-			BlockchainID: b.ctx.ChainID,
-			Ins:          ins,
-			Outs:         outs,
-		}},
-		Validator: validator.SubnetValidator{
-			Validator: validator.Validator{
-				NodeID: nodeID,
-				Start:  startTime,
-				End:    endTime,
-				Wght:   weight,
-			},
-			Subnet: subnetID,
-		},
-		SubnetAuth: subnetAuth,
-	}
-	tx, err := txs.NewSigned(utx, txs.Codec, signers)
-	if err != nil {
+	if err := tx.Sign(txs.Codec, [][]*crypto.PrivateKeySECP256K1R{nodeSigners}); err != nil {
 		return nil, err
 	}
+
 	return tx, tx.SyntacticVerify(b.ctx)
 }
 
