@@ -17,20 +17,41 @@ import (
 )
 
 var (
-	_ CaminoBuilder = (*caminoBuilder)(nil)
+	_ Builder = (*caminoBuilder)(nil)
 
 	errNodeKeyMissing   = errors.New("couldn't find key matching nodeID")
 	errWrongNodeKeyType = errors.New("node key type isn't *crypto.PrivateKeySECP256K1R")
 )
 
-type CaminoBuilder interface {
-	Builder
+type Builder interface {
+	TxBuilder
+	CaminoTxBuilder
+}
+type CaminoTxBuilder interface {
 	NewAddAddressStateTx(
-		ids.ShortID, // address
-		bool, // remove
-		uint8, // state
-		[]*crypto.PrivateKeySECP256K1R,
-		ids.ShortID, // changeAddress
+		address ids.ShortID,
+		remove bool,
+		state uint8,
+		keys []*crypto.PrivateKeySECP256K1R,
+		changeAddr ids.ShortID,
+	) (*txs.Tx, error)
+
+	NewDepositTx(
+		amount uint64,
+		depositOfferID ids.ID,
+		rewardAddress ids.ShortID,
+		keys []*crypto.PrivateKeySECP256K1R,
+		changeAddr ids.ShortID,
+	) (*txs.Tx, error)
+
+	NewUnlockDepositTx(
+		lockTxIDs []ids.ID,
+		keys []*crypto.PrivateKeySECP256K1R,
+		changeAddr ids.ShortID,
+	) (*txs.Tx, error)
+
+	NewSystemUnlockDepositTx(
+		depositTxID ids.ID,
 	) (*txs.Tx, error)
 }
 
@@ -176,7 +197,7 @@ func (b *caminoBuilder) NewRewardValidatorTx(txID ids.ID) (*txs.Tx, error) {
 		return b.builder.NewRewardValidatorTx(txID)
 	}
 
-	ins, outs, err := b.Spender.Unlock(b.state, []ids.ID{txID}, locked.StateBonded)
+	ins, outs, err := b.Unlock(b.state, []ids.ID{txID}, locked.StateBonded)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
@@ -223,6 +244,94 @@ func (b *caminoBuilder) NewAddAddressStateTx(
 		return nil, err
 	}
 
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) NewDepositTx(
+	amount uint64,
+	depositOfferID ids.ID,
+	rewardAddress ids.ShortID,
+	keys []*crypto.PrivateKeySECP256K1R,
+	changeAddr ids.ShortID,
+) (*txs.Tx, error) {
+	ins, outs, signers, err := b.Lock(keys, amount, b.cfg.TxFee, locked.StateDeposited, changeAddr)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	utx := &txs.DepositTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		DepositOfferID: depositOfferID,
+		RewardsOwner: &secp256k1fx.OutputOwners{
+			Locktime:  0,
+			Threshold: 1,
+			Addrs:     []ids.ShortID{rewardAddress},
+		},
+	}
+
+	tx, err := txs.NewSigned(utx, txs.Codec, signers)
+	if err != nil {
+		return nil, err
+	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) NewUnlockDepositTx(
+	lockTxIDs []ids.ID,
+	keys []*crypto.PrivateKeySECP256K1R,
+	changeAddr ids.ShortID,
+) (*txs.Tx, error) {
+	var ins []*avax.TransferableInput
+	var outs []*avax.TransferableOutput
+	var signers [][]*crypto.PrivateKeySECP256K1R
+
+	ins, outs, signers, err := b.UnlockWithKeys(b.state, keys, lockTxIDs, locked.StateDeposited)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	utx := &txs.UnlockDepositTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+	}
+
+	tx, err := txs.NewSigned(utx, txs.Codec, signers)
+	if err != nil {
+		return nil, err
+	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) NewSystemUnlockDepositTx(
+	depositTxID ids.ID,
+) (*txs.Tx, error) {
+	ins, outs, err := b.Unlock(b.state, []ids.ID{depositTxID}, locked.StateDeposited)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	utx := &txs.UnlockDepositTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+	}
+
+	tx, err := txs.NewSigned(utx, txs.Codec, nil)
+	if err != nil {
+		return nil, err
+	}
 	return tx, tx.SyntacticVerify(b.ctx)
 }
 

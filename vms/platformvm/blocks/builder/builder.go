@@ -1,3 +1,13 @@
+// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
 // Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
@@ -193,19 +203,19 @@ func (b *builder) buildBlock() (blocks.Block, error) {
 	}
 	// [timestamp] = max(now, parentTime)
 
-	nextStakerChangeTime, err := txexecutor.GetNextStakerChangeTime(preferredState)
+	nextChainEventTime, err := txexecutor.GetNextChainEventTime(preferredState)
 	if err != nil {
 		return nil, fmt.Errorf("could not calculate next staker change time: %w", err)
 	}
 
 	// timeWasCapped means that [timestamp] was reduced to
-	// [nextStakerChangeTime]. It is used as a flag for [buildApricotBlock] to
+	// [nextChainEventTime]. It is used as a flag for [buildApricotBlock] to
 	// be willing to issue an advanceTimeTx. It is also used as a flag for
 	// [buildBanffBlock] to force the issuance of an empty block to advance
 	// the time forward; if there are no available transactions.
-	timeWasCapped := !timestamp.Before(nextStakerChangeTime)
+	timeWasCapped := !timestamp.Before(nextChainEventTime)
 	if timeWasCapped {
-		timestamp = nextStakerChangeTime
+		timestamp = nextChainEventTime
 	}
 	// [timestamp] = min(max(now, parentTime), nextStakerChangeTime)
 
@@ -274,7 +284,7 @@ func (b *builder) getNextStakerToReward(
 // (i.e. within local time plus [MaxFutureStartFrom]).
 func (b *builder) dropExpiredStakerTxs(timestamp time.Time) {
 	minStartTime := timestamp.Add(txexecutor.SyncBound)
-	for b.Mempool.HasStakerTx() {
+	for b.Mempool.HasStakerTx() { // TODO@ staker txs / add address state tx WRONG ?
 		tx := b.Mempool.PeekStakerTx()
 		startTime := tx.Unsigned.(txs.Staker).StartTime()
 		if !startTime.Before(minStartTime) {
@@ -331,9 +341,9 @@ func (b *builder) setNextBuildBlockTime() {
 		return
 	}
 
-	nextStakerChangeTime, err := txexecutor.GetNextStakerChangeTime(preferredState)
+	nextChainEventTime, err := txexecutor.GetNextChainEventTime(preferredState)
 	if err != nil {
-		ctx.Log.Error("couldn't get next staker change time",
+		ctx.Log.Error("couldn't get next chain event time",
 			zap.Stringer("preferredID", b.preferredBlockID),
 			zap.Stringer("lastAcceptedID", b.blkManager.LastAccepted()),
 			zap.Error(err),
@@ -342,9 +352,9 @@ func (b *builder) setNextBuildBlockTime() {
 	}
 
 	now := b.txExecutorBackend.Clk.Time()
-	waitTime := nextStakerChangeTime.Sub(now)
+	waitTime := nextChainEventTime.Sub(now)
 	ctx.Log.Debug("setting next scheduled event",
-		zap.Time("nextEventTime", nextStakerChangeTime),
+		zap.Time("nextEventTime", nextChainEventTime),
 		zap.Duration("timeUntil", waitTime),
 	)
 
@@ -389,6 +399,25 @@ func buildBlock(
 			parentID,
 			height,
 			rewardValidatorTx,
+		)
+	}
+
+	// TODO@ array of deposits with equal timestamp
+	depositTxID, shouldUnlock, err := builder.getNextDepositToUnlock(timestamp, parentState)
+	if err != nil {
+		return nil, fmt.Errorf("could not find next staker to reward: %w", err)
+	}
+	if shouldUnlock {
+		unlockDepositTx, err := builder.txBuilder.NewSystemUnlockDepositTx(depositTxID)
+		if err != nil {
+			return nil, fmt.Errorf("could not build tx to unlock deposit: %w", err)
+		}
+
+		return blocks.NewBanffStandardBlock(
+			timestamp,
+			parentID,
+			height,
+			[]*txs.Tx{unlockDepositTx},
 		)
 	}
 

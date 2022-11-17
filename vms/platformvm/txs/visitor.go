@@ -29,4 +29,6 @@ type Visitor interface {
 	AddPermissionlessValidatorTx(*AddPermissionlessValidatorTx) error
 	AddPermissionlessDelegatorTx(*AddPermissionlessDelegatorTx) error
 	AddAddressStateTx(*AddAddressStateTx) error
+	DepositTx(*DepositTx) error
+	UnlockDepositTx(*UnlockDepositTx) error
 }

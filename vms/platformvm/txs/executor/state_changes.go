@@ -22,25 +22,25 @@ var (
 
 // VerifyNewChainTime returns nil if the [newChainTime] is a valid chain time
 // given the wall clock time ([now]) and when the next staking set change occurs
-// ([nextStakerChangeTime]).
+// ([nextChainEventTime]).
 // Requires:
-//   - [newChainTime] <= [nextStakerChangeTime]: so that no staking set changes
+//   - [newChainTime] <= [nextChainEventTime]: so that no chain events
 //     are skipped.
 //   - [newChainTime] <= [now] + [SyncBound]: to ensure chain time approximates
 //     "real" time.
 func VerifyNewChainTime(
 	newChainTime,
-	nextStakerChangeTime,
+	nextChainEventTime,
 	now time.Time,
 ) error {
 	// Only allow timestamp to move as far forward as the time of the next
 	// staker set change
-	if newChainTime.After(nextStakerChangeTime) {
+	if newChainTime.After(nextChainEventTime) {
 		return fmt.Errorf(
-			"%w, proposed timestamp (%s), next staker change time (%s)",
+			"%w, proposed timestamp (%s), next chain event time (%s)",
 			errChildBlockAfterStakerChangeTime,
 			newChainTime,
-			nextStakerChangeTime,
+			nextChainEventTime,
 		)
 	}
 

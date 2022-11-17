@@ -40,6 +40,21 @@ func (m *MockBuilder) EXPECT() *MockBuilderMockRecorder {
 	return m.recorder
 }
 
+// NewAddAddressStateTx mocks base method.
+func (m *MockBuilder) NewAddAddressStateTx(arg0 ids.ShortID, arg1 bool, arg2 byte, arg3 []*crypto.PrivateKeySECP256K1R, arg4 ids.ShortID) (*txs.Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAddAddressStateTx", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(*txs.Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAddAddressStateTx indicates an expected call of NewAddAddressStateTx.
+func (mr *MockBuilderMockRecorder) NewAddAddressStateTx(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAddAddressStateTx", reflect.TypeOf((*MockBuilder)(nil).NewAddAddressStateTx), arg0, arg1, arg2, arg3, arg4)
+}
+
 // NewAddDelegatorTx mocks base method.
 func (m *MockBuilder) NewAddDelegatorTx(arg0, arg1, arg2 uint64, arg3 ids.NodeID, arg4 ids.ShortID, arg5 []*crypto.PrivateKeySECP256K1R, arg6 ids.ShortID) (*txs.Tx, error) {
 	m.ctrl.T.Helper()
@@ -130,6 +145,21 @@ func (mr *MockBuilderMockRecorder) NewCreateSubnetTx(arg0, arg1, arg2, arg3 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewCreateSubnetTx", reflect.TypeOf((*MockBuilder)(nil).NewCreateSubnetTx), arg0, arg1, arg2, arg3)
 }
 
+// NewDepositTx mocks base method.
+func (m *MockBuilder) NewDepositTx(arg0 uint64, arg1 ids.ID, arg2 ids.ShortID, arg3 []*crypto.PrivateKeySECP256K1R, arg4 ids.ShortID) (*txs.Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewDepositTx", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(*txs.Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewDepositTx indicates an expected call of NewDepositTx.
+func (mr *MockBuilderMockRecorder) NewDepositTx(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewDepositTx", reflect.TypeOf((*MockBuilder)(nil).NewDepositTx), arg0, arg1, arg2, arg3, arg4)
+}
+
 // NewExportTx mocks base method.
 func (m *MockBuilder) NewExportTx(arg0 uint64, arg1 ids.ID, arg2 ids.ShortID, arg3 []*crypto.PrivateKeySECP256K1R, arg4 ids.ShortID) (*txs.Tx, error) {
 	m.ctrl.T.Helper()
@@ -188,4 +218,34 @@ func (m *MockBuilder) NewRewardValidatorTx(arg0 ids.ID) (*txs.Tx, error) {
 func (mr *MockBuilderMockRecorder) NewRewardValidatorTx(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewRewardValidatorTx", reflect.TypeOf((*MockBuilder)(nil).NewRewardValidatorTx), arg0)
+}
+
+// NewSystemUnlockDepositTx mocks base method.
+func (m *MockBuilder) NewSystemUnlockDepositTx(arg0 ids.ID) (*txs.Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSystemUnlockDepositTx", arg0)
+	ret0, _ := ret[0].(*txs.Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSystemUnlockDepositTx indicates an expected call of NewSystemUnlockDepositTx.
+func (mr *MockBuilderMockRecorder) NewSystemUnlockDepositTx(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSystemUnlockDepositTx", reflect.TypeOf((*MockBuilder)(nil).NewSystemUnlockDepositTx), arg0)
+}
+
+// NewUnlockDepositTx mocks base method.
+func (m *MockBuilder) NewUnlockDepositTx(arg0 []ids.ID, arg1 []*crypto.PrivateKeySECP256K1R, arg2 ids.ShortID) (*txs.Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewUnlockDepositTx", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*txs.Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewUnlockDepositTx indicates an expected call of NewUnlockDepositTx.
+func (mr *MockBuilderMockRecorder) NewUnlockDepositTx(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewUnlockDepositTx", reflect.TypeOf((*MockBuilder)(nil).NewUnlockDepositTx), arg0, arg1, arg2)
 }

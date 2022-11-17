@@ -72,7 +72,7 @@ func newCaminoEnvironment(postBanff bool, caminoGenesisConf genesis.Camino) *env
 
 	atomicUTXOs := avax.NewAtomicUTXOManager(ctx.SharedMemory, txs.Codec)
 	uptimes := uptime.NewManager(baseState)
-	utxoHandler := utxo.NewHandler(ctx, &clk, baseState, fx)
+	utxoHandler := utxo.NewHandler(ctx, &config, &clk, baseState, fx)
 
 	txBuilder := builder.New(
 		ctx,

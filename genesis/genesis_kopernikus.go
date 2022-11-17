@@ -40,7 +40,8 @@ var (
 				SupplyCap:          1000 * units.MegaAvax,
 			},
 			CaminoConfig: config.CaminoConfig{
-				DaoProposalBondAmount: 100 * units.Avax,
+				DaoProposalBondAmount:     100 * units.Avax,
+				GradualUnlockHalfDuration: 30 * time.Second,
 			},
 		},
 	}

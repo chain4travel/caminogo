@@ -3,6 +3,9 @@
 
 package config
 
+import "time"
+
 type CaminoConfig struct {
-	DaoProposalBondAmount uint64
+	DaoProposalBondAmount     uint64
+	GradualUnlockHalfDuration time.Duration
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
@@ -69,6 +70,7 @@ func Produce(
 }
 
 // TODO: Stake and Authorize should be replaced by similar methods in the
+//
 //	P-chain wallet
 type Spender interface {
 	// Spend the provided amount while deducting the provided fee.
@@ -131,6 +133,7 @@ type Spender interface {
 		error,
 	)
 
+	SystemUnlocker
 	Unlocker
 }
 
@@ -195,7 +198,17 @@ type Verifier interface {
 		appliedLockState locked.State,
 	) error
 
-	Unlocker
+	VerifyUnlockDeposit(
+		state state.Chain,
+		tx txs.UnsignedTx,
+		ins []*avax.TransferableInput,
+		outs []*avax.TransferableOutput,
+		creds []verify.Verifiable,
+		burnedAmount uint64,
+		assetID ids.ID,
+	) error
+
+	SystemUnlocker
 }
 
 type Handler interface {
@@ -205,12 +218,14 @@ type Handler interface {
 
 func NewHandler(
 	ctx *snow.Context,
+	config *config.Config,
 	clk *mockable.Clock,
 	utxoReader avax.UTXOReader,
 	fx fx.Fx,
 ) Handler {
 	return &handler{
 		ctx:         ctx,
+		config:      config,
 		clk:         clk,
 		utxosReader: utxoReader,
 		fx:          fx,
@@ -218,6 +233,7 @@ func NewHandler(
 }
 
 type handler struct {
+	config      *config.Config
 	ctx         *snow.Context
 	clk         *mockable.Clock
 	utxosReader avax.UTXOReader

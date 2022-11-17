@@ -71,6 +71,18 @@ func (mr *MockStateMockRecorder) AddChain(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddChain", reflect.TypeOf((*MockState)(nil).AddChain), arg0)
 }
 
+// AddDepositOffer mocks base method.
+func (m *MockState) AddDepositOffer(arg0 *DepositOffer) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddDepositOffer", arg0)
+}
+
+// AddDepositOffer indicates an expected call of AddDepositOffer.
+func (mr *MockStateMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDepositOffer", reflect.TypeOf((*MockState)(nil).AddDepositOffer), arg0)
+}
+
 // AddRewardUTXO mocks base method.
 func (m *MockState) AddRewardUTXO(arg0 ids.ID, arg1 *avax.UTXO) {
 	m.ctrl.T.Helper()
@@ -276,6 +288,21 @@ func (mr *MockStateMockRecorder) GetAddressStates(arg0 interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddressStates", reflect.TypeOf((*MockState)(nil).GetAddressStates), arg0)
 }
 
+// GetAllDepositOffers mocks base method.
+func (m *MockState) GetAllDepositOffers() ([]*DepositOffer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllDepositOffers")
+	ret0, _ := ret[0].([]*DepositOffer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllDepositOffers indicates an expected call of GetAllDepositOffers.
+func (mr *MockStateMockRecorder) GetAllDepositOffers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDepositOffers", reflect.TypeOf((*MockState)(nil).GetAllDepositOffers))
+}
+
 // GetChains mocks base method.
 func (m *MockState) GetChains(arg0 ids.ID) ([]*txs.Tx, error) {
 	m.ctrl.T.Helper()
@@ -349,6 +376,36 @@ func (m *MockState) GetCurrentValidator(arg0 ids.ID, arg1 ids.NodeID) (*Staker, 
 func (mr *MockStateMockRecorder) GetCurrentValidator(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentValidator", reflect.TypeOf((*MockState)(nil).GetCurrentValidator), arg0, arg1)
+}
+
+// GetDeposit mocks base method.
+func (m *MockState) GetDeposit(arg0 ids.ID) (*Deposit, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDeposit", arg0)
+	ret0, _ := ret[0].(*Deposit)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDeposit indicates an expected call of GetDeposit.
+func (mr *MockStateMockRecorder) GetDeposit(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeposit", reflect.TypeOf((*MockState)(nil).GetDeposit), arg0)
+}
+
+// GetDepositOffer mocks base method.
+func (m *MockState) GetDepositOffer(arg0 ids.ID) (*DepositOffer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDepositOffer", arg0)
+	ret0, _ := ret[0].(*DepositOffer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDepositOffer indicates an expected call of GetDepositOffer.
+func (mr *MockStateMockRecorder) GetDepositOffer(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDepositOffer", reflect.TypeOf((*MockState)(nil).GetDepositOffer), arg0)
 }
 
 // GetLastAccepted mocks base method.
@@ -712,6 +769,18 @@ func (m *MockState) UTXOIDs(arg0 []byte, arg1 ids.ID, arg2 int) ([]ids.ID, error
 func (mr *MockStateMockRecorder) UTXOIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UTXOIDs", reflect.TypeOf((*MockState)(nil).UTXOIDs), arg0, arg1, arg2)
+}
+
+// UpdateDeposit mocks base method.
+func (m *MockState) UpdateDeposit(arg0 ids.ID, arg1 *Deposit) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateDeposit", arg0, arg1)
+}
+
+// UpdateDeposit indicates an expected call of UpdateDeposit.
+func (mr *MockStateMockRecorder) UpdateDeposit(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeposit", reflect.TypeOf((*MockState)(nil).UpdateDeposit), arg0, arg1)
 }
 
 // ValidatorSet mocks base method.

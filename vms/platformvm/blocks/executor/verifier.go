@@ -265,7 +265,7 @@ func (v *verifier) banffNonOptionBlock(b blocks.BanffBlock) error {
 		)
 	}
 
-	nextStakerChangeTime, err := executor.GetNextStakerChangeTime(parentState)
+	nextChainEventTime, err := executor.GetNextChainEventTime(parentState)
 	if err != nil {
 		return fmt.Errorf("could not verify block timestamp: %w", err)
 	}
@@ -273,7 +273,7 @@ func (v *verifier) banffNonOptionBlock(b blocks.BanffBlock) error {
 	now := v.txExecutorBackend.Clk.Time()
 	return executor.VerifyNewChainTime(
 		newChainTime,
-		nextStakerChangeTime,
+		nextChainEventTime,
 		now,
 	)
 }

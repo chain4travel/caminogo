@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -31,6 +32,10 @@ var (
 	errInvalidRoles         = errors.New("invalid role")
 	errValidatorExists      = errors.New("node is already a validator")
 	errInvalidSystemTxBody  = errors.New("tx body doesn't match expected one")
+	errDepositOfferNotFound     = errors.New("deposit offer not found")
+	errDepositOfferNotActiveYet = errors.New("deposit offer not active yet")
+	errDepositOfferInactive     = errors.New("deposit offer inactive")
+	errDepositToSmall           = errors.New("deposit amount is less than deposit offer minmum amount")
 )
 
 type CaminoStandardTxExecutor struct {
@@ -438,6 +443,109 @@ func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) 
 	return nil
 }
 
+func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
+	caminoGenesis, err := e.State.CaminoGenesisState()
+	if err != nil {
+		return err
+	}
+
+	if !caminoGenesis.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
+	if err := locked.VerifyLockMode(tx.Ins, tx.Outs, caminoGenesis.LockModeBondDeposit); err != nil {
+		return err
+	}
+
+	depositAmount, err := tx.DepositAmount()
+	if err != nil {
+		return err
+	}
+
+	depositOffer, err := e.State.GetDepositOffer(tx.DepositOfferID)
+	if err != nil {
+		return err
+	}
+
+	currentTimestamp := e.State.GetTimestamp()
+
+	switch {
+	case depositOffer == nil:
+		return errDepositOfferNotFound
+	case depositOffer.StartTime().Before(currentTimestamp):
+		return errDepositOfferNotActiveYet
+	case depositOffer.EndTime().After(currentTimestamp):
+		return errDepositOfferInactive
+	case depositOffer.MinAmount > depositAmount:
+		return errDepositToSmall
+	}
+
+	if err := e.FlowChecker.VerifyLock(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds,
+		e.Config.TxFee,
+		e.Ctx.AVAXAssetID,
+		locked.StateDeposited,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
+	}
+
+	txID := e.Tx.ID()
+
+	e.State.UpdateDeposit(txID, &state.Deposit{
+		DepositOfferID: tx.DepositOfferID,
+		Start:          0, // TODO@ start time ? in tx body ?
+	})
+
+	utxo.Consume(e.State, tx.Ins)
+	if err := utxo.ProduceLocked(e.State, txID, tx.Outs, locked.StateDeposited); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) error {
+	caminoGenesis, err := e.State.CaminoGenesisState()
+	if err != nil {
+		return err
+	}
+
+	if !caminoGenesis.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
+	if err := locked.VerifyLockMode(tx.Ins, tx.Outs, caminoGenesis.LockModeBondDeposit); err != nil {
+		return err
+	}
+
+	if err := e.FlowChecker.VerifyUnlockDeposit(
+		e.State,
+		tx,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds,
+		e.Config.TxFee,
+		e.Ctx.AVAXAssetID,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
+	}
+
+	// TODO@ state changes
+
+	txID := e.Tx.ID()
+
+	utxo.Consume(e.State, tx.Ins)
+	if err := utxo.ProduceLocked(e.State, txID, tx.Outs, locked.StateDeposited); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func removeCreds(tx *txs.Tx, num int) []verify.Verifiable {
 	newCredsLen := len(tx.Creds) - num
 	removedCreds := tx.Creds[newCredsLen:len(tx.Creds)]
@@ -536,4 +644,20 @@ func verifyAccess(roles, statesBit uint64) error {
 		return errInvalidRoles
 	}
 	return nil
+}
+
+func GetNextChainEventTime(state state.Chain) (time.Time, error) {
+	stakerEventTime, err := GetNextStakerChangeTime(state)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var depositUnlockTime time.Time
+	// TODO@ get next deposit unlock time
+
+	if stakerEventTime.Before(depositUnlockTime) {
+		return stakerEventTime, nil
+	}
+
+	return depositUnlockTime, nil
 }

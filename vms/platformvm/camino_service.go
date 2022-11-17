@@ -4,7 +4,6 @@
 package platformvm
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -17,12 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/keystore"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 var (
-	errNotCaminoBuilder  = errors.New("tx builder must provide CaminoBuilder interface")
 	errSerializeTx       = "couldn't serialize TX: %w"
 	errEncodeTx          = "couldn't encode TX as string: %w"
 	errInvalidChangeAddr = "couldn't parse changeAddr: %w"
@@ -224,13 +221,8 @@ func (service *Service) buildAddressStateTx(args *SetAddressStateArgs, keys *sec
 		return nil, fmt.Errorf("couldn't parse param Address: %w", err)
 	}
 
-	builder, ok := service.vm.txBuilder.(builder.CaminoBuilder)
-	if !ok {
-		return nil, errNotCaminoBuilder
-	}
-
 	// Create the transaction
-	tx, err := builder.NewAddAddressStateTx(
+	tx, err := service.vm.txBuilder.NewAddAddressStateTx(
 		targetAddr,  // Address to change state
 		args.Remove, // Add or remove State
 		args.State,  // The state to change

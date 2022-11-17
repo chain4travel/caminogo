@@ -100,7 +100,7 @@ func newCaminoBuilder(postBanff bool, caminoGenesisConf genesis.Camino) Builder 
 	baseState := defaultCaminoState(&config, ctx, baseDB, rewards, caminoGenesisConf)
 
 	atomicUTXOs := avax.NewAtomicUTXOManager(ctx.SharedMemory, txs.Codec)
-	utxoHandler := utxo.NewHandler(ctx, &clk, baseState, fx)
+	utxoHandler := utxo.NewHandler(ctx, &config, &clk, baseState, fx)
 
 	txBuilder := New(
 		ctx,
