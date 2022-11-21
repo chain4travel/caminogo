@@ -4,7 +4,7 @@
 package executor
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -17,6 +17,11 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	errWrongInType  = errors.New("wrong input type")
+	errWrongOutType = errors.New("wrong output type")
 )
 
 func TestCaminoExportLockedInsOrLockedOuts(t *testing.T) {
@@ -50,26 +55,6 @@ func TestCaminoExportLockedInsOrLockedOuts(t *testing.T) {
 			nodeID:      nodeID,
 			nodeKey:     nodeKey,
 			expectedErr: nil,
-		},
-		{
-			name: "Locked out - LockModeBondDeposit: false",
-			caminoConfig: genesis.Camino{
-				VerifyNodeSignature: true,
-				LockModeBondDeposit: false,
-			},
-			nodeID:      nodeID,
-			nodeKey:     nodeKey,
-			expectedErr: errNodeSignatureMissing,
-		},
-		{
-			name: "Locked in - LockModeBondDeposit: false",
-			caminoConfig: genesis.Camino{
-				VerifyNodeSignature: true,
-				LockModeBondDeposit: false,
-			},
-			nodeID:      nodeID,
-			nodeKey:     nodeKey,
-			expectedErr: errNodeSignatureMissing,
 		},
 	}
 
@@ -119,7 +104,6 @@ func TestCaminoExportLockedInsOrLockedOuts(t *testing.T) {
 					generateTestOut(env.ctx.AVAXAssetID, defaultMinValidatorStake-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 				},
 			}
-			// tx := &txs.Tx{UnsignedTx: utx}
 
 			tx, err := txs.NewSigned(utx, txs.Codec, signers)
 			require.NoError(t, err)
@@ -136,7 +120,7 @@ func TestCaminoExportLockedInsOrLockedOuts(t *testing.T) {
 			}
 
 			err = executor.ExportTx(utx)
-			fmt.Println("err : ", err)
+			require.True(t, err.Error() == errWrongOutType.Error())
 		})
 	}
 }
