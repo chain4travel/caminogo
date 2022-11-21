@@ -4,6 +4,7 @@
 package executor
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -22,6 +23,11 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+)
+
+var (
+	errWrongInType  = errors.New("wrong input type")
+	errWrongOutType = errors.New("wrong output type")
 )
 
 func TestCaminoEnv(t *testing.T) {
@@ -544,6 +550,131 @@ func TestCaminoAddValidatorTxNodeSig(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&executor)
 			require.ErrorIs(t, err, tt.expectedErr)
+		})
+	}
+}
+
+func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
+	caminoConfig := genesis.Camino{
+		VerifyNodeSignature: true,
+		LockModeBondDeposit: true,
+	}
+
+	env := newCaminoEnvironment( /*postBanff*/ true, caminoConfig)
+	env.ctx.Lock.Lock()
+	defer func() {
+		err := shutdownEnvironment(env)
+		require.NoError(t, err)
+	}()
+	env.config.BanffTime = env.state.GetTimestamp()
+
+	outputOwners := secp256k1fx.OutputOwners{
+		Locktime:  0,
+		Threshold: 1,
+		Addrs:     []ids.ShortID{caminoPreFundedKeys[0].PublicKey().Address()},
+	}
+	sigIndices := []uint32{0}
+
+	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
+
+	signers := [][]*crypto.PrivateKeySECP256K1R{{caminoPreFundedKeys[0]}}
+	signers[len(signers)-1] = []*crypto.PrivateKeySECP256K1R{nodeKey}
+
+	type test struct {
+		name        string
+		nodeID      ids.NodeID
+		nodeKey     *crypto.PrivateKeySECP256K1R
+		outs        []*avax.TransferableOutput
+		ins         []*avax.TransferableInput
+		expectedErr error
+	}
+
+	tests := []test{
+		{
+			name:    "Locked out - LockModeBondDeposit: true",
+			nodeID:  nodeID,
+			nodeKey: nodeKey,
+			outs: []*avax.TransferableOutput{
+				generateTestOut(env.ctx.AVAXAssetID, 10, outputOwners, ids.Empty, ids.GenerateTestID()),
+			},
+			ins:         []*avax.TransferableInput{},
+			expectedErr: errWrongOutType,
+		},
+		{
+			name:    "Locked in - LockModeBondDeposit: true",
+			nodeID:  nodeID,
+			nodeKey: nodeKey,
+			outs:    []*avax.TransferableOutput{},
+			ins: []*avax.TransferableInput{
+				generateTestIn(env.ctx.AVAXAssetID, 10, ids.GenerateTestID(), ids.Empty, sigIndices),
+			},
+			expectedErr: errWrongInType,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			utx := &txs.ExportTx{
+				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    env.ctx.NetworkID,
+					BlockchainID: env.ctx.ChainID,
+					Ins:          tt.ins,
+					Outs:         tt.outs,
+				}},
+				DestinationChain: env.ctx.XChainID,
+				ExportedOutputs: []*avax.TransferableOutput{
+					generateTestOut(env.ctx.AVAXAssetID, defaultMinValidatorStake-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				},
+			}
+
+			tx, err := txs.NewSigned(utx, txs.Codec, signers)
+			require.NoError(t, err)
+
+			onAcceptState, err := state.NewDiff(lastAcceptedID, env)
+			require.NoError(t, err)
+
+			executor := CaminoStandardTxExecutor{
+				StandardTxExecutor{
+					Backend: &env.backend,
+					State:   onAcceptState,
+					Tx:      tx,
+				},
+			}
+
+			err = executor.ExportTx(utx)
+			require.True(t, err.Error() == tt.expectedErr.Error())
+		})
+
+		t.Run(tt.name, func(t *testing.T) {
+			utx := &txs.ImportTx{
+				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    env.ctx.NetworkID,
+					BlockchainID: env.ctx.ChainID,
+					Ins:          tt.ins,
+					Outs:         tt.outs,
+				}},
+				SourceChain: env.ctx.XChainID,
+				ImportedInputs: []*avax.TransferableInput{
+					generateTestIn(env.ctx.AVAXAssetID, 10, ids.GenerateTestID(), ids.Empty, sigIndices),
+				},
+			}
+
+			tx, err := txs.NewSigned(utx, txs.Codec, signers)
+			require.NoError(t, err)
+
+			onAcceptState, err := state.NewDiff(lastAcceptedID, env)
+			require.NoError(t, err)
+
+			executor := CaminoStandardTxExecutor{
+				StandardTxExecutor{
+					Backend: &env.backend,
+					State:   onAcceptState,
+					Tx:      tx,
+				},
+			}
+
+			err = executor.ImportTx(utx)
+			require.True(t, err.Error() == tt.expectedErr.Error())
 		})
 	}
 }

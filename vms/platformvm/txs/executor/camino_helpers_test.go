@@ -330,6 +330,28 @@ func generateTestOut(assetID ids.ID, amount uint64, outputOwners secp256k1fx.Out
 	}
 }
 
+func generateTestIn(assetID ids.ID, amount uint64, depositTxID, bondTxID ids.ID, sigIndices []uint32) *avax.TransferableInput {
+	var in avax.TransferableIn = &secp256k1fx.TransferInput{
+		Amt: amount,
+		Input: secp256k1fx.Input{
+			SigIndices: sigIndices,
+		},
+	}
+	if depositTxID != ids.Empty || bondTxID != ids.Empty {
+		in = &locked.In{
+			IDs: locked.IDs{
+				DepositTxID: depositTxID,
+				BondTxID:    bondTxID,
+			},
+			TransferableIn: in,
+		}
+	}
+	return &avax.TransferableInput{
+		Asset: avax.Asset{ID: assetID},
+		In:    in,
+	}
+}
+
 func generateTestStakeableOut(assetID ids.ID, amount, locktime uint64, outputOwners secp256k1fx.OutputOwners) *avax.TransferableOutput {
 	return &avax.TransferableOutput{
 		Asset: avax.Asset{ID: assetID},
