@@ -9,6 +9,7 @@ import (
 )
 
 type UTXOGetter interface {
+	CaminoMultisigUTXO
 	GetUTXO(utxoID ids.ID) (*avax.UTXO, error)
 }
 

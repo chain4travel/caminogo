@@ -51,12 +51,16 @@ func TestVerifySpendUTXOsWithLocked(t *testing.T) {
 		ins             []*avax.TransferableInput
 		outs            []*avax.TransferableOutput
 		creds           []verify.Verifiable
+		signs           []verify.State
 		producedAmounts map[ids.ID]uint64
 		expectErr       bool
 	}{
 		"ok": {
 			utxos: []*avax.UTXO{
 				generateTestUTXO(ids.ID{1}, assetID, 10, outputOwners, ids.Empty, ids.Empty),
+			},
+			signs: []verify.State{
+				generateTestUTXO(ids.ID{1}, assetID, 10, outputOwners, ids.Empty, ids.Empty).Out,
 			},
 			ins: []*avax.TransferableInput{
 				generateTestIn(assetID, 10, ids.Empty, ids.Empty, sigIndices),
@@ -71,6 +75,9 @@ func TestVerifySpendUTXOsWithLocked(t *testing.T) {
 		"utxos have locked.Out": {
 			utxos: []*avax.UTXO{
 				generateTestUTXO(ids.ID{1}, assetID, 10, outputOwners, lockTxID, ids.Empty),
+			},
+			signs: []verify.State{
+				generateTestUTXO(ids.ID{1}, assetID, 10, outputOwners, lockTxID, ids.Empty).Out,
 			},
 			ins: []*avax.TransferableInput{
 				generateTestIn(assetID, 10, ids.Empty, ids.Empty, sigIndices),
@@ -92,6 +99,7 @@ func TestVerifySpendUTXOsWithLocked(t *testing.T) {
 				test.ins,
 				test.outs,
 				test.creds,
+				test.signs,
 				test.producedAmounts,
 			)
 			require.True(t, test.expectErr == (err != nil))

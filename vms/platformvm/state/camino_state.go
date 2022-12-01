@@ -4,6 +4,7 @@
 package state
 
 import (
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -57,4 +58,16 @@ func (s *state) GetDepositOffer(offerID ids.ID) (*DepositOffer, error) {
 
 func (s *state) GetAllDepositOffers() ([]*DepositOffer, error) {
 	return s.caminoState.GetAllDepositOffers()
+}
+
+func (s *state) SetMultisigOwner(owner *MultisigOwner) {
+	s.caminoState.SetMultisigOwner(owner)
+}
+
+func (s *state) GetMultisigOwner(alias ids.ShortID) (*MultisigOwner, error) {
+	return s.caminoState.GetMultisigOwner(alias)
+}
+
+func (s *state) GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, error) {
+	return s.caminoState.GetMultisigUTXOSigners(utxo)
 }

@@ -138,12 +138,17 @@ func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 		}
 
 		utxos := make([]*avax.UTXO, len(tx.Ins)+len(tx.ImportedInputs))
+		signers := make([]verify.State, len(tx.Ins)+len(tx.ImportedInputs))
 		for index, input := range tx.Ins {
 			utxo, err := e.State.GetUTXO(input.InputID())
 			if err != nil {
 				return fmt.Errorf("failed to get UTXO %s: %w", &input.UTXOID, err)
 			}
 			utxos[index] = utxo
+			signers[index], err = e.State.GetMultisigUTXOSigners(utxo)
+			if err != nil {
+				return fmt.Errorf("failed to get UTXO %s multisig signers: %w", &input.UTXOID, err)
+			}
 		}
 		for i, utxoBytes := range allUTXOBytes {
 			utxo := &avax.UTXO{}
@@ -151,6 +156,10 @@ func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 				return fmt.Errorf("failed to unmarshal UTXO: %w", err)
 			}
 			utxos[i+len(tx.Ins)] = utxo
+			signers[i+len(tx.Ins)], err = e.State.GetMultisigUTXOSigners(utxo)
+			if err != nil {
+				return fmt.Errorf("failed to get UTXO %s multisig signers: %w", &utxo.UTXOID, err)
+			}
 		}
 
 		ins := make([]*avax.TransferableInput, len(tx.Ins)+len(tx.ImportedInputs))
@@ -163,6 +172,7 @@ func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 			ins,
 			tx.Outs,
 			e.Tx.Creds,
+			signers,
 			map[ids.ID]uint64{
 				e.Ctx.AVAXAssetID: e.Config.TxFee,
 			},

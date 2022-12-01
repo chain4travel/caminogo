@@ -69,6 +69,7 @@ func Produce(
 }
 
 // TODO: Stake and Authorize should be replaced by similar methods in the
+//
 //	P-chain wallet
 type Spender interface {
 	// Spend the provided amount while deducting the provided fee.
@@ -158,6 +159,7 @@ type Verifier interface {
 	// [utxos[i]] is the UTXO being consumed by [ins[i]].
 	// [ins] and [outs] are the inputs and outputs of [tx].
 	// [creds] are the credentials of [tx], which allow [ins] to be spent.
+	// [signers] are the group of owners of the funds under a multisig alias.
 	// [unlockedProduced] is the map of assets that were produced and their
 	// amounts.
 	// The [ins] must have at least [unlockedProduced] more than the [outs].
@@ -171,6 +173,7 @@ type Verifier interface {
 		ins []*avax.TransferableInput,
 		outs []*avax.TransferableOutput,
 		creds []verify.Verifiable,
+		signers []verify.State,
 		unlockedProduced map[ids.ID]uint64,
 	) error
 
@@ -518,6 +521,7 @@ func (h *handler) VerifySpend(
 	unlockedProduced map[ids.ID]uint64,
 ) error {
 	utxos := make([]*avax.UTXO, len(ins))
+	signers := make([]verify.State, len(ins))
 	for index, input := range ins {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
 		if err != nil {
@@ -528,9 +532,17 @@ func (h *handler) VerifySpend(
 			)
 		}
 		utxos[index] = utxo
+		signers[index], err = utxoDB.GetMultisigUTXOSigners(utxo)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to get multisig info consumed UTXO %s due to: %w",
+				&input.UTXOID,
+				err,
+			)
+		}
 	}
 
-	return h.VerifySpendUTXOs(tx, utxos, ins, outs, creds, unlockedProduced)
+	return h.VerifySpendUTXOs(tx, utxos, ins, outs, creds, signers, unlockedProduced)
 }
 
 func (h *handler) VerifySpendUTXOs(
@@ -539,6 +551,7 @@ func (h *handler) VerifySpendUTXOs(
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
 	creds []verify.Verifiable,
+	signers []verify.State,
 	unlockedProduced map[ids.ID]uint64,
 ) error {
 	if len(ins) != len(creds) {
@@ -610,7 +623,7 @@ func (h *handler) VerifySpendUTXOs(
 		}
 
 		// Verify that this tx's credentials allow [in] to be spent
-		if err := h.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
+		if err := h.fx.VerifyTransfer(tx, in, creds[index], signers[index]); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 

@@ -5,9 +5,9 @@ package state
 
 import (
 	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 )
@@ -115,6 +115,34 @@ func (d *diff) GetAllDepositOffers() ([]*DepositOffer, error) {
 	return append(parentOffers, offers...), nil
 }
 
+func (d *diff) SetMultisigOwner(ma *MultisigOwner) {
+	d.caminoDiff.modifiedMultisigOwners[ma.Alias] = ma
+}
+
+func (d *diff) GetMultisigOwner(alias ids.ShortID) (*MultisigOwner, error) {
+	if owner, ok := d.caminoDiff.modifiedMultisigOwners[alias]; ok {
+		return owner, nil
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	return parentState.GetMultisigOwner(alias)
+}
+
+func (d *diff) GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, error) {
+	// We're not interested in current modifications of multisig aliases because at
+	// the moment it's not possible to redefine an alias, all come from genesis
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	return parentState.GetMultisigUTXOSigners(utxo)
+}
+
 // Finally apply all changes
 func (d *diff) ApplyCaminoState(baseState State) {
 	for k, v := range d.caminoDiff.modifiedAddressStates {
@@ -123,5 +151,9 @@ func (d *diff) ApplyCaminoState(baseState State) {
 
 	for _, v := range d.caminoDiff.modifiedDepositOffers {
 		baseState.AddDepositOffer(v)
+	}
+
+	for _, v := range d.caminoDiff.modifiedMultisigOwners {
+		baseState.SetMultisigOwner(v)
 	}
 }
