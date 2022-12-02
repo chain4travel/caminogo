@@ -1285,6 +1285,9 @@ func GetNodeConfig(v *viper.Viper, buildDir string) (node.Config, error) {
 		return node.Config{}, err
 	}
 
+	// Camino Runtime Config
+	nodeConfig.CaminoRuntimeConfig = getCaminoRuntimeConfig(v)
+
 	// IP configuration
 	nodeConfig.IPConfig, err = getIPConfig(v)
 	if err != nil {
