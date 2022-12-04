@@ -38,18 +38,18 @@ const (
 
 type Proposal struct {
 	TxID     ids.ID
-	Proposer ids.ID // may be not needed due to tx id
+	Proposer ids.ID `serialize:"true"` // may be not needed due to tx id
 
-	Type    ProposalType
-	State   ProposalState
-	Outcome ProposalOutcome
+	Type    ProposalType    `serialize:"true"`
+	State   ProposalState   `serialize:"true"`
+	Outcome ProposalOutcome `serialize:"true"`
 
-	StartTime time.Time
-	EndTime   time.Time
+	StartTime time.Time `serialize:"true"`
+	EndTime   time.Time `serialize:"true"`
 
-	Content [ProposalContentLength]byte
+	Content [ProposalContentLength]byte `serialize:"true"`
 
-	Priority txs.Priority
+	Priority txs.Priority `serialize:"true"`
 }
 
 type VoteType uint64
@@ -62,9 +62,9 @@ const (
 
 type Vote struct {
 	TxID       ids.ID
-	ProposalID ids.ID
+	ProposalID ids.ID `serialize:"true"`
 
-	Vote VoteType
+	Vote VoteType `serialize:"true"`
 }
 
 func (cs *caminoState) AddProposal(proposal *Proposal) {
