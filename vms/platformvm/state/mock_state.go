@@ -83,6 +83,18 @@ func (mr *MockStateMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDepositOffer", reflect.TypeOf((*MockState)(nil).AddDepositOffer), arg0)
 }
 
+// AddProposal mocks base method.
+func (m *MockState) AddProposal(arg0 *Proposal) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddProposal", arg0)
+}
+
+// AddProposal indicates an expected call of AddProposal.
+func (mr *MockStateMockRecorder) AddProposal(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProposal", reflect.TypeOf((*MockState)(nil).AddProposal), arg0)
+}
+
 // AddRewardUTXO mocks base method.
 func (m *MockState) AddRewardUTXO(arg0 ids.ID, arg1 *avax.UTXO) {
 	m.ctrl.T.Helper()
@@ -155,8 +167,20 @@ func (mr *MockStateMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUTXO", reflect.TypeOf((*MockState)(nil).AddUTXO), arg0)
 }
 
-// CaminoConfig mocks base method.
-func (m *MockState) CaminoConfig() (*CaminoConfig, error) {
+// AddVote mocks base method.
+func (m *MockState) AddVote(arg0 *Vote) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddVote", arg0)
+}
+
+// AddVote indicates an expected call of AddVote.
+func (mr *MockStateMockRecorder) AddVote(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVote", reflect.TypeOf((*MockState)(nil).AddVote), arg0)
+}
+
+// CaminoGenesisState mocks base method.
+func (m *MockState) CaminoGenesisState() (*genesis.Camino, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CaminoConfig")
 	ret0, _ := ret[0].(*CaminoConfig)
@@ -211,6 +235,20 @@ func (m *MockState) CommitBatch() (database.Batch, error) {
 func (mr *MockStateMockRecorder) CommitBatch() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitBatch", reflect.TypeOf((*MockState)(nil).CommitBatch))
+}
+
+// ConcludeProposal mocks base method.
+func (m *MockState) ConcludeProposal(arg0 ids.ID, arg1 ProposalOutcome) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConcludeProposal", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConcludeProposal indicates an expected call of ConcludeProposal.
+func (mr *MockStateMockRecorder) ConcludeProposal(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcludeProposal", reflect.TypeOf((*MockState)(nil).ConcludeProposal), arg0, arg1)
 }
 
 // DeleteCurrentDelegator mocks base method.
@@ -301,6 +339,36 @@ func (m *MockState) GetAllDepositOffers() ([]*deposit.Offer, error) {
 func (mr *MockStateMockRecorder) GetAllDepositOffers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDepositOffers", reflect.TypeOf((*MockState)(nil).GetAllDepositOffers))
+}
+
+// GetAllProposals mocks base method.
+func (m *MockState) GetAllProposals() ([]*Proposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllProposals")
+	ret0, _ := ret[0].([]*Proposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllProposals indicates an expected call of GetAllProposals.
+func (mr *MockStateMockRecorder) GetAllProposals() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllProposals", reflect.TypeOf((*MockState)(nil).GetAllProposals))
+}
+
+// GetAllVotes mocks base method.
+func (m *MockState) GetAllVotes() ([]*Vote, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllVotes")
+	ret0, _ := ret[0].([]*Vote)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllVotes indicates an expected call of GetAllVotes.
+func (mr *MockStateMockRecorder) GetAllVotes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVotes", reflect.TypeOf((*MockState)(nil).GetAllVotes))
 }
 
 // GetChains mocks base method.
@@ -465,6 +533,21 @@ func (m *MockState) GetPendingValidator(arg0 ids.ID, arg1 ids.NodeID) (*Staker, 
 func (mr *MockStateMockRecorder) GetPendingValidator(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingValidator", reflect.TypeOf((*MockState)(nil).GetPendingValidator), arg0, arg1)
+}
+
+// GetProposal mocks base method.
+func (m *MockState) GetProposal(arg0 ids.ID) (*Proposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProposal", arg0)
+	ret0, _ := ret[0].(*Proposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProposal indicates an expected call of GetProposal.
+func (mr *MockStateMockRecorder) GetProposal(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProposal", reflect.TypeOf((*MockState)(nil).GetProposal), arg0)
 }
 
 // GetRewardUTXOs mocks base method.
@@ -632,6 +715,21 @@ func (m *MockState) GetValidatorWeightDiffs(arg0 uint64, arg1 ids.ID) (map[ids.N
 func (mr *MockStateMockRecorder) GetValidatorWeightDiffs(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidatorWeightDiffs", reflect.TypeOf((*MockState)(nil).GetValidatorWeightDiffs), arg0, arg1)
+}
+
+// GetVote mocks base method.
+func (m *MockState) GetVote(arg0 ids.ID) (*Vote, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVote", arg0)
+	ret0, _ := ret[0].(*Vote)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVote indicates an expected call of GetVote.
+func (mr *MockStateMockRecorder) GetVote(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVote", reflect.TypeOf((*MockState)(nil).GetVote), arg0)
 }
 
 // LockedUTXOs mocks base method.
