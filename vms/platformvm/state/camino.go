@@ -26,6 +26,8 @@ var (
 
 	addressStatePrefix  = []byte("addressState")
 	depositOffersPrefix = []byte("depositOffers")
+	proposalsPrefix     = []byte("proposals")
+	votesPrefix         = []byte("votes")
 )
 
 type CaminoApply interface {
@@ -44,6 +46,17 @@ type CaminoDiff interface {
 	AddDepositOffer(offer *DepositOffer)
 	GetDepositOffer(offerID ids.ID) (*DepositOffer, error)
 	GetAllDepositOffers() ([]*DepositOffer, error)
+
+	// Voting / Proposals
+	GetAllProposals() ([]*Proposal, error)
+	GetProposal(proposalID ids.ID) (*Proposal, error)
+	AddProposal(proposal *Proposal)
+	ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error
+
+	GetAllVotes() ([]*Vote, error)
+	GetVote(voteID ids.ID) (*Vote, error)
+	AddVote(vote *Vote)
+	// RevokeVote(voteID ids.ID) might be a good idea, specifics might be tricky
 }
 
 // For state and diff
@@ -67,6 +80,8 @@ type CaminoState interface {
 type caminoDiff struct {
 	modifiedAddressStates map[ids.ShortID]uint64
 	modifiedDepositOffers map[ids.ID]*DepositOffer
+	modifiedProposals     map[ids.ID]*Proposal
+	modifiedVotes         map[ids.ID]*Vote
 }
 
 type caminoState struct {
@@ -83,6 +98,16 @@ type caminoState struct {
 	depositOffers     map[ids.ID]*DepositOffer
 	depositOffersList linkeddb.LinkedDB
 	depositOffersDB   database.Database
+
+	// Proposals
+	proposals    map[ids.ID]*Proposal
+	proposalList linkeddb.LinkedDB
+	proposalsDB  database.Database
+
+	// Vote
+	votes    map[ids.ID]*Vote
+	voteList linkeddb.LinkedDB
+	votesDB  database.Database
 }
 
 func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
@@ -100,6 +125,8 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 	}
 
 	depositOffersDB := prefixdb.New(depositOffersPrefix, baseDB)
+	proposalsDB := prefixdb.New(proposalsPrefix, baseDB)
+	votesDB := prefixdb.New(votesPrefix, baseDB)
 
 	return &caminoState{
 		addressStateDB:    prefixdb.New(addressStatePrefix, baseDB),
@@ -109,9 +136,19 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		depositOffersDB:   depositOffersDB,
 		depositOffersList: linkeddb.NewDefault(depositOffersDB),
 
+		proposals:    make(map[ids.ID]*Proposal),
+		proposalsDB:  proposalsDB,
+		proposalList: linkeddb.NewDefault(proposalsDB),
+
+		votes:    make(map[ids.ID]*Vote),
+		votesDB:  votesDB,
+		voteList: linkeddb.NewDefault(votesDB),
+
 		caminoDiff: caminoDiff{
 			modifiedAddressStates: make(map[ids.ShortID]uint64),
 			modifiedDepositOffers: make(map[ids.ID]*DepositOffer),
+			modifiedProposals:     make(map[ids.ID]*Proposal),
+			modifiedVotes:         make(map[ids.ID]*Vote),
 		},
 	}, nil
 }
@@ -158,12 +195,38 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 }
 
 func (cs *caminoState) Load() error {
-	return cs.loadDepositOffers()
+
+	if err := cs.loadDepositOffers(); err != nil {
+		return err
+	}
+
+	if err := cs.loadProposals(); err != nil {
+		return err
+	}
+
+	if err := cs.loadVotes(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (cs *caminoState) Write() error {
 	if err := cs.writeAddressStates(); err != nil {
 		return err
 	}
-	return cs.writeDepositOffers()
+
+	if err := cs.writeDepositOffers(); err != nil {
+		return err
+	}
+
+	if err := cs.writeProposals(); err != nil {
+		return err
+	}
+
+	if err := cs.writeVotes(); err != nil {
+		return err
+	}
+
+	return nil
 }
