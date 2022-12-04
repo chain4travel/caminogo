@@ -115,6 +115,97 @@ func (d *diff) GetAllDepositOffers() ([]*DepositOffer, error) {
 	return append(parentOffers, offers...), nil
 }
 
+// Voting
+func (d *diff) GetAllProposals() ([]*Proposal, error) {
+	proposals := make([]*Proposal, len(d.caminoDiff.modifiedProposals))
+	i := 0
+	for _, proposal := range d.caminoDiff.modifiedProposals {
+		proposals[i] = proposal
+		i++
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	parentProposals, err := parentState.GetAllProposals()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(proposals, parentProposals...), nil
+
+}
+
+func (d *diff) GetProposal(proposalID ids.ID) (*Proposal, error) {
+	if proposal, ok := d.caminoDiff.modifiedProposals[proposalID]; ok {
+		return proposal, nil
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	return parentState.GetProposal(proposalID)
+
+}
+
+func (d *diff) AddProposal(proposal *Proposal) {
+	d.caminoDiff.modifiedProposals[proposal.TxID] = proposal
+}
+
+func (d *diff) ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error {
+	proposal, err := d.GetProposal(proposalID)
+	if err != nil {
+		return err
+	}
+
+	proposal.Outcome = outcome
+
+	d.caminoDiff.modifiedProposals[proposalID] = proposal
+	return nil
+}
+
+func (d *diff) AddVote(vote *Vote) {
+	d.caminoDiff.modifiedVotes[vote.TxID] = vote
+}
+
+func (d *diff) GetVote(voteID ids.ID) (*Vote, error) {
+	if vote, ok := d.caminoDiff.modifiedVotes[voteID]; ok {
+		return vote, nil
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	return parentState.GetVote(voteID)
+}
+
+func (d *diff) GetAllVotes() ([]*Vote, error) {
+	votes := make([]*Vote, len(d.caminoDiff.modifiedVotes))
+	i := 0
+	for _, v := range d.caminoDiff.modifiedVotes {
+		votes[i] = v
+		i++
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	parentVotes, err := parentState.GetAllVotes()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(votes, parentVotes...), nil
+}
+
 // Finally apply all changes
 func (d *diff) ApplyCaminoState(baseState State) {
 	for k, v := range d.caminoDiff.modifiedAddressStates {
@@ -123,5 +214,13 @@ func (d *diff) ApplyCaminoState(baseState State) {
 
 	for _, v := range d.caminoDiff.modifiedDepositOffers {
 		baseState.AddDepositOffer(v)
+	}
+
+	for _, v := range d.caminoDiff.modifiedProposals {
+		baseState.AddProposal(v)
+	}
+
+	for _, v := range d.caminoDiff.modifiedVotes {
+		baseState.AddVote(v)
 	}
 }

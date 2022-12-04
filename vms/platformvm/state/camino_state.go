@@ -58,3 +58,31 @@ func (s *state) GetDepositOffer(offerID ids.ID) (*DepositOffer, error) {
 func (s *state) GetAllDepositOffers() ([]*DepositOffer, error) {
 	return s.caminoState.GetAllDepositOffers()
 }
+
+func (s *state) AddProposal(proposal *Proposal) {
+	s.caminoState.AddProposal(proposal)
+}
+
+func (s *state) GetProposal(proposalID ids.ID) (*Proposal, error) {
+	return s.caminoState.GetProposal(proposalID)
+}
+
+func (s *state) GetAllProposals() ([]*Proposal, error) {
+	return s.caminoState.GetAllProposals()
+}
+
+func (s *state) ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error {
+	return s.caminoState.ConcludeProposal(proposalID, outcome)
+}
+
+func (s *state) AddVote(vote *Vote) {
+	s.caminoState.AddVote(vote)
+}
+
+func (s *state) GetVote(voteID ids.ID) (*Vote, error) {
+	return s.caminoState.GetVote(voteID)
+}
+
+func (s *state) GetAllVotes() ([]*Vote, error) {
+	return s.caminoState.GetAllVotes()
+}
