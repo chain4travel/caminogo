@@ -517,7 +517,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		Start:          uint64(currentChainTime.Unix()),
 	}
 
-	potentialReward := deposits.TotalReward(depositOffer, deposit)
+	potentialReward := deposit.TotalReward(depositOffer)
 
 	newSupply, err := math.Add64(currentSupply, potentialReward)
 	if err != nil || newSupply > e.Config.RewardConfig.SupplyCap {
@@ -586,7 +586,7 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 
 		var updatedDeposit *deposits.Deposit
 		if newUnlockedAmount < deposit.Amount ||
-			deposit.ClaimedRewardAmount < deposits.TotalReward(offer, deposit) {
+			deposit.ClaimedRewardAmount < deposit.TotalReward(offer) {
 			updatedDeposit = &deposits.Deposit{
 				DepositOfferID:      deposit.DepositOfferID,
 				UnlockedAmount:      newUnlockedAmount,

@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
@@ -1188,8 +1187,8 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			return nil, err
 		}
 
-		unlockableAmount := deposits.UnlockableAmount(
-			deposit,
+		unlockableAmount := deposit.UnlockableAmount(
+
 			depositOffer,
 			currentTimestamp,
 		)
@@ -1331,8 +1330,7 @@ func getDepositUnlockableAmounts(
 			return nil, err
 		}
 
-		unlockableAmounts[depositTxID] = deposits.UnlockableAmount(
-			deposit,
+		unlockableAmounts[depositTxID] = deposit.UnlockableAmount(
 			depositOffer,
 			currentTimestamp,
 		)
