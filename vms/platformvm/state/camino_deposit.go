@@ -4,14 +4,11 @@
 package state
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
-	"github.com/ava-labs/avalanchego/vms/platformvm/status"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
 func (cs *caminoState) UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposit) {
@@ -66,22 +63,4 @@ func (cs *caminoState) writeDeposits() error {
 		}
 	}
 	return nil
-}
-
-func GetDepositTx(state Chain, depositTxID ids.ID) (*txs.DepositTx, error) {
-	tx, txStatus, err := state.GetTx(depositTxID)
-	if err != nil {
-		return nil, err
-	}
-
-	if txStatus != status.Committed {
-		return nil, errors.New("deposit tx isn't committed")
-	}
-
-	depositTx, ok := tx.Unsigned.(*txs.DepositTx)
-	if !ok {
-		return nil, errors.New("wrong deposit tx type")
-	}
-
-	return depositTx, nil
 }

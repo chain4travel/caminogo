@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -510,7 +510,14 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		return err
 	}
 
-	potentialReward := deposit.TotalReward(depositOffer, depositAmount)
+	deposit := &deposits.Deposit{
+		DepositOfferID: tx.DepositOfferID,
+		Duration:       tx.Duration,
+		Amount:         depositAmount,
+		Start:          uint64(currentChainTime.Unix()),
+	}
+
+	potentialReward := deposits.TotalReward(depositOffer, deposit)
 
 	newSupply, err := math.Add64(currentSupply, potentialReward)
 	if err != nil || newSupply > e.Config.RewardConfig.SupplyCap {
@@ -518,12 +525,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 	}
 
 	e.State.SetCurrentSupply(constants.PrimaryNetworkID, newSupply)
-
-	e.State.UpdateDeposit(txID, &deposit.Deposit{
-		DepositOfferID: tx.DepositOfferID,
-		Duration:       tx.Duration,
-		Start:          uint64(currentChainTime.Unix()),
-	})
+	e.State.UpdateDeposit(txID, deposit)
 
 	utxo.Consume(e.State, tx.Ins)
 	if err := utxo.ProduceLocked(e.State, txID, tx.Outs, locked.StateDeposited); err != nil {
@@ -547,13 +549,19 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 		return err
 	}
 
+	// if tx doesn't contain creds, than its system tx and doesn't need fee
+	fee := uint64(0)
+	if len(e.Tx.Creds) != 0 {
+		fee = e.Config.TxFee
+	}
+
 	newUnlockedAmounts, err := e.FlowChecker.VerifyUnlockDeposit(
 		e.State,
 		tx,
 		tx.Ins,
 		tx.Outs,
 		e.Tx.Creds,
-		e.Config.TxFee,
+		fee,
 		e.Ctx.AVAXAssetID,
 	)
 	if err != nil {
@@ -561,43 +569,34 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 	}
 
 	for depositTxID, newUnlockedAmount := range newUnlockedAmounts {
-		oldDeposit, err := e.State.GetDeposit(depositTxID)
+		deposit, err := e.State.GetDeposit(depositTxID)
 		if err != nil {
 			return err
 		}
 
-		newUnlockedAmount, err := math.Add64(newUnlockedAmount, oldDeposit.UnlockedAmount)
+		newUnlockedAmount, err := math.Add64(newUnlockedAmount, deposit.UnlockedAmount)
 		if err != nil {
 			return err
 		}
 
-		depositTx, err := state.GetDepositTx(e.State, depositTxID)
+		offer, err := e.State.GetDepositOffer(deposit.DepositOfferID)
 		if err != nil {
 			return err
 		}
 
-		depositAmount, err := depositTx.DepositAmount()
-		if err != nil {
-			return err
-		}
-
-		offer, err := e.State.GetDepositOffer(depositTx.DepositOfferID)
-		if err != nil {
-			return err
-		}
-
-		var newDeposit *deposit.Deposit
-		if newUnlockedAmount < depositAmount ||
-			oldDeposit.ClaimedRewardAmount < deposit.TotalReward(offer, depositAmount) {
-			newDeposit = &deposit.Deposit{
-				DepositOfferID:      oldDeposit.DepositOfferID,
+		var updatedDeposit *deposits.Deposit
+		if newUnlockedAmount < deposit.Amount ||
+			deposit.ClaimedRewardAmount < deposits.TotalReward(offer, deposit) {
+			updatedDeposit = &deposits.Deposit{
+				DepositOfferID:      deposit.DepositOfferID,
 				UnlockedAmount:      newUnlockedAmount,
-				ClaimedRewardAmount: oldDeposit.ClaimedRewardAmount,
-				Start:               oldDeposit.Start,
+				ClaimedRewardAmount: deposit.ClaimedRewardAmount,
+				Amount:              deposit.Amount,
+				Start:               deposit.Start,
 			}
 		}
 
-		e.State.UpdateDeposit(depositTxID, newDeposit)
+		e.State.UpdateDeposit(depositTxID, updatedDeposit)
 	}
 
 	utxo.Consume(e.State, tx.Ins)

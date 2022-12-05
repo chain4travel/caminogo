@@ -13,9 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 )
 
-const interestRateDenominator uint64 = 1_000_000
+const (
+	interestRateBase        = 365 * 24 * 60 * 60
+	interestRateDenominator = 1_000_000 * interestRateBase
+)
 
-var bigInterestRateDenominator = (&big.Int{}).SetUint64(interestRateDenominator)
+var bigInterestRateDenominator = (&big.Int{}).SetInt64(interestRateDenominator)
 
 type Offer struct {
 	ID ids.ID
@@ -59,6 +62,7 @@ type Deposit struct {
 	ClaimedRewardAmount uint64 `serialize:"true"`
 	Start               uint64 `serialize:"true"`
 	Duration            uint32 `serialize:"true"`
+	Amount              uint64 `serialize:"true"`
 }
 
 func (d *Deposit) StartTime() time.Time {
@@ -72,8 +76,10 @@ func (d *Deposit) IsExpired(
 	return d.Start+uint64(d.Duration)+uint64(depositOffer.UnlockHalfPeriodDuration) < timestamp
 }
 
-// precondition: all args are valid in conjunction
-func UnlockableAmount(deposit *Deposit, offer *Offer, depositAmount, unlockTime uint64) uint64 {
+// Returns amount of tokens that can be unlocked from [deposit] at [unlockTime] (seconds).
+//
+// Precondition: all args are valid in conjunction.
+func UnlockableAmount(deposit *Deposit, offer *Offer, unlockTime uint64) uint64 {
 	unlockPeriodStart, err := math.Add64(
 		deposit.Start,
 		uint64(deposit.Duration-offer.UnlockHalfPeriodDuration),
@@ -86,7 +92,7 @@ func UnlockableAmount(deposit *Deposit, offer *Offer, depositAmount, unlockTime 
 	unlockPeriodDuration := uint64(offer.UnlockHalfPeriodDuration) * 2
 	passedUnlockPeriodDuration := math.Min(unlockTime-unlockPeriodStart, unlockPeriodDuration)
 
-	bigTotalUnlockableAmount := (&big.Int{}).SetUint64(depositAmount)
+	bigTotalUnlockableAmount := (&big.Int{}).SetUint64(deposit.Amount)
 	bigPassedUnlockPeriodDuration := (&big.Int{}).SetUint64(passedUnlockPeriodDuration)
 	bigUnlockPeriodDuration := (&big.Int{}).SetUint64(unlockPeriodDuration)
 
@@ -97,7 +103,9 @@ func UnlockableAmount(deposit *Deposit, offer *Offer, depositAmount, unlockTime 
 	return bigTotalUnlockableAmount.Uint64() - deposit.UnlockedAmount
 }
 
-// precondition: all args are valid in conjunction
+// Returns amount of tokens that can be claimed as reward for [deposit] at [claimetime] (seconds).
+//
+// Precondition: all args are valid in conjunction.
 func ClaimableReward(deposit *Deposit, offer *Offer, depositAmount, claimTime uint64) uint64 {
 	if deposit.Start > claimTime {
 		return 0
@@ -107,23 +115,24 @@ func ClaimableReward(deposit *Deposit, offer *Offer, depositAmount, claimTime ui
 	bigPassedDepositDuration := (&big.Int{}).SetUint64(claimTime - deposit.Start)
 	bigInterestRateNominator := (&big.Int{}).SetUint64(offer.InterestRateNominator)
 
-	bigDenominator := (&big.Int{}).SetUint64(uint64(deposit.Duration))
-	bigDenominator.Mul(bigDenominator, bigInterestRateDenominator)
-
-	// totalRewardAmount := depositAmount * offer.InterestRate * passedDepositDuration / depositDuration
+	// totalRewardAmount := depositAmount * offer.InterestRate * passedDepositDuration / interestRateBase
 	bigTotalRewardAmount.Mul(bigTotalRewardAmount, bigPassedDepositDuration)
 	bigTotalRewardAmount.Mul(bigTotalRewardAmount, bigInterestRateNominator)
-	bigTotalRewardAmount.Div(bigTotalRewardAmount, bigDenominator)
+	bigTotalRewardAmount.Div(bigTotalRewardAmount, bigInterestRateDenominator)
 
 	return bigTotalRewardAmount.Uint64() - deposit.ClaimedRewardAmount
 }
 
-// precondition: all args are valid in conjunction
-func TotalReward(offer *Offer, depositAmount uint64) uint64 {
-	bigTotalRewardAmount := (&big.Int{}).SetUint64(depositAmount)
+// Returns amount of tokens that can be claimed as reward for [depositAmount].
+//
+// Precondition: all args are valid in conjunction.
+func TotalReward(offer *Offer, deposit *Deposit) uint64 {
+	bigTotalRewardAmount := (&big.Int{}).SetUint64(deposit.Amount)
+	bigDepositDuration := (&big.Int{}).SetUint64(uint64(deposit.Duration))
 	bigInterestRateNominator := (&big.Int{}).SetUint64(offer.InterestRateNominator)
 
-	// totalRewardAmount := depositAmount * offer.InterestRate
+	// totalRewardAmount := depositAmount * offer.InterestRate * depositDuration / interestRateBase
+	bigTotalRewardAmount.Mul(bigTotalRewardAmount, bigDepositDuration)
 	bigTotalRewardAmount.Mul(bigTotalRewardAmount, bigInterestRateNominator)
 	bigTotalRewardAmount.Div(bigTotalRewardAmount, bigInterestRateDenominator)
 

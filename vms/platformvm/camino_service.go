@@ -5,7 +5,6 @@ package platformvm
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 

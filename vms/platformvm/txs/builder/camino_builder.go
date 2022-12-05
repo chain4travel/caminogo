@@ -322,10 +322,26 @@ func (b *caminoBuilder) NewUnlockDepositTx(
 	var outs []*avax.TransferableOutput
 	var signers [][]*crypto.PrivateKeySECP256K1R
 
+	// unlocking
 	ins, outs, signers, err := b.UnlockDeposit(b.state, keys, lockTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
+
+	// burning fee
+	feeIns, feeOuts, feeSigners, err := b.Lock(keys, 0, b.cfg.TxFee, locked.StateUnlocked, changeAddr)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	ins = append(ins, feeIns...)
+	outs = append(outs, feeOuts...)
+	signers = append(signers, feeSigners...)
+
+	// we need to sort ins/outs/signers before using them in tx
+	// UnlockDeposit returns unsorted results and we appended arrays
+	avax.SortTransferableInputsWithSigners(ins, signers)
+	avax.SortTransferableOutputs(outs, txs.Codec)
 
 	utx := &txs.UnlockDepositTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{

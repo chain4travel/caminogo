@@ -42,9 +42,7 @@ var (
 	errLockIDsMismatch           = errors.New("input lock ids is different from utxo lock ids")
 	errLockAmountNotZero         = errors.New("lockAmount must be 0 for StateUnlocked")
 	errFailToGetDeposit          = errors.New("couldn't get deposit")
-	errDepositLessThenUnlocked   = errors.New("deposit has less amount than was already unlocked")
-	errNotEnoughCredentials      = errors.New("not enough credentials")
-	errWrongConsumedAmount       = errors.New("consumed more tokens, than deposit had")
+	errUnlockedMoreThanAvailable = errors.New("unlocked more deposited tokens, than was available for unlock")
 	errNotConsumedDeposit        = errors.New("didn't consume whole deposit amount, but deposit is expired and can't be partially unlocked")
 )
 
@@ -104,15 +102,15 @@ type CaminoSpender interface {
 		error,
 	)
 
-	// Undeposit all deposited by [depositTxIDs] utxos owned by [keys].
+	// Undeposit all deposited by [depositTxIDs] utxos owned by [keys]. Returned results are unsorted.
 	// Arguments:
 	// - [state] chainstate which will be used to fetch utxos and deposit data
 	// - [keys] are the owners of the deposits
 	// - [depositTxIDs] ids of deposit transactions
 	// Returns:
-	// - [inputs] the inputs that should be consumed to fund the outputs
-	// - [outputs] the outputs that should be returned to the UTXO set
-	// - [signers] the proof of ownership of the funds being moved
+	// - [inputs] unsorted inputs that should be consumed to fund the outputs
+	// - [outputs] unsorted outputs that should be returned to the UTXO set
+	// - [signers] the unsorted proof of ownership of the funds being moved
 	UnlockDeposit(
 		state state.Chain,
 		keys []*crypto.PrivateKeySECP256K1R,
@@ -601,7 +599,7 @@ func (h *handler) UnlockDeposit(
 	currentTimestamp := uint64(h.clk.Time().Unix())
 
 	unlockableAmounts, err := getDepositUnlockableAmounts(
-		state, depositTxSet, currentTimestamp, addrs,
+		state, depositTxSet, currentTimestamp,
 	)
 	if err != nil {
 		return nil, nil, nil, err
@@ -706,9 +704,6 @@ func (h *handler) UnlockDeposit(
 			})
 		}
 	}
-
-	avax.SortTransferableInputs(ins)              // sort inputs
-	avax.SortTransferableOutputs(outs, txs.Codec) // sort outputs
 
 	return ins, outs, signers, nil
 }
@@ -975,15 +970,6 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 	burnedAmount uint64,
 	assetID ids.ID,
 ) (map[ids.ID]uint64, error) {
-	if len(ins) != len(creds) {
-		return nil, fmt.Errorf(
-			"there are %d inputs and %d credentials: %w",
-			len(ins),
-			len(creds),
-			errInputsCredentialsMismatch,
-		)
-	}
-
 	if len(ins) != len(utxos) {
 		return nil, fmt.Errorf(
 			"there are %d inputs and %d utxos: %w",
@@ -999,22 +985,20 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 	}
 
-	// Track the amount of transfers and their owners
-	// if appliedLockState == bond, then otherLockTxID is depositTxID and vice versa
-	consumed := make(map[ids.ID]map[ids.ID]uint64) // ownerID -> otherLockTxID -> amount
+	type depositUnlock struct {
+		isExpired  bool   // if deposit is expired, than unlocking its utxos doesn't need keys
+		unlockable uint64 // remained deposited token amounts available for unlock
+		consumed   uint64 // consumed amount
+		produced   uint64 // produced amount
+	}
+	depositUnlocks := make(map[ids.ID]*depositUnlock) // depositTxID -> *depositUnlock
 
-	// if deposit is expired, than it must be fully unlocked
-	// this map will be filled for expired deposits with remained deposited token amounts
-	mustConsume := make(map[ids.ID]uint64) // depositTxID -> amount
-
-	// this map will list how much tokens was unlocked from each deposit
-	unlockedAmount := make(map[ids.ID]uint64) // depositTxID -> amount
+	consumedUnlocked := uint64(0)
+	consumed := make(map[ids.ID]map[ids.ID]uint64) // ownerID -> bondTxID -> amount
 
 	currentTimestamp := uint64(chainState.GetTimestamp().Unix())
 
-	// iterate over ins, get utxos, fill the maps (consumed, mustConsume, unlockedAmount)
-	// the mustConsume map will not only be filled, but also subtracted
-	// if all is valid, mustConsume map should only have 0 after the loop
+	// iterate over ins, get utxos, fill the maps (consumed, depositUnlock)
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
 
@@ -1039,14 +1023,12 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 
 		out := utxo.Out
-		if _, ok := out.(*stakeable.LockOut); ok {
-			return nil, errWrongUTXOOutType
-		}
-
 		lockIDs := &locked.IDsEmpty
+		isDeposited := false
 		if lockedOut, ok := out.(*locked.Out); ok {
 			// utxo isn't deposited, so it can't be unlocked
-			if !lockedOut.IsLockedWith(locked.StateDeposited) {
+			// bonded-not-deposited utxos are not allowed
+			if isDeposited = lockedOut.DepositTxID != ids.Empty; !isDeposited {
 				return nil, errUnlockingUnlockedUTXO
 			}
 			out = lockedOut.TransferableOut
@@ -1054,10 +1036,6 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 
 		in := input.In
-		if _, ok := in.(*stakeable.LockIn); ok {
-			return nil, errWrongInType
-		}
-
 		if lockedIn, ok := in.(*locked.In); ok {
 			// This input is locked, but its LockIDs is wrong
 			if *lockIDs != lockedIn.IDs {
@@ -1071,170 +1049,196 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 
 		needKeys := true
-		var deposit *deposits.Deposit
-		var depositOffer *deposits.Offer
-		var err error
+		consumedAmount := in.Amount()
 
-		if lockIDs.IsLocked() {
-			deposit, err = chainState.GetDeposit(lockIDs.DepositTxID)
+		// calculating and checking unlockable, consumed, produced amounts
+		// checking if deposit is expired and don't need keys
+
+		if isDeposited {
+			// we didn't calculate depositUnlocks (unlockableAmount, need keys)
+			// for this deposit before, so we'r calculating it here for the first time
+			depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]
+			if !ok {
+				deposit, err := chainState.GetDeposit(lockIDs.DepositTxID)
+				if err != nil {
+					return nil, err
+				}
+
+				depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
+				if err != nil {
+					return nil, err
+				}
+
+				depUnlock = &depositUnlock{
+					// if deposit isn't expired, than it could only be spended by its owner
+					isExpired: deposit.IsExpired(depositOffer, currentTimestamp),
+					unlockable: deposits.UnlockableAmount(
+						deposit,
+						depositOffer,
+						currentTimestamp,
+					),
+				}
+
+				depositUnlocks[lockIDs.DepositTxID] = depUnlock
+			}
+
+			ownerID, err := GetOwnerID(out)
 			if err != nil {
 				return nil, err
 			}
 
-			depositOffer, err = chainState.GetDepositOffer(deposit.DepositOfferID)
+			newAmount, err := math.Add64(depUnlock.consumed, consumedAmount)
 			if err != nil {
 				return nil, err
 			}
+			depUnlock.consumed = newAmount
 
-			// if deposit isn't expired, than it could only be spended by its owner
-			needKeys = !deposit.IsExpired(depositOffer, currentTimestamp)
+			consumedOwnerAmounts, ok := consumed[ownerID]
+			if !ok {
+				consumedOwnerAmounts = make(map[ids.ID]uint64)
+				consumed[ownerID] = consumedOwnerAmounts
+			}
+
+			newAmount, err = math.Add64(consumedOwnerAmounts[lockIDs.BondTxID], consumedAmount)
+			if err != nil {
+				return nil, err
+			}
+			consumedOwnerAmounts[lockIDs.BondTxID] = newAmount
+
+			needKeys = !depUnlock.isExpired
+		} else {
+			newAmount, err := math.Add64(consumedUnlocked, consumedAmount)
+			if err != nil {
+				return nil, err
+			}
+			consumedUnlocked = newAmount
 		}
 
+		// verifying transfer
+
 		if needKeys {
+			if index >= len(creds) {
+				return nil, errInputsCredentialsMismatch
+			}
 			// Verify that this tx's credentials allow [in] to be spent
 			if err := h.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
 				return nil, fmt.Errorf("failed to verify transfer: %w", err)
 			}
-			// if spend doesn't need keys, that means deposit is expired
-			// and it must be fully unlocked
-			// that means that tx must fully consume remaining deposited tokens
-		} else if _, ok := mustConsume[lockIDs.DepositTxID]; !ok {
-			// we didn't calculate mustConsume amount for this tx before,
-			// so we'r calculating it here for the first time
-			depositTx, err := state.GetDepositTx(chainState, lockIDs.DepositTxID)
-			if err != nil {
-				return nil, err
-			}
-
-			depositAmount, err := depositTx.DepositAmount()
-			if err != nil {
-				return nil, err
-			}
-
-			if depositAmount < deposit.UnlockedAmount {
-				// should never happen
-				return nil, fmt.Errorf("depositAmount %d < %d deposit.UnlockedAmount: %w",
-					depositAmount, deposit.UnlockedAmount,
-					errDepositLessThenUnlocked)
-			}
-
-			mustConsume[lockIDs.DepositTxID] = deposits.UnlockableAmount(
-				deposit,
-				depositOffer,
-				depositAmount,
-				currentTimestamp,
-			)
-		}
-
-		ownerID := &ids.Empty
-		if lockIDs.BondTxID != ids.Empty {
-			id, err := GetOwnerID(out)
-			if err != nil {
-				return nil, err
-			}
-			ownerID = &id
-		}
-
-		amount := in.Amount()
-
-		// if we don't need keys, than deposit is expired and must be fully unlocked
-		// that means that tx must fully consume remaining deposited tokens
-		if !needKeys {
-			mustConsumeForDeposit := mustConsume[lockIDs.DepositTxID]
-			if mustConsumeForDeposit < amount {
-				// should never happen
-				return nil, fmt.Errorf("mustConsumeForDeposit %d < %d input amount: %w",
-					mustConsumeForDeposit, amount, errWrongConsumedAmount)
-			}
-			mustConsume[lockIDs.DepositTxID] = mustConsumeForDeposit - amount
-		}
-
-		newAmount, err := math.Add64(unlockedAmount[lockIDs.DepositTxID], amount)
-		if err != nil {
-			return nil, err
-		}
-		unlockedAmount[lockIDs.DepositTxID] = newAmount
-
-		consumedOwnerAmounts, ok := consumed[*ownerID]
-		if !ok {
-			consumedOwnerAmounts = make(map[ids.ID]uint64)
-			consumed[*ownerID] = consumedOwnerAmounts
-		}
-
-		newAmount, err = math.Add64(consumedOwnerAmounts[lockIDs.BondTxID], amount)
-		if err != nil {
-			return nil, err
-		}
-		consumedOwnerAmounts[lockIDs.BondTxID] = newAmount
-	}
-
-	// checking that we consumed required amount for expired deposits
-	for depositTxID, mustConsumeAmount := range mustConsume {
-		if mustConsumeAmount > 0 {
-			return nil, fmt.Errorf("deposit %s remained to consume amount %d: %w",
-				depositTxID, mustConsumeAmount, errNotConsumedDeposit)
+		} else if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
+			return nil, fmt.Errorf("failed to verify transfer: utxo inner out isn't *secp256k1fx.TransferOutput or inner out amount != input.Am")
 		}
 	}
 
-	// iterating over outs and checking produced amounts
+	// iterating over outs, checking produced amounts with consumed map
+	// filling deposit produced amounts
+
 	for _, output := range outs {
 		out := output.Out
-		if _, ok := out.(*stakeable.LockOut); ok {
-			return nil, errWrongOutType
-		}
-
 		lockIDs := &locked.IDsEmpty
-		if lockedOut, ok := out.(*locked.Out); ok {
+		lockedOut, isLocked := out.(*locked.Out)
+		if isLocked {
 			lockIDs = &lockedOut.IDs
 			out = lockedOut.TransferableOut
 		}
 
-		ownerID := &ids.Empty
-		if lockIDs.BondTxID != ids.Empty {
-			id, err := GetOwnerID(out)
+		producedAmount := out.Amount()
+
+		ownerID, err := GetOwnerID(out)
+		if err != nil {
+			return nil, err
+		}
+
+		consumedOwnerAmounts, ok := consumed[ownerID]
+		if !ok {
+			consumedOwnerAmounts = make(map[ids.ID]uint64)
+			consumed[ownerID] = consumedOwnerAmounts
+		}
+
+		consumedAmount := consumedOwnerAmounts[lockIDs.BondTxID]
+
+		if consumedAmount < producedAmount {
+			if !isLocked {
+				amount := producedAmount - consumedAmount
+				if consumedUnlocked < amount {
+					return nil, fmt.Errorf(
+						"address %s produces %d and consumes %d unlocked and %d locked with %+v: %w",
+						ownerID,
+						producedAmount,
+						consumedUnlocked,
+						consumedAmount,
+						lockIDs,
+						errWrongProducedAmount,
+					)
+				}
+				consumedUnlocked -= amount
+			}
+			consumedOwnerAmounts[lockIDs.BondTxID] = 0
+		} else {
+			if consumedAmount < producedAmount {
+				return nil, fmt.Errorf(
+					"address %s produces %d and consumes %d for lockIDs %+v with unlock '%s': %w",
+					ownerID,
+					producedAmount,
+					consumedAmount,
+					lockIDs,
+					locked.StateDeposited,
+					errWrongProducedAmount,
+				)
+			}
+			consumedOwnerAmounts[lockIDs.BondTxID] -= producedAmount
+		}
+
+		if depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]; ok {
+			newAmount, err := math.Add64(depUnlock.produced, producedAmount)
 			if err != nil {
 				return nil, err
 			}
-			ownerID = &id
+			depUnlock.produced = newAmount
+		}
+	}
+
+	// this map will list how much tokens was unlocked from each deposit
+	unlockedAmount := make(map[ids.ID]uint64) // depositTxID -> amount
+
+	for depositTxID, depUnlock := range depositUnlocks {
+		if depUnlock.consumed < depUnlock.produced {
+			return nil, errWrongProducedAmount
 		}
 
-		producedAmount := out.Amount()
-		consumedAmount := uint64(0)
-		consumedOwnerAmounts, ok := consumed[*ownerID]
-		if ok {
-			consumedAmount = consumedOwnerAmounts[lockIDs.BondTxID]
+		unlockedDepositAmount := depUnlock.consumed - depUnlock.produced
+
+		// if we don't need keys, than deposit is expired and must be fully unlocked
+		// that means that tx must fully consume remaining deposited tokens and
+		// produce them as unlocked
+		if depUnlock.isExpired &&
+			(unlockedDepositAmount != depUnlock.unlockable ||
+				depUnlock.consumed != depUnlock.unlockable) {
+			return nil, fmt.Errorf("expired deposit (%s) unlockable amount (%d) isn't equal to consumed (%d) and produced (%d) amount: %w",
+				depositTxID,
+				depUnlock.unlockable,
+				depUnlock.consumed,
+				depUnlock.produced,
+				errNotConsumedDeposit)
 		}
 
-		if consumedAmount < producedAmount {
-			return nil, fmt.Errorf(
-				"address %s produces %d and consumes %d for lockIDs %+v with lock '%s': %w",
-				ownerID,
-				producedAmount,
-				consumedAmount,
-				lockIDs.BondTxID,
-				locked.StateDeposited,
-				errWrongProducedAmount,
-			)
+		// checking that we unlocked no more, than was available for unlock
+		if unlockedDepositAmount > depUnlock.unlockable {
+			return nil, fmt.Errorf("unlockedDepositAmount %d > %d unlockableAmount: %w",
+				unlockedDepositAmount,
+				depUnlock.unlockable,
+				errUnlockedMoreThanAvailable)
 		}
 
-		consumedOwnerAmounts[lockIDs.BondTxID] = consumedAmount - producedAmount
+		unlockedAmount[depositTxID] = unlockedDepositAmount
 	}
 
 	// checking that we burned required amount
-	amountToBurn := burnedAmount
-	for _, consumedOwnerAmounts := range consumed {
-		consumedUnlockedAmount := consumedOwnerAmounts[ids.Empty]
-		if consumedUnlockedAmount >= amountToBurn {
-			return unlockedAmount, nil
-		}
-		amountToBurn -= consumedUnlockedAmount
-	}
 
-	if amountToBurn > 0 {
+	if consumedUnlocked < burnedAmount {
 		return nil, fmt.Errorf(
 			"asset %s burned %d unlocked, but needed to burn %d: %w",
 			assetID,
-			burnedAmount-amountToBurn,
+			consumedUnlocked,
 			burnedAmount,
 			errNotBurnedEnough,
 		)
@@ -1326,7 +1330,6 @@ func getDepositUnlockableAmounts(
 	chainState state.Chain,
 	depositTxIDs ids.Set,
 	currentTimestamp uint64,
-	addrs ids.ShortSet,
 ) (map[ids.ID]uint64, error) {
 	unlockableAmounts := make(map[ids.ID]uint64, len(depositTxIDs))
 
@@ -1336,56 +1339,14 @@ func getDepositUnlockableAmounts(
 			return nil, fmt.Errorf("%w: %s", errFailToGetDeposit, err)
 		}
 
-		depositTx, err := state.GetDepositTx(chainState, depositTxID)
-		if err != nil {
-			return nil, err
-		}
-
 		depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
 		if err != nil {
 			return nil, err
 		}
 
-		if deposit.IsExpired(depositOffer, currentTimestamp) {
-			depositOwners := ids.ShortSet{}
-			// if deposit is expired, it must be fully unlocked
-			// so keys must contain all deposit owners
-			for _, out := range depositTx.Outs {
-				if lockedOut, ok := out.Out.(*locked.Out); ok && lockedOut.IsNewlyLockedWith(locked.StateDeposited) {
-					inner, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
-					if !ok {
-						return nil, fmt.Errorf("%w: deposited out have a wrong type",
-							errFailToGetDeposit)
-					}
-					for _, addr := range inner.Addrs {
-						depositOwners.Add(addr)
-					}
-				}
-			}
-			for addr := range depositOwners {
-				if !addrs.Contains(addr) {
-					return nil, fmt.Errorf("deposit must be fully unlocked, but there is not enough credentials for that: %w",
-						errNotEnoughCredentials)
-				}
-			}
-		}
-
-		depositAmount, err := depositTx.DepositAmount()
-		if err != nil {
-			return nil, err
-		}
-
-		if depositAmount < deposit.UnlockedAmount {
-			// should never happen
-			return nil, fmt.Errorf("depositAmount %d < %d deposit.UnlockedAmount: %w",
-				depositAmount, deposit.UnlockedAmount,
-				errDepositLessThenUnlocked)
-		}
-
 		unlockableAmounts[depositTxID] = deposits.UnlockableAmount(
 			deposit,
 			depositOffer,
-			depositAmount,
 			currentTimestamp,
 		)
 	}
