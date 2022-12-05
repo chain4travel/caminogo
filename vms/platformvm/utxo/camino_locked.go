@@ -1047,8 +1047,13 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		consumedAmount := in.Amount()
 
-		// calculating consumed amounts
 		if isDeposited {
+			// verifying that input amount equal to utxo amount
+			if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
+				return nil, fmt.Errorf("failed to verify transfer: utxo inner out isn't *secp256k1fx.TransferOutput or inner out amount != input.Am")
+			}
+
+			// calculating consumed amounts
 			ownerID, err := GetOwnerID(out)
 			if err != nil {
 				return nil, err
@@ -1078,25 +1083,20 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			}
 			depUnlock.consumed = newAmount
 		} else {
+			// Verify that this tx's credentials allow [in] to be spent
+			if index >= len(creds) {
+				return nil, errInputsCredentialsMismatch
+			}
+			if err := h.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
+				return nil, fmt.Errorf("failed to verify transfer: %w", err)
+			}
+
+			// calculating consumed amounts
 			newAmount, err := math.Add64(consumedUnlocked, consumedAmount)
 			if err != nil {
 				return nil, err
 			}
 			consumedUnlocked = newAmount
-		}
-
-		// verifying transfer
-
-		if !isDeposited {
-			if index >= len(creds) {
-				return nil, errInputsCredentialsMismatch
-			}
-			// Verify that this tx's credentials allow [in] to be spent
-			if err := h.fx.VerifyTransfer(tx, in, creds[index], out); err != nil {
-				return nil, fmt.Errorf("failed to verify transfer: %w", err)
-			}
-		} else if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
-			return nil, fmt.Errorf("failed to verify transfer: utxo inner out isn't *secp256k1fx.TransferOutput or inner out amount != input.Am")
 		}
 	}
 
