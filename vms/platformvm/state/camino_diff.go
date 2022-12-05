@@ -97,12 +97,6 @@ func (d *diff) GetDepositOffer(offerID ids.ID) (*deposit.Offer, error) {
 }
 
 func (d *diff) GetAllDepositOffers() ([]*deposit.Offer, error) {
-	offers := make([]*deposit.Offer, len(d.caminoDiff.modifiedDepositOffers))
-
-	for _, offer := range d.caminoDiff.modifiedDepositOffers {
-		offers = append(offers, offer)
-	}
-
 	parentState, ok := d.stateVersions.GetState(d.parentID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
@@ -113,7 +107,21 @@ func (d *diff) GetAllDepositOffers() ([]*deposit.Offer, error) {
 		return nil, err
 	}
 
-	return append(parentOffers, offers...), nil
+	var offers []*deposit.Offer
+
+	for _, offer := range d.caminoDiff.modifiedDepositOffers {
+		if offer != nil {
+			offers = append(offers, offer)
+		}
+	}
+
+	for _, offer := range parentOffers {
+		if _, ok := d.caminoDiff.modifiedDepositOffers[offer.ID]; !ok {
+			offers = append(offers, offer)
+		}
+	}
+
+	return offers, nil
 }
 
 func (d *diff) UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposit) {
