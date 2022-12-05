@@ -1078,7 +1078,6 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 				return nil, err
 			}
 			depUnlock.consumed = newAmount
-
 		} else {
 			newAmount, err := math.Add64(consumedUnlocked, consumedAmount)
 			if err != nil {
@@ -1128,26 +1127,10 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 
 		consumedAmount := consumedOwnerAmounts[lockIDs.BondTxID]
+		amountToRemoveFromConsumed := producedAmount
 
-		if consumedAmount < producedAmount {
-			if !isLocked {
-				amount := producedAmount - consumedAmount
-				if consumedUnlocked < amount {
-					return nil, fmt.Errorf(
-						"address %s produces %d and consumes %d unlocked and %d locked with %+v: %w",
-						ownerID,
-						producedAmount,
-						consumedUnlocked,
-						consumedAmount,
-						lockIDs,
-						errWrongProducedAmount,
-					)
-				}
-				consumedUnlocked -= amount
-			}
-			consumedOwnerAmounts[lockIDs.BondTxID] = 0
-		} else {
-			if consumedAmount < producedAmount {
+		if consumedAmount < amountToRemoveFromConsumed {
+			if isLocked {
 				return nil, fmt.Errorf(
 					"address %s produces %d and consumes %d for lockIDs %+v with unlock '%s': %w",
 					ownerID,
@@ -1158,8 +1141,23 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 					errWrongProducedAmount,
 				)
 			}
-			consumedOwnerAmounts[lockIDs.BondTxID] -= producedAmount
+
+			amountToRemoveFromConsumed = consumedAmount
+			amountToRemoveFromConsumedUnlocked := producedAmount - consumedAmount
+			if consumedUnlocked < amountToRemoveFromConsumedUnlocked {
+				return nil, fmt.Errorf(
+					"address %s produces %d and consumes %d unlocked and %d locked with %+v: %w",
+					ownerID,
+					producedAmount,
+					consumedUnlocked,
+					consumedAmount,
+					lockIDs,
+					errWrongProducedAmount,
+				)
+			}
+			consumedUnlocked -= amountToRemoveFromConsumedUnlocked
 		}
+		consumedOwnerAmounts[lockIDs.BondTxID] -= amountToRemoveFromConsumed
 
 		if depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]; ok {
 			newAmount, err := math.Add64(depUnlock.produced, producedAmount)
