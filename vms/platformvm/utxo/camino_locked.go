@@ -986,10 +986,8 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 	}
 
 	type depositUnlock struct {
-		isExpired  bool   // if deposit is expired, than unlocking its utxos doesn't need keys
-		unlockable uint64 // remained deposited token amounts available for unlock
-		consumed   uint64 // consumed amount
-		produced   uint64 // produced amount
+		consumed uint64 // consumed amount
+		produced uint64 // produced amount
 	}
 	depositUnlocks := make(map[ids.ID]*depositUnlock) // depositTxID -> *depositUnlock
 
@@ -1048,50 +1046,14 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			return nil, errLockedFundsNotMarkedAsLocked
 		}
 
-		needKeys := true
 		consumedAmount := in.Amount()
 
-		// calculating and checking unlockable, consumed, produced amounts
-		// checking if deposit is expired and don't need keys
-
+		// calculating consumed amounts
 		if isDeposited {
-			// we didn't calculate depositUnlocks (unlockableAmount, need keys)
-			// for this deposit before, so we'r calculating it here for the first time
-			depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]
-			if !ok {
-				deposit, err := chainState.GetDeposit(lockIDs.DepositTxID)
-				if err != nil {
-					return nil, err
-				}
-
-				depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
-				if err != nil {
-					return nil, err
-				}
-
-				depUnlock = &depositUnlock{
-					// if deposit isn't expired, than it could only be spended by its owner
-					isExpired: deposit.IsExpired(depositOffer, currentTimestamp),
-					unlockable: deposits.UnlockableAmount(
-						deposit,
-						depositOffer,
-						currentTimestamp,
-					),
-				}
-
-				depositUnlocks[lockIDs.DepositTxID] = depUnlock
-			}
-
 			ownerID, err := GetOwnerID(out)
 			if err != nil {
 				return nil, err
 			}
-
-			newAmount, err := math.Add64(depUnlock.consumed, consumedAmount)
-			if err != nil {
-				return nil, err
-			}
-			depUnlock.consumed = newAmount
 
 			consumedOwnerAmounts, ok := consumed[ownerID]
 			if !ok {
@@ -1099,13 +1061,24 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 				consumed[ownerID] = consumedOwnerAmounts
 			}
 
-			newAmount, err = math.Add64(consumedOwnerAmounts[lockIDs.BondTxID], consumedAmount)
+			newAmount, err := math.Add64(consumedOwnerAmounts[lockIDs.BondTxID], consumedAmount)
 			if err != nil {
 				return nil, err
 			}
 			consumedOwnerAmounts[lockIDs.BondTxID] = newAmount
 
-			needKeys = !depUnlock.isExpired
+			depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]
+			if !ok {
+				depUnlock = &depositUnlock{}
+				depositUnlocks[lockIDs.DepositTxID] = depUnlock
+			}
+
+			newAmount, err = math.Add64(depUnlock.consumed, consumedAmount)
+			if err != nil {
+				return nil, err
+			}
+			depUnlock.consumed = newAmount
+
 		} else {
 			newAmount, err := math.Add64(consumedUnlocked, consumedAmount)
 			if err != nil {
@@ -1116,7 +1089,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		// verifying transfer
 
-		if needKeys {
+		if !isDeposited {
 			if index >= len(creds) {
 				return nil, errInputsCredentialsMismatch
 			}
@@ -1207,25 +1180,41 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		unlockedDepositAmount := depUnlock.consumed - depUnlock.produced
 
+		deposit, err := chainState.GetDeposit(depositTxID)
+		if err != nil {
+			return nil, err
+		}
+
+		depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
+		if err != nil {
+			return nil, err
+		}
+
+		unlockableAmount := deposits.UnlockableAmount(
+			deposit,
+			depositOffer,
+			currentTimestamp,
+		)
+
 		// if we don't need keys, than deposit is expired and must be fully unlocked
 		// that means that tx must fully consume remaining deposited tokens and
 		// produce them as unlocked
-		if depUnlock.isExpired &&
-			(unlockedDepositAmount != depUnlock.unlockable ||
-				depUnlock.consumed != depUnlock.unlockable) {
+		if deposit.IsExpired(depositOffer, currentTimestamp) &&
+			(unlockedDepositAmount != unlockableAmount ||
+				depUnlock.consumed != unlockableAmount) {
 			return nil, fmt.Errorf("expired deposit (%s) unlockable amount (%d) isn't equal to consumed (%d) and produced (%d) amount: %w",
 				depositTxID,
-				depUnlock.unlockable,
+				unlockableAmount,
 				depUnlock.consumed,
 				depUnlock.produced,
 				errNotConsumedDeposit)
 		}
 
 		// checking that we unlocked no more, than was available for unlock
-		if unlockedDepositAmount > depUnlock.unlockable {
+		if unlockedDepositAmount > unlockableAmount {
 			return nil, fmt.Errorf("unlockedDepositAmount %d > %d unlockableAmount: %w",
 				unlockedDepositAmount,
-				depUnlock.unlockable,
+				unlockableAmount,
 				errUnlockedMoreThanAvailable)
 		}
 
