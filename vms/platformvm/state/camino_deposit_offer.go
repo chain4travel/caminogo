@@ -29,14 +29,18 @@ func (cs *caminoState) GetDepositOffer(offerID ids.ID) (*deposit.Offer, error) {
 }
 
 func (cs *caminoState) GetAllDepositOffers() ([]*deposit.Offer, error) {
-	offers := make([]*deposit.Offer, len(cs.modifiedDepositOffers))
+	var offers []*deposit.Offer
 
 	for _, offer := range cs.modifiedDepositOffers {
-		offers = append(offers, offer)
+		if offer != nil {
+			offers = append(offers, offer)
+		}
 	}
 
-	for _, offer := range cs.depositOffers {
-		offers = append(offers, offer)
+	for offerID, offer := range cs.depositOffers {
+		if _, ok := cs.modifiedDepositOffers[offerID]; !ok {
+			offers = append(offers, offer)
+		}
 	}
 
 	return offers, nil
