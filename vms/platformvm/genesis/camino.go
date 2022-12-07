@@ -13,6 +13,14 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
+var (
+	ErrOfferStartLessThanEnd            = errors.New("deposit offer's end time is before start time")
+	ErrOfferMinDurationGreaterThanMax   = errors.New("deposit offer's minimum duration is greater than maximum duration")
+	ErrOfferMinDurationLessThanUnlock   = errors.New("deposit offer's minimum duration is less than unlock period duration")
+	ErrOfferMinDurationLessThanNoReward = errors.New("deposit offer minimum duration is less than no-rewards period duration")
+	ErrOfferZerosMinDuration            = errors.New("deposit offer has zero minimum duration")
+)
+
 // Camino genesis args
 type Camino struct {
 	VerifyNodeSignature bool           `serialize:"true" json:"verifyNodeSignature"`
@@ -46,23 +54,25 @@ func (offer DepositOffer) ID() (ids.ID, error) {
 func (offer DepositOffer) Verify() error {
 	if offer.Start >= offer.End {
 		return fmt.Errorf(
-			"deposit offer starttime (%v) is not before its endtime (%v)",
+			"%w, starttime (%v) endtime (%v)",
+			ErrOfferStartLessThanEnd,
 			offer.Start,
 			offer.End,
 		)
 	}
 
 	if offer.MinDuration > offer.MaxDuration {
-		return errors.New("deposit minimum duration is greater than maximum duration")
+		return ErrOfferMinDurationGreaterThanMax
 	}
 
 	if offer.MinDuration == 0 {
-		return errors.New("deposit offer has zero minimum duration")
+		return ErrOfferZerosMinDuration
 	}
 
 	if offer.MinDuration < offer.NoRewardsPeriodDuration {
 		return fmt.Errorf(
-			"deposit offer minimum duration (%v) is less than no-rewards period duration (%v)",
+			"%w, minimum duration (%v) no-rewards period duration (%v)",
+			ErrOfferMinDurationLessThanNoReward,
 			offer.MinDuration,
 			offer.NoRewardsPeriodDuration,
 		)
@@ -70,7 +80,8 @@ func (offer DepositOffer) Verify() error {
 
 	if offer.MinDuration < offer.UnlockPeriodDuration {
 		return fmt.Errorf(
-			"deposit offer minimum duration (%v) is less than unlock period duration (%v)",
+			"%w, minimum duration (%v) unlock period duration (%v)",
+			ErrOfferMinDurationLessThanUnlock,
 			offer.MinDuration,
 			offer.UnlockPeriodDuration,
 		)
