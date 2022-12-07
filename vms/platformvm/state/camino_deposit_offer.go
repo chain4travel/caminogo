@@ -19,6 +19,10 @@ func (cs *caminoState) AddDepositOffer(offer *deposit.Offer) {
 func (cs *caminoState) GetDepositOffer(offerID ids.ID) (*deposit.Offer, error) {
 	// Try to get from modified state
 	offer, ok := cs.modifiedDepositOffers[offerID]
+	// offer was deleted
+	if ok && offer == nil {
+		return nil, database.ErrNotFound
+	}
 	// Try to get it from state
 	if !ok {
 		if offer, ok = cs.depositOffers[offerID]; !ok {

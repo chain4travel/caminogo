@@ -6,6 +6,7 @@ package state
 import (
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
@@ -18,6 +19,10 @@ func (cs *caminoState) UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposi
 func (cs *caminoState) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) {
 	// Try to get from modified state
 	d, ok := cs.modifiedDeposits[depositTxID]
+	// deposit was deleted
+	if ok && d == nil {
+		return nil, database.ErrNotFound
+	}
 	// Try to get it from cache
 	if !ok {
 		var depositIntf interface{}
