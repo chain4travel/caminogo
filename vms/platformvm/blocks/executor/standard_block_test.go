@@ -161,6 +161,7 @@ func TestBanffStandardBlockTimeVerification(t *testing.T) {
 	}
 	utxoID := utxo.InputID()
 	onParentAccept.EXPECT().GetUTXO(utxoID).Return(utxo, nil).AnyTimes()
+	onParentAccept.EXPECT().GetMultisigUTXOSigners(utxo).Return(utxo.Out, nil).AnyTimes()
 
 	// Create the tx
 	utx := &txs.CreateSubnetTx{

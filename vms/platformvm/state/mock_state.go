@@ -16,6 +16,7 @@ import (
 	choices "github.com/ava-labs/avalanchego/snow/choices"
 	validators "github.com/ava-labs/avalanchego/snow/validators"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	blocks "github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -407,6 +408,36 @@ func (mr *MockStateMockRecorder) GetLastAccepted() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAccepted", reflect.TypeOf((*MockState)(nil).GetLastAccepted))
 }
 
+// GetMultisigOwner mocks base method.
+func (m *MockState) GetMultisigOwner(arg0 ids.ShortID) (*MultisigOwner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMultisigOwner", arg0)
+	ret0, _ := ret[0].(*MultisigOwner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMultisigOwner indicates an expected call of GetMultisigOwner.
+func (mr *MockStateMockRecorder) GetMultisigOwner(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigOwner", reflect.TypeOf((*MockState)(nil).GetMultisigOwner), arg0)
+}
+
+// GetMultisigUTXOSigners mocks base method.
+func (m *MockState) GetMultisigUTXOSigners(arg0 *avax.UTXO) (verify.State, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMultisigUTXOSigners", arg0)
+	ret0, _ := ret[0].(verify.State)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMultisigUTXOSigners indicates an expected call of GetMultisigUTXOSigners.
+func (mr *MockStateMockRecorder) GetMultisigUTXOSigners(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigUTXOSigners", reflect.TypeOf((*MockState)(nil).GetMultisigUTXOSigners), arg0)
+}
+
 // GetPendingDelegatorIterator mocks base method.
 func (m *MockState) GetPendingDelegatorIterator(arg0 ids.ID, arg1 ids.NodeID) (StakerIterator, error) {
 	m.ctrl.T.Helper()
@@ -713,6 +744,18 @@ func (m *MockState) SetLastAccepted(arg0 ids.ID) {
 func (mr *MockStateMockRecorder) SetLastAccepted(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLastAccepted", reflect.TypeOf((*MockState)(nil).SetLastAccepted), arg0)
+}
+
+// SetMultisigOwner mocks base method.
+func (m *MockState) SetMultisigOwner(arg0 *MultisigOwner) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetMultisigOwner", arg0)
+}
+
+// SetMultisigOwner indicates an expected call of SetMultisigOwner.
+func (mr *MockStateMockRecorder) SetMultisigOwner(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigOwner", reflect.TypeOf((*MockState)(nil).SetMultisigOwner), arg0)
 }
 
 // SetTimestamp mocks base method.

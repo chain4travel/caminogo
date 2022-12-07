@@ -5,6 +5,7 @@ package state
 
 import (
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -22,7 +23,7 @@ type MultisigOwner struct {
 
 func FromGenesisMultisigAlias(gma genesis.MultisigAlias) *MultisigOwner {
 	// Important! OutputOwners expects sorted list of addresses
-	owners := gma.Addresses[:]
+	owners := gma.Addresses
 	ids.SortShortIDs(owners)
 
 	return &MultisigOwner{
@@ -77,9 +78,9 @@ func (cs *caminoState) GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, er
 	if err != nil {
 		if err == database.ErrNotFound {
 			return out, nil
-		} else {
-			return out, err
 		}
+
+		return out, err
 	}
 
 	return verify.State(&secp256k1fx.TransferOutput{

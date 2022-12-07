@@ -3,6 +3,7 @@ package genesis
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 

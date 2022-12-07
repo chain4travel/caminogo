@@ -13,6 +13,7 @@ import (
 
 	ids "github.com/ava-labs/avalanchego/ids"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	status "github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -230,6 +231,36 @@ func (m *MockChain) GetAllDepositOffers() ([]*DepositOffer, error) {
 func (mr *MockChainMockRecorder) GetAllDepositOffers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDepositOffers", reflect.TypeOf((*MockChain)(nil).GetAllDepositOffers))
+}
+
+// GetMultisigOwner mocks base method.
+func (m *MockChain) GetMultisigOwner(arg0 ids.ShortID) (*MultisigOwner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMultisigOwner", arg0)
+	ret0, _ := ret[0].(*MultisigOwner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMultisigOwner indicates an expected call of GetMultisigOwner.
+func (mr *MockChainMockRecorder) GetMultisigOwner(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigOwner", reflect.TypeOf((*MockState)(nil).GetMultisigOwner), arg0)
+}
+
+// GetMultisigUTXOSigners mocks base method.
+func (m *MockChain) GetMultisigUTXOSigners(arg0 *avax.UTXO) (verify.State, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMultisigUTXOSigners", arg0)
+	ret0, _ := ret[0].(verify.State)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMultisigUTXOSigners indicates an expected call of GetMultisigUTXOSigners.
+func (mr *MockChainMockRecorder) GetMultisigUTXOSigners(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigUTXOSigners", reflect.TypeOf((*MockState)(nil).GetMultisigUTXOSigners), arg0)
 }
 
 // GetChains mocks base method.
@@ -542,6 +573,18 @@ func (m *MockChain) SetCurrentSupply(arg0 ids.ID, arg1 uint64) {
 func (mr *MockChainMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSupply", reflect.TypeOf((*MockChain)(nil).SetCurrentSupply), arg0, arg1)
+}
+
+// SetMultisigOwner mocks base method.
+func (m *MockChain) SetMultisigOwner(arg0 *MultisigOwner) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetMultisigOwner", arg0)
+}
+
+// SetMultisigOwner indicates an expected call of SetMultisigOwner.
+func (mr *MockChainMockRecorder) SetMultisigOwner(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigOwner", reflect.TypeOf((*MockState)(nil).SetMultisigOwner), arg0)
 }
 
 // SetTimestamp mocks base method.

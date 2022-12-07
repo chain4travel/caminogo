@@ -6,6 +6,7 @@ package genesis
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 )
@@ -37,11 +38,15 @@ type MultisigAlias struct {
 
 func NewMultisigAlias(txID ids.ID, addresses []ids.ShortID, threshold uint32) (MultisigAlias, error) {
 	var err error
-	sorted_addrs := addresses[:]
-	ids.SortShortIDs(sorted_addrs)
+	sortedAddrs := addresses
+	ids.SortShortIDs(sortedAddrs)
+
+	if len(sortedAddrs) < int(threshold) {
+		return MultisigAlias{}, fmt.Errorf("threshold %d is greater than the number of addresses %d", threshold, len(sortedAddrs))
+	}
 
 	ma := MultisigAlias{
-		Addresses: sorted_addrs,
+		Addresses: sortedAddrs,
 		Threshold: threshold,
 	}
 
@@ -62,7 +67,7 @@ func (ma *MultisigAlias) ComputeAlias(txID ids.ID) (ids.ShortID, error) {
 	allBytes := make([]byte, 32+4+20*len(ma.Addresses))
 
 	copy(allBytes, txIDBytes[:])
-	copy(allBytes[32:], thresholdBytes[:])
+	copy(allBytes[32:], thresholdBytes)
 
 	beg := 32 + 4
 	for _, addr := range ma.Addresses {
