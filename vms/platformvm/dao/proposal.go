@@ -28,5 +28,5 @@ type Proposal struct {
 	StartTime time.Time `serialize:"true"`
 	EndTime   time.Time `serialize:"true"`
 
-	Content [ProposalContentLength]byte `serialize:"true"`
+	Content []byte `serialize:"true"`
 }
