@@ -199,54 +199,44 @@ func (d *diff) AddProposal(proposal *Proposal) {
 	d.caminoDiff.modifiedProposals[proposal.TxID] = proposal
 }
 
-func (d *diff) ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error {
+func (d *diff) ArchiveProposal(proposalID ids.ID) error {
+	proposal, err := d.GetProposal(proposalID)
+	if err != nil {
+		return err
+	}
+	for k, _ := range proposal.Votes {
+		delete(proposal.Votes, k)
+	}
+
+	d.caminoDiff.modifiedProposals[proposalID] = proposal
+	return nil
+
+}
+
+func (d *diff) SetProposalState(proposalID ids.ID, state ProposalState) error {
 	proposal, err := d.GetProposal(proposalID)
 	if err != nil {
 		return err
 	}
 
-	proposal.Outcome = outcome
+	proposal.State = state
 
 	d.caminoDiff.modifiedProposals[proposalID] = proposal
+
 	return nil
 }
 
-func (d *diff) AddVote(vote *Vote) {
-	d.caminoDiff.modifiedVotes[vote.TxID] = vote
-}
+func (d *diff) AddVote(proposalID ids.ID, vote *Vote) error {
 
-func (d *diff) GetVote(voteID ids.ID) (*Vote, error) {
-	if vote, ok := d.caminoDiff.modifiedVotes[voteID]; ok {
-		return vote, nil
-	}
-
-	parentState, ok := d.stateVersions.GetState(d.parentID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
-	}
-
-	return parentState.GetVote(voteID)
-}
-
-func (d *diff) GetAllVotes() ([]*Vote, error) {
-	votes := make([]*Vote, len(d.caminoDiff.modifiedVotes))
-	i := 0
-	for _, v := range d.caminoDiff.modifiedVotes {
-		votes[i] = v
-		i++
-	}
-
-	parentState, ok := d.stateVersions.GetState(d.parentID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
-	}
-
-	parentVotes, err := parentState.GetAllVotes()
+	proposal, err := d.GetProposal(proposalID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return append(votes, parentVotes...), nil
+	proposal.Votes[vote.TxID] = vote
+
+	d.caminoDiff.modifiedProposals[proposalID] = proposal
+	return nil
 }
 
 // Finally apply all changes
@@ -265,9 +255,5 @@ func (d *diff) ApplyCaminoState(baseState State) {
 
 	for _, v := range d.caminoDiff.modifiedProposals {
 		baseState.AddProposal(v)
-	}
-
-	for _, v := range d.caminoDiff.modifiedVotes {
-		baseState.AddVote(v)
 	}
 }

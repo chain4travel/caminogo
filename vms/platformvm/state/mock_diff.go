@@ -140,15 +140,17 @@ func (mr *MockDiffMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // AddVote mocks base method.
-func (m *MockDiff) AddVote(arg0 *Vote) {
+func (m *MockDiff) AddVote(arg0 ids.ID, arg1 *Vote) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddVote", arg0)
+	ret := m.ctrl.Call(m, "AddVote", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddVote indicates an expected call of AddVote.
-func (mr *MockDiffMockRecorder) AddVote(arg0 interface{}) *gomock.Call {
+func (mr *MockDiffMockRecorder) AddVote(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVote", reflect.TypeOf((*MockDiff)(nil).AddVote), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVote", reflect.TypeOf((*MockDiff)(nil).AddVote), arg0, arg1)
 }
 
 // Apply mocks base method.
@@ -175,8 +177,22 @@ func (mr *MockDiffMockRecorder) ApplyCaminoState(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyCaminoState", reflect.TypeOf((*MockDiff)(nil).ApplyCaminoState), arg0)
 }
 
-// CaminoConfig mocks base method.
-func (m *MockDiff) CaminoConfig() (*CaminoConfig, error) {
+// ArchiveProposal mocks base method.
+func (m *MockDiff) ArchiveProposal(arg0 ids.ID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ArchiveProposal", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ArchiveProposal indicates an expected call of ArchiveProposal.
+func (mr *MockDiffMockRecorder) ArchiveProposal(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveProposal", reflect.TypeOf((*MockDiff)(nil).ArchiveProposal), arg0)
+}
+
+// CaminoGenesisState mocks base method.
+func (m *MockDiff) CaminoGenesisState() (*genesis.Camino, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CaminoConfig")
 	ret0, _ := ret[0].(*CaminoConfig)
@@ -188,20 +204,6 @@ func (m *MockDiff) CaminoConfig() (*CaminoConfig, error) {
 func (mr *MockDiffMockRecorder) CaminoConfig() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CaminoConfig", reflect.TypeOf((*MockDiff)(nil).CaminoConfig))
-}
-
-// ConcludeProposal mocks base method.
-func (m *MockDiff) ConcludeProposal(arg0 ids.ID, arg1 ProposalOutcome) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConcludeProposal", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ConcludeProposal indicates an expected call of ConcludeProposal.
-func (mr *MockDiffMockRecorder) ConcludeProposal(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcludeProposal", reflect.TypeOf((*MockDiff)(nil).ConcludeProposal), arg0, arg1)
 }
 
 // DeleteCurrentDelegator mocks base method.
@@ -307,21 +309,6 @@ func (m *MockDiff) GetAllProposals() ([]*Proposal, error) {
 func (mr *MockDiffMockRecorder) GetAllProposals() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllProposals", reflect.TypeOf((*MockDiff)(nil).GetAllProposals))
-}
-
-// GetAllVotes mocks base method.
-func (m *MockDiff) GetAllVotes() ([]*Vote, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllVotes")
-	ret0, _ := ret[0].([]*Vote)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllVotes indicates an expected call of GetAllVotes.
-func (mr *MockDiffMockRecorder) GetAllVotes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVotes", reflect.TypeOf((*MockDiff)(nil).GetAllVotes))
 }
 
 // GetChains mocks base method.
@@ -579,21 +566,6 @@ func (mr *MockDiffMockRecorder) GetUTXO(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUTXO", reflect.TypeOf((*MockDiff)(nil).GetUTXO), arg0)
 }
 
-// GetVote mocks base method.
-func (m *MockDiff) GetVote(arg0 ids.ID) (*Vote, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVote", arg0)
-	ret0, _ := ret[0].(*Vote)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVote indicates an expected call of GetVote.
-func (mr *MockDiffMockRecorder) GetVote(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVote", reflect.TypeOf((*MockDiff)(nil).GetVote), arg0)
-}
-
 // LockedUTXOs mocks base method.
 func (m *MockDiff) LockedUTXOs(arg0 set.Set[ids.ID], arg1 set.Set[ids.ShortID], arg2 locked.State) ([]*avax.UTXO, error) {
 	m.ctrl.T.Helper()
@@ -679,6 +651,20 @@ func (m *MockDiff) SetCurrentSupply(arg0 ids.ID, arg1 uint64) {
 func (mr *MockDiffMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSupply", reflect.TypeOf((*MockDiff)(nil).SetCurrentSupply), arg0, arg1)
+}
+
+// SetProposalState mocks base method.
+func (m *MockDiff) SetProposalState(arg0 ids.ID, arg1 ProposalState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetProposalState", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetProposalState indicates an expected call of SetProposalState.
+func (mr *MockDiffMockRecorder) SetProposalState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProposalState", reflect.TypeOf((*MockDiff)(nil).SetProposalState), arg0, arg1)
 }
 
 // SetTimestamp mocks base method.
