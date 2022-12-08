@@ -51,12 +51,11 @@ type CaminoDiff interface {
 	GetAllProposals() ([]*Proposal, error)
 	GetProposal(proposalID ids.ID) (*Proposal, error)
 	AddProposal(proposal *Proposal)
-	ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error
+	ArchiveProposal(proposalID ids.ID) error // just for now delete all votes from struct, they dominate potential memory usage
 
-	GetAllVotes() ([]*Vote, error)
-	GetVote(voteID ids.ID) (*Vote, error)
-	AddVote(vote *Vote)
-	// RevokeVote(voteID ids.ID) might be a good idea, specifics might be tricky
+	SetProposalState(proposalID ids.ID, state ProposalState) error
+
+	AddVote(proposalID ids.ID, vote *Vote) error
 }
 
 // For state and diff
@@ -78,10 +77,10 @@ type CaminoState interface {
 }
 
 type caminoDiff struct {
-	modifiedAddressStates map[ids.ShortID]uint64
-	modifiedDepositOffers map[ids.ID]*DepositOffer
-	modifiedProposals     map[ids.ID]*Proposal
-	modifiedVotes         map[ids.ID]*Vote
+	modifiedAddressStates    map[ids.ShortID]uint64
+	modifiedDepositOffers    map[ids.ID]*DepositOffer
+	modifiedProposals        map[ids.ID]*Proposal
+	modifiedProposalStatuses map[ids.ID]*ProposalStatus
 }
 
 type caminoState struct {
@@ -103,11 +102,6 @@ type caminoState struct {
 	proposals    map[ids.ID]*Proposal
 	proposalList linkeddb.LinkedDB
 	proposalsDB  database.Database
-
-	// Vote
-	votes    map[ids.ID]*Vote
-	voteList linkeddb.LinkedDB
-	votesDB  database.Database
 }
 
 func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
@@ -126,7 +120,6 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 
 	depositOffersDB := prefixdb.New(depositOffersPrefix, baseDB)
 	proposalsDB := prefixdb.New(proposalsPrefix, baseDB)
-	votesDB := prefixdb.New(votesPrefix, baseDB)
 
 	return &caminoState{
 		addressStateDB:    prefixdb.New(addressStatePrefix, baseDB),
@@ -140,15 +133,10 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		proposalsDB:  proposalsDB,
 		proposalList: linkeddb.NewDefault(proposalsDB),
 
-		votes:    make(map[ids.ID]*Vote),
-		votesDB:  votesDB,
-		voteList: linkeddb.NewDefault(votesDB),
-
 		caminoDiff: caminoDiff{
 			modifiedAddressStates: make(map[ids.ShortID]uint64),
 			modifiedDepositOffers: make(map[ids.ID]*DepositOffer),
 			modifiedProposals:     make(map[ids.ID]*Proposal),
-			modifiedVotes:         make(map[ids.ID]*Vote),
 		},
 	}, nil
 }
@@ -204,10 +192,6 @@ func (cs *caminoState) Load() error {
 		return err
 	}
 
-	if err := cs.loadVotes(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -221,10 +205,6 @@ func (cs *caminoState) Write() error {
 	}
 
 	if err := cs.writeProposals(); err != nil {
-		return err
-	}
-
-	if err := cs.writeVotes(); err != nil {
 		return err
 	}
 

@@ -71,18 +71,14 @@ func (s *state) GetAllProposals() ([]*Proposal, error) {
 	return s.caminoState.GetAllProposals()
 }
 
-func (s *state) ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error {
-	return s.caminoState.ConcludeProposal(proposalID, outcome)
+func (s *state) ArchiveProposal(proposalID ids.ID) error {
+	return s.caminoState.ArchiveProposal(proposalID)
 }
 
-func (s *state) AddVote(vote *Vote) {
-	s.caminoState.AddVote(vote)
+func (s *state) SetProposalState(proposalID ids.ID, state ProposalState) error {
+	return s.caminoState.SetProposalState(proposalID, state)
 }
 
-func (s *state) GetVote(voteID ids.ID) (*Vote, error) {
-	return s.caminoState.GetVote(voteID)
-}
-
-func (s *state) GetAllVotes() ([]*Vote, error) {
-	return s.caminoState.GetAllVotes()
+func (s *state) AddVote(proposalID ids.ID, vote *Vote) error {
+	return s.caminoState.AddVote(proposalID, vote)
 }

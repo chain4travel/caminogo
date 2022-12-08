@@ -30,24 +30,22 @@ const (
 
 type ProposalOutcome uint64
 
-const (
-	Undecided ProposalOutcome = iota
-	Accepted
-	Rejected
-)
+type ProposalStatus struct {
+	State ProposalState `serialize:"true"`
+}
 
 type Proposal struct {
-	TxID     ids.ID
-	Proposer ids.ID `serialize:"true"` // may be not needed due to tx id
+	TxID ids.ID
 
-	Type    ProposalType    `serialize:"true"`
-	State   ProposalState   `serialize:"true"`
-	Outcome ProposalOutcome `serialize:"true"`
+	Type  ProposalType  `serialize:"true"`
+	State ProposalState `serialize:"true"`
 
 	StartTime time.Time `serialize:"true"`
 	EndTime   time.Time `serialize:"true"`
 
 	Content [ProposalContentLength]byte `serialize:"true"`
+
+	Votes map[ids.ID]*Vote `serialize:"true"`
 
 	Priority txs.Priority `serialize:"true"`
 }
@@ -61,8 +59,7 @@ const (
 )
 
 type Vote struct {
-	TxID       ids.ID
-	ProposalID ids.ID `serialize:"true"`
+	TxID ids.ID
 
 	Vote VoteType `serialize:"true"`
 }
@@ -84,16 +81,20 @@ func (cs *caminoState) GetProposal(proposalID ids.ID) (*Proposal, error) {
 }
 
 func (cs *caminoState) GetAllProposals() ([]*Proposal, error) {
-	// FIXME @Jax i think this is wrong and leads to duplicates, with not way of discernig the newest one
-	// maybe by the fact that later ones are older ones, but that is implicit and not documented in the interface
-	proposals := make([]*Proposal, len(cs.modifiedProposals)+len(cs.proposals))
+	proposalMap := make(map[ids.ID]*Proposal)
+
+	for k, v := range cs.proposals {
+		proposalMap[k] = v
+	}
+
+	for k, v := range cs.modifiedProposals {
+		proposalMap[k] = v
+	}
+
+	proposals := make([]*Proposal, len(proposalMap))
 
 	i := 0
-	for _, proposal := range cs.proposals {
-		proposals[i] = proposal
-		i++
-	}
-	for _, proposal := range cs.modifiedProposals {
+	for _, proposal := range proposalMap {
 		proposals[i] = proposal
 		i++
 	}
@@ -101,65 +102,46 @@ func (cs *caminoState) GetAllProposals() ([]*Proposal, error) {
 	return proposals, nil
 }
 
-func (cs *caminoState) ConcludeProposal(proposalID ids.ID, outcome ProposalOutcome) error {
+func (cs *caminoState) SetProposalState(proposalID ids.ID, state ProposalState) error {
 	proposal, err := cs.GetProposal(proposalID)
 	if err != nil {
 		return err
 	}
 
-	proposal.Outcome = outcome
+	proposal.State = state
+
 	cs.modifiedProposals[proposalID] = proposal
+
+	return nil
+
+}
+
+func (cs *caminoState) ArchiveProposal(proposalID ids.ID) error {
+	proposal, err := cs.GetProposal(proposalID)
+	if err != nil {
+		return err
+	}
+
+	for k, _ := range proposal.Votes {
+		delete(proposal.Votes, k)
+	}
+
+	cs.modifiedProposals[proposalID] = proposal
+
 	return nil
 }
 
-func (cs *caminoState) AddVote(vote *Vote) {
-	cs.modifiedVotes[vote.TxID] = vote
-}
+func (cs *caminoState) AddVote(proposalID ids.ID, vote *Vote) error {
 
-func (cs *caminoState) GetVote(voteID ids.ID) (*Vote, error) {
-	if vote, ok := cs.modifiedVotes[voteID]; ok {
-		return vote, nil
+	proposal, err := cs.GetProposal(proposalID)
+	if err != nil {
+		return err
 	}
 
-	if vote, ok := cs.votes[voteID]; ok {
-		return vote, nil
-	}
+	proposal.Votes[vote.TxID] = vote
 
-	return nil, database.ErrNotFound
-}
+	cs.modifiedProposals[proposalID] = proposal
 
-func (cs *caminoState) GetAllVotes() ([]*Vote, error) {
-	// FIXME @jax see GetAllProposals for details
-	votes := make([]*Vote, len(cs.modifiedVotes)+len(cs.votes))
-
-	i := 0
-	for _, vote := range cs.votes {
-		votes[i] = vote
-		i++
-	}
-
-	for _, vote := range cs.modifiedVotes {
-		votes[i] = vote
-		i++
-	}
-
-	return votes, nil
-
-}
-
-func (cs *caminoState) writeVotes() error {
-	for voteID, vote := range cs.modifiedVotes {
-		voteBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, vote)
-		if err != nil {
-			return fmt.Errorf("failed to serialize vote: %v", err)
-		}
-
-		if err := cs.voteList.Put(voteID[:], voteBytes); err != nil {
-			return fmt.Errorf("failed to persit vote: %v", err)
-		}
-
-		delete(cs.modifiedVotes, voteID)
-	}
 	return nil
 }
 
@@ -175,31 +157,6 @@ func (cs *caminoState) writeProposals() error {
 		}
 
 		delete(cs.modifiedProposals, proposalID)
-	}
-	return nil
-}
-
-func (cs *caminoState) loadVotes() error {
-	voteIt := cs.voteList.NewIterator()
-	defer voteIt.Release()
-	for voteIt.Next() {
-		voteIDBytes := voteIt.Key()
-		voteID, err := ids.ToID(voteIDBytes)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal voteID while loading from db: %v", err)
-		}
-
-		voteBytes := voteIt.Value()
-		vote := &Vote{
-			TxID: voteID,
-		}
-		_, err = blocks.GenesisCodec.Unmarshal(voteBytes, vote)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal vote while loading from db: %v", err)
-		}
-
-		cs.votes[voteID] = vote
-
 	}
 	return nil
 }
