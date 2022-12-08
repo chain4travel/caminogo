@@ -1,7 +1,5 @@
 package dao
 
-import "github.com/ava-labs/avalanchego/ids"
-
 type VoteType uint64
 
 const (
@@ -11,7 +9,5 @@ const (
 )
 
 type Vote struct {
-	TxID ids.ID
-
 	Vote VoteType `serialize:"true"`
 }

@@ -85,15 +85,27 @@ func (mr *MockStateMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call 
 }
 
 // AddProposal mocks base method.
-func (m *MockState) AddProposal(arg0 *dao.Proposal) {
+func (m *MockState) AddProposal(arg0 ids.ID, arg1 *dao.Proposal, arg2 dao.ProposalState) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddProposal", arg0)
+	m.ctrl.Call(m, "AddProposal", arg0, arg1, arg2)
 }
 
 // AddProposal indicates an expected call of AddProposal.
-func (mr *MockStateMockRecorder) AddProposal(arg0 interface{}) *gomock.Call {
+func (mr *MockStateMockRecorder) AddProposal(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProposal", reflect.TypeOf((*MockState)(nil).AddProposal), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProposal", reflect.TypeOf((*MockState)(nil).AddProposal), arg0, arg1, arg2)
+}
+
+// AddProposalLookup mocks base method.
+func (m *MockState) AddProposalLookup(arg0 ids.ID, arg1 *ProposalLookup) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddProposalLookup", arg0, arg1)
+}
+
+// AddProposalLookup indicates an expected call of AddProposalLookup.
+func (mr *MockStateMockRecorder) AddProposalLookup(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProposalLookup", reflect.TypeOf((*MockState)(nil).AddProposalLookup), arg0, arg1)
 }
 
 // AddRewardUTXO mocks base method.
@@ -169,17 +181,17 @@ func (mr *MockStateMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // AddVote mocks base method.
-func (m *MockState) AddVote(arg0 ids.ID, arg1 *dao.Vote) error {
+func (m *MockState) AddVote(arg0, arg1 ids.ID, arg2 *dao.Vote) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddVote", arg0, arg1)
+	ret := m.ctrl.Call(m, "AddVote", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddVote indicates an expected call of AddVote.
-func (mr *MockStateMockRecorder) AddVote(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockStateMockRecorder) AddVote(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVote", reflect.TypeOf((*MockState)(nil).AddVote), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVote", reflect.TypeOf((*MockState)(nil).AddVote), arg0, arg1, arg2)
 }
 
 // ArchiveProposal mocks base method.
@@ -345,10 +357,10 @@ func (mr *MockStateMockRecorder) GetAllDepositOffers() *gomock.Call {
 }
 
 // GetAllProposals mocks base method.
-func (m *MockState) GetAllProposals() ([]*dao.Proposal, error) {
+func (m *MockState) GetAllProposals() ([]*ProposalLookup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllProposals")
-	ret0, _ := ret[0].([]*dao.Proposal)
+	ret0, _ := ret[0].([]*ProposalLookup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -508,19 +520,19 @@ func (mr *MockStateMockRecorder) GetPendingValidator(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingValidator", reflect.TypeOf((*MockState)(nil).GetPendingValidator), arg0, arg1)
 }
 
-// GetProposal mocks base method.
-func (m *MockState) GetProposal(arg0 ids.ID) (*dao.Proposal, error) {
+// GetProposalLookup mocks base method.
+func (m *MockState) GetProposalLookup(arg0 ids.ID) (*ProposalLookup, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProposal", arg0)
-	ret0, _ := ret[0].(*dao.Proposal)
+	ret := m.ctrl.Call(m, "GetProposalLookup", arg0)
+	ret0, _ := ret[0].(*ProposalLookup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetProposal indicates an expected call of GetProposal.
-func (mr *MockStateMockRecorder) GetProposal(arg0 interface{}) *gomock.Call {
+// GetProposalLookup indicates an expected call of GetProposalLookup.
+func (mr *MockStateMockRecorder) GetProposalLookup(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProposal", reflect.TypeOf((*MockState)(nil).GetProposal), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProposalLookup", reflect.TypeOf((*MockState)(nil).GetProposalLookup), arg0)
 }
 
 // GetRewardUTXOs mocks base method.
