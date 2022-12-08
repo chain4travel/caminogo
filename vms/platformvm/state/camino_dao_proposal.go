@@ -9,12 +9,24 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 )
 
-func (cs *caminoState) AddProposal(proposal *dao.Proposal) {
-	cs.modifiedProposals[proposal.TxID] = proposal
+type ProposalLookup struct {
+	Proposal *dao.Proposal
+	Votes    map[ids.ID]*dao.Vote
+	State    dao.ProposalState
 }
 
-func (cs *caminoState) GetProposal(proposalID ids.ID) (*dao.Proposal, error) {
-	if propsal, ok := cs.modifiedProposals[proposalID]; ok {
+func (cs *caminoState) AddProposal(propsalID ids.ID, proposal *dao.Proposal, state dao.ProposalState) {
+	cs.modifiedProposalLookups[propsalID] = &ProposalLookup{
+		proposal, make(map[ids.ID]*dao.Vote), state,
+	}
+}
+
+func (cs *caminoState) AddProposalLookup(propsalID ids.ID, lookup *ProposalLookup) {
+	cs.modifiedProposalLookups[propsalID] = lookup
+}
+
+func (cs *caminoState) GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error) {
+	if propsal, ok := cs.modifiedProposalLookups[proposalID]; ok {
 		return propsal, nil
 	}
 
@@ -25,18 +37,18 @@ func (cs *caminoState) GetProposal(proposalID ids.ID) (*dao.Proposal, error) {
 	return nil, database.ErrNotFound
 }
 
-func (cs *caminoState) GetAllProposals() ([]*dao.Proposal, error) {
-	proposalMap := make(map[ids.ID]*dao.Proposal)
+func (cs *caminoState) GetAllProposals() ([]*ProposalLookup, error) {
+	proposalMap := make(map[ids.ID]*ProposalLookup)
 
 	for k, v := range cs.proposals {
 		proposalMap[k] = v
 	}
 
-	for k, v := range cs.modifiedProposals {
+	for k, v := range cs.modifiedProposalLookups {
 		proposalMap[k] = v
 	}
 
-	proposals := make([]*dao.Proposal, len(proposalMap))
+	proposals := make([]*ProposalLookup, len(proposalMap))
 
 	i := 0
 	for _, proposal := range proposalMap {
@@ -48,50 +60,50 @@ func (cs *caminoState) GetAllProposals() ([]*dao.Proposal, error) {
 }
 
 func (cs *caminoState) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
-	proposal, err := cs.GetProposal(proposalID)
+	proposal, err := cs.GetProposalLookup(proposalID)
 	if err != nil {
 		return err
 	}
 
 	proposal.State = state
 
-	cs.modifiedProposals[proposalID] = proposal
+	cs.modifiedProposalLookups[proposalID] = proposal
 
 	return nil
 
 }
 
 func (cs *caminoState) ArchiveProposal(proposalID ids.ID) error {
-	proposal, err := cs.GetProposal(proposalID)
+	proposal, err := cs.GetProposalLookup(proposalID)
 	if err != nil {
 		return err
 	}
 
-	for k, _ := range proposal.Votes {
+	for k := range proposal.Votes {
 		delete(proposal.Votes, k)
 	}
 
-	cs.modifiedProposals[proposalID] = proposal
+	cs.modifiedProposalLookups[proposalID] = proposal
 
 	return nil
 }
 
-func (cs *caminoState) AddVote(proposalID ids.ID, vote *dao.Vote) error {
+func (cs *caminoState) AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error {
 
-	proposal, err := cs.GetProposal(proposalID)
+	proposal, err := cs.GetProposalLookup(proposalID)
 	if err != nil {
 		return err
 	}
 
-	proposal.Votes[vote.TxID] = vote
+	proposal.Votes[voteID] = vote
 
-	cs.modifiedProposals[proposalID] = proposal
+	cs.modifiedProposalLookups[proposalID] = proposal
 
 	return nil
 }
 
 func (cs *caminoState) writeProposals() error {
-	for proposalID, proposal := range cs.modifiedProposals {
+	for proposalID, proposal := range cs.modifiedProposalLookups {
 		proposalBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, proposal)
 		if err != nil {
 			return fmt.Errorf("failed to serialize proposal: %v", err)
@@ -101,7 +113,7 @@ func (cs *caminoState) writeProposals() error {
 			return fmt.Errorf("failed to persit proposal: %v", err)
 		}
 
-		delete(cs.modifiedProposals, proposalID)
+		delete(cs.modifiedProposalLookups, proposalID)
 	}
 	return nil
 }
@@ -117,9 +129,7 @@ func (cs *caminoState) loadProposals() error {
 		}
 
 		proposalBytes := proposalIt.Value()
-		proposal := &dao.Proposal{
-			TxID: proposalID,
-		}
+		proposal := &ProposalLookup{}
 		_, err = blocks.GenesisCodec.Unmarshal(proposalBytes, proposal)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal proposal while loading from db: %v", err)

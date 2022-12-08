@@ -37,7 +37,6 @@ var (
 	depositOffersPrefix = []byte("depositOffers")
 	depositsPrefix      = []byte("deposits")
 	proposalsPrefix     = []byte("proposals")
-	votesPrefix         = []byte("votes")
 
 	errWrongTxType = errors.New("unexpected tx type")
 )
@@ -64,14 +63,16 @@ type CaminoDiff interface {
 	GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error)
 
 	// Voting / Proposals
-	GetAllProposals() ([]*dao.Proposal, error)
-	GetProposal(proposalID ids.ID) (*dao.Proposal, error)
-	AddProposal(proposal *dao.Proposal)
+	GetAllProposals() ([]*ProposalLookup, error)
+	AddProposal(proposalID ids.ID, proposal *dao.Proposal, state dao.ProposalState)
 	ArchiveProposal(proposalID ids.ID) error // just for now delete all votes from struct, they dominate potential memory usage
+
+	GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error)
+	AddProposalLookup(proposalID ids.ID, lookup *ProposalLookup)
 
 	SetProposalState(proposalID ids.ID, state dao.ProposalState) error
 
-	AddVote(proposalID ids.ID, vote *dao.Vote) error
+	AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error
 }
 
 // For state and diff
@@ -98,11 +99,10 @@ type CaminoConfig struct {
 }
 
 type caminoDiff struct {
-	modifiedAddressStates    map[ids.ShortID]uint64
-	modifiedDepositOffers    map[ids.ID]*deposit.Offer
-	modifiedDeposits         map[ids.ID]*deposit.Deposit
-	modifiedProposals        map[ids.ID]*dao.Proposal
-	modifiedProposalStatuses map[ids.ID]*dao.ProposalStatus
+	modifiedAddressStates   map[ids.ShortID]uint64
+	modifiedDepositOffers   map[ids.ID]*deposit.Offer
+	modifiedDeposits        map[ids.ID]*deposit.Deposit
+	modifiedProposalLookups map[ids.ID]*ProposalLookup
 }
 
 type caminoState struct {
@@ -125,18 +125,17 @@ type caminoState struct {
 	depositsDB    database.Database
 
 	// Proposals
-	proposals    map[ids.ID]*dao.Proposal
+	proposals    map[ids.ID]*ProposalLookup
 	proposalList linkeddb.LinkedDB
 	proposalsDB  database.Database
 }
 
 func newCaminoDiff() *caminoDiff {
 	return &caminoDiff{
-		modifiedAddressStates:    make(map[ids.ShortID]uint64),
-		modifiedDepositOffers:    make(map[ids.ID]*deposit.Offer),
-		modifiedDeposits:         make(map[ids.ID]*deposit.Deposit),
-		modifiedProposals:        make(map[ids.ID]*dao.Proposal),
-		modifiedProposalStatuses: make(map[ids.ID]*dao.ProposalStatus),
+		modifiedAddressStates:   make(map[ids.ShortID]uint64),
+		modifiedDepositOffers:   make(map[ids.ID]*deposit.Offer),
+		modifiedDeposits:        make(map[ids.ID]*deposit.Deposit),
+		modifiedProposalLookups: make(map[ids.ID]*ProposalLookup),
 	}
 
 }
@@ -176,9 +175,9 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 
 		caminoDiff: newCaminoDiff(),
 
+		proposals:    make(map[ids.ID]*ProposalLookup),
 		proposalsDB:  proposalsDB,
 		proposalList: linkeddb.NewDefault(proposalsDB),
-		proposals:    make(map[ids.ID]*dao.Proposal),
 	}, nil
 }
 
