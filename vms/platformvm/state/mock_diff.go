@@ -12,6 +12,8 @@ import (
 	set "github.com/ava-labs/avalanchego/utils/set"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
 	deposit "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	dao "github.com/ava-labs/avalanchego/vms/platformvm/dao"
+	genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	status "github.com/ava-labs/avalanchego/vms/platformvm/status"
 	txs "github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -68,7 +70,7 @@ func (mr *MockDiffMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call {
 }
 
 // AddProposal mocks base method.
-func (m *MockDiff) AddProposal(arg0 *Proposal) {
+func (m *MockDiff) AddProposal(arg0 *dao.Proposal) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddProposal", arg0)
 }
@@ -140,7 +142,7 @@ func (mr *MockDiffMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // AddVote mocks base method.
-func (m *MockDiff) AddVote(arg0 ids.ID, arg1 *Vote) error {
+func (m *MockDiff) AddVote(arg0 ids.ID, arg1 *dao.Vote) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddVote", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -297,10 +299,10 @@ func (mr *MockDiffMockRecorder) GetAllDepositOffers() *gomock.Call {
 }
 
 // GetAllProposals mocks base method.
-func (m *MockDiff) GetAllProposals() ([]*Proposal, error) {
+func (m *MockDiff) GetAllProposals() ([]*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllProposals")
-	ret0, _ := ret[0].([]*Proposal)
+	ret0, _ := ret[0].([]*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -462,10 +464,10 @@ func (mr *MockDiffMockRecorder) GetPendingValidator(arg0, arg1 interface{}) *gom
 }
 
 // GetProposal mocks base method.
-func (m *MockDiff) GetProposal(arg0 ids.ID) (*Proposal, error) {
+func (m *MockDiff) GetProposal(arg0 ids.ID) (*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetProposal", arg0)
-	ret0, _ := ret[0].(*Proposal)
+	ret0, _ := ret[0].(*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -654,7 +656,7 @@ func (mr *MockDiffMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomock
 }
 
 // SetProposalState mocks base method.
-func (m *MockDiff) SetProposalState(arg0 ids.ID, arg1 ProposalState) error {
+func (m *MockDiff) SetProposalState(arg0 ids.ID, arg1 dao.ProposalState) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetProposalState", arg0, arg1)
 	ret0, _ := ret[0].(error)

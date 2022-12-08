@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 )
@@ -35,10 +36,6 @@ func (s *state) LockedUTXOs(txIDs set.Set[ids.ID], addresses set.Set[ids.ShortID
 		}
 	}
 	return retUtxos, nil
-}
-
-func (s *state) CaminoConfig() (*CaminoConfig, error) {
-	return s.caminoState.CaminoConfig(), nil
 }
 
 func (s *state) SetAddressStates(address ids.ShortID, states uint64) {
@@ -69,15 +66,15 @@ func (s *state) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) {
 	return s.caminoState.GetDeposit(depositTxID)
 }
 
-func (s *state) AddProposal(proposal *Proposal) {
+func (s *state) AddProposal(proposal *dao.Proposal) {
 	s.caminoState.AddProposal(proposal)
 }
 
-func (s *state) GetProposal(proposalID ids.ID) (*Proposal, error) {
+func (s *state) GetProposal(proposalID ids.ID) (*dao.Proposal, error) {
 	return s.caminoState.GetProposal(proposalID)
 }
 
-func (s *state) GetAllProposals() ([]*Proposal, error) {
+func (s *state) GetAllProposals() ([]*dao.Proposal, error) {
 	return s.caminoState.GetAllProposals()
 }
 
@@ -85,10 +82,10 @@ func (s *state) ArchiveProposal(proposalID ids.ID) error {
 	return s.caminoState.ArchiveProposal(proposalID)
 }
 
-func (s *state) SetProposalState(proposalID ids.ID, state ProposalState) error {
+func (s *state) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
 	return s.caminoState.SetProposalState(proposalID, state)
 }
 
-func (s *state) AddVote(proposalID ids.ID, vote *Vote) error {
+func (s *state) AddVote(proposalID ids.ID, vote *dao.Vote) error {
 	return s.caminoState.AddVote(proposalID, vote)
 }
