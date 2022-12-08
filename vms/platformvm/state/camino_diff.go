@@ -205,7 +205,7 @@ func (d *diff) ArchiveProposal(proposalID ids.ID) error {
 	if err != nil {
 		return err
 	}
-	for k, _ := range proposal.Votes {
+	for k := range proposal.Votes {
 		delete(proposal.Votes, k)
 	}
 
