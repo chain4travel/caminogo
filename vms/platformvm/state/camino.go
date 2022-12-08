@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -48,14 +49,14 @@ type CaminoDiff interface {
 	GetAllDepositOffers() ([]*DepositOffer, error)
 
 	// Voting / Proposals
-	GetAllProposals() ([]*Proposal, error)
-	GetProposal(proposalID ids.ID) (*Proposal, error)
-	AddProposal(proposal *Proposal)
+	GetAllProposals() ([]*dao.Proposal, error)
+	GetProposal(proposalID ids.ID) (*dao.Proposal, error)
+	AddProposal(proposal *dao.Proposal)
 	ArchiveProposal(proposalID ids.ID) error // just for now delete all votes from struct, they dominate potential memory usage
 
-	SetProposalState(proposalID ids.ID, state ProposalState) error
+	SetProposalState(proposalID ids.ID, state dao.ProposalState) error
 
-	AddVote(proposalID ids.ID, vote *Vote) error
+	AddVote(proposalID ids.ID, vote *dao.Vote) error
 }
 
 // For state and diff
@@ -79,8 +80,8 @@ type CaminoState interface {
 type caminoDiff struct {
 	modifiedAddressStates    map[ids.ShortID]uint64
 	modifiedDepositOffers    map[ids.ID]*DepositOffer
-	modifiedProposals        map[ids.ID]*Proposal
-	modifiedProposalStatuses map[ids.ID]*ProposalStatus
+	modifiedProposals        map[ids.ID]*dao.Proposal
+	modifiedProposalStatuses map[ids.ID]*dao.ProposalStatus
 }
 
 type caminoState struct {
@@ -99,7 +100,7 @@ type caminoState struct {
 	depositOffersDB   database.Database
 
 	// Proposals
-	proposals    map[ids.ID]*Proposal
+	proposals    map[ids.ID]*dao.Proposal
 	proposalList linkeddb.LinkedDB
 	proposalsDB  database.Database
 }
@@ -129,14 +130,14 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		depositOffersDB:   depositOffersDB,
 		depositOffersList: linkeddb.NewDefault(depositOffersDB),
 
-		proposals:    make(map[ids.ID]*Proposal),
+		proposals:    make(map[ids.ID]*dao.Proposal),
 		proposalsDB:  proposalsDB,
 		proposalList: linkeddb.NewDefault(proposalsDB),
 
 		caminoDiff: caminoDiff{
 			modifiedAddressStates: make(map[ids.ShortID]uint64),
 			modifiedDepositOffers: make(map[ids.ID]*DepositOffer),
-			modifiedProposals:     make(map[ids.ID]*Proposal),
+			modifiedProposals:     make(map[ids.ID]*dao.Proposal),
 		},
 	}, nil
 }

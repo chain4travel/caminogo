@@ -2,73 +2,18 @@ package state
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 )
 
-const (
-	ProposalContentLength = 1024
-)
-
-type ProposalType uint64
-
-const (
-	NOPProposal ProposalType = iota
-)
-
-type ProposalState uint64
-
-const (
-	Pending ProposalState = iota
-	Active
-	Concluded
-)
-
-type ProposalOutcome uint64
-
-type ProposalStatus struct {
-	State ProposalState `serialize:"true"`
-}
-
-type Proposal struct {
-	TxID ids.ID
-
-	Type  ProposalType  `serialize:"true"`
-	State ProposalState `serialize:"true"`
-
-	StartTime time.Time `serialize:"true"`
-	EndTime   time.Time `serialize:"true"`
-
-	Content [ProposalContentLength]byte `serialize:"true"`
-
-	Votes map[ids.ID]*Vote `serialize:"true"`
-
-	Priority txs.Priority `serialize:"true"`
-}
-
-type VoteType uint64
-
-const (
-	Accept VoteType = iota
-	Reject
-	Abstain
-)
-
-type Vote struct {
-	TxID ids.ID
-
-	Vote VoteType `serialize:"true"`
-}
-
-func (cs *caminoState) AddProposal(proposal *Proposal) {
+func (cs *caminoState) AddProposal(proposal *dao.Proposal) {
 	cs.modifiedProposals[proposal.TxID] = proposal
 }
 
-func (cs *caminoState) GetProposal(proposalID ids.ID) (*Proposal, error) {
+func (cs *caminoState) GetProposal(proposalID ids.ID) (*dao.Proposal, error) {
 	if propsal, ok := cs.modifiedProposals[proposalID]; ok {
 		return propsal, nil
 	}
@@ -80,8 +25,8 @@ func (cs *caminoState) GetProposal(proposalID ids.ID) (*Proposal, error) {
 	return nil, database.ErrNotFound
 }
 
-func (cs *caminoState) GetAllProposals() ([]*Proposal, error) {
-	proposalMap := make(map[ids.ID]*Proposal)
+func (cs *caminoState) GetAllProposals() ([]*dao.Proposal, error) {
+	proposalMap := make(map[ids.ID]*dao.Proposal)
 
 	for k, v := range cs.proposals {
 		proposalMap[k] = v
@@ -91,7 +36,7 @@ func (cs *caminoState) GetAllProposals() ([]*Proposal, error) {
 		proposalMap[k] = v
 	}
 
-	proposals := make([]*Proposal, len(proposalMap))
+	proposals := make([]*dao.Proposal, len(proposalMap))
 
 	i := 0
 	for _, proposal := range proposalMap {
@@ -102,7 +47,7 @@ func (cs *caminoState) GetAllProposals() ([]*Proposal, error) {
 	return proposals, nil
 }
 
-func (cs *caminoState) SetProposalState(proposalID ids.ID, state ProposalState) error {
+func (cs *caminoState) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
 	proposal, err := cs.GetProposal(proposalID)
 	if err != nil {
 		return err
@@ -131,7 +76,7 @@ func (cs *caminoState) ArchiveProposal(proposalID ids.ID) error {
 	return nil
 }
 
-func (cs *caminoState) AddVote(proposalID ids.ID, vote *Vote) error {
+func (cs *caminoState) AddVote(proposalID ids.ID, vote *dao.Vote) error {
 
 	proposal, err := cs.GetProposal(proposalID)
 	if err != nil {
@@ -172,7 +117,7 @@ func (cs *caminoState) loadProposals() error {
 		}
 
 		proposalBytes := proposalIt.Value()
-		proposal := &Proposal{
+		proposal := &dao.Proposal{
 			TxID: proposalID,
 		}
 		_, err = blocks.GenesisCodec.Unmarshal(proposalBytes, proposal)

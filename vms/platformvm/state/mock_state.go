@@ -17,6 +17,7 @@ import (
 	validators "github.com/ava-labs/avalanchego/snow/validators"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
 	blocks "github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	dao "github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	status "github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -84,7 +85,7 @@ func (mr *MockStateMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call 
 }
 
 // AddProposal mocks base method.
-func (m *MockState) AddProposal(arg0 *Proposal) {
+func (m *MockState) AddProposal(arg0 *dao.Proposal) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddProposal", arg0)
 }
@@ -168,7 +169,7 @@ func (mr *MockStateMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // AddVote mocks base method.
-func (m *MockState) AddVote(arg0 ids.ID, arg1 *Vote) error {
+func (m *MockState) AddVote(arg0 ids.ID, arg1 *dao.Vote) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddVote", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -344,10 +345,10 @@ func (mr *MockStateMockRecorder) GetAllDepositOffers() *gomock.Call {
 }
 
 // GetAllProposals mocks base method.
-func (m *MockState) GetAllProposals() ([]*Proposal, error) {
+func (m *MockState) GetAllProposals() ([]*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllProposals")
-	ret0, _ := ret[0].([]*Proposal)
+	ret0, _ := ret[0].([]*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -508,10 +509,10 @@ func (mr *MockStateMockRecorder) GetPendingValidator(arg0, arg1 interface{}) *go
 }
 
 // GetProposal mocks base method.
-func (m *MockState) GetProposal(arg0 ids.ID) (*Proposal, error) {
+func (m *MockState) GetProposal(arg0 ids.ID) (*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetProposal", arg0)
-	ret0, _ := ret[0].(*Proposal)
+	ret0, _ := ret[0].(*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -786,7 +787,7 @@ func (mr *MockStateMockRecorder) SetLastAccepted(arg0 interface{}) *gomock.Call 
 }
 
 // SetProposalState mocks base method.
-func (m *MockState) SetProposalState(arg0 ids.ID, arg1 ProposalState) error {
+func (m *MockState) SetProposalState(arg0 ids.ID, arg1 dao.ProposalState) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetProposalState", arg0, arg1)
 	ret0, _ := ret[0].(error)

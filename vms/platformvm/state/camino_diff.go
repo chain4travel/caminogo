@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 )
@@ -116,8 +117,8 @@ func (d *diff) GetAllDepositOffers() ([]*DepositOffer, error) {
 }
 
 // Voting
-func (d *diff) GetAllProposals() ([]*Proposal, error) {
-	proposals := make([]*Proposal, len(d.caminoDiff.modifiedProposals))
+func (d *diff) GetAllProposals() ([]*dao.Proposal, error) {
+	proposals := make([]*dao.Proposal, len(d.caminoDiff.modifiedProposals))
 	i := 0
 	for _, proposal := range d.caminoDiff.modifiedProposals {
 		proposals[i] = proposal
@@ -138,7 +139,7 @@ func (d *diff) GetAllProposals() ([]*Proposal, error) {
 
 }
 
-func (d *diff) GetProposal(proposalID ids.ID) (*Proposal, error) {
+func (d *diff) GetProposal(proposalID ids.ID) (*dao.Proposal, error) {
 	if proposal, ok := d.caminoDiff.modifiedProposals[proposalID]; ok {
 		return proposal, nil
 	}
@@ -152,7 +153,7 @@ func (d *diff) GetProposal(proposalID ids.ID) (*Proposal, error) {
 
 }
 
-func (d *diff) AddProposal(proposal *Proposal) {
+func (d *diff) AddProposal(proposal *dao.Proposal) {
 	d.caminoDiff.modifiedProposals[proposal.TxID] = proposal
 }
 
@@ -170,7 +171,7 @@ func (d *diff) ArchiveProposal(proposalID ids.ID) error {
 
 }
 
-func (d *diff) SetProposalState(proposalID ids.ID, state ProposalState) error {
+func (d *diff) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
 	proposal, err := d.GetProposal(proposalID)
 	if err != nil {
 		return err
@@ -183,7 +184,7 @@ func (d *diff) SetProposalState(proposalID ids.ID, state ProposalState) error {
 	return nil
 }
 
-func (d *diff) AddVote(proposalID ids.ID, vote *Vote) error {
+func (d *diff) AddVote(proposalID ids.ID, vote *dao.Vote) error {
 
 	proposal, err := d.GetProposal(proposalID)
 	if err != nil {

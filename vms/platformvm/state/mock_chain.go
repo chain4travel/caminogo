@@ -13,6 +13,7 @@ import (
 
 	ids "github.com/ava-labs/avalanchego/ids"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
+	dao "github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	status "github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -68,7 +69,7 @@ func (mr *MockChainMockRecorder) AddDepositOffer(arg0 interface{}) *gomock.Call 
 }
 
 // AddProposal mocks base method.
-func (m *MockChain) AddProposal(arg0 *Proposal) {
+func (m *MockChain) AddProposal(arg0 *dao.Proposal) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddProposal", arg0)
 }
@@ -140,7 +141,7 @@ func (mr *MockChainMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // AddVote mocks base method.
-func (m *MockChain) AddVote(arg0 ids.ID, arg1 *Vote) error {
+func (m *MockChain) AddVote(arg0 ids.ID, arg1 *dao.Vote) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddVote", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -273,10 +274,10 @@ func (mr *MockChainMockRecorder) GetAllDepositOffers() *gomock.Call {
 }
 
 // GetAllProposals mocks base method.
-func (m *MockChain) GetAllProposals() ([]*Proposal, error) {
+func (m *MockChain) GetAllProposals() ([]*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllProposals")
-	ret0, _ := ret[0].([]*Proposal)
+	ret0, _ := ret[0].([]*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -423,10 +424,10 @@ func (mr *MockChainMockRecorder) GetPendingValidator(arg0, arg1 interface{}) *go
 }
 
 // GetProposal mocks base method.
-func (m *MockChain) GetProposal(arg0 ids.ID) (*Proposal, error) {
+func (m *MockChain) GetProposal(arg0 ids.ID) (*dao.Proposal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetProposal", arg0)
-	ret0, _ := ret[0].(*Proposal)
+	ret0, _ := ret[0].(*dao.Proposal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -615,7 +616,7 @@ func (mr *MockChainMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomoc
 }
 
 // SetProposalState mocks base method.
-func (m *MockChain) SetProposalState(arg0 ids.ID, arg1 ProposalState) error {
+func (m *MockChain) SetProposalState(arg0 ids.ID, arg1 dao.ProposalState) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetProposalState", arg0, arg1)
 	ret0, _ := ret[0].(error)
