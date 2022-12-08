@@ -5,7 +5,8 @@ import (
 )
 
 const (
-	ProposalContentLength = 1024
+	ProposalMaxContentLength  = 1024
+	ProposalMaxMetadataLength = 1024
 )
 
 type ProposalType uint64
@@ -28,5 +29,6 @@ type Proposal struct {
 	StartTime time.Time `serialize:"true"`
 	EndTime   time.Time `serialize:"true"`
 
-	Content []byte `serialize:"true"`
+	Metadata []byte `serialize:"true"` // used for additional information that are used for the syntactic evaluation of a proposal type (multiple options, thresholds, etc.)
+	Content  []byte `serialize:"true"` // used for an IPFS link that contains metadata about the semantics of the proposal (links, images, html, rich text etc.)
 }
