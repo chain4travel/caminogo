@@ -13,6 +13,8 @@ var (
 	errContentTooLong        = fmt.Errorf("content is longer than %d bytes", ProposalMaxContentLength)
 	errInvalidProposalType   = fmt.Errorf("invalid proposalType")
 	errProposalTypeMissmatch = fmt.Errorf("proposalType and proposalMetadata do not match")
+	errProposalEnded         = fmt.Errorf("proposal has ended")
+	errProposalNotStarted    = fmt.Errorf("proposas has not started yet")
 )
 
 type ProposalType uint64
@@ -42,6 +44,16 @@ type Proposal struct {
 // utility functions
 func (p Proposal) Duration() time.Duration {
 	return p.EndTime.Sub(p.StartTime)
+}
+
+func (p Proposal) IsActive(currentTime time.Time) error {
+	if currentTime.After(p.EndTime) {
+		return errProposalEnded
+	}
+	if currentTime.Before(p.StartTime) {
+		return errProposalNotStarted
+	}
+	return nil
 }
 
 func (p Proposal) Verify() error {
