@@ -15,7 +15,8 @@ type caminoTxMetrics struct {
 	txMetrics
 	numAddAddressStateTxs,
 	numDepositTxs,
-	numUnlockDepositTxs prometheus.Counter
+	numUnlockDepositTxs,
+	numCreateProposalTxs prometheus.Counter
 }
 
 func newCaminoTxMetrics(
@@ -32,6 +33,7 @@ func newCaminoTxMetrics(
 		txMetrics: *txm,
 		// Camino specific tx metrics
 		numAddAddressStateTxs: newTxMetric(namespace, "add_address_state", registerer, &errs),
+		numCreateProposalTxs:  newTxMetric(namespace, "create_proposal", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -60,5 +62,12 @@ func (m *caminoTxMetrics) DepositTx(*txs.DepositTx) error {
 
 func (m *caminoTxMetrics) UnlockDepositTx(*txs.UnlockDepositTx) error {
 	m.numUnlockDepositTxs.Inc()
+	return nil
+}
+
+func (m *txMetrics) CreateProposalTx(*txs.CreateProposalTx) error { return nil }
+
+func (m *caminoTxMetrics) CreateProposalTx(*txs.CreateProposalTx) error {
+	m.numCreateProposalTxs.Inc()
 	return nil
 }

@@ -1,5 +1,7 @@
 package dao
 
+import "fmt"
+
 type VoteType uint64
 
 const (
@@ -8,6 +10,22 @@ const (
 	Abstain                 // I want to remain neutral
 )
 
+var (
+	errInvalidVoteType = fmt.Errorf("invalid voteType")
+)
+
 type Vote struct {
 	Vote VoteType `serialize:"true"`
+}
+
+func (v Vote) Verify() error {
+
+	switch v.Vote {
+	case Accept, Reject, Abstain:
+		break
+	default:
+		return errInvalidVoteType
+	}
+
+	return nil
 }

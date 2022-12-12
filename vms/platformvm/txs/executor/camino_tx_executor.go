@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
@@ -41,6 +42,7 @@ var (
 	errDepositDurationToSmall   = errors.New("deposit duration is less than deposit offer minmum duration")
 	errDepositDurationToBig     = errors.New("deposit duration is greater than deposit offer maximum duration")
 	errSupplyOverflow           = errors.New("resulting total supply would be more, than allowed maximum")
+	errNotKYCVerified           = errors.New("not kyc verfied or status has expired")
 )
 
 type CaminoStandardTxExecutor struct {
@@ -685,6 +687,135 @@ func (e *CaminoStandardTxExecutor) AddAddressStateTx(tx *txs.AddAddressStateTx) 
 	if states != newStates {
 		e.State.SetAddressStates(tx.Address, states)
 	}
+
+	return nil
+}
+
+func (e *CaminoStandardTxExecutor) CreateProposalTx(tx *txs.CreateProposalTx) error {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
+	fx, ok := e.Backend.Fx.(*secp256k1fx.Fx)
+	if !ok {
+		return errNotSecp256Fx
+	}
+
+	addresses, err := fx.RecoverAddresses(tx, e.Tx.Creds)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errRecoverAdresses, err)
+	}
+
+	if addresses.Len() == 0 {
+		return errWrongNumberOfCredentials
+	}
+
+	// Accumulate roles over all signers
+	// TODO @jax Open question, should this be additive?
+	roles := uint64(0)
+	for address := range addresses {
+		states, err := e.State.GetAddressStates(address)
+		if err != nil {
+			return err
+		}
+		roles |= states
+	}
+
+	if err := isKycVerified(roles); err != nil {
+		return err
+	}
+
+	if err := verifyCreateProposalTx(e.Backend, e.State, e.Tx, tx); err != nil {
+		return err
+	}
+
+	// Verify the flowcheck
+	if err := e.FlowChecker.VerifySpend(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds,
+		map[ids.ID]uint64{
+			e.Ctx.AVAXAssetID: e.Config.TxFee,
+		},
+	); err != nil {
+		return err
+	}
+
+	txID := e.Tx.ID()
+
+	// Consume the UTXOS
+	utxo.Consume(e.State, tx.Ins)
+	// Produce the UTXOS
+	utxo.Produce(e.State, txID, tx.Outs)
+	// create a new propoosal
+	e.State.AddProposal(txID, &tx.Proposal, dao.ProposalStatePending)
+
+	return nil
+}
+
+func (e *CaminoStandardTxExecutor) CreateVoteTx(tx *txs.CreateVoteTx) error {
+	// TODO @jax the logic around this is unclear atm
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
+	fx, ok := e.Backend.Fx.(*secp256k1fx.Fx)
+	if !ok {
+		return errNotSecp256Fx
+	}
+
+	addresses, err := fx.RecoverAddresses(tx, e.Tx.Creds)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errRecoverAdresses, err)
+	}
+
+	if addresses.Len() == 0 {
+		return errWrongNumberOfCredentials
+	}
+
+	// Accumulate roles over all signers
+	// TODO @jax Open question, should this be additive?
+	roles := uint64(0)
+	for address := range addresses {
+		states, err := e.State.GetAddressStates(address)
+		if err != nil {
+			return err
+		}
+		roles |= states
+	}
+
+	if err := isKycVerified(roles); err != nil {
+		return err
+	}
+
+	if err := verifyCreateVoteTx(e.Backend, e.State, e.Tx, tx); err != nil {
+		return err
+	}
+
+	// Verify the flowcheck
+	if err := e.FlowChecker.VerifySpend(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds,
+		map[ids.ID]uint64{
+			e.Ctx.AVAXAssetID: e.Config.TxFee,
+		},
+	); err != nil {
+		return err
+	}
+
+	txID := e.Tx.ID()
+
+	// Consume the UTXOS
+	utxo.Consume(e.State, tx.Ins)
+	// Produce the UTXOS
+	utxo.Produce(e.State, txID, tx.Outs)
+	// create a new propoosal
+	e.State.AddVote(tx.ProposalID, txID, &tx.Vote) // TODO @jax this is wrong, we have to change state to save an actual address and not tx id
 
 	return nil
 }

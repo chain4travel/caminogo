@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
@@ -54,6 +55,11 @@ type CaminoTxBuilder interface {
 
 	NewUnlockDepositTx(
 		lockTxIDs []ids.ID,
+		keys []*crypto.PrivateKeySECP256K1R,
+		changeAddr ids.ShortID,
+	) (*txs.Tx, error)
+	NewCreateProposalTx(
+		proposal dao.Proposal, //? @Jax as the Metadata is generic the creation of the proper dao should be handled by different service functions
 		keys []*crypto.PrivateKeySECP256K1R,
 		changeAddr ids.ShortID,
 	) (*txs.Tx, error)
@@ -264,6 +270,34 @@ func (b *caminoBuilder) NewAddAddressStateTx(
 		Address: address,
 		Remove:  remove,
 		State:   state,
+	}
+	tx, err := txs.NewSigned(utx, txs.Codec, signers)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) NewCreateProposalTx(
+	proposal dao.Proposal,
+	keys []*crypto.PrivateKeySECP256K1R,
+	changeAddr ids.ShortID,
+) (*txs.Tx, error) {
+	ins, outs, signers, err := b.Lock(keys, b.cfg.CaminoConfig.DaoProposalBondAmount, b.cfg.TxFee, locked.StateBonded, changeAddr)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	// Create the tx
+	utx := &txs.CreateProposalTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		Proposal: proposal,
 	}
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {

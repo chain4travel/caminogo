@@ -20,6 +20,10 @@ func (b *backendVisitor) UnlockDepositTx(tx *txs.UnlockDepositTx) error {
 	return b.baseTx(&tx.BaseTx)
 }
 
+func (b *backendVisitor) CreateProposalTx(tx *txs.CreateProposalTx) error {
+	return b.baseTx(&tx.BaseTx)
+}
+
 func (s *signerVisitor) AddAddressStateTx(tx *txs.AddAddressStateTx) error {
 	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
 	if err != nil {
@@ -37,6 +41,14 @@ func (s *signerVisitor) DepositTx(tx *txs.DepositTx) error {
 }
 
 func (s *signerVisitor) UnlockDepositTx(tx *txs.UnlockDepositTx) error {
+	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
+	if err != nil {
+		return err
+	}
+	return sign(s.tx, txSigners)
+}
+
+func (s *signerVisitor) CreateProposalTx(tx *txs.CreateProposalTx) error {
 	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
 	if err != nil {
 		return err
