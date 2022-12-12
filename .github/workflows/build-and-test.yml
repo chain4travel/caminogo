@@ -2,9 +2,10 @@ name: Unit Tests
 
 on:
   push:
-    branches: [chain4travel]
+    branches: [chain4travel, dev]
   pull_request:
-    branches: [chain4travel]
+    tags-ignore: ["*"]
+    branches: [chain4travel, dev]
 
 jobs:
   run_build_unit_tests:
@@ -17,4 +18,4 @@ jobs:
           go-version: "1.18" # The Go version to download (if necessary) and use.
       - name: test
         shell: bash
-        run: scripts/test.sh
+        run: scripts/test.sh --race

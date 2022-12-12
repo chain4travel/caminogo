@@ -13,15 +13,21 @@ import (
 
 // AddressState flags, max 63
 const (
-	AddressStateRoleAdmin    = uint8(0)
-	AddressStateRoleAdminBit = uint64(0b1)
-	AddressStateRoleKyc      = uint8(1)
-	AddressStateRoleKycBit   = uint64(0b10)
-	AddressStateRoleBits     = uint64(0b11)
+	AddressStateRoleAdmin        = uint8(0)
+	AddressStateRoleAdminBit     = uint64(0b1)
+	AddressStateRoleKyc          = uint8(1)
+	AddressStateRoleKycBit       = uint64(0b10)
+	AddressStateRoleValidator    = uint8(2)
+	AddressStateRoleValidatorBit = uint64(0b100)
+	AddressStateRoleBits         = uint64(0b111)
 
 	AddressStateKycVerified = 32
 	AddressStateKycExpired  = 33
-	AddressStateKycBits     = uint64(0b1100000000000000000000000000000000)
+	AddressStateConsortium  = 34
+	AddressStateKycBits     = uint64(0b11100000000000000000000000000000000)
+
+	AddressStateValidator     = 38
+	AddressStateValidatorBits = uint64(0b100000000000000000000000000000000000000)
 
 	AddressStateMax       = 63
 	AddressStateValidBits = AddressStateRoleBits | AddressStateKycBits
@@ -30,8 +36,8 @@ const (
 var (
 	_ UnsignedTx = (*AddAddressStateTx)(nil)
 
-	errEmptyAddress = errors.New("address is empty")
-	errInvalidState = errors.New("invalid state")
+	ErrEmptyAddress = errors.New("address is empty")
+	ErrInvalidState = errors.New("invalid state")
 )
 
 // AddAddressStateTx is an unsigned addAddressStateTx
@@ -54,9 +60,9 @@ func (tx *AddAddressStateTx) SyntacticVerify(ctx *snow.Context) error {
 	case tx.SyntacticallyVerified: // already passed syntactic verification
 		return nil
 	case tx.Address == ids.ShortEmpty:
-		return errEmptyAddress
+		return ErrEmptyAddress
 	case tx.State > AddressStateMax || AddressStateValidBits&(uint64(1)<<tx.State) == 0:
-		return errInvalidState
+		return ErrInvalidState
 	}
 
 	if err := locked.VerifyNoLocks(tx.Ins, tx.Outs); err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -20,7 +21,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const addressStateCacheSize = 1024
+const (
+	addressStateCacheSize = 1024
+	depositsCacheSize     = 1024
+)
 
 var (
 	_ CaminoState = (*caminoState)(nil)
@@ -28,6 +32,7 @@ var (
 	addressStatePrefix  = []byte("addressState")
 	depositOffersPrefix = []byte("depositOffers")
 	proposalsPrefix     = []byte("proposals")
+	depositsPrefix      = []byte("deposits")
 )
 
 type CaminoApply interface {
@@ -43,9 +48,13 @@ type CaminoDiff interface {
 	// Deposit offers state
 
 	// precondition: offer.SetID() must be called and return no error
-	AddDepositOffer(offer *DepositOffer)
-	GetDepositOffer(offerID ids.ID) (*DepositOffer, error)
-	GetAllDepositOffers() ([]*DepositOffer, error)
+	AddDepositOffer(offer *deposit.Offer)
+	GetDepositOffer(offerID ids.ID) (*deposit.Offer, error)
+	GetAllDepositOffers() ([]*deposit.Offer, error)
+
+	// Deposits state
+	UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposit)
+	GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error)
 
 	// Voting / Proposals
 	GetAllProposals() ([]*ProposalLookup, error)
@@ -80,12 +89,13 @@ type CaminoState interface {
 
 type caminoDiff struct {
 	modifiedAddressStates   map[ids.ShortID]uint64
-	modifiedDepositOffers   map[ids.ID]*DepositOffer
+	modifiedDepositOffers   map[ids.ID]*deposit.Offer
+	modifiedDeposits        map[ids.ID]*deposit.Deposit
 	modifiedProposalLookups map[ids.ID]*ProposalLookup
 }
 
 type caminoState struct {
-	caminoDiff
+	*caminoDiff
 
 	verifyNodeSignature bool
 	lockModeBondDeposit bool
@@ -95,7 +105,7 @@ type caminoState struct {
 	addressStateDB    database.Database
 
 	// Deposit offers
-	depositOffers     map[ids.ID]*DepositOffer
+	depositOffers     map[ids.ID]*deposit.Offer
 	depositOffersList linkeddb.LinkedDB
 	depositOffersDB   database.Database
 
@@ -103,6 +113,18 @@ type caminoState struct {
 	proposals    map[ids.ID]*ProposalLookup
 	proposalList linkeddb.LinkedDB
 	proposalsDB  database.Database
+	// Deposits
+	depositsCache cache.Cacher
+	depositsDB    database.Database
+}
+
+func newCaminoDiff() *caminoDiff {
+	return &caminoDiff{
+		modifiedAddressStates:   make(map[ids.ShortID]uint64),
+		modifiedDepositOffers:   make(map[ids.ID]*deposit.Offer),
+		modifiedDeposits:        make(map[ids.ID]*deposit.Deposit),
+		modifiedProposalLookups: make(map[ids.ID]*ProposalLookup),
+	}
 }
 
 func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
@@ -115,6 +137,11 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		return nil, err
 	}
 
+	depositsCache, err := metercacher.New(
+		"deposits_cache",
+		metricsReg,
+		&cache.LRU{Size: depositsCacheSize},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +153,7 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		addressStateDB:    prefixdb.New(addressStatePrefix, baseDB),
 		addressStateCache: addressStateCache,
 
-		depositOffers:     make(map[ids.ID]*DepositOffer),
+		depositOffers:     make(map[ids.ID]*deposit.Offer),
 		depositOffersDB:   depositOffersDB,
 		depositOffersList: linkeddb.NewDefault(depositOffersDB),
 
@@ -134,11 +161,10 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		proposalsDB:  proposalsDB,
 		proposalList: linkeddb.NewDefault(proposalsDB),
 
-		caminoDiff: caminoDiff{
-			modifiedAddressStates:   make(map[ids.ShortID]uint64),
-			modifiedDepositOffers:   make(map[ids.ID]*DepositOffer),
-			modifiedProposalLookups: make(map[ids.ID]*ProposalLookup),
-		},
+		depositsCache: depositsCache,
+		depositsDB:    prefixdb.New(depositsPrefix, baseDB),
+
+		caminoDiff: newCaminoDiff(),
 	}, nil
 }
 
@@ -164,14 +190,16 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 	cs.SetAddressStates(g.Camino.InitialAdmin, txs.AddressStateRoleAdminBit)
 
 	for _, genesisOffer := range g.Camino.DepositOffers {
-		offer := &DepositOffer{
-			UnlockHalfPeriodDuration: genesisOffer.UnlockHalfPeriodDuration,
-			InterestRateNominator:    genesisOffer.InterestRateNominator,
-			Start:                    genesisOffer.Start,
-			End:                      genesisOffer.End,
-			MinAmount:                genesisOffer.MinAmount,
-			MinDuration:              genesisOffer.MinDuration,
-			MaxDuration:              genesisOffer.MaxDuration,
+		offer := &deposit.Offer{
+			InterestRateNominator:   genesisOffer.InterestRateNominator,
+			Start:                   genesisOffer.Start,
+			End:                     genesisOffer.End,
+			MinAmount:               genesisOffer.MinAmount,
+			MinDuration:             genesisOffer.MinDuration,
+			MaxDuration:             genesisOffer.MaxDuration,
+			UnlockPeriodDuration:    genesisOffer.UnlockPeriodDuration,
+			NoRewardsPeriodDuration: genesisOffer.NoRewardsPeriodDuration,
+			Flags:                   genesisOffer.Flags,
 		}
 		if err := offer.SetID(); err != nil {
 			return err
