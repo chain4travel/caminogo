@@ -24,6 +24,10 @@ func (b *backendVisitor) CreateProposalTx(tx *txs.CreateProposalTx) error {
 	return b.baseTx(&tx.BaseTx)
 }
 
+func (b *backendVisitor) CreateVoteTx(tx *txs.CreateVoteTx) error {
+	return b.baseTx(&tx.BaseTx)
+}
+
 func (s *signerVisitor) AddAddressStateTx(tx *txs.AddAddressStateTx) error {
 	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
 	if err != nil {
@@ -54,4 +58,12 @@ func (s *signerVisitor) CreateProposalTx(tx *txs.CreateProposalTx) error {
 		return err
 	}
 	return sign(s.tx, txSigners)
+}
+
+func (s *signerVisitor) CreateVoteTx(tx *txs.CreateVoteTx) error {
+	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
+	if err != nil {
+		return err
+	}
+	return s.sign(s.tx, txSigners)
 }

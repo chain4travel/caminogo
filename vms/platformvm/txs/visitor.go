@@ -34,7 +34,7 @@ type Visitor interface {
 =======
 	AddAddressStateTx(*AddAddressStateTx) error
 	CreateProposalTx(*CreateProposalTx) error
-	// CreateVoteTx(*CreateVoteTx) error TODO @jax implement
+	CreateVoteTx(*CreateVoteTx) error
 	// ConcludeProposalTx(*ConcludeProposalTx) error
 >>>>>>> da3a35a51 (Initial Create Proposal TX)
 }

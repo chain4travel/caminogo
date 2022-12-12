@@ -113,8 +113,9 @@ func RegisterUnsignedTxsTypes(targetCodec codec.CaminoRegistry) error {
 		targetCodec.RegisterCustomType(&DepositTx{}),
 		targetCodec.RegisterCustomType(&UnlockDepositTx{}),
 
-		// camino dao voting
+		// Camino dao voting
 		targetCodec.RegisterCustomType(&CreateProposalTx{}),
+		targetCodec.RegisterCustomType(&CreateVoteTx{}),
 	)
 	return errs.Err
 }

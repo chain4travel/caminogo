@@ -6,7 +6,8 @@ package config
 import "time"
 
 type CaminoConfig struct {
-	DaoProposalBondAmount   uint64
-	DaoProposalMaxDurration time.Duration
-	DaoProposalMinDurration time.Duration
+	DaoProposalBondAmount         uint64
+	DaoProposalMaxDurration       time.Duration
+	DaoProposalMinDurration       time.Duration
+	DaoProposalMinPendingDuration time.Duration
 }

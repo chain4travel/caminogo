@@ -28,6 +28,11 @@ func (i *issuer) CreateProposalTx(*txs.CreateProposalTx) error {
 	return nil
 }
 
+func (i *issuer) CreateVoteTx(*txs.CreateVoteTx) error {
+	i.m.addStakerTx(i.tx)
+	return nil
+}
+
 // Remover
 func (r *remover) AddAddressStateTx(*txs.AddAddressStateTx) error {
 	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
@@ -45,6 +50,11 @@ func (r *remover) UnlockDepositTx(*txs.UnlockDepositTx) error {
 }
 
 func (r *remover) CreateProposalTx(*txs.CreateProposalTx) error {
+	r.m.removeStakerTx(r.tx)
+	return nil
+}
+
+func (r *remover) CreateVoteTx(*txs.CreateVoteTx) error {
 	r.m.removeStakerTx(r.tx)
 	return nil
 }
