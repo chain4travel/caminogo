@@ -113,9 +113,17 @@ type PlatformAllocation struct {
 }
 
 func (a PlatformAllocation) Unparse() (UnparsedPlatformAllocation, error) {
-	return UnparsedPlatformAllocation{
-		Amount:         a.Amount,
-		NodeID:         a.NodeID.String(),
-		DepositOfferID: a.DepositOfferID.String(),
-	}, nil
+	ua := UnparsedPlatformAllocation{
+		Amount: a.Amount,
+	}
+
+	if a.NodeID != ids.EmptyNodeID {
+		ua.NodeID = a.NodeID.String()
+	}
+
+	if a.DepositOfferID != ids.Empty {
+		ua.DepositOfferID = a.DepositOfferID.String()
+	}
+
+	return ua, nil
 }
