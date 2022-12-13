@@ -1,24 +1,24 @@
 package state
 
 import (
+	"testing"
+
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var (
 	lastAcceptedID   = ids.GenerateTestID()
 	twoProposalsMap  = generateXNumberOfProposalsWithDifferentIds(2)
 	twoProposalsMap2 = generateXNumberOfProposalsWithDifferentIds(2)
-	twoVotesMap      = generateXNumberOfVotesWithDifferentIds(2)
-	twoVotesMap2     = generateXNumberOfVotesWithDifferentIds(2)
 )
 
 func TestGetAllProposals(t *testing.T) {
 	tests := map[string]struct {
 		d    Diff
-		want []*Proposal
+		want []*ProposalLookup
 		err  error
 	}{
 		"Error missing parent state": {
@@ -47,8 +47,8 @@ func TestGetAllProposals(t *testing.T) {
 				diff, _ := NewDiff(lastAcceptedID, versions)
 				return diff
 			}(),
-			want: func() []*Proposal {
-				var v []*Proposal
+			want: func() []*ProposalLookup {
+				var v []*ProposalLookup
 				for _, value := range twoProposalsMap {
 					v = append(v, value)
 				}
@@ -65,11 +65,11 @@ func TestGetAllProposals(t *testing.T) {
 
 				s.(*state).caminoState.(*caminoState).proposals = twoProposalsMap
 				d, _ := NewDiff(lastAcceptedID, versions)
-				d.(*diff).caminoDiff.modifiedProposals = twoProposalsMap2
+				d.(*diff).caminoDiff.modifiedProposalLookups = twoProposalsMap2
 				return d
 			}(),
-			want: func() []*Proposal {
-				var v []*Proposal
+			want: func() []*ProposalLookup {
+				var v []*ProposalLookup
 				for _, value := range twoProposalsMap {
 					v = append(v, value)
 				}
@@ -83,84 +83,6 @@ func TestGetAllProposals(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := tt.d.GetAllProposals()
-			if tt.err != nil {
-				require.ErrorContains(t, err, tt.err.Error())
-				return
-			}
-			require.NoError(t, err)
-			require.ElementsMatch(t, tt.want, got)
-		})
-	}
-}
-
-func TestGetAllVotes(t *testing.T) {
-	tests := map[string]struct {
-		d    Diff
-		want []*Vote
-		err  error
-	}{
-		"Error missing parent state": {
-			d: func() Diff {
-				require := require.New(t)
-				ctrl := gomock.NewController(t)
-				state, _ := newInitializedState(require)
-				versions := NewMockVersions(ctrl)
-				versions.EXPECT().GetState(lastAcceptedID).Times(1).Return(state, true)
-				versions.EXPECT().GetState(lastAcceptedID).Times(1).Return(state, false)
-
-				diff, _ := NewDiff(lastAcceptedID, versions)
-				return diff
-			}(),
-			err: ErrMissingParentState,
-		},
-		"Getting votes only from parent state": {
-			d: func() Diff {
-				require := require.New(t)
-				ctrl := gomock.NewController(t)
-				s, _ := newInitializedState(require)
-				versions := NewMockVersions(ctrl)
-				versions.EXPECT().GetState(lastAcceptedID).AnyTimes().Return(s, true)
-
-				s.(*state).caminoState.(*caminoState).votes = twoVotesMap
-				diff, _ := NewDiff(lastAcceptedID, versions)
-				return diff
-			}(),
-			want: func() []*Vote {
-				var v []*Vote
-				for _, value := range twoVotesMap {
-					v = append(v, value)
-				}
-				return v
-			}(),
-		},
-		"Getting votes from both current and parent state": {
-			d: func() Diff {
-				require := require.New(t)
-				ctrl := gomock.NewController(t)
-				s, _ := newInitializedState(require)
-				versions := NewMockVersions(ctrl)
-				versions.EXPECT().GetState(lastAcceptedID).AnyTimes().Return(s, true)
-
-				s.(*state).caminoState.(*caminoState).votes = twoVotesMap
-				d, _ := NewDiff(lastAcceptedID, versions)
-				d.(*diff).caminoDiff.modifiedVotes = twoVotesMap2
-				return d
-			}(),
-			want: func() []*Vote {
-				var v []*Vote
-				for _, value := range twoVotesMap {
-					v = append(v, value)
-				}
-				for _, value := range twoVotesMap2 {
-					v = append(v, value)
-				}
-				return v
-			}(),
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			got, err := tt.d.GetAllVotes()
 			if tt.err != nil {
 				require.ErrorContains(t, err, tt.err.Error())
 				return
@@ -190,7 +112,6 @@ func TestApplyCaminoState(t *testing.T) {
 				versions := NewMockVersions(ctrl)
 				versions.EXPECT().GetState(lastAcceptedID).AnyTimes().Return(s, true)
 
-				s.(*state).caminoState.(*caminoState).votes = twoVotesMap
 				baseState = s
 				d, _ := NewDiff(lastAcceptedID, versions)
 				return d
@@ -200,12 +121,11 @@ func TestApplyCaminoState(t *testing.T) {
 			},
 			wantCaminoDiff: func(d Diff) caminoDiff {
 				wantCaminoDiff = caminoDiff{
-					modifiedAddressStates: map[ids.ShortID]uint64{ids.ShortEmpty: 1},
-					modifiedDepositOffers: map[ids.ID]*DepositOffer{ids.GenerateTestID(): {id: ids.GenerateTestID()}},
-					modifiedProposals:     twoProposalsMap,
-					modifiedVotes:         twoVotesMap,
+					modifiedAddressStates:   map[ids.ShortID]uint64{ids.ShortEmpty: 1},
+					modifiedDepositOffers:   map[ids.ID]*deposit.Offer{ids.GenerateTestID(): {ID: ids.GenerateTestID()}},
+					modifiedProposalLookups: twoProposalsMap,
 				}
-				d.(*diff).caminoDiff = wantCaminoDiff
+				d.(*diff).caminoDiff = &wantCaminoDiff
 				return wantCaminoDiff
 			},
 		},
@@ -216,14 +136,13 @@ func TestApplyCaminoState(t *testing.T) {
 			tt.d.ApplyCaminoState(tt.args.baseState)
 
 			require.Equal(t, cd.modifiedAddressStates[ids.ShortEmpty], func() uint64 { as, _ := tt.args.baseState.GetAddressStates(ids.ShortEmpty); return as }())
-			require.ElementsMatch(t, mapToArray(cd.modifiedProposals), func() []*Proposal { p, _ := baseState.GetAllProposals(); return p }())
-			require.ElementsMatch(t, mapToArray(cd.modifiedDepositOffers), func() []*DepositOffer { d, _ := baseState.GetAllDepositOffers(); return d }())
-			//require.ElementsMatch(t, mapToArray(cd.modifiedVotes), func() []*Vote { v, _ := baseState.GetAllVotes(); return v }())
+			require.ElementsMatch(t, mapToArray(cd.modifiedProposalLookups), func() []*ProposalLookup { p, _ := baseState.GetAllProposals(); return p }())
+			require.ElementsMatch(t, mapToArray(cd.modifiedDepositOffers), func() []*deposit.Offer { d, _ := baseState.GetAllDepositOffers(); return d }())
 		})
 	}
 }
 
-func mapToArray[K ids.ID, V *DepositOffer | *Proposal | *Vote](m map[K]V) []V {
+func mapToArray[K ids.ID, V *deposit.Offer | *ProposalLookup](m map[K]V) []V {
 	var a []V
 	for _, v := range m {
 		a = append(a, v)

@@ -10,9 +10,9 @@ import (
 )
 
 type ProposalLookup struct {
-	Proposal *dao.Proposal
-	Votes    map[ids.ID]*dao.Vote
-	State    dao.ProposalState
+	Proposal *dao.Proposal        `serialize:"true"`
+	Votes    map[ids.ID]*dao.Vote `json:"votes"`
+	State    dao.ProposalState    `serialize:"true"`
 }
 
 func (cs *caminoState) AddProposal(propsalID ids.ID, proposal *dao.Proposal, state dao.ProposalState) {
@@ -108,9 +108,9 @@ func (cs *caminoState) writeProposals() error {
 		if err != nil {
 			return fmt.Errorf("failed to serialize proposal: %v", err)
 		}
-
+		proposalID := proposalID
 		if err := cs.proposalList.Put(proposalID[:], proposalBytes); err != nil {
-			return fmt.Errorf("failed to persit proposal: %v", err)
+			return fmt.Errorf("failed to persist proposal: %v", err)
 		}
 
 		delete(cs.modifiedProposalLookups, proposalID)
@@ -136,7 +136,6 @@ func (cs *caminoState) loadProposals() error {
 		}
 
 		cs.proposals[proposalID] = proposal
-
 	}
 	return nil
 }

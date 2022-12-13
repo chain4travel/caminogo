@@ -212,7 +212,6 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 }
 
 func (cs *caminoState) Load() error {
-
 	if err := cs.loadDepositOffers(); err != nil {
 		return err
 	}
