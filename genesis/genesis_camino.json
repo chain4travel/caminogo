@@ -26,6 +26,7 @@
           {
             "amount": 100000000000000,
             "nodeID": "NodeID-PGHYeLVkU6ZVQEu8CuRBk6pQ2NJNAuzZ4",
+            "validatorDuration": 100000,
             "depositOfferID": "2cntH7zB6LDu1s4VZ9HiNiLWW4uCXN4SWv9Dd1fFxdCTb8Yw2g"
           },
           {

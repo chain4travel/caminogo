@@ -107,14 +107,16 @@ func (a CaminoAllocation) Less(other CaminoAllocation) bool {
 }
 
 type PlatformAllocation struct {
-	Amount         uint64     `json:"amount"`
-	NodeID         ids.NodeID `json:"nodeID"`
-	DepositOfferID ids.ID     `json:"depositOfferID"`
+	Amount            uint64     `json:"amount"`
+	NodeID            ids.NodeID `json:"nodeID"`
+	ValidatorDuration uint64     `json:"validatorDuration"`
+	DepositOfferID    ids.ID     `json:"depositOfferID"`
 }
 
 func (a PlatformAllocation) Unparse() (UnparsedPlatformAllocation, error) {
 	ua := UnparsedPlatformAllocation{
-		Amount: a.Amount,
+		Amount:            a.Amount,
+		ValidatorDuration: a.ValidatorDuration,
 	}
 
 	if a.NodeID != ids.EmptyNodeID {

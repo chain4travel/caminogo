@@ -76,6 +76,13 @@ func validateCaminoConfig(config *Config) error {
 				}
 				nodes.Add(platformAllocation.NodeID)
 			}
+			if platformAllocation.NodeID != ids.EmptyNodeID &&
+				platformAllocation.ValidatorDuration == 0 ||
+				platformAllocation.NodeID == ids.EmptyNodeID &&
+					platformAllocation.ValidatorDuration != 0 {
+				return fmt.Errorf("wrong validator duration: %s %d",
+					platformAllocation.NodeID, platformAllocation.ValidatorDuration)
+			}
 		}
 	}
 
@@ -190,7 +197,6 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 		Camino:        caminoArgFromConfig(config),
 	}
 
-	endStakingTime := genesisTime.Add(time.Duration(config.InitialStakeDuration) * time.Second)
 	stakingOffset := time.Duration(0)
 
 	for _, allocation := range config.Camino.Allocations {
@@ -223,7 +229,8 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 			}
 
 			if platformAllocation.NodeID != ids.EmptyNodeID {
-				endStakingTime := endStakingTime.Add(-stakingOffset)
+				stakingDuration := time.Duration(platformAllocation.ValidatorDuration) * time.Second
+				endStakingTime := genesisTime.Add(stakingDuration).Add(-stakingOffset)
 				stakingOffset += time.Duration(config.InitialStakeDurationOffset) * time.Second
 
 				platformvmArgs.Validators = append(platformvmArgs.Validators,

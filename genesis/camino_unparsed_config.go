@@ -102,14 +102,16 @@ func (ua UnparsedCaminoAllocation) Parse() (CaminoAllocation, error) {
 }
 
 type UnparsedPlatformAllocation struct {
-	Amount         uint64 `json:"amount"`
-	NodeID         string `json:"nodeID"`
-	DepositOfferID string `json:"depositOfferID"`
+	Amount            uint64 `json:"amount"`
+	NodeID            string `json:"nodeID"`
+	ValidatorDuration uint64 `json:"validatorDuration"`
+	DepositOfferID    string `json:"depositOfferID"`
 }
 
 func (ua UnparsedPlatformAllocation) Parse() (PlatformAllocation, error) {
 	a := PlatformAllocation{
-		Amount: ua.Amount,
+		Amount:            ua.Amount,
+		ValidatorDuration: ua.ValidatorDuration,
 	}
 
 	depositOfferID := ids.Empty
