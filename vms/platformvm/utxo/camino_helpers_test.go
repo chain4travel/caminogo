@@ -313,6 +313,51 @@ func generateTestStakeableOut(assetID ids.ID, amount, locktime uint64, outputOwn
 	}
 }
 
+func sortAndAlignAddressesWithKeys(keys []*crypto.PrivateKeySECP256K1R) ([]ids.ShortID, []*crypto.PrivateKeySECP256K1R) {
+	var (
+		addresses  []ids.ShortID
+		sortedKeys []*crypto.PrivateKeySECP256K1R
+	)
+
+	for _, key := range keys {
+		addresses = append(addresses, key.PublicKey().Address())
+	}
+
+	ids.SortShortIDs(addresses)
+
+	for _, address := range addresses {
+		for _, key := range keys {
+			if key.PublicKey().Address().String() == address.String() {
+				sortedKeys = append(sortedKeys, key)
+			}
+		}
+	}
+	return addresses, sortedKeys
+}
+
+func generateAddressesAndSignersWithKeys(tx txs.UnsignedTx, keys []*crypto.PrivateKeySECP256K1R) ([]ids.ShortID, []secp256k1fx.Credential) {
+	txHash := hashing.ComputeHash256(tx.Bytes())
+
+	var credentials []secp256k1fx.Credential
+
+	addresses, sortedKeys := sortAndAlignAddressesWithKeys(keys)
+
+	for _, key := range sortedKeys {
+
+		sig, err := key.SignHash(txHash)
+		if err != nil {
+			panic(err)
+		}
+
+		cred := &secp256k1fx.Credential{Sigs: make([][crypto.SECP256K1RSigLen]byte, 1)}
+		copy(cred.Sigs[0][:], sig)
+
+		credentials = append(credentials, *cred)
+	}
+
+	return addresses, credentials
+}
+
 func generateOwnersAndSig(tx txs.UnsignedTx) (secp256k1fx.OutputOwners, *secp256k1fx.Credential) {
 	txHash := hashing.ComputeHash256(tx.Bytes())
 

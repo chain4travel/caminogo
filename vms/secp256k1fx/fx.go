@@ -29,8 +29,8 @@ var (
 	errWrongNumberOfUTXOs             = errors.New("wrong number of utxos for the operation")
 	errWrongMintCreated               = errors.New("wrong mint output created from the operation")
 	errTimelocked                     = errors.New("output is time locked")
-	errTooManySigners                 = errors.New("input has more signers than expected")
-	errTooFewSigners                  = errors.New("input has less signers than expected")
+	ErrTooManySigners                 = errors.New("input has more signers than expected")
+	ErrTooFewSigners                  = errors.New("input has less signers than expected")
 	errInputOutputIndexOutOfBounds    = errors.New("input referenced a nonexistent address in the output")
 	errInputCredentialSignersMismatch = errors.New("input expected a different number of signers than provided in the credential")
 )
@@ -174,9 +174,9 @@ func (fx *Fx) VerifyCredentials(utx UnsignedTx, in *Input, cred *Credential, out
 	case out.Locktime > fx.VM.Clock().Unix():
 		return errTimelocked
 	case out.Threshold < uint32(numSigs):
-		return errTooManySigners
+		return ErrTooManySigners
 	case out.Threshold > uint32(numSigs):
-		return errTooFewSigners
+		return ErrTooFewSigners
 	case numSigs != len(cred.Sigs):
 		return errInputCredentialSignersMismatch
 	case !fx.bootstrapped: // disable signature verification during bootstrapping

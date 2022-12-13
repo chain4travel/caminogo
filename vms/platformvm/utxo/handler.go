@@ -40,6 +40,8 @@ var (
 
 	errCantSign                     = errors.New("can't sign")
 	errLockedFundsNotMarkedAsLocked = errors.New("locked funds not marked as locked")
+	ErrProducesMoreThanConsumes     = errors.New("tx produces more unlocked than it consumes")
+	ErrWrongUTXONumber              = errors.New("wrong utxo number")
 )
 
 // Removes the UTXOs consumed by [ins] from the UTXO set
@@ -556,14 +558,16 @@ func (h *handler) VerifySpendUTXOs(
 ) error {
 	if len(ins) != len(creds) {
 		return fmt.Errorf(
-			"there are %d inputs but %d credentials. Should be same number",
+			"%w. there are %d inputs but %d credentials. Should be same number",
+			errWrongCredentials,
 			len(ins),
 			len(creds),
 		)
 	}
 	if len(ins) != len(utxos) {
 		return fmt.Errorf(
-			"there are %d inputs but %d utxos. Should be same number",
+			"%w there are %d inputs but %d utxos. Should be same number",
+			ErrWrongUTXONumber,
 			len(ins),
 			len(utxos),
 		)
@@ -593,10 +597,11 @@ func (h *handler) VerifySpendUTXOs(
 		claimedAssetID := input.AssetID()
 		if realAssetID != claimedAssetID {
 			return fmt.Errorf(
-				"input %d has asset ID %s but UTXO has asset ID %s",
+				"input %d has asset ID %s but expect %s: %w",
 				index,
 				claimedAssetID,
 				realAssetID,
+				errAssetIDMismatch,
 			)
 		}
 
@@ -745,7 +750,8 @@ func (h *handler) VerifySpendUTXOs(
 		// More unlocked tokens produced than consumed. Invalid.
 		if unlockedProducedAsset > unlockedConsumedAsset {
 			return fmt.Errorf(
-				"tx produces more unlocked %q (%d) than it consumes (%d)",
+				"%w. AssetId(%q), Produced Asset(%d), Consumed Asset (%d)",
+				ErrProducesMoreThanConsumes,
 				assetID,
 				unlockedProducedAsset,
 				unlockedConsumedAsset,

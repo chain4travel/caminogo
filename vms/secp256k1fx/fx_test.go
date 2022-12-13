@@ -369,7 +369,7 @@ func TestFxVerifyTransferTooManySigners(t *testing.T) {
 		},
 	}
 
-	require.ErrorIs(fx.VerifyTransfer(tx, in, cred, out), errTooManySigners)
+	require.ErrorIs(fx.VerifyTransfer(tx, in, cred, out), ErrTooManySigners)
 }
 
 func TestFxVerifyTransferTooFewSigners(t *testing.T) {
@@ -403,7 +403,7 @@ func TestFxVerifyTransferTooFewSigners(t *testing.T) {
 		Sigs: [][crypto.SECP256K1RSigLen]byte{},
 	}
 
-	require.ErrorIs(fx.VerifyTransfer(tx, in, cred, out), errTooFewSigners)
+	require.ErrorIs(fx.VerifyTransfer(tx, in, cred, out), ErrTooFewSigners)
 }
 
 func TestFxVerifyTransferMismatchedSigners(t *testing.T) {
