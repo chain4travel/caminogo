@@ -81,7 +81,7 @@ func (a CaminoAllocation) Unparse(networkID uint32) (UnparsedCaminoAllocation, e
 		XAmount:             a.XAmount,
 		ETHAddr:             "0x" + hex.EncodeToString(a.ETHAddr.Bytes()),
 		AddressState:        a.AddressState,
-		PlatformAllocations: a.PlatformAllocations,
+		PlatformAllocations: make([]UnparsedPlatformAllocation, len(a.PlatformAllocations)),
 	}
 	avaxAddr, err := address.Format(
 		"X",
@@ -89,6 +89,14 @@ func (a CaminoAllocation) Unparse(networkID uint32) (UnparsedCaminoAllocation, e
 		a.AVAXAddr.Bytes(),
 	)
 	ua.AVAXAddr = avaxAddr
+
+	for i, pa := range a.PlatformAllocations {
+		upa, err := pa.Unparse()
+		if err != nil {
+			return ua, err
+		}
+		ua.PlatformAllocations[i] = upa
+	}
 
 	return ua, err
 }
@@ -102,4 +110,12 @@ type PlatformAllocation struct {
 	Amount         uint64     `json:"amount"`
 	NodeID         ids.NodeID `json:"nodeID"`
 	DepositOfferID ids.ID     `json:"depositOfferID"`
+}
+
+func (a PlatformAllocation) Unparse() (UnparsedPlatformAllocation, error) {
+	return UnparsedPlatformAllocation{
+		Amount:         a.Amount,
+		NodeID:         a.NodeID.String(),
+		DepositOfferID: a.DepositOfferID.String(),
+	}, nil
 }

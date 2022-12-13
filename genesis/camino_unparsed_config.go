@@ -52,18 +52,18 @@ func (uc UnparsedCamino) Parse() (Camino, error) {
 }
 
 type UnparsedCaminoAllocation struct {
-	ETHAddr             string               `json:"ethAddr"`
-	AVAXAddr            string               `json:"avaxAddr"`
-	XAmount             uint64               `json:"xAmount"`
-	AddressState        uint64               `json:"addressState"`
-	PlatformAllocations []PlatformAllocation `json:"platformAllocations"`
+	ETHAddr             string                       `json:"ethAddr"`
+	AVAXAddr            string                       `json:"avaxAddr"`
+	XAmount             uint64                       `json:"xAmount"`
+	AddressState        uint64                       `json:"addressState"`
+	PlatformAllocations []UnparsedPlatformAllocation `json:"platformAllocations"`
 }
 
 func (ua UnparsedCaminoAllocation) Parse() (CaminoAllocation, error) {
 	a := CaminoAllocation{
 		XAmount:             ua.XAmount,
 		AddressState:        ua.AddressState,
-		PlatformAllocations: ua.PlatformAllocations,
+		PlatformAllocations: make([]PlatformAllocation, len(ua.PlatformAllocations)),
 	}
 
 	if len(ua.ETHAddr) < 2 {
@@ -89,6 +89,49 @@ func (ua UnparsedCaminoAllocation) Parse() (CaminoAllocation, error) {
 		return a, err
 	}
 	a.AVAXAddr = avaxAddr
+
+	for i, upa := range ua.PlatformAllocations {
+		pa, err := upa.Parse()
+		if err != nil {
+			return a, err
+		}
+		a.PlatformAllocations[i] = pa
+	}
+
+	return a, nil
+}
+
+type UnparsedPlatformAllocation struct {
+	Amount         uint64 `json:"amount"`
+	NodeID         string `json:"nodeID"`
+	DepositOfferID string `json:"depositOfferID"`
+}
+
+func (ua UnparsedPlatformAllocation) Parse() (PlatformAllocation, error) {
+	a := PlatformAllocation{
+		Amount: ua.Amount,
+	}
+
+	depositOfferID := ids.Empty
+	if ua.DepositOfferID != "" {
+		parsedDepositOfferID, err := ids.FromString(ua.DepositOfferID)
+		if err != nil {
+			return a, err
+		}
+		depositOfferID = parsedDepositOfferID
+	}
+
+	nodeID := ids.EmptyNodeID
+	if ua.NodeID != "" {
+		parsedNodeID, err := ids.NodeIDFromString(ua.NodeID)
+		if err != nil {
+			return a, err
+		}
+		nodeID = parsedNodeID
+	}
+
+	a.NodeID = nodeID
+	a.DepositOfferID = depositOfferID
 
 	return a, nil
 }
