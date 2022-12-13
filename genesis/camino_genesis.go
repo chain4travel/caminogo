@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
@@ -93,8 +95,80 @@ func caminoArgFromConfig(config *Config) api.Camino {
 	}
 }
 
-func buildPGenesis(config *Config, hrp string, xBytes []byte, avmReplyString string) ([]byte, ids.ID, error) {
-	avaxAssetID, err := AVAXAssetID(xBytes)
+func buildCaminoGenesis(config *Config, hrp string) ([]byte, ids.ID, error) {
+	xGenesisBytes, avmReply, err := buildXGenesis(config, hrp)
+	if err != nil {
+		return nil, ids.Empty, err
+	}
+
+	return buildPGenesis(config, hrp, xGenesisBytes, avmReply)
+}
+
+func buildXGenesis(config *Config, hrp string) ([]byte, string, error) {
+	amount := uint64(0)
+
+	// Specify the genesis state of the AVM
+	avmArgs := avm.BuildGenesisArgs{
+		NetworkID: json.Uint32(config.NetworkID),
+		Encoding:  defaultEncoding,
+	}
+	{
+		avax := avm.AssetDefinition{
+			Name:         constants.TokenName(config.NetworkID),
+			Symbol:       constants.TokenSymbol(config.NetworkID),
+			Denomination: 9,
+			InitialState: map[string][]interface{}{},
+		}
+		memoBytes := []byte{}
+		xAllocations := []CaminoAllocation(nil)
+		for _, allocation := range config.Camino.Allocations {
+			if allocation.XAmount > 0 {
+				xAllocations = append(xAllocations, allocation)
+			}
+		}
+		utils.Sort(xAllocations)
+
+		for _, allocation := range xAllocations {
+			addr, err := address.FormatBech32(hrp, allocation.AVAXAddr.Bytes())
+			if err != nil {
+				return nil, "", err
+			}
+
+			avax.InitialState["fixedCap"] = append(avax.InitialState["fixedCap"], avm.Holder{
+				Amount:  json.Uint64(allocation.XAmount),
+				Address: addr,
+			})
+			memoBytes = append(memoBytes, allocation.ETHAddr.Bytes()...)
+			amount += allocation.XAmount
+		}
+
+		var err error
+		avax.Memo, err = formatting.Encode(defaultEncoding, memoBytes)
+		if err != nil {
+			return nil, "", fmt.Errorf("couldn't parse memo bytes to string: %w", err)
+		}
+		avmArgs.GenesisData = map[string]avm.AssetDefinition{
+			avax.Symbol: avax, // The AVM starts out with one asset
+		}
+	}
+	avmReply := avm.BuildGenesisReply{}
+
+	avmSS := avm.CreateStaticService()
+	err := avmSS.BuildGenesis(nil, &avmArgs, &avmReply)
+	if err != nil {
+		return nil, "", err
+	}
+
+	genesisBytes, err := formatting.Decode(defaultEncoding, avmReply.Bytes)
+	if err != nil {
+		return nil, "", fmt.Errorf("couldn't parse avm genesis reply: %w", err)
+	}
+
+	return genesisBytes, avmReply.Bytes, nil
+}
+
+func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisData string) ([]byte, ids.ID, error) {
+	avaxAssetID, err := AVAXAssetID(xGenesisBytes)
 	if err != nil {
 		return nil, ids.ID{}, fmt.Errorf("couldn't generate AVAX asset ID: %w", err)
 	}
@@ -120,6 +194,13 @@ func buildPGenesis(config *Config, hrp string, xBytes []byte, avmReplyString str
 	stakingOffset := time.Duration(0)
 
 	for _, allocation := range config.Camino.Allocations {
+		if allocation.AddressState != 0 {
+			addrState := genesis.AddressState{
+				Address: allocation.AVAXAddr,
+				State:   allocation.AddressState,
+			}
+			platformvmArgs.Camino.AddressStates = append(platformvmArgs.Camino.AddressStates, addrState)
+		}
 		for _, platformAllocation := range allocation.PlatformAllocations {
 			if platformAllocation.Amount == 0 {
 				return nil, ids.Empty, errEmptyAllocation
@@ -174,7 +255,7 @@ func buildPGenesis(config *Config, hrp string, xBytes []byte, avmReplyString str
 	}
 	platformvmArgs.Chains = []api.Chain{
 		{
-			GenesisData: avmReplyString,
+			GenesisData: xGenesisData,
 			SubnetID:    constants.PrimaryNetworkID,
 			VMID:        constants.AVMID,
 			FxIDs: []ids.ID{

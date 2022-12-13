@@ -268,6 +268,10 @@ func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
 func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	hrp := constants.GetHRP(config.NetworkID)
 
+	if config.Camino.LockModeBondDeposit {
+		return buildCaminoGenesis(config, hrp)
+	}
+
 	amount := uint64(0)
 
 	// Specify the genesis state of the AVM
@@ -329,10 +333,6 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	avaxAssetID, err := AVAXAssetID(bytes)
 	if err != nil {
 		return nil, ids.ID{}, fmt.Errorf("couldn't generate AVAX asset ID: %w", err)
-	}
-
-	if config.Camino.LockModeBondDeposit {
-		return buildPGenesis(config, hrp, bytes, avmReply.Bytes)
 	}
 
 	genesisTime := time.Unix(int64(config.StartTime), 0)

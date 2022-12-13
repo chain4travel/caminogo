@@ -72,6 +72,7 @@ type CaminoAllocation struct {
 	ETHAddr             ids.ShortID          `json:"ethAddr"`
 	AVAXAddr            ids.ShortID          `json:"avaxAddr"`
 	XAmount             uint64               `json:"xAmount"`
+	AddressState        uint64               `json:"addressState"`
 	PlatformAllocations []PlatformAllocation `json:"platformAllocations"`
 }
 
@@ -79,6 +80,7 @@ func (a CaminoAllocation) Unparse(networkID uint32) (UnparsedCaminoAllocation, e
 	ua := UnparsedCaminoAllocation{
 		XAmount:             a.XAmount,
 		ETHAddr:             "0x" + hex.EncodeToString(a.ETHAddr.Bytes()),
+		AddressState:        a.AddressState,
 		PlatformAllocations: a.PlatformAllocations,
 	}
 	avaxAddr, err := address.Format(
@@ -89,6 +91,11 @@ func (a CaminoAllocation) Unparse(networkID uint32) (UnparsedCaminoAllocation, e
 	ua.AVAXAddr = avaxAddr
 
 	return ua, err
+}
+
+func (a CaminoAllocation) Less(other CaminoAllocation) bool {
+	return a.XAmount < other.XAmount ||
+		(a.XAmount == other.XAmount && a.AVAXAddr.Less(other.AVAXAddr))
 }
 
 type PlatformAllocation struct {

@@ -55,12 +55,14 @@ type UnparsedCaminoAllocation struct {
 	ETHAddr             string               `json:"ethAddr"`
 	AVAXAddr            string               `json:"avaxAddr"`
 	XAmount             uint64               `json:"xAmount"`
+	AddressState        uint64               `json:"addressState"`
 	PlatformAllocations []PlatformAllocation `json:"platformAllocations"`
 }
 
 func (ua UnparsedCaminoAllocation) Parse() (CaminoAllocation, error) {
 	a := CaminoAllocation{
 		XAmount:             ua.XAmount,
+		AddressState:        ua.AddressState,
 		PlatformAllocations: ua.PlatformAllocations,
 	}
 
