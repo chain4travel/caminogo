@@ -8,7 +8,7 @@
       {
         "interestRateNominator": 80000,
         "start": 0,
-        "end": 0,
+        "end": 1671042808,
         "minAmount": 1,
         "minDuration": 110376000,
         "maxDuration": 110376000,
@@ -19,7 +19,7 @@
       {
         "interestRateNominator": 0,
         "start": 0,
-        "end": 0,
+        "end": 1671042808,
         "minAmount": 1,
         "minDuration": 157680000,
         "maxDuration": 157680000,
@@ -30,7 +30,7 @@
       {
         "interestRateNominator": 90000,
         "start": 0,
-        "end": 0,
+        "end": 1671042808,
         "minAmount": 1,
         "minDuration": 141912000,
         "maxDuration": 141912000,
@@ -41,7 +41,7 @@
       {
         "interestRateNominator": 100000,
         "start": 0,
-        "end": 0,
+        "end": 1671042808,
         "minAmount": 1,
         "minDuration": 173448000,
         "maxDuration": 173448000,
@@ -52,7 +52,7 @@
       {
         "interestRateNominator": 90000,
         "start": 0,
-        "end": 0,
+        "end": 1671042808,
         "minAmount": 1,
         "minDuration": 31536000,
         "maxDuration": 31536000,
