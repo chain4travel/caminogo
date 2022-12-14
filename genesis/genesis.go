@@ -204,7 +204,7 @@ func validateConfig(networkID uint32, config *Config) error {
 //  2. The asset ID of AVAX
 func FromFile(networkID uint32, filepath string) ([]byte, ids.ID, error) {
 	switch networkID {
-	case constants.MainnetID, constants.CaminoID, constants.TestnetID, constants.LocalID:
+	case constants.MainnetID, constants.CaminoID, constants.TestnetID, constants.LocalID, constants.CaminoLocalID:
 		return nil, ids.ID{}, fmt.Errorf(
 			"cannot override genesis config for standard network %s (%d)",
 			constants.NetworkName(networkID),
@@ -244,7 +244,7 @@ func FromFile(networkID uint32, filepath string) ([]byte, ids.ID, error) {
 //     (ie the genesis state of the network)
 //  2. The asset ID of AVAX
 func FromFlag(networkID uint32, genesisContent string) ([]byte, ids.ID, error) {
-	if constants.IsActiveNetwork(networkID) || networkID == constants.LocalID {
+	if constants.IsActiveNetwork(networkID) || networkID == constants.LocalID || networkID == constants.CaminoLocalID {
 		return nil, ids.ID{}, fmt.Errorf(
 			"cannot override genesis config for standard network %s (%d)",
 			constants.NetworkName(networkID),

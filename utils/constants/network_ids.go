@@ -30,28 +30,31 @@ const (
 	ColumbusID   uint32 = 1001
 	KopernikusID uint32 = 1002
 
-	TestnetID  uint32 = ColumbusID
-	UnitTestID uint32 = 10
-	LocalID    uint32 = 12345
+	TestnetID     uint32 = ColumbusID
+	UnitTestID    uint32 = 10
+	LocalID       uint32 = 12345
+	CaminoLocalID uint32 = 54321
 
 	MainnetName = "mainnet"
 	FujiName    = "fuji"
 
-	CaminoName     = "camino"
-	ColumbusName   = "columbus"
-	KopernikusName = "kopernikus"
-	TestnetName    = "testnet"
-	UnitTestName   = "testing"
-	LocalName      = "local"
+	CaminoName      = "camino"
+	ColumbusName    = "columbus"
+	KopernikusName  = "kopernikus"
+	TestnetName     = "testnet"
+	UnitTestName    = "testing"
+	LocalName       = "local"
+	CaminoLocalName = "caminolocal"
 
-	MainnetHRP    = "avax"
-	FujiHRP       = "fuji"
-	CaminoHRP     = "camino"
-	ColumbusHRP   = "columbus"
-	KopernikusHRP = "kopernikus"
-	UnitTestHRP   = "testing"
-	LocalHRP      = "local"
-	FallbackHRP   = "custom"
+	MainnetHRP     = "avax"
+	FujiHRP        = "fuji"
+	CaminoHRP      = "camino"
+	ColumbusHRP    = "columbus"
+	KopernikusHRP  = "kopernikus"
+	UnitTestHRP    = "testing"
+	LocalHRP       = "local"
+	CaminoLocalHRP = "local"
+	FallbackHRP    = "custom"
 )
 
 // Variables to be exported
@@ -60,33 +63,36 @@ var (
 	PlatformChainID  = ids.Empty
 
 	NetworkIDToNetworkName = map[uint32]string{
-		MainnetID:    MainnetName,
-		FujiID:       FujiName,
-		CaminoID:     CaminoName,
-		ColumbusID:   ColumbusName,
-		KopernikusID: KopernikusName,
-		UnitTestID:   UnitTestName,
-		LocalID:      LocalName,
+		MainnetID:     MainnetName,
+		FujiID:        FujiName,
+		CaminoID:      CaminoName,
+		ColumbusID:    ColumbusName,
+		KopernikusID:  KopernikusName,
+		UnitTestID:    UnitTestName,
+		LocalID:       LocalName,
+		CaminoLocalID: CaminoLocalName,
 	}
 	NetworkNameToNetworkID = map[string]uint32{
-		MainnetName:    MainnetID,
-		FujiName:       FujiID,
-		CaminoName:     CaminoID,
-		ColumbusName:   ColumbusID,
-		KopernikusName: KopernikusID,
-		TestnetName:    TestnetID,
-		UnitTestName:   UnitTestID,
-		LocalName:      LocalID,
+		MainnetName:     MainnetID,
+		FujiName:        FujiID,
+		CaminoName:      CaminoID,
+		ColumbusName:    ColumbusID,
+		KopernikusName:  KopernikusID,
+		TestnetName:     TestnetID,
+		UnitTestName:    UnitTestID,
+		LocalName:       LocalID,
+		CaminoLocalName: CaminoLocalID,
 	}
 
 	NetworkIDToHRP = map[uint32]string{
-		MainnetID:    MainnetHRP,
-		FujiID:       FujiHRP,
-		CaminoID:     CaminoHRP,
-		ColumbusID:   ColumbusHRP,
-		KopernikusID: KopernikusHRP,
-		UnitTestID:   UnitTestHRP,
-		LocalID:      LocalHRP,
+		MainnetID:     MainnetHRP,
+		FujiID:        FujiHRP,
+		CaminoID:      CaminoHRP,
+		ColumbusID:    ColumbusHRP,
+		KopernikusID:  KopernikusHRP,
+		UnitTestID:    UnitTestHRP,
+		LocalID:       LocalHRP,
+		CaminoLocalID: CaminoLocalHRP,
 	}
 	NetworkHRPToNetworkID = map[string]uint32{
 		MainnetHRP:    MainnetID,

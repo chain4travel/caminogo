@@ -78,6 +78,8 @@ func GetTxFeeConfig(networkID uint32) TxFeeConfig {
 		return CaminoParams.TxFeeConfig
 	case constants.ColumbusID:
 		return ColumbusParams.TxFeeConfig
+	case constants.CaminoLocalID:
+		return CaminoLocalParams.TxFeeConfig
 	default:
 		return LocalParams.TxFeeConfig
 	}
@@ -89,6 +91,8 @@ func GetStakingConfig(networkID uint32) StakingConfig {
 		return CaminoParams.StakingConfig
 	case constants.ColumbusID:
 		return ColumbusParams.StakingConfig
+	case constants.CaminoLocalID:
+		return CaminoLocalParams.StakingConfig
 	default:
 		return LocalParams.StakingConfig
 	}
