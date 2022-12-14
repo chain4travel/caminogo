@@ -143,7 +143,7 @@ func TestApplyCaminoState(t *testing.T) {
 }
 
 func mapToArray[K ids.ID, V *deposit.Offer | *ProposalLookup](m map[K]V) []V {
-	var a []V
+	a := make([]V, 0, len(m))
 	for _, v := range m {
 		a = append(a, v)
 	}

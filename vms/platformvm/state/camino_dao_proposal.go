@@ -1,12 +1,18 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
+)
+
+var (
+	errSerializingProposal = errors.New("failed to serialize proposal")
+	errPersistingProposal  = errors.New("failed to persist proposal")
 )
 
 type ProposalLookup struct {
@@ -70,7 +76,6 @@ func (cs *caminoState) SetProposalState(proposalID ids.ID, state dao.ProposalSta
 	cs.modifiedProposalLookups[proposalID] = proposal
 
 	return nil
-
 }
 
 func (cs *caminoState) ArchiveProposal(proposalID ids.ID) error {
@@ -89,7 +94,6 @@ func (cs *caminoState) ArchiveProposal(proposalID ids.ID) error {
 }
 
 func (cs *caminoState) AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error {
-
 	proposal, err := cs.GetProposalLookup(proposalID)
 	if err != nil {
 		return err
@@ -106,11 +110,11 @@ func (cs *caminoState) writeProposals() error {
 	for proposalID, proposal := range cs.modifiedProposalLookups {
 		proposalBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, proposal)
 		if err != nil {
-			return fmt.Errorf("failed to serialize proposal: %v", err)
+			return fmt.Errorf("%w: %v", errSerializingProposal, err)
 		}
 		proposalID := proposalID
 		if err := cs.proposalList.Put(proposalID[:], proposalBytes); err != nil {
-			return fmt.Errorf("failed to persist proposal: %v", err)
+			return fmt.Errorf("%w: %v", errPersistingProposal, err)
 		}
 
 		delete(cs.modifiedProposalLookups, proposalID)

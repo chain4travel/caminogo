@@ -178,7 +178,6 @@ func (d *diff) GetAllProposals() ([]*ProposalLookup, error) {
 	}
 
 	return append(proposals, parentProposals...), nil
-
 }
 
 func (d *diff) GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error) {
@@ -192,7 +191,6 @@ func (d *diff) GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error) {
 	}
 
 	return parentState.GetProposalLookup(proposalID)
-
 }
 
 func (d *diff) AddProposal(propsalID ids.ID, proposal *dao.Proposal, state dao.ProposalState) {
@@ -216,7 +214,6 @@ func (d *diff) ArchiveProposal(proposalID ids.ID) error {
 
 	d.caminoDiff.modifiedProposalLookups[proposalID] = proposal
 	return nil
-
 }
 
 func (d *diff) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {

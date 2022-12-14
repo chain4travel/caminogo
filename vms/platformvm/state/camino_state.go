@@ -76,6 +76,7 @@ func (s *state) AddProposal(proposalID ids.ID, proposal *dao.Proposal, state dao
 func (s *state) AddProposalLookup(proposalID ids.ID, lookup *ProposalLookup) {
 	s.caminoState.AddProposalLookup(proposalID, lookup)
 }
+
 func (s *state) GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error) {
 	return s.caminoState.GetProposalLookup(proposalID)
 }
