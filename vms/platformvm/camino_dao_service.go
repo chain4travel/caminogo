@@ -23,8 +23,8 @@ type CreateNOPProposalArgs struct {
 	api.JSONSpendHeader
 	ProposalTimeRangeArgs
 
-	Metadata proposaltypes.NOPProposalMetadata `json:"metadata"`
-	Content  string                            `json:"content"`
+	dummyData string `json:"dummyData"`
+	Content   string `json:"content"`
 }
 
 // CreateNOPProposal issues an CreateProposalTx of type NOPProposal
@@ -60,7 +60,7 @@ func (service *Service) buildNOPProposal(args *CreateNOPProposalArgs, keys *secp
 	proposal := dao.Proposal{
 		StartTime: time.Unix(int64(args.StartTime), 0),
 		EndTime:   time.Unix(int64(args.EndTime), 0),
-		Metadata:  args.Metadata,
+		Metadata:  proposaltypes.NewNOPProposalMetadata([]byte(args.dummyData)),
 		Content:   []byte(args.Content), //TODO @jax think about a proper way to encode this
 	}
 

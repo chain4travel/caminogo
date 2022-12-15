@@ -20,7 +20,11 @@ type NOPProposalMetadata interface {
 }
 
 type nopProposalMetadata struct {
-	dummyData []byte `serialize:"true"`
+	dummyData []byte `serialize:"true" json:"dummyData"`
+}
+
+func NewNOPProposalMetadata(dummyData []byte) nopProposalMetadata {
+	return nopProposalMetadata{dummyData: dummyData}
 }
 
 func (nop nopProposalMetadata) Verify() error {
