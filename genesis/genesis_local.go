@@ -73,7 +73,10 @@ var (
 				SupplyCap:          720 * units.MegaAvax,
 			},
 			CaminoConfig: config.CaminoConfig{
-				DaoProposalBondAmount: 100 * units.Avax,
+				DaoProposalBondAmount:         100 * units.Avax,
+				DaoProposalMaxDurration:       14 * 24 * time.Hour,
+				DaoProposalMinDurration:       10 * time.Minute,
+				DaoProposalMinPendingDuration: 1 * time.Minute,
 			},
 		},
 	}
