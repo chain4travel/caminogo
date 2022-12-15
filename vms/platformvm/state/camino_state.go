@@ -70,8 +70,8 @@ func (s *state) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) {
 	return s.caminoState.GetDeposit(depositTxID)
 }
 
-func (s *state) AddProposal(proposalID ids.ID, proposal *dao.Proposal, state dao.ProposalState) {
-	s.caminoState.AddProposal(proposalID, proposal, state)
+func (s *state) AddProposal(proposalID ids.ID, proposal *dao.Proposal) {
+	s.caminoState.AddProposal(proposalID, proposal)
 }
 
 func (s *state) AddProposalLookup(proposalID ids.ID, lookup *ProposalLookup) {
@@ -89,10 +89,10 @@ func (s *state) ArchiveProposal(proposalID ids.ID) error {
 	return s.caminoState.ArchiveProposal(proposalID)
 }
 
-func (s *state) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
-	return s.caminoState.SetProposalState(proposalID, state)
-}
+// func (s *state) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
+// 	return s.caminoState.SetProposalState(proposalID, state)
+// }
 
-func (s *state) AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error {
-	return s.caminoState.AddVote(proposalID, voteID, vote)
+func (s *state) AddVote(proposalID ids.ID, address ids.ShortID, vote *dao.Vote) error {
+	return s.caminoState.AddVote(proposalID, address, vote)
 }

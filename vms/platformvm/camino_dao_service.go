@@ -77,9 +77,9 @@ type GetProposalArgs struct {
 }
 
 type GetProposalReply struct {
-	Proposal dao.Proposal         `json:"proposal"`
-	Votes    map[ids.ID]*dao.Vote `json:"votes"`
-	State    dao.ProposalState    `json:"state"`
+	Proposal dao.Proposal              `json:"proposal"`
+	Votes    map[ids.ShortID]*dao.Vote `json:"votes"`
+	State    dao.ProposalState         `json:"state"`
 }
 
 // AddAdressState issues an AddAdressStateTx
@@ -91,15 +91,20 @@ func (service *Service) GetProposal(_ *http.Request, args *GetProposalArgs, resp
 		return err
 	}
 
-	response.Proposal = *lookup.Proposal
+	currentTime := service.vm.state.GetTimestamp()
+	proposal := lookup.Proposal
+
+	response.Proposal = *proposal
 	response.Votes = lookup.Votes
-	response.State = lookup.State
+	response.State = proposal.StateAtTime(currentTime)
 
 	return nil
 }
 
 type CreateVoteArgs struct {
 	api.JSONSpendHeader
+
+	TargetAddress ids.ShortID `json:"targetAddress"`
 
 	ProposalID ids.ID `json:"proposalID"`
 
@@ -138,7 +143,7 @@ func (service *Service) buildVote(args *CreateVoteArgs, keys *secp256k1fx.Keycha
 	}
 
 	// Create the transaction
-	tx, err := service.vm.txBuilder.NewCreateVoteTx(args.Vote, args.ProposalID, keys.Keys, changeAddr)
+	tx, err := service.vm.txBuilder.NewCreateVoteTx(args.Vote, args.ProposalID, args.TargetAddress, keys.Keys, changeAddr)
 	if err != nil {
 		return nil, fmt.Errorf(errCreateTx, err)
 	}

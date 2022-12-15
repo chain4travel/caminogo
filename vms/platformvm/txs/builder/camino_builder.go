@@ -67,6 +67,7 @@ type CaminoTxBuilder interface {
 	NewCreateVoteTx(
 		vote dao.Vote,
 		proposalID ids.ID,
+		targetAddress ids.ShortID,
 		keys []*crypto.PrivateKeySECP256K1R,
 		changeAddr ids.ShortID,
 	) (*txs.Tx, error)
@@ -399,6 +400,7 @@ func (b *caminoBuilder) NewCreateProposalTx(
 func (b *caminoBuilder) NewCreateVoteTx(
 	vote dao.Vote,
 	proposalID ids.ID,
+	targetAddress ids.ShortID,
 	keys []*crypto.PrivateKeySECP256K1R,
 	changeAddr ids.ShortID,
 ) (*txs.Tx, error) {
@@ -415,8 +417,9 @@ func (b *caminoBuilder) NewCreateVoteTx(
 			Ins:          ins,
 			Outs:         outs,
 		}},
-		Vote:       vote,
-		ProposalID: proposalID,
+		TargetAddress: targetAddress,
+		Vote:          vote,
+		ProposalID:    proposalID,
 	}
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {

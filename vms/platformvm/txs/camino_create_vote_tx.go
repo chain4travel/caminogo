@@ -18,6 +18,8 @@ var (
 type CreateVoteTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
+	// which address should this vote be counted to
+	TargetAddress ids.ShortID `json:"targetAddress"`
 	// The vote to create
 	Vote dao.Vote `serialize:"true"`
 	// The proposal to vote for

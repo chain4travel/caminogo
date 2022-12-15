@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -62,17 +61,7 @@ type CaminoDiff interface {
 	UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposit)
 	GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error)
 
-	// Voting / Proposals
-	GetAllProposals() ([]*ProposalLookup, error)
-	AddProposal(proposalID ids.ID, proposal *dao.Proposal, state dao.ProposalState)
-	ArchiveProposal(proposalID ids.ID) error // just for now delete all votes from struct, they dominate potential memory usage
-
-	GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error)
-	AddProposalLookup(proposalID ids.ID, lookup *ProposalLookup)
-
-	SetProposalState(proposalID ids.ID, state dao.ProposalState) error
-
-	AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error
+	ProposalState
 }
 
 // For state and diff

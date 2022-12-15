@@ -1,6 +1,8 @@
 package dao
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type VoteType uint64
 
@@ -15,7 +17,7 @@ var (
 )
 
 type Vote struct {
-	Vote VoteType `serialize:"true"`
+	Vote VoteType `serialize:"true" json:"voteType"`
 }
 
 func (v Vote) Verify() error {

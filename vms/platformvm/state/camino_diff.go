@@ -196,9 +196,9 @@ func (d *diff) GetProposalLookup(proposalID ids.ID) (*ProposalLookup, error) {
 
 }
 
-func (d *diff) AddProposal(propsalID ids.ID, proposal *dao.Proposal, state dao.ProposalState) {
+func (d *diff) AddProposal(propsalID ids.ID, proposal *dao.Proposal) {
 	d.caminoDiff.modifiedProposalLookups[propsalID] = &ProposalLookup{
-		proposal, make(map[ids.ID]*dao.Vote), state,
+		propsalID, proposal, make(map[ids.ShortID]*dao.Vote),
 	}
 }
 
@@ -220,26 +220,26 @@ func (d *diff) ArchiveProposal(proposalID ids.ID) error {
 
 }
 
-func (d *diff) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
+// func (d *diff) SetProposalState(proposalID ids.ID, state dao.ProposalState) error {
+// 	proposal, err := d.GetProposalLookup(proposalID)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	proposal.State = state
+
+// 	d.caminoDiff.modifiedProposalLookups[proposalID] = proposal
+
+// 	return nil
+// }
+
+func (d *diff) AddVote(proposalID ids.ID, address ids.ShortID, vote *dao.Vote) error {
 	proposal, err := d.GetProposalLookup(proposalID)
 	if err != nil {
 		return err
 	}
 
-	proposal.State = state
-
-	d.caminoDiff.modifiedProposalLookups[proposalID] = proposal
-
-	return nil
-}
-
-func (d *diff) AddVote(proposalID ids.ID, voteID ids.ID, vote *dao.Vote) error {
-	proposal, err := d.GetProposalLookup(proposalID)
-	if err != nil {
-		return err
-	}
-
-	proposal.Votes[voteID] = vote
+	proposal.Votes[address] = vote
 
 	d.caminoDiff.modifiedProposalLookups[proposalID] = proposal
 	return nil
@@ -259,7 +259,7 @@ func (d *diff) ApplyCaminoState(baseState State) {
 		baseState.UpdateDeposit(depositTxID, deposit)
 	}
 
-	for k, v := range d.caminoDiff.modifiedProposalLookups {
-		baseState.AddProposalLookup(k, v)
+	for proposalTxID, lookup := range d.caminoDiff.modifiedProposalLookups {
+		baseState.AddProposalLookup(proposalTxID, lookup)
 	}
 }

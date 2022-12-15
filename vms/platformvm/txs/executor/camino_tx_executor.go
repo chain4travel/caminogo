@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
@@ -750,13 +749,12 @@ func (e *CaminoStandardTxExecutor) CreateProposalTx(tx *txs.CreateProposalTx) er
 	// Produce the UTXOS
 	utxo.Produce(e.State, txID, tx.Outs)
 	// create a new propoosal
-	e.State.AddProposal(txID, &tx.Proposal, dao.ProposalStatePending)
+	e.State.AddProposal(txID, &tx.Proposal)
 
 	return nil
 }
 
 func (e *CaminoStandardTxExecutor) CreateVoteTx(tx *txs.CreateVoteTx) error {
-	// TODO @jax the logic around this is unclear atm
 	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
@@ -778,17 +776,30 @@ func (e *CaminoStandardTxExecutor) CreateVoteTx(tx *txs.CreateVoteTx) error {
 	// Accumulate roles over all signers
 	// TODO @jax Open question, should this be additive?
 	roles := uint64(0)
+	hasTargetAddress := false
 	for address := range addresses {
 		states, err := e.State.GetAddressStates(address)
 		if err != nil {
 			return err
 		}
 		roles |= states
+
+		if tx.TargetAddress == address {
+			hasTargetAddress = true
+		}
+	}
+
+	if !hasTargetAddress {
+		return fmt.Errorf("target address did not sign this tx")
 	}
 
 	if err := isKycVerified(roles); err != nil {
 		return err
 	}
+
+	// if err := isConsortiumMember(roles); err != nil {
+	// 	return err
+	// }
 
 	if err := verifyCreateVoteTx(e.Backend, e.State, e.Tx, tx); err != nil {
 		return err
@@ -815,7 +826,7 @@ func (e *CaminoStandardTxExecutor) CreateVoteTx(tx *txs.CreateVoteTx) error {
 	// Produce the UTXOS
 	utxo.Produce(e.State, txID, tx.Outs)
 	// create a new propoosal
-	e.State.AddVote(tx.ProposalID, txID, &tx.Vote) // TODO @jax this is wrong, we have to change state to save an actual address and not tx id
+	e.State.AddVote(tx.ProposalID, tx.TargetAddress, &tx.Vote) // TODO @jax this is wrong, we have to change state to save an actual address and not tx id
 
 	return nil
 }
