@@ -28,13 +28,6 @@ type Visitor interface {
 	TransformSubnetTx(*TransformSubnetTx) error
 	AddPermissionlessValidatorTx(*AddPermissionlessValidatorTx) error
 	AddPermissionlessDelegatorTx(*AddPermissionlessDelegatorTx) error
-<<<<<<< HEAD
 
 	CaminoVisitor
-=======
-	AddAddressStateTx(*AddAddressStateTx) error
-	CreateProposalTx(*CreateProposalTx) error
-	CreateVoteTx(*CreateVoteTx) error
-	// ConcludeProposalTx(*ConcludeProposalTx) error
->>>>>>> da3a35a51 (Initial Create Proposal TX)
 }
