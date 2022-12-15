@@ -6,12 +6,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	nodeID         = ids.NodeID(ids.GenerateTestShortID())
+	nodeID         = ids.GenerateTestNodeID()
 	depositOfferID = ids.GenerateTestID()
 )
 
@@ -55,11 +56,11 @@ func TestUnparse(t *testing.T) {
 			want: UnparsedCamino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
-				InitialAdmin:        "X-" + ignoreError(address.FormatBech32("local", sampleShortID.Bytes())).(string),
+				InitialAdmin:        "X-" + wrappers.IgnoreError(address.FormatBech32("local", sampleShortID.Bytes())).(string),
 				DepositOffers:       nil,
 				Allocations: []UnparsedCaminoAllocation{{
 					ETHAddr:      "0x" + hex.EncodeToString(sampleShortID.Bytes()),
-					AVAXAddr:     "X-" + ignoreError(address.FormatBech32("local", sampleShortID.Bytes())).(string),
+					AVAXAddr:     "X-" + wrappers.IgnoreError(address.FormatBech32("local", sampleShortID.Bytes())).(string),
 					XAmount:      1,
 					AddressState: 1,
 					PlatformAllocations: []UnparsedPlatformAllocation{{
