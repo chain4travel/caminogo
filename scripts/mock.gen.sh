@@ -19,6 +19,15 @@ input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
 do
   IFS='=' read src_import_path interface_name output_path <<< "${line}"
+  if test -f "$output_path"; then
+    echo "Removing ${output_path}"
+    rm $output_path
+  fi
+done < "$input"
+
+while IFS= read -r line
+do
+  IFS='=' read src_import_path interface_name output_path <<< "${line}"
   package_name=$(basename $(dirname $output_path))
   [[ $src_import_path == \#* ]] && continue
   echo "Generating ${output_path}..."

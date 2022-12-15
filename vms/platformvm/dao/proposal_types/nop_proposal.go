@@ -1,7 +1,9 @@
-package dao
+package proposaltypes
 
 import (
 	"fmt"
+
+	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
 )
 
 const (
@@ -13,7 +15,7 @@ var (
 )
 
 type NOPProposalMetadata interface {
-	ProposalMetadata
+	dao.ProposalMetadata
 	GetDummyData() []byte
 }
 
@@ -28,8 +30,8 @@ func (nop nopProposalMetadata) Verify() error {
 	return nil
 }
 
-func (nop nopProposalMetadata) AcceptVote(vote *Vote) error {
-	if vote.Vote == Abstain {
+func (nop nopProposalMetadata) AcceptVote(vote *dao.Vote) error {
+	if vote.Vote == dao.Abstain {
 		return errNOPProposalAbstainNotAllowed
 	}
 

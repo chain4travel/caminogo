@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
+	proposaltypes "github.com/ava-labs/avalanchego/vms/platformvm/dao/proposal_types"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
@@ -22,12 +23,12 @@ type CreateNOPProposalArgs struct {
 	api.JSONSpendHeader
 	ProposalTimeRangeArgs
 
-	Metadata dao.NOPProposalMetadata `json:"metadata"`
-	Content  string                  `json:"content"`
+	Metadata proposaltypes.NOPProposalMetadata `json:"metadata"`
+	Content  string                            `json:"content"`
 }
 
 // CreateNOPProposal issues an CreateProposalTx of type NOPProposal
-func (service *Service) CreateNOPProposal(_ *http.Request, args *CreateNOPProposalArgs, response api.JSONTxID) error {
+func (service *Service) CreateNOPProposal(_ *http.Request, args *CreateNOPProposalArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: CreateNOPProposal called")
 
 	keys, err := service.getKeystoreKeys(&args.JSONSpendHeader)
@@ -57,7 +58,6 @@ func (service *Service) buildNOPProposal(args *CreateNOPProposalArgs, keys *secp
 		}
 	}
 	proposal := dao.Proposal{
-		Type:      dao.ProposalTypeNOP,
 		StartTime: time.Unix(int64(args.StartTime), 0),
 		EndTime:   time.Unix(int64(args.EndTime), 0),
 		Metadata:  args.Metadata,
@@ -83,7 +83,7 @@ type GetProposalReply struct {
 }
 
 // AddAdressState issues an AddAdressStateTx
-func (service *Service) GetProposal(_ *http.Request, args *GetProposalArgs, response GetProposalReply) error {
+func (service *Service) GetProposal(_ *http.Request, args *GetProposalArgs, response *GetProposalReply) error {
 	service.vm.ctx.Log.Debug("Platform: GetProposal called")
 
 	lookup, err := service.vm.state.GetProposalLookup(args.ProposalID)
@@ -107,7 +107,7 @@ type CreateVoteArgs struct {
 }
 
 // CreateVote issues an CreateVoteTx
-func (service *Service) CreateVote(_ *http.Request, args *CreateVoteArgs, response api.JSONTxID) error {
+func (service *Service) CreateVote(_ *http.Request, args *CreateVoteArgs, response *api.JSONTxID) error {
 	service.vm.ctx.Log.Debug("Platform: CreateVote called")
 
 	keys, err := service.getKeystoreKeys(&args.JSONSpendHeader)

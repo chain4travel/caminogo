@@ -3,7 +3,7 @@ package executor
 import (
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm/dao"
+	proposaltypes "github.com/ava-labs/avalanchego/vms/platformvm/dao/proposal_types"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -15,7 +15,15 @@ func verifyNOPProposal(
 	chainState state.Chain,
 	sTx *txs.Tx,
 	tx *txs.CreateProposalTx) error {
+	return nil
+}
 
+func verifyValidatorProposalMetadata(
+	backend *Backend,
+	chainState state.Chain,
+	sTx *txs.Tx,
+	tx *txs.CreateProposalTx,
+	metadata proposaltypes.ValidatorProposalMetadata) error {
 	return nil
 }
 
@@ -45,15 +53,15 @@ func verifyCreateProposalTx(
 
 	// handle type specifc verification
 	//? id love to do this as an interface method, but import cycles came to save the day
-	switch tx.Proposal.Type {
-	case dao.ProposalTypeNOP:
+	switch metadata := tx.Proposal.Metadata.(type) {
+	case proposaltypes.NOPProposalMetadata:
 		if err := verifyNOPProposal(backend, chainState, sTx, tx); err != nil {
 			return err
 		}
-	// here would go the verify process of different proposal types
-	default:
-		return fmt.Errorf("invalid ProposalType")
-
+	case proposaltypes.ValidatorProposalMetadata:
+		if err := verifyValidatorProposalMetadata(backend, chainState, sTx, tx, metadata); err != nil {
+			return err
+		}
 	}
 
 	// TODO @Jax is there a good reason to create a proposal before the chain has finished bootstrapping?

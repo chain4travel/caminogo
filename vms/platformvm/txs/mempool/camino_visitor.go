@@ -24,12 +24,12 @@ func (i *issuer) UnlockDepositTx(*txs.UnlockDepositTx) error {
 }
 
 func (i *issuer) CreateProposalTx(*txs.CreateProposalTx) error {
-	i.m.addStakerTx(i.tx)
+	i.m.addDecisionTx(i.tx)
 	return nil
 }
 
 func (i *issuer) CreateVoteTx(*txs.CreateVoteTx) error {
-	i.m.addStakerTx(i.tx)
+	i.m.addDecisionTx(i.tx)
 	return nil
 }
 
@@ -50,11 +50,11 @@ func (r *remover) UnlockDepositTx(*txs.UnlockDepositTx) error {
 }
 
 func (r *remover) CreateProposalTx(*txs.CreateProposalTx) error {
-	r.m.removeStakerTx(r.tx)
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil
 }
 
 func (r *remover) CreateVoteTx(*txs.CreateVoteTx) error {
-	r.m.removeStakerTx(r.tx)
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil
 }
