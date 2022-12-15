@@ -10,17 +10,9 @@ const (
 )
 
 var (
-<<<<<<< HEAD
-	errContentTooLong        = fmt.Errorf("content is longer than %d bytes", ProposalMaxContentLength)
-	errInvalidProposalType   = fmt.Errorf("invalid proposalType")
-	errProposalTypeMissmatch = fmt.Errorf("proposalType and proposalMetadata do not match")
-	errProposalEnded         = fmt.Errorf("proposal has ended")
-	errProposalNotStarted    = fmt.Errorf("proposas has not started yet")
-=======
 	errContentTooLong     = fmt.Errorf("content is longer than %d bytes", ProposalMaxContentLength)
 	errProposalEnded      = fmt.Errorf("proposal has ended")
 	errProposalNotStarted = fmt.Errorf("proposas has not started yet")
->>>>>>> 36e94f777 (intermediate)
 )
 
 type ProposalType uint64
@@ -38,11 +30,11 @@ const (
 )
 
 type Proposal struct {
-	StartTime time.Time `serialize:"true", json:"startTime"`
-	EndTime   time.Time `serialize:"true", json:"endTime"`
+	StartTime time.Time `serialize:"true" json:"startTime"`
+	EndTime   time.Time `serialize:"true" json:"endTime"`
 
-	Metadata ProposalMetadata `serialize:"true", json:"metadata"` // used for additional information that are used for the syntactic evaluation of a proposal type (multiple options, thresholds, etc.)
-	Content  []byte           `serialize:"true", json:"content"`  // used for an IPFS link that contains metadata about the semantics of the proposal (links, images, html, rich text etc.)
+	Metadata ProposalMetadata `serialize:"true" json:"metadata"` // used for additional information that are used for the syntactic evaluation of a proposal type (multiple options, thresholds, etc.)
+	Content  []byte           `serialize:"true" json:"content"`  // used for an IPFS link that contains metadata about the semantics of the proposal (links, images, html, rich text etc.)
 }
 
 // utility functions

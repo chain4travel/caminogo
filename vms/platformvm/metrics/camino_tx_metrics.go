@@ -16,7 +16,8 @@ type caminoTxMetrics struct {
 	numAddAddressStateTxs,
 	numDepositTxs,
 	numUnlockDepositTxs,
-	numCreateProposalTxs prometheus.Counter
+	numCreateProposalTxs,
+	numCreateVoteTxs prometheus.Counter
 }
 
 func newCaminoTxMetrics(
@@ -34,6 +35,7 @@ func newCaminoTxMetrics(
 		// Camino specific tx metrics
 		numAddAddressStateTxs: newTxMetric(namespace, "add_address_state", registerer, &errs),
 		numCreateProposalTxs:  newTxMetric(namespace, "create_proposal", registerer, &errs),
+		numCreateVoteTxs:      newTxMetric(namespace, "create_vote", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -69,5 +71,12 @@ func (m *txMetrics) CreateProposalTx(*txs.CreateProposalTx) error { return nil }
 
 func (m *caminoTxMetrics) CreateProposalTx(*txs.CreateProposalTx) error {
 	m.numCreateProposalTxs.Inc()
+	return nil
+}
+
+func (m *txMetrics) CreateVoteTx(*txs.CreateVoteTx) error { return nil }
+
+func (m *caminoTxMetrics) CreateVoteTx(*txs.CreateVoteTx) error {
+	m.numCreateVoteTxs.Inc()
 	return nil
 }
