@@ -14,7 +14,6 @@ import (
 	bls "github.com/ava-labs/avalanchego/utils/crypto/bls"
 	set "github.com/ava-labs/avalanchego/utils/set"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	blocks "github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	deposit "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -436,21 +435,6 @@ func (m *MockState) GetMultisigOwner(arg0 ids.ShortID) (*MultisigOwner, error) {
 func (mr *MockStateMockRecorder) GetMultisigOwner(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigOwner", reflect.TypeOf((*MockState)(nil).GetMultisigOwner), arg0)
-}
-
-// GetMultisigUTXOSigners mocks base method.
-func (m *MockState) GetMultisigUTXOSigners(arg0 *avax.UTXO) (verify.State, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMultisigUTXOSigners", arg0)
-	ret0, _ := ret[0].(verify.State)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMultisigUTXOSigners indicates an expected call of GetMultisigUTXOSigners.
-func (mr *MockStateMockRecorder) GetMultisigUTXOSigners(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigUTXOSigners", reflect.TypeOf((*MockState)(nil).GetMultisigUTXOSigners), arg0)
 }
 
 // GetPendingDelegatorIterator mocks base method.

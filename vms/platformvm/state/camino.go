@@ -49,6 +49,11 @@ type CaminoApply interface {
 	ApplyCaminoState(State)
 }
 
+type CaminoMultisig interface {
+	GetMultisigOwner(ids.ShortID) (*MultisigOwner, error)
+	SetMultisigOwner(*MultisigOwner)
+}
+
 type CaminoDiff interface {
 	// Address State
 
@@ -65,11 +70,6 @@ type CaminoDiff interface {
 	// Deposits state
 	UpdateDeposit(depositTxID ids.ID, deposit *deposit.Deposit)
 	GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error)
-
-	// Multisig state
-	GetMultisigOwner(ids.ShortID) (*MultisigOwner, error)
-	SetMultisigOwner(*MultisigOwner)
-	CaminoMultisigUTXO
 }
 
 // For state and diff
@@ -83,6 +83,7 @@ type Camino interface {
 // For state only
 type CaminoState interface {
 	CaminoDiff
+	CaminoMultisig
 
 	CaminoConfig() *CaminoConfig
 	SyncGenesis(*state, *genesis.State) error
@@ -118,11 +119,13 @@ type caminoState struct {
 	depositOffers     map[ids.ID]*deposit.Offer
 	depositOffersList linkeddb.LinkedDB
 	depositOffersDB   database.Database
-	multisigOwnersDB  database.Database
 
 	// Deposits
 	depositsCache cache.Cacher
 	depositsDB    database.Database
+
+	// MSIG aliases
+	multisigOwnersDB database.Database
 }
 
 func newCaminoDiff() *caminoDiff {

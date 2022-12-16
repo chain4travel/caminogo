@@ -11,7 +11,6 @@ import (
 	ids "github.com/ava-labs/avalanchego/ids"
 	set "github.com/ava-labs/avalanchego/utils/set"
 	avax "github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	deposit "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	locked "github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	status "github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -362,36 +361,6 @@ func (mr *MockDiffMockRecorder) GetDepositOffer(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDepositOffer", reflect.TypeOf((*MockDiff)(nil).GetDepositOffer), arg0)
 }
 
-// GetMultisigOwner mocks base method.
-func (m *MockDiff) GetMultisigOwner(arg0 ids.ShortID) (*MultisigOwner, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMultisigOwner", arg0)
-	ret0, _ := ret[0].(*MultisigOwner)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMultisigOwner indicates an expected call of GetMultisigOwner.
-func (mr *MockDiffMockRecorder) GetMultisigOwner(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigOwner", reflect.TypeOf((*MockState)(nil).GetMultisigOwner), arg0)
-}
-
-// GetMultisigUTXOSigners mocks base method.
-func (m *MockDiff) GetMultisigUTXOSigners(arg0 *avax.UTXO) (verify.State, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMultisigUTXOSigners", arg0)
-	ret0, _ := ret[0].(verify.State)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMultisigUTXOSigners indicates an expected call of GetMultisigUTXOSigners.
-func (mr *MockDiffMockRecorder) GetMultisigUTXOSigners(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMultisigUTXOSigners", reflect.TypeOf((*MockState)(nil).GetMultisigUTXOSigners), arg0)
-}
-
 // GetPendingDelegatorIterator mocks base method.
 func (m *MockDiff) GetPendingDelegatorIterator(arg0 ids.ID, arg1 ids.NodeID) (StakerIterator, error) {
 	m.ctrl.T.Helper()
@@ -612,18 +581,6 @@ func (m *MockDiff) SetCurrentSupply(arg0 ids.ID, arg1 uint64) {
 func (mr *MockDiffMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSupply", reflect.TypeOf((*MockDiff)(nil).SetCurrentSupply), arg0, arg1)
-}
-
-// SetMultisigOwner mocks base method.
-func (m *MockDiff) SetMultisigOwner(arg0 *MultisigOwner) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigOwner", arg0)
-}
-
-// SetMultisigOwner indicates an expected call of SetMultisigOwner.
-func (mr *MockDiffMockRecorder) SetMultisigOwner(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigOwner", reflect.TypeOf((*MockState)(nil).SetMultisigOwner), arg0)
 }
 
 // SetTimestamp mocks base method.

@@ -6,21 +6,12 @@ package state
 import (
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
-	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
-
-// CaminoMultisigUTXO interface extends UTXOGetter which is used to get an UTXO for spend
-type CaminoMultisigUTXO interface {
-	GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, error)
-}
 
 type MultisigOwner struct {
 	Alias  ids.ShortID
@@ -60,40 +51,6 @@ func (cs *caminoState) GetMultisigOwner(alias ids.ShortID) (*MultisigOwner, erro
 	multisigAlias.Alias = alias
 
 	return multisigAlias, err
-}
-
-func (cs *caminoState) GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, error) {
-	// It preprocesses the UTXO the same way as the `platformvm.utxo.handler.VerifySpendUTXOs`.
-	// Prepared `utxos` will be used only for signature verification
-	out := utxo.Out
-	if inner, ok := out.(*stakeable.LockOut); ok {
-		out = inner.TransferableOut
-	}
-
-	trOut, ok := out.(*secp256k1fx.TransferOutput)
-	if !ok {
-		// Conversion should succeed, otherwise it will be handled by the caller
-		return out, nil
-	}
-
-	if len(trOut.Addrs) != 1 {
-		// There always should be just one, otherwise it is not a multisig
-		return out, nil
-	}
-
-	owner, err := cs.GetMultisigOwner(trOut.Addrs[0])
-	if err != nil {
-		if err == database.ErrNotFound {
-			return out, nil
-		}
-
-		return out, err
-	}
-
-	return verify.State(&secp256k1fx.TransferOutput{
-		Amt:          trOut.Amount(),
-		OutputOwners: owner.Owners,
-	}), nil
 }
 
 func (cs *caminoState) writeMultisigOwners() error {

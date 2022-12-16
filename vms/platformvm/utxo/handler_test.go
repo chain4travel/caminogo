@@ -1094,21 +1094,12 @@ func TestVerifySpendUTXOs(t *testing.T) {
 		h.clk.Set(now)
 
 		t.Run(test.description, func(t *testing.T) {
-			signers := make([]verify.State, len(test.utxos))
-			for i, utxo := range test.utxos {
-				out := utxo.Out
-				if inner, ok := out.(*stakeable.LockOut); ok {
-					out = inner.TransferableOut
-				}
-				signers[i] = out
-			}
 			err := h.VerifySpendUTXOs(
 				&unsignedTx,
 				test.utxos,
 				test.ins,
 				test.outs,
 				test.creds,
-				signers,
 				test.producedAmounts,
 			)
 

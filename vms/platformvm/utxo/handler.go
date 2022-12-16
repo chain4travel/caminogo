@@ -136,7 +136,6 @@ type Verifier interface {
 	// [utxos[i]] is the UTXO being consumed by [ins[i]].
 	// [ins] and [outs] are the inputs and outputs of [tx].
 	// [creds] are the credentials of [tx], which allow [ins] to be spent.
-	// [signers] are the group of owners of the funds under a multisig alias.
 	// [unlockedProduced] is the map of assets that were produced and their
 	// amounts.
 	// The [ins] must have at least [unlockedProduced] more than the [outs].
@@ -150,7 +149,6 @@ type Verifier interface {
 		ins []*avax.TransferableInput,
 		outs []*avax.TransferableOutput,
 		creds []verify.Verifiable,
-		signers []verify.State,
 		unlockedProduced map[ids.ID]uint64,
 	) error
 
@@ -477,7 +475,6 @@ func (h *handler) VerifySpend(
 	unlockedProduced map[ids.ID]uint64,
 ) error {
 	utxos := make([]*avax.UTXO, len(ins))
-	signers := make([]verify.State, len(ins))
 	for index, input := range ins {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
 		if err != nil {
@@ -488,17 +485,9 @@ func (h *handler) VerifySpend(
 			)
 		}
 		utxos[index] = utxo
-		signers[index], err = utxoDB.GetMultisigUTXOSigners(utxo)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to get multisig info consumed UTXO %s due to: %w",
-				&input.UTXOID,
-				err,
-			)
-		}
 	}
 
-	return h.VerifySpendUTXOs(tx, utxos, ins, outs, creds, signers, unlockedProduced)
+	return h.VerifySpendUTXOs(tx, utxos, ins, outs, creds, unlockedProduced)
 }
 
 func (h *handler) VerifySpendUTXOs(
@@ -507,21 +496,18 @@ func (h *handler) VerifySpendUTXOs(
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
 	creds []verify.Verifiable,
-	signers []verify.State,
 	unlockedProduced map[ids.ID]uint64,
 ) error {
 	if len(ins) != len(creds) {
 		return fmt.Errorf(
-			"%w. there are %d inputs but %d credentials. Should be same number",
-			errWrongCredentials,
+			"there are %d inputs but %d credentials. Should be same number",
 			len(ins),
 			len(creds),
 		)
 	}
 	if len(ins) != len(utxos) {
 		return fmt.Errorf(
-			"%w there are %d inputs but %d utxos. Should be same number",
-			ErrWrongUTXONumber,
+			"there are %d inputs but %d utxos. Should be same number",
 			len(ins),
 			len(utxos),
 		)
@@ -551,11 +537,10 @@ func (h *handler) VerifySpendUTXOs(
 		claimedAssetID := input.AssetID()
 		if realAssetID != claimedAssetID {
 			return fmt.Errorf(
-				"input %d has asset ID %s but expect %s: %w",
+				"input %d has asset ID %s but UTXO has asset ID %s",
 				index,
 				claimedAssetID,
 				realAssetID,
-				errAssetIDMismatch,
 			)
 		}
 
@@ -581,8 +566,13 @@ func (h *handler) VerifySpendUTXOs(
 			in = inner.TransferableIn
 		}
 
+		// Get output signed by real owners (would stay the same if its not msig)
+		msigOut, err := h.getMultisigTransferOutput(utxo)
+		if err != nil {
+			return err
+		}
 		// Verify that this tx's credentials allow [in] to be spent
-		if err := h.fx.VerifyTransfer(tx, in, creds[index], signers[index]); err != nil {
+		if err := h.fx.VerifyTransfer(tx, in, creds[index], msigOut); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 
@@ -704,8 +694,7 @@ func (h *handler) VerifySpendUTXOs(
 		// More unlocked tokens produced than consumed. Invalid.
 		if unlockedProducedAsset > unlockedConsumedAsset {
 			return fmt.Errorf(
-				"%w. AssetId(%q), Produced Asset(%d), Consumed Asset (%d)",
-				ErrProducesMoreThanConsumes,
+				"tx produces more unlocked %q (%d) than it consumes (%d)",
 				assetID,
 				unlockedProducedAsset,
 				unlockedConsumedAsset,

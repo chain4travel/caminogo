@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 )
@@ -76,8 +75,4 @@ func (s *state) SetMultisigOwner(owner *MultisigOwner) {
 
 func (s *state) GetMultisigOwner(alias ids.ShortID) (*MultisigOwner, error) {
 	return s.caminoState.GetMultisigOwner(alias)
-}
-
-func (s *state) GetMultisigUTXOSigners(utxo *avax.UTXO) (verify.State, error) {
-	return s.caminoState.GetMultisigUTXOSigners(utxo)
 }

@@ -132,8 +132,7 @@ func (ma *MultisigAlias) ComputeAlias(txID ids.ID) ids.ShortID {
 		beg += 20
 	}
 
-	idHash := hashing.ComputeHash256(allBytes)
-	alias, _ := ids.ToShortID(idHash[:20])
+	alias, _ := ids.ToShortID(hashing.ComputeHash160(hashing.ComputeHash256(allBytes)))
 	return alias
 }
 

@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
-	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting"
@@ -314,47 +313,6 @@ func generateTestStakeableOut(assetID ids.ID, amount, locktime uint64, outputOwn
 			},
 		},
 	}
-}
-
-func sortAndAlignAddressesWithKeys(keys []*crypto.PrivateKeySECP256K1R) ([]ids.ShortID, []*crypto.PrivateKeySECP256K1R) {
-	addresses := make([]ids.ShortID, 0, len(keys))
-	sortedKeys := make([]*crypto.PrivateKeySECP256K1R, 0, len(keys))
-
-	for _, key := range keys {
-		addresses = append(addresses, key.PublicKey().Address())
-	}
-
-	utils.Sort(addresses)
-
-	for _, address := range addresses {
-		for _, key := range keys {
-			if key.PublicKey().Address().String() == address.String() {
-				sortedKeys = append(sortedKeys, key)
-			}
-		}
-	}
-	return addresses, sortedKeys
-}
-
-func generateAddressesAndSignersWithKeys(tx txs.UnsignedTx, keys []*crypto.PrivateKeySECP256K1R) ([]ids.ShortID, []secp256k1fx.Credential) {
-	txHash := hashing.ComputeHash256(tx.Bytes())
-	credentials := make([]secp256k1fx.Credential, 0, len(keys))
-
-	addresses, sortedKeys := sortAndAlignAddressesWithKeys(keys)
-
-	for _, key := range sortedKeys {
-		sig, err := key.SignHash(txHash)
-		if err != nil {
-			panic(err)
-		}
-
-		cred := &secp256k1fx.Credential{Sigs: make([][crypto.SECP256K1RSigLen]byte, 1)}
-		copy(cred.Sigs[0][:], sig)
-
-		credentials = append(credentials, *cred)
-	}
-
-	return addresses, credentials
 }
 
 func generateOwnersAndSig(tx txs.UnsignedTx) (secp256k1fx.OutputOwners, *secp256k1fx.Credential) {
