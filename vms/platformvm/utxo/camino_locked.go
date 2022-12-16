@@ -44,6 +44,9 @@ var (
 	errFailToGetDeposit          = errors.New("couldn't get deposit")
 	errUnlockedMoreThanAvailable = errors.New("unlocked more deposited tokens, than was available for unlock")
 	errNotConsumedDeposit        = errors.New("didn't consume whole deposit amount, but deposit is expired and can't be partially unlocked")
+
+	ErrProducesMoreThanConsumes = errors.New("tx produces more unlocked than it consumes")
+	ErrWrongUTXONumber          = errors.New("wrong utxo number")
 )
 
 // Creates UTXOs from [outs] and adds them to the UTXO set.
@@ -729,6 +732,15 @@ func (h *handler) VerifyLock(
 				err,
 			)
 		}
+
+		signers, err := utxoDB.GetMultisigUTXOSigners(utxo)
+		if err != nil {
+			return fmt.Errorf("failed to get multisig info consumed UTXO %s due to: %w", &input.UTXOID, err)
+		}
+		// replace the utxo.Out with the TransferOutput containing control group addresses
+		realOut, _ := signers.(*secp256k1fx.TransferOutput)
+		replaceUtxoOut(utxo, realOut)
+
 		utxos[index] = utxo
 	}
 
@@ -955,6 +967,15 @@ func (h *handler) VerifyUnlockDeposit(
 				err,
 			)
 		}
+
+		signers, err := state.GetMultisigUTXOSigners(utxo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get multisig info consumed UTXO %s due to: %w", &input.UTXOID, err)
+		}
+		// replace the utxo.Out with the TransferOutput containing control group addresses
+		realOut, _ := signers.(*secp256k1fx.TransferOutput)
+		replaceUtxoOut(utxo, realOut)
+
 		utxos[index] = utxo
 	}
 
@@ -1360,4 +1381,21 @@ func getDepositUnlockableAmounts(
 	}
 
 	return unlockableAmounts, nil
+}
+
+func replaceUtxoOut(utxo *avax.UTXO, output *secp256k1fx.TransferOutput) {
+	out := utxo.Out
+	inner, hasInner := out.(*stakeable.LockOut)
+	if hasInner {
+		out = inner.TransferableOut
+	}
+
+	_, ok := out.(*secp256k1fx.TransferOutput)
+	if ok {
+		if hasInner {
+			inner.TransferableOut = output
+		} else {
+			utxo.Out = output
+		}
+	}
 }
