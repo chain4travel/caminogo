@@ -19,7 +19,7 @@ var (
 	//go:embed genesis_camino_local.json
 	localCaminoGenesisConfigJSON []byte
 
-	// ColumbusParams are the params used for columbus network
+	// CaminoLocalParams are the params used for camino local network
 	CaminoLocalParams = Params{
 		TxFeeConfig: TxFeeConfig{
 			TxFee:                 units.MilliAvax,

@@ -61,6 +61,10 @@ func TestValidateConfig(t *testing.T) {
 			networkID: 12345,
 			config:    &LocalConfig,
 		},
+		"camino local": {
+			networkID: 54321,
+			config:    &CaminoLocalConfig,
+		},
 		"camino (networkID mismatch)": {
 			networkID: 999,
 			config:    &CaminoConfig,
