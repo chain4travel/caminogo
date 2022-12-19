@@ -1,3 +1,6 @@
+// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package genesis
 
 import (
@@ -26,11 +29,12 @@ var (
 
 func TestParse(t *testing.T) {
 	type fields struct {
-		VerifyNodeSignature bool
-		LockModeBondDeposit bool
-		InitialAdmin        string
-		DepositOffers       []genesis.DepositOffer
-		Allocations         []UnparsedCaminoAllocation
+		VerifyNodeSignature   bool
+		LockModeBondDeposit   bool
+		InitialAdmin          string
+		DepositOffers         []genesis.DepositOffer
+		Allocations           []UnparsedCaminoAllocation
+		UnparsedMultisigAlias []UnparsedMultisigAlias
 	}
 	tests := map[string]struct {
 		fields fields
@@ -129,6 +133,11 @@ func TestParse(t *testing.T) {
 						DepositOfferID:    sampleID.String(),
 					}},
 				}},
+				UnparsedMultisigAlias: []UnparsedMultisigAlias{{
+					Alias:     wrappers.IgnoreError(address.Format(configChainIDAlias, "local", sampleShortID.Bytes())).(string),
+					Threshold: 1,
+					Addresses: []string{wrappers.IgnoreError(address.Format(configChainIDAlias, "local", shortID2.Bytes())).(string)},
+				}},
 			},
 			want: Camino{
 				VerifyNodeSignature: true,
@@ -148,17 +157,23 @@ func TestParse(t *testing.T) {
 						DepositOfferID:    sampleID,
 					}},
 				}},
+				InitialMultisigAddresses: []genesis.MultisigAlias{{
+					Alias:     sampleShortID,
+					Threshold: 1,
+					Addresses: []ids.ShortID{shortID2},
+				}},
 			},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			uc := UnparsedCamino{
-				VerifyNodeSignature: tt.fields.VerifyNodeSignature,
-				LockModeBondDeposit: tt.fields.LockModeBondDeposit,
-				InitialAdmin:        tt.fields.InitialAdmin,
-				DepositOffers:       tt.fields.DepositOffers,
-				Allocations:         tt.fields.Allocations,
+				VerifyNodeSignature:      tt.fields.VerifyNodeSignature,
+				LockModeBondDeposit:      tt.fields.LockModeBondDeposit,
+				InitialAdmin:             tt.fields.InitialAdmin,
+				DepositOffers:            tt.fields.DepositOffers,
+				Allocations:              tt.fields.Allocations,
+				InitialMultisigAddresses: tt.fields.UnparsedMultisigAlias,
 			}
 			got, err := uc.Parse()
 
