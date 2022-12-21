@@ -118,8 +118,8 @@ func (ua UnparsedCaminoAllocation) Parse() (CaminoAllocation, error) {
 
 type UnparsedPlatformAllocation struct {
 	Amount            uint64 `json:"amount"`
-	NodeID            string `json:"nodeID"`
-	ValidatorDuration uint64 `json:"validatorDuration"`
+	NodeID            string `json:"nodeID,omitempty"`
+	ValidatorDuration uint64 `json:"validatorDuration,omitempty"`
 	DepositOfferID    string `json:"depositOfferID"`
 }
 
