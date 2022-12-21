@@ -7,52 +7,52 @@
     "depositOffers": [
       {
         "interestRateNominator": 80000,
-        "start": 0,
-        "end": 1699609842,
+        "startOffset": 0,
+        "endOffset": 110449241,
         "minAmount": 1,
-        "minDuration": 94608000,
-        "maxDuration": 94608000,
-        "unlockPeriodDuration": 31536000,
-        "noRewardsPeriodDuration": 15768000,
+        "minDuration": 110449241,
+        "maxDuration": 110449241,
+        "unlockPeriodDuration": 31556926,
+        "noRewardsPeriodDuration": 15778463,
         "flags": {
           "locked": true
         }
       },
       {
         "interestRateNominator": 0,
-        "start": 0,
-        "end": 1699609842,
+        "startOffset": 0,
+        "endOffset": 157784630,
         "minAmount": 1,
-        "minDuration": 126144000,
-        "maxDuration": 126144000,
-        "unlockPeriodDuration": 63072000,
-        "noRewardsPeriodDuration": 31536000,
+        "minDuration": 157784630,
+        "maxDuration": 157784630,
+        "unlockPeriodDuration": 63113852,
+        "noRewardsPeriodDuration": 31556926,
         "flags": {
           "locked": true
         }
       },
       {
         "interestRateNominator": 90000,
-        "start": 0,
-        "end": 1699609842,
+        "startOffset": 0,
+        "endOffset": 142006167,
         "minAmount": 1,
-        "minDuration": 126144000,
-        "maxDuration": 126144000,
-        "unlockPeriodDuration": 31536000,
-        "noRewardsPeriodDuration": 15768000,
+        "minDuration": 142006167,
+        "maxDuration": 142006167,
+        "unlockPeriodDuration": 31556926,
+        "noRewardsPeriodDuration": 15778463,
         "flags": {
           "locked": true
         }
       },
       {
         "interestRateNominator": 100000,
-        "start": 0,
-        "end": 1699609842,
+        "startOffset": 0,
+        "endOffset": 173563093,
         "minAmount": 1,
-        "minDuration": 157680000,
-        "maxDuration": 157680000,
-        "unlockPeriodDuration": 31536000,
-        "noRewardsPeriodDuration": 15768000,
+        "minDuration": 173563093,
+        "maxDuration": 173563093,
+        "unlockPeriodDuration": 31556926,
+        "noRewardsPeriodDuration": 15778463,
         "flags": {
           "locked": true
         }
@@ -72,11 +72,11 @@
             "amount": 2000000000000,
             "nodeID": "NodeID-EAm6xyzP8mGm6VMSEoeV3L6dUP1YYnjCr",
             "validatorDuration": 100000,
-            "depositOfferID": "2YtQJUH73pdL98N71R54s2b4QiiSX4nzwbTYFHHmyEQtDmSL3a"
+            "depositOfferID": "299rFFsKSLacp47WaJRW8UJ1K2mTpizXjTqkbdKW8yw5ZWrP8Z"
           },
           {
             "amount": 10000000000000000,
-            "depositOfferID": "2YtQJUH73pdL98N71R54s2b4QiiSX4nzwbTYFHHmyEQtDmSL3a"
+            "depositOfferID": "299rFFsKSLacp47WaJRW8UJ1K2mTpizXjTqkbdKW8yw5ZWrP8Z"
           }
         ]
       }
