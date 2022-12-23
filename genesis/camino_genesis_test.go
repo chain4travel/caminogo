@@ -82,11 +82,7 @@ func TestValidateCaminoConfig(t *testing.T) {
 					return &thisConfig
 				}(),
 			},
-			err: fmt.Errorf(
-				"deposit offer starttime (%v) is not before its endtime (%v)",
-				2,
-				1,
-			),
+			err: fmt.Errorf(genesis.ErrDepositOfferStartTime, 2, 1),
 		},
 		"invalid deposit offer duplicate": {
 			args: args{
@@ -215,7 +211,8 @@ func TestBuildCaminoGenesis(t *testing.T) {
 	cfg := defaultConfig()
 
 	addrs := set.Set[ids.ShortID]{}
-	_, _, avaxAddrBytes, _ := address.Parse(initialAdmin)
+	_, _, avaxAddrBytes, err := address.Parse(initialAdmin)
+	require.NoError(t, err)
 	avaxAddr, _ := ids.ToShortID(avaxAddrBytes)
 	addrs.Add(avaxAddr)
 	outputOwners := secp256k1fx.OutputOwners{
@@ -281,7 +278,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 
 func getGenesisOffer(id ids.ID, offers []genesis.DepositOffer) genesis.DepositOffer {
 	for _, do := range offers {
-		doID, _ := do.ID()
+		doID, err := do.ID()
+		if err != nil {
+			panic(err)
+		}
 		if doID == id {
 			return do
 		}

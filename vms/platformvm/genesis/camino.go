@@ -16,6 +16,8 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
+var ErrDepositOfferStartTime = "deposit offer starttime (%v) is not before its endtime (%v)"
+
 // Camino genesis args
 type Camino struct {
 	VerifyNodeSignature      bool                     `serialize:"true"`
@@ -61,11 +63,7 @@ func (offer DepositOffer) ID() (ids.ID, error) {
 
 func (offer DepositOffer) Verify() error {
 	if offer.Start >= offer.End {
-		return fmt.Errorf(
-			"deposit offer starttime (%v) is not before its endtime (%v)",
-			offer.Start,
-			offer.End,
-		)
+		return fmt.Errorf(ErrDepositOfferStartTime, offer.Start, offer.End)
 	}
 
 	if offer.MinDuration > offer.MaxDuration {
