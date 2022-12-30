@@ -637,7 +637,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 	oldNodeIDNotEmpty := tx.OldNodeID != ids.EmptyNodeID
 
 	if !oldNodeIDNotEmpty && newNodeIDNotEmpty &&
-		consortiumMemberAddressState&txs.AddressStateRegisteredNodeBit == 1 {
+		consortiumMemberAddressState&txs.AddressStateRegisteredNodeBit != 0 {
 		return errConsortiumMemberHasNode
 	}
 
