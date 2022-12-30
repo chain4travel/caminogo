@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/msig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
@@ -42,6 +43,7 @@ var (
 	errDepositDurationToBig       = errors.New("deposit duration is greater than deposit offer maximum duration")
 	errSupplyOverflow             = errors.New("resulting total supply would be more, than allowed maximum")
 	errNotConsortiumMember        = errors.New("address isn't consortium member")
+	errConsortiumMemberHasNode    = errors.New("consortium member already has registered node")
 	errConsortiumSignatureMissing = errors.New("wrong consortium's member signature")
 	errNotNodeOwner               = errors.New("node is registered for another consortium member address")
 )
@@ -125,7 +127,7 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 		return err
 	}
 
-	consortiumMemberOwner, err := e.getMSIGOwner(consortiumMemberAddress)
+	consortiumMemberOwner, err := msig.GetOwner(e.State, consortiumMemberAddress)
 	if err != nil {
 		return err
 	}
@@ -631,9 +633,17 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 		return errNotConsortiumMember
 	}
 
+	newNodeIDNotEmpty := tx.NewNodeID != ids.EmptyNodeID
+	oldNodeIDNotEmpty := tx.OldNodeID != ids.EmptyNodeID
+
+	if !oldNodeIDNotEmpty && newNodeIDNotEmpty &&
+		consortiumMemberAddressState&txs.AddressStateRegisteredNodeBit == 1 {
+		return errConsortiumMemberHasNode
+	}
+
 	// verify consortium member cred
 
-	consortiumMemberOwner, err := e.getMSIGOwner(tx.ConsortiumMemberAddress)
+	consortiumMemberOwner, err := msig.GetOwner(e.State, tx.ConsortiumMemberAddress)
 	if err != nil {
 		return err
 	}
@@ -649,7 +659,6 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 
 	// verify old nodeID ownership
 
-	oldNodeIDNotEmpty := tx.OldNodeID != ids.EmptyNodeID
 	if oldNodeIDNotEmpty {
 		oldNodeOwnerAddr, err := e.State.GetNodeConsortiumMember(tx.OldNodeID)
 		if err != nil {
@@ -662,7 +671,6 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 
 	// verify new nodeID cred
 
-	newNodeIDNotEmpty := tx.NewNodeID != ids.EmptyNodeID
 	if newNodeIDNotEmpty {
 		if err := e.Backend.Fx.VerifyPermission(
 			e.Tx.Unsigned,
@@ -687,7 +695,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 		e.Tx.Creds[:len(e.Tx.Creds)-2], // base tx creds
 		e.Config.TxFee,
 		e.Ctx.AVAXAssetID,
-		locked.StateUnlocked,
+		locked.StateBonded,
 	); err != nil {
 		return err
 	}
@@ -707,6 +715,18 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 
 	if newNodeIDNotEmpty {
 		e.State.SetNodeConsortiumMember(tx.NewNodeID, &tx.ConsortiumMemberAddress)
+	}
+
+	newConsortiumMemberAddressState := consortiumMemberAddressState
+
+	if !oldNodeIDNotEmpty && newNodeIDNotEmpty {
+		newConsortiumMemberAddressState |= txs.AddressStateRegisteredNodeBit
+	} else if !newNodeIDNotEmpty {
+		newConsortiumMemberAddressState &^= txs.AddressStateRegisteredNodeBit
+	}
+
+	if newConsortiumMemberAddressState != consortiumMemberAddressState {
+		e.State.SetAddressStates(tx.ConsortiumMemberAddress, newConsortiumMemberAddressState)
 	}
 
 	return nil
@@ -801,7 +821,7 @@ func verifyAccess(roles, statesBit uint64) error {
 		if (roles & txs.AddressStateRoleKycBit) == 0 {
 			return errInvalidRoles
 		}
-	case (txs.AddressStateValidatorBits & statesBit) != 0:
+	case (txs.AddressStateRegisteredNodeBit & statesBit) != 0:
 		if (roles & txs.AddressStateRoleValidatorBit) == 0 {
 			return errInvalidRoles
 		}
@@ -822,20 +842,4 @@ func verifyAddrsOwner(addrs set.Set[ids.ShortID], owner *secp256k1fx.OutputOwner
 		}
 	}
 	return errors.New("missing signature")
-}
-
-func (e *CaminoStandardTxExecutor) getMSIGOwner(addr ids.ShortID) (*secp256k1fx.OutputOwners, error) {
-	msigOwner, err := e.State.GetMultisigOwner(addr)
-	if err != nil && err != database.ErrNotFound {
-		return nil, err
-	}
-
-	if msigOwner != nil {
-		return &msigOwner.Owners, nil
-	}
-
-	return &secp256k1fx.OutputOwners{
-		Threshold: 1,
-		Addrs:     []ids.ShortID{addr},
-	}, nil
 }
