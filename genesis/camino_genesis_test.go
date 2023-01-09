@@ -36,10 +36,14 @@ var (
 		MintingPeriod:      365 * 24 * time.Hour,
 		SupplyCap:          720 * units.MegaAvax,
 	}
-	initialAdmin     = "X-kopernikus1m4nr983lhd4p4nfsqk3a6a9mejugnn73cmp283"
-	expectedUtxoID1  = wrappers.IgnoreError(ids.FromString("2P2kTVUNMvzVWAgTbaML2DRqpD9pj5gWmxGiKZGDbotqBCHdqJ")).(ids.ID)
-	expectedUtxoID2  = wrappers.IgnoreError(ids.FromString("m3qqtnFG78HozeZ2kSS3pTLeo2SKxjTiR3DJvBd1eKyQTDcnZ")).(ids.ID)
-	expectedBondTxID = wrappers.IgnoreError(ids.FromString("2iMQED4CRfaUZcUgseM7vHXA7fcuwDvjYjq8BfJPTyGb84H8HN")).(ids.ID)
+	assignedPAllocAmount   = uint64(4000000000000)
+	unassignedPAllocAmount = uint64(10000000000000000)
+	maxValidatorStake      = GetStakingConfig(constants.KopernikusID).MaxValidatorStake
+	initialAdmin           = "X-kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3"
+	expectedUtxoID1        = wrappers.IgnoreError(ids.FromString("23P43gnzKqawVt7UnoWBJpKakuja6jLJFJ6NbqqH4K7AzZC5f8")).(ids.ID)
+	expectedUtxoID2        = wrappers.IgnoreError(ids.FromString("2Uz3NaWp8NieLSiAgaUKV9SJyyYHkRvRF4PPQeRJhchkTzFAAk")).(ids.ID)
+	expectedUtxoID3        = wrappers.IgnoreError(ids.FromString("NxUtNF917PDfBkm6ZRvZE5qxrnirT4ucWktyYZzCMBTD9Y659")).(ids.ID)
+	expectedBondTxID       = wrappers.IgnoreError(ids.FromString("2rpuZwaVeHj5Mov1eePjq2DW3XhtwCxW21dVXg2QYeWMFJ5Kq9")).(ids.ID)
 )
 
 func TestValidateCaminoConfig(t *testing.T) {
@@ -82,7 +86,7 @@ func TestValidateCaminoConfig(t *testing.T) {
 					return &thisConfig
 				}(),
 			},
-			err: fmt.Errorf(genesis.ErrDepositOfferStartTime, 2, 1),
+			err: fmt.Errorf("%w: starttime %d, endtime %d", genesis.ErrOfferStartNotBeforeEnd, 2, 1),
 		},
 		"invalid deposit offer duplicate": {
 			args: args{
@@ -213,7 +217,8 @@ func TestBuildCaminoGenesis(t *testing.T) {
 	addrs := set.Set[ids.ShortID]{}
 	_, _, avaxAddrBytes, err := address.Parse(initialAdmin)
 	require.NoError(t, err)
-	avaxAddr, _ := ids.ToShortID(avaxAddrBytes)
+	avaxAddr, err := ids.ToShortID(avaxAddrBytes)
+	require.NoError(t, err)
 	addrs.Add(avaxAddr)
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
@@ -235,8 +240,9 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				hrp:    constants.KopernikusHRP,
 			},
 			expectedUtxos: map[ids.ID]*avax.UTXO{
-				expectedUtxoID1: generateTestUTXO(expectedUtxoID1, ctx.AVAXAssetID, 2000000000000, outputOwners, expectedUtxoID1, expectedBondTxID),
-				expectedUtxoID2: generateTestUTXO(expectedUtxoID2, ctx.AVAXAssetID, 10000000000000000, outputOwners, expectedUtxoID2, ids.Empty),
+				expectedUtxoID1: generateTestUTXO(expectedUtxoID1, ctx.AVAXAssetID, assignedPAllocAmount-maxValidatorStake, outputOwners, expectedUtxoID1, ids.Empty),
+				expectedUtxoID2: generateTestUTXO(expectedUtxoID2, ctx.AVAXAssetID, maxValidatorStake, outputOwners, expectedUtxoID2, expectedBondTxID),
+				expectedUtxoID3: generateTestUTXO(expectedUtxoID3, ctx.AVAXAssetID, unassignedPAllocAmount, outputOwners, expectedUtxoID3, ids.Empty),
 			},
 		},
 	}
@@ -258,6 +264,8 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				require.Equal(t, tt.expectedUtxos[utxo.TxID].Out, utxo.Out)
 			}
 
+			_, err = s.GetAddressStates(avaxAddr)
+			require.NoError(t, err)
 			offers, err := s.GetAllDepositOffers()
 			require.NoError(t, err)
 
