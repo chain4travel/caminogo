@@ -4779,134 +4779,149 @@
     ],
     "initialMultisigAddresses": [
       {
-        "alias": "X-columbus1qytfcm2amett26svvjvmjvqptg0evtl0z4jglt",
+        "alias": "X-columbus1znt33qx3ftsmq5q5wtc7g4m3sl804mc8jtn5gg",
         "addresses": [
           "X-columbus1vxmf8899y6x7dsam0xnr0hp6syzwz33383z3s7",
           "X-columbus1w3szy4e5excad4j8xp2ua0ukqcfq2uh425mjj9",
           "X-columbus10q3dc78tw70m89s8lgl9fgwe9tfu4a0sry5xgd",
           "X-columbus1kuaaqcggcl8ke6dhm8zmuhl2xc544q8v8khm5v"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3027fb57e9"
       },
       {
-        "alias": "X-columbus13hq70rrgaycz66qsn3ek6m4q3j8ve2syuvgehc",
+        "alias": "X-columbus1cl4h687y5y7cay5cej56fyu3j8wukq35kfwmj7",
         "addresses": [
           "X-columbus1vxmf8899y6x7dsam0xnr0hp6syzwz33383z3s7",
           "X-columbus1w3szy4e5excad4j8xp2ua0ukqcfq2uh425mjj9",
           "X-columbus10q3dc78tw70m89s8lgl9fgwe9tfu4a0sry5xgd",
           "X-columbus1kuaaqcggcl8ke6dhm8zmuhl2xc544q8v8khm5v"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x31b7875b4b"
       },
       {
-        "alias": "X-columbus1nyuw6rys0qm0hhc6yrp3sy4gd5e6g6lsfkxrhw",
+        "alias": "X-columbus1z324djurdg6m0f8eqvk9qkl3ayuv4f50wau60d",
         "addresses": [
           "X-columbus1vxmf8899y6x7dsam0xnr0hp6syzwz33383z3s7",
           "X-columbus10q3dc78tw70m89s8lgl9fgwe9tfu4a0sry5xgd",
           "X-columbus1kuaaqcggcl8ke6dhm8zmuhl2xc544q8v8khm5v"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x32ec13ab35"
       },
       {
-        "alias": "X-columbus1c5548fwqekln6vc7vak8t54e9e5q0v5hkj9xn5",
+        "alias": "X-columbus1m0kumyk2t8wt5d9tc7wrxjnkmumtjn03spz3a7",
         "addresses": [
           "X-columbus1vxmf8899y6x7dsam0xnr0hp6syzwz33383z3s7",
           "X-columbus1w3szy4e5excad4j8xp2ua0ukqcfq2uh425mjj9",
           "X-columbus10q3dc78tw70m89s8lgl9fgwe9tfu4a0sry5xgd",
           "X-columbus1kuaaqcggcl8ke6dhm8zmuhl2xc544q8v8khm5v"
         ],
-        "threshold": 3
+        "threshold": 3,
+        "memo": "0x3329b49fce"
       },
       {
-        "alias": "X-columbus12k7j2hnjkj9nqy0rllwnfqd80v78kqwcmcsw0m",
+        "alias": "X-columbus1hjhp3rc4wwg9dq77g5plyud3xqhvpz0kxzgqze",
         "addresses": [
           "X-columbus1ht5n4ynt6dlt0r7ce2gadww64y4k2xund7kawe"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x34acdabf8a"
       },
       {
-        "alias": "X-columbus134aa7levwh0d0cl90dw8rajg8j6ysrxnwdnv8j",
+        "alias": "X-columbus1z647qg5k5zu30jldrg5sx22x5jew458gk8hc9w",
         "addresses": [
           "X-columbus1ale9unm94g5at8vp2z0ang7l5hc5maugsrrggh"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3564afe39d"
       },
       {
-        "alias": "X-columbus14y7vw9ncnu0wl59amjf6m5dmxsdhvydg37p8ne",
+        "alias": "X-columbus1z2hgyxu8840cyqwfu54uxz93vs37pe3xdfyfx3",
         "addresses": [
           "X-columbus10ghxqewfgujnfzxqz2jjsrcqx8xglr0s7s4c2u",
           "X-columbus10wq8n5sjctvruhf8wdp4xev4l7ru3ws6707ce9",
           "X-columbus1nt6kdghwa8j3crxm9t9pa4ehgc0u6f8jy09vdv"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x36f0919683"
       },
       {
-        "alias": "X-columbus1nckwrhkr4gt5897v8uzcg2mfsw4kdcds3eg2xn",
+        "alias": "X-columbus1gg5e8ue6snj6yh2xtt7qrh2fxm05h8vyxe0w5v",
         "addresses": [
           "X-columbus1rjlxz9m74deugtquzw0uz9ptvwr6ee02tjlyye",
           "X-columbus19khkh86zw6c0w2en0vyw4kqtnmldsx2pkzqgt2",
           "X-columbus13ac3fneqqp5em7mqst4dv7yv7ct4szwj6p57rd"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x37081b2451"
       },
       {
-        "alias": "X-columbus1mspvckgspqvwkpdkaszkv5jf75dcs0mv486740",
+        "alias": "X-columbus1rldh8w0z25swn8u7mny5fe5h72745wlwxmrn4r",
         "addresses": [
           "X-columbus1ale9unm94g5at8vp2z0ang7l5hc5maugsrrggh"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x38defb64a3"
       },
       {
-        "alias": "X-columbus10hrr04zhflllz8a2eprks9dp52x9vjuetk3l2v",
+        "alias": "X-columbus1469xwflfwgjetcp0q2fna28qelygsmzj60rnmf",
         "addresses": [
           "X-columbus1skv4phaz8n6qcvpwe2jdnsu00gtyzagrwy4va3",
           "X-columbus1kudhcsk27qtc7zyree2jxj8gm38sn7cp84zjzz"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x39017bb5b7"
       },
       {
-        "alias": "X-columbus1d3x9ej2wjnyj5pdmqgzze8jwsx9sjtmrf637e5",
+        "alias": "X-columbus15fc5y5pp0jrryr3us55yw8z5uvtdvgfslcrw0l",
         "addresses": [
           "X-columbus1pv4gg2nlg3ul43cxt5s5lzgvmnxc6tgux7ez4v",
           "X-columbus1raf8zahwesnyjm38cqf6dnnz0qtmqgyypkr8x6"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3130e6af1dd5"
       },
       {
-        "alias": "X-columbus1tj4tl8txa0dqgplcwyknvwdawu89v3aytp82lh",
+        "alias": "X-columbus1p8n0qj7jzyf4nsh8csg4tldu7z7xrfjertl083",
         "addresses": [
           "X-columbus1agu0s0k7yv77gwzrcc8k0r6t4cwvrhe26juvq0"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x31310a05eeb8"
       },
       {
-        "alias": "X-columbus1r66krj4tgr3n5syk7y5cl3h77wwh99ychp39qm",
+        "alias": "X-columbus1y7mza2jpnj24lxx6qh2d87nafr5ykhnt2f7e8g",
         "addresses": [
           "X-columbus1rtgc42mnalqkfcsxx2m4027a340tttm6uqw3em",
           "X-columbus1k6a24y06jr9hs2ztu3yevy9ax7uk5d6arjs2x4",
           "X-columbus1a70jassv2cmt93j3fdtqm77q25y2ru4hqpd50l"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3132acbba918"
       },
       {
-        "alias": "X-columbus18ppx0vpjr80yxa80v7h02hep2t6masjyfa2l08",
+        "alias": "X-columbus1q63tgde7sx24ktdammnrthxuzc03gfa6yjmsn8",
         "addresses": [
           "X-columbus1c5hzeksvkgaydyk5mvxqtdu5ud0smeqp9fk4nt",
           "X-columbus16h4jp22kqeykwsejfsqw2huaeka9hd37n4vdyv",
           "X-columbus1acfdnrpxm3ep58h9qzrtupxkvhemr67alqqf0f"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3133e581e278"
       },
       {
-        "alias": "X-columbus1d6ykv2mv50qqu2wpecks0m7mlsrcj5nxjsdres",
+        "alias": "X-columbus1pg8tqxrww3ql8rrhpkruuraqmzwe0qgw8rvlav",
         "addresses": [
           "X-columbus1xj5d33f760jtqm49ednl5dxjac3sl6vnwlx0sl",
           "X-columbus1s5ualug048zxhlj50nr3527lk06dnyxrpg8lpq"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x313475f99e61"
       },
       {
-        "alias": "X-columbus1nsh8l6cpgy8j2y5mg493gjntlqdnza8mwqvsuw",
+        "alias": "X-columbus1kpkedcxq2s5syjyqk66ft870j6a2c6crtk2xug",
         "addresses": [
           "X-columbus1p0qgvr8ykvzjntjvcuclmsvv9mkav4ryp7rxhm",
           "X-columbus1ynz6fr7xpf6y2zfnc8g797e8pmnj85ma69wqp7",
@@ -4914,10 +4929,11 @@
           "X-columbus1sk5shk4dxpk0t32ktc5gqzpptqmdhaytwgdyys",
           "X-columbus16ju73s7am4w8q6rutlhl794hcuyv7tl6293cvm"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3135617d8bdb"
       },
       {
-        "alias": "X-columbus1hn3lsa30w6xrlsg7dqfpsjezatts4zvgvz55pp",
+        "alias": "X-columbus13kv7a7h0w988mc2fd3hpg6m7u4t90njtvh57am",
         "addresses": [
           "X-columbus1qx7x8d472llxgtg9h4wfw9q6mfzfqv7metum4c",
           "X-columbus1y77kfdm5g293y7zm7ck2ap25w873wkv7xc5n0v",
@@ -4926,211 +4942,237 @@
           "X-columbus1vrxtv3uyy2c442vx4u279ygx58lee3zj8594hm",
           "X-columbus162g2l9j7dkyrfvz68tnnph86zdycuq5eh637x8"
         ],
-        "threshold": 3
+        "threshold": 3,
+        "memo": "0x3136f4ce8cd9"
       },
       {
-        "alias": "X-columbus147ejnrpf6fgj65s32sgcm6reewyu9yut65tg6z",
+        "alias": "X-columbus1rmsvmkkks5adwv5jpeqkhdjsywwkssndx8p627",
         "addresses": [
           "X-columbus1pwfsrcae9kxr4faq5w0upa4stj45q9jzlgjq33",
           "X-columbus1x6my7jdu0wy2zgfeurt0ue0q7ypnrlacx5nzzu",
           "X-columbus13c69m2kfrr3u83f4fr5zxvp8797wp9fv6vcpud"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x31373be6b9e3"
       },
       {
-        "alias": "X-columbus14d7aarez2jrg8fq8zg0ezz2d0ayj4vynudt8av",
+        "alias": "X-columbus1lx5r44j0tkn5kkxxwdj4u9jkua56ewsgmudnzt",
         "addresses": [
           "X-columbus1xlr8nhvm78s8ypqr4jpt0353mvzz6xjdtx9x46",
           "X-columbus1tx2unmz2sw4f56gw5sjkmrtf5u87lccej2nzc4",
           "X-columbus1h8mwk0rk00pnf5mxueapkuarfj337yazuqqeml"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3138c5fed14a"
       },
       {
-        "alias": "X-columbus16ftwxsfyx70nvxsscv3g2rszv062dqt5chnzgt",
+        "alias": "X-columbus17gsve2g8e42djwt0z77k7mj036syzlmzl6gpnd",
         "addresses": [
           "X-columbus13du65yjyrvrfgua8s02ytvx4rslsqzde4mqf80",
           "X-columbus1ujh4jfc5fa6aa6h44pg33u8jt3q8xaqavzvp5c"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x31394ca7f767"
       },
       {
-        "alias": "X-columbus1evmsvf7qgpqkucw9dza52qez4tw89nuvld5s3q",
+        "alias": "X-columbus1k8zmctppwpgdrw9daye9rxvugnsk4mzdkkt3l2",
         "addresses": [
           "X-columbus1mvysmuzdg3vmhyz5z7z2ar79k8gjshvrgrpw3f"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3230a2d9202b"
       },
       {
-        "alias": "X-columbus1wv900zwr7ws5099vzwxxarrj4zratsvqxdsc2p",
+        "alias": "X-columbus14ctdac6ulz59fm3uy7azpvv0dfwfyqtqksam28",
         "addresses": [
           "X-columbus1ulucvsrhveqzdt37zhfdysycskw0v2f9td222z"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3231fbd8f443"
       },
       {
-        "alias": "X-columbus1dzdhaqxp7gnnk4htuqa6urag8tztd7ktgrj6uu",
+        "alias": "X-columbus1anjjys6mq93pjr79h73p9vwn3p98e43f7wvt0m",
         "addresses": [
           "X-columbus1jqdr06q5a9csmf5s42rqlfhchlxjlmvzavzu6p",
           "X-columbus1axmzzappezh88uns0cc6fys92vcztyfr6fmr5v"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3232c05ddd09"
       },
       {
-        "alias": "X-columbus12melmrs7fg09l6p9cae0qt57z7zeay6luu9yrr",
+        "alias": "X-columbus17jure45vfzd07jmf98ssg2q3vwwnfylt7pjk7t",
         "addresses": [
           "X-columbus1n7zvnqe63pcjmglwm7jyg3a9n0dter3rv2x3n2",
           "X-columbus1ujcat254t7askj4tpju3uc70p3k3gm8j649ux5",
           "X-columbus1l8slwyve2c2pzenapm450fykuh82mw3dlpfx3w"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x323385d8f790"
       },
       {
-        "alias": "X-columbus15r290xt9mnpkmj2x7h4qvrca5zg7hysakutj3f",
+        "alias": "X-columbus1t070y8s4ym2yu6agk98ch803hp89s8msmdk7up",
         "addresses": [
           "X-columbus1g5rn3u8jfse893vc8suctmlkcvnpf097tmcs0l",
           "X-columbus1c6fttduv83wrhejhagg0xz0dckswe5w3055cjy",
           "X-columbus1mced2e89pjhvmc6698ywf3ccqh0ttxzr3z5tmw",
           "X-columbus1uggerc3khhecx4z84h9trukfjj9fu6204h335s"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x32346c5319db"
       },
       {
-        "alias": "X-columbus16lz08tm8e7y8v20wj8qg6stykyfvalfevrj7tj",
+        "alias": "X-columbus1uaqyxrh8f2rzm7lnx2nfrpqrgpqd2hhfvtgk32",
         "addresses": [
           "X-columbus1n8j7zudp748my7sgntsm3ngd2866genwk43sfh",
           "X-columbus1akjmmq5mz8uvauhhvcr3ufle54rlnh6jq9pem4"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3235b2e73569"
       },
       {
-        "alias": "X-columbus1l7epvwzj2lh5a0n0hmvqvssypw9engrqnt0v7r",
+        "alias": "X-columbus1t793rr2mmrt9vwmtnf0tfqm3mnga84uzsv5q7k",
         "addresses": [
           "X-columbus1qad6z8s8ghehxhyemrdv4uc3ndzk8tqnaxry2u",
           "X-columbus1nhkdq29jvecgsnhwxg36g3qy3fd6n7ayny4n7w"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3236e64244ca"
       },
       {
-        "alias": "X-columbus1ma9yvjme5yuywupezk3uc0fmy6vz406mnfmmm4",
+        "alias": "X-columbus1uetumw2xqtjlkxphrxahj9cg6k9shqmngae5yd",
         "addresses": [
           "X-columbus18dc4jdycs82yw3p9uk537kvt80snjvkyunge2d",
           "X-columbus1flnpq33aprfsfwu55teq309zlwwfl5yv2e3x7r",
           "X-columbus17vmr4hvyl3dw9ec7clptmqt2dpd0uaqzderkkn"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3237c41adcaf"
       },
       {
-        "alias": "X-columbus1rffgmzxjnx25qewecqth5x5d99vamk34jysa7t",
+        "alias": "X-columbus163uxycjzz9synt8dc2g2l3xdskg38qaw2gjuxn",
         "addresses": [
           "X-columbus1fsz4z9sh7s05hr9cup9yz82cmx4avpt62nzmdd"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3238636d015a"
       },
       {
-        "alias": "X-columbus1yhdgzxy59jfdtdd582nqk9l3wf7j23u7psje7w",
+        "alias": "X-columbus19daqmr9rmjl98zushrqs82qx7cm9de76tv6zvl",
         "addresses": [
           "X-columbus1qvflkawwhe5sau8xuw4apzhu2reztnvulh6679"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3239fdaec458"
       },
       {
-        "alias": "X-columbus1pa6u3rgkkwwtnnp8fshechy33genf243muyjwk",
+        "alias": "X-columbus1kydw3ds2mujfd4z2fjtfx82k2mc6988m6kuege",
         "addresses": [
           "X-columbus10a979j54ladz0y9q2672vv4ygpxgfjnugq54r3",
           "X-columbus1llnr6mynmt7ft7kk5dfsly3qkc9l0xyta0u9mp"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x333058ce93f4"
       },
       {
-        "alias": "X-columbus1xajah6wfsmf8jzf9sypp7smtlt87gh67dyuxjr",
+        "alias": "X-columbus19cq0xf7nnt0xe6923tpdmdrdrcsl4m7aum7l8c",
         "addresses": [
           "X-columbus1r74sn3yjlf6utqxhd62ecwhcmj0rwexxqzzsc0",
           "X-columbus1jc9fqt0t75v4c8p3rfctafegctkc5cd5lj2cja"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x333121f5a50f"
       },
       {
-        "alias": "X-columbus1rljaheer547g4szl2rd7jdmws03nm2szqw74ua",
+        "alias": "X-columbus1fdgjq62lwyjv839jpclj5u4k7qyuwytd4dz4lg",
         "addresses": [
           "X-columbus107pmtdx0rgq2dknf6ffxhlaehmnausdcpesjwg",
           "X-columbus13p3x5z04cfmln5mn5dj8ljr3a3rj733hgn5629",
           "X-columbus1ez6s747dce6w9f6tsl96l8ljxx36v8y8jkll4c"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x33323884bb6b"
       },
       {
-        "alias": "X-columbus1ujnfc5qz55ged32nf3cnr3nwtc9dd6xdvav9q7",
+        "alias": "X-columbus1zpvgrwgnkc7mglrttee3q6uxsw4ljln5478wl8",
         "addresses": [
           "X-columbus1vveln3mjr9ee2ls5tx39sqygguatt5thk5spvq",
           "X-columbus1d26p87euze5gjg5zf8d27fx4aq9nnlhvhl9xef"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x33335e7f6894"
       },
       {
-        "alias": "X-columbus1w6dszh0s8dgz7kjj3eyvry8d9t4fr0qsjwdakj",
+        "alias": "X-columbus173xpz5pmh0n8a79dz7x7crk9cnl4l9k4n2gpap",
         "addresses": [
           "X-columbus1yrqhgzgadkyy3wgz3z67vx7zrhm4us06es9d72",
           "X-columbus1xh62a0ada45g93x342r7vhhv5a9hs7x5wml7nc"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3334ca40cdef"
       },
       {
-        "alias": "X-columbus14h5d0js0k09tn5tyfuquvp08ncca3xawr0zyp7",
+        "alias": "X-columbus1cqncnlqgptktfe4e3esqgzlwfh5zrjz249fyld",
         "addresses": [
           "X-columbus18jzw0k5pdcsmeyc55wevnxph8amaelt50wyzd3",
           "X-columbus1604l4rly3kp5pexwm57p2gj5apdk78l9e09cl5"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3335b3634953"
       },
       {
-        "alias": "X-columbus125d0gsa82rlprxs8c3jsy0xmjahp9jkr5z4adm",
+        "alias": "X-columbus16zrttcd22qqrwklngg5lpjz0nnz7kf0thya3hh",
         "addresses": [
           "X-columbus1g5rn3u8jfse893vc8suctmlkcvnpf097tmcs0l",
           "X-columbus1c6fttduv83wrhejhagg0xz0dckswe5w3055cjy",
           "X-columbus1mced2e89pjhvmc6698ywf3ccqh0ttxzr3z5tmw",
           "X-columbus1uggerc3khhecx4z84h9trukfjj9fu6204h335s"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3336e0503269"
       },
       {
-        "alias": "X-columbus1vv86khcks27sh9zmpfuqtnckgxga04grgmx4zp",
+        "alias": "X-columbus1dn88ppjp3nnstz5057qznz8rwgndtff5j956jm",
         "addresses": [
           "X-columbus1gvpq52ghwvts7085ddrvqzug2tmqcpxhk93y56",
           "X-columbus10dmmqhhevraamhf74hm6d0ah6l6p6s6yxva3wg"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x333763562b25"
       },
       {
-        "alias": "X-columbus1uyxxw4vlp7rrnmrgtk9zle3mrpe8n52ksf2yg3",
+        "alias": "X-columbus125r55qc8zepzevk9264ees7az67u3mks6nq2df",
         "addresses": [
           "X-columbus1vqt5lqcw4jrleckhp3z6r3mpame8gdhxhy9j8f",
           "X-columbus13xugknzqyfptssgke9fwmkveex8z2u3tm9zn3l",
           "X-columbus1lff8ns8ra2drccej8s6gx5sqadjupj9c7txpks"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x333872f0f470"
       },
       {
-        "alias": "X-columbus1k20cnmugmy6w239fxquss3ftuelhhl43wa7rfg",
+        "alias": "X-columbus1mm4rvq82umepszlywsfz0twnqkek597h7f0qvf",
         "addresses": [
           "X-columbus1p0v0fh8mtdqau6qvjfz6ksewgznkqwrf0h0wh2",
           "X-columbus1nr4nrvdqd8s5setmuuegqs5pv4k9ncvhfq4nt7"
         ],
-        "threshold": 2
+        "threshold": 2,
+        "memo": "0x3339ce44e3f9"
       },
       {
-        "alias": "X-columbus155gp53wurucj7jj0pfnq3xgpcyplnf4q9emu0z",
+        "alias": "X-columbus1u30hkvsc7sxhxjxlgjfq66vqv084lgytc4xltu",
         "addresses": [
           "X-columbus1n367g50tsmkgsspnp2qaf5vmrsa2kamc3c5q8h"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x343097fed103"
       },
       {
-        "alias": "X-columbus12vt2shtu7z7xuxtlg6m3alvwwpuamnc95536rj",
+        "alias": "X-columbus177vvfzcghzn6hptma5q2y7vafs4fgcsxrqdytv",
         "addresses": [
           "X-columbus1avzavnjk9fgmga3drf4scmycnwl8m2pvrflgv2"
         ],
-        "threshold": 1
+        "threshold": 1,
+        "memo": "0x3431ba7f14d9"
       }
     ]
   },
