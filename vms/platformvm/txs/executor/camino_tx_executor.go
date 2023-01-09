@@ -97,7 +97,9 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 
 	// verify avax tx
 
-	_, isCaminoTx := e.Tx.Unsigned.(*txs.CaminoAddValidatorTx)
+	// verify avax tx
+
+	caminoAddValidatorTx, isCaminoTx := e.Tx.Unsigned.(*txs.CaminoAddValidatorTx)
 
 	if !caminoConfig.LockModeBondDeposit && !isCaminoTx {
 		return e.StandardTxExecutor.AddValidatorTx(tx)

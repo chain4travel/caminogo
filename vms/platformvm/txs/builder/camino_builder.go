@@ -37,6 +37,17 @@ type CaminoBuilder interface {
 }
 
 type CaminoTxBuilder interface {
+	NewCaminoAddValidatorTx(
+		stakeAmount,
+		startTime,
+		endTime uint64,
+		nodeID ids.NodeID,
+		consortiumMemberAddress ids.ShortID,
+		rewardAddress ids.ShortID,
+		keys []*crypto.PrivateKeySECP256K1R,
+		changeAddr ids.ShortID,
+	) (*txs.Tx, error)
+
 	NewAddAddressStateTx(
 		address ids.ShortID,
 		remove bool,
@@ -95,13 +106,13 @@ type caminoBuilder struct {
 	builder
 }
 
-func (b *caminoBuilder) NewAddValidatorTx(
+func (b *caminoBuilder) NewCaminoAddValidatorTx(
 	stakeAmount,
 	startTime,
 	endTime uint64,
 	nodeID ids.NodeID,
+	consortiumMemberAddress ids.ShortID,
 	rewardAddress ids.ShortID,
-	shares uint32,
 	keys []*crypto.PrivateKeySECP256K1R,
 	changeAddr ids.ShortID,
 ) (*txs.Tx, error) {
@@ -148,12 +159,64 @@ func (b *caminoBuilder) NewAddValidatorTx(
 				Addrs:     []ids.ShortID{rewardAddress},
 			},
 		},
+		ConsortiumMemberAddress: consortiumMemberAddress,
 	}
 
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {
 		return nil, err
 	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) NewAddValidatorTx(
+	stakeAmount,
+	startTime,
+	endTime uint64,
+	nodeID ids.NodeID,
+	rewardAddress ids.ShortID,
+	shares uint32,
+	keys []*crypto.PrivateKeySECP256K1R,
+	changeAddr ids.ShortID,
+) (*txs.Tx, error) {
+	caminoGenesis, err := b.builder.state.CaminoConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if caminoGenesis.LockModeBondDeposit {
+		return nil, errWrongLockMode
+	}
+
+	tx, err := b.builder.NewAddValidatorTx(
+		stakeAmount,
+		startTime,
+		endTime,
+		nodeID,
+		rewardAddress,
+		shares,
+		keys,
+		changeAddr,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if caminoGenesis, err := b.builder.state.CaminoConfig(); err != nil {
+		return nil, err
+	} else if !caminoGenesis.VerifyNodeSignature {
+		return tx, nil
+	}
+
+	nodeSigners, err := getSECPSigners(keys, ids.ShortID(nodeID))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Sign(txs.Codec, [][]*crypto.PrivateKeySECP256K1R{nodeSigners}); err != nil {
+		return nil, err
+	}
+
 	return tx, tx.SyntacticVerify(b.ctx)
 }
 

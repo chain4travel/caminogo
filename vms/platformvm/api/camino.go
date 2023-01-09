@@ -6,6 +6,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
@@ -22,7 +23,13 @@ import (
 	"github.com/ava-labs/avalanchego/vms/types"
 )
 
-var errNonExistingOffer = errors.New("non existing deposit offer")
+var (
+	errNonExistingOffer             = errors.New("non existing deposit offer")
+	errWrongUTXONumber              = errors.New("wrong utxo number")
+	errWrongValidatorNumber         = errors.New("wrong validator number")
+	errWrongDepositsAndStakedNumber = errors.New("deposits and staked are not the same number")
+	errWrongLockMode                = errors.New("wrong lock mode")
+)
 
 type UTXODeposit struct {
 	OfferID ids.ID `json:"offerID"`
@@ -54,15 +61,19 @@ func (c Camino) ParseToGenesis() genesis.Camino {
 
 // BuildGenesis build the genesis state of the Platform Chain (and thereby the Avalanche network.)
 func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error {
+	if !args.Camino.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
 	if len(args.Camino.UTXODeposits) != len(args.UTXOs) {
-		return errors.New("len(args.Camino.UTXODeposits) != len(args.UTXOs)")
+		return errWrongUTXONumber
 	}
 	if len(args.Camino.ValidatorDeposits) != len(args.Validators) {
-		return errors.New("len(args.Camino.ValidatorDeposits) != len(args.Validators)")
+		return errWrongValidatorNumber
 	}
 	for i := range args.Validators {
 		if len(args.Camino.ValidatorDeposits[i]) != len(args.Validators[i].Staked) {
-			return fmt.Errorf("len(args.Camino.ValidatorDeposits[%d]) != len(args.Validators[%d].Staked)", i, i)
+			return errWrongDepositsAndStakedNumber
 		}
 	}
 
@@ -86,6 +97,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 		vdr := vdr
 		validatorTx, err := makeValidator(
 			&vdr,
+			args.Camino.ValidatorConsortiumMembers[validatorIndex],
 			args.AvaxAssetID,
 			startTimestamp,
 			networkID,
@@ -239,6 +251,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 
 func makeValidator(
 	vdr *PermissionlessValidator,
+	consortiumMemberAddr ids.ShortID,
 	avaxAssetID ids.ID,
 	startTime uint64,
 	networkID uint32,
@@ -246,6 +259,8 @@ func makeValidator(
 	weight := uint64(0)
 	bondLockIDs := locked.IDsEmpty.Lock(locked.StateBonded)
 	bond := make([]*avax.TransferableOutput, len(vdr.Staked))
+	log.Println("vdr.Staked : ", vdr.Staked)
+	log.Println("len : ", len(vdr.Staked))
 	for i, apiUTXO := range vdr.Staked {
 		addrID, err := bech32ToID(apiUTXO.Address)
 		if err != nil {
@@ -301,6 +316,7 @@ func makeValidator(
 			},
 			RewardsOwner: rewardsOwner,
 		},
+		ConsortiumMemberAddress: consortiumMemberAddr,
 	}}
 	if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
 		return nil, err

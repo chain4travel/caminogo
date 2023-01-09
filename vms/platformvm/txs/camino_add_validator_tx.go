@@ -18,13 +18,16 @@ import (
 var (
 	_ ValidatorTx = (*CaminoAddValidatorTx)(nil)
 
-	errAssetNotAVAX      = errors.New("locked output must be AVAX")
-	errStakeOutsNotEmpty = errors.New("stake outputs must be empty")
+	errAssetNotAVAX                 = errors.New("locked output must be AVAX")
+	errStakeOutsNotEmpty            = errors.New("stake outputs must be empty")
+	errEmptyConsortiumMemberAddress = errors.New("consortium member address cannot be empty")
 )
 
 // CaminoAddValidatorTx is an unsigned caminoAddValidatorTx
 type CaminoAddValidatorTx struct {
 	AddValidatorTx `serialize:"true"`
+
+	ConsortiumMemberAddress ids.ShortID `serialize:"true" json:"consortiumMemberAddress"`
 }
 
 func (tx *CaminoAddValidatorTx) Stake() []*avax.TransferableOutput {

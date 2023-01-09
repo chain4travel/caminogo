@@ -54,6 +54,11 @@ type CaminoApply interface {
 	ApplyCaminoState(State)
 }
 
+type CaminoMultisig interface {
+	GetMultisigOwner(ids.ShortID) (*MultisigOwner, error)
+	SetMultisigOwner(*MultisigOwner)
+}
+
 type CaminoDiff interface {
 	// Address State
 
@@ -94,6 +99,7 @@ type Camino interface {
 // For state only
 type CaminoState interface {
 	CaminoDiff
+	CaminoMultisig
 
 	CaminoConfig() *CaminoConfig
 	SyncGenesis(*state, *genesis.State) error
@@ -191,6 +197,7 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 		depositOffers:     make(map[ids.ID]*deposit.Offer),
 		depositOffersDB:   depositOffersDB,
 		depositOffersList: linkeddb.NewDefault(depositOffersDB),
+		multisigOwnersDB:  prefixdb.New(multisigOwnersPrefix, baseDB),
 
 		depositsCache: depositsCache,
 		depositsDB:    prefixdb.New(depositsPrefix, baseDB),

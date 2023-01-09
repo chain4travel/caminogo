@@ -71,14 +71,15 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 	require.NoError(t, env.state.Commit())
 
 	type args struct {
-		stakeAmount   uint64
-		startTime     uint64
-		endTime       uint64
-		nodeID        ids.NodeID
-		rewardAddress ids.ShortID
-		shares        uint32
-		keys          []*crypto.PrivateKeySECP256K1R
-		changeAddr    ids.ShortID
+		stakeAmount      uint64
+		startTime        uint64
+		endTime          uint64
+		nodeID           ids.NodeID
+		consortiumMember ids.ShortID
+		rewardAddress    ids.ShortID
+		shares           uint32
+		keys             []*crypto.PrivateKeySECP256K1R
+		changeAddr       ids.ShortID
 	}
 	tests := map[string]struct {
 		generateArgs func() args
@@ -259,13 +260,13 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			addValidatorArgs := tt.generateArgs()
-			tx, err := env.txBuilder.NewAddValidatorTx(
+			tx, err := env.txBuilder.NewCaminoAddValidatorTx(
 				addValidatorArgs.stakeAmount,
 				addValidatorArgs.startTime,
 				addValidatorArgs.endTime,
 				addValidatorArgs.nodeID,
+				addValidatorArgs.consortiumMember,
 				addValidatorArgs.rewardAddress,
-				addValidatorArgs.shares,
 				addValidatorArgs.keys,
 				addValidatorArgs.changeAddr,
 			)
@@ -310,13 +311,13 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	dsEndTime := dsStartTime.Add(5 * defaultMinStakingDuration)
 
 	// Add `pendingDSValidatorID` as validator to pending set
-	addDSTx, err := env.txBuilder.NewAddValidatorTx(
+	addDSTx, err := env.txBuilder.NewCaminoAddValidatorTx(
 		env.config.MinValidatorStake,
 		uint64(dsStartTime.Unix()),
 		uint64(dsEndTime.Unix()),
 		pendingDSValidatorID,
+		caminoPreFundedKeys[0].Address(),
 		ids.ShortEmpty,
-		reward.PercentDenominator,
 		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0], pendingDSValidatorKey},
 		ids.ShortEmpty,
 	)
@@ -605,7 +606,7 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 	}{
 		"Happy path bonding": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -615,8 +616,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		},
 		"Happy path bonding deposited": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, existingTxID, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -627,8 +628,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		},
 		"Happy path bonding deposited and unlocked": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -639,8 +640,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		},
 		"Bonding bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -650,8 +651,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		},
 		"Fee burning bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
@@ -661,8 +662,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		},
 		"Fee burning deposited UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, existingTxID, ids.Empty),
@@ -704,6 +705,7 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 						Addrs:     []ids.ShortID{ids.ShortEmpty},
 					},
 				},
+				ConsortiumMemberAddress: consortiumMemberAddr,
 			}
 
 			tx, err := txs.NewSigned(utx, txs.Codec, signers)
@@ -1130,7 +1132,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -1148,7 +1150,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -1166,7 +1168,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -1181,7 +1183,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -1196,7 +1198,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
 				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
@@ -1815,7 +1817,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				DepositOffers:       []genesis.DepositOffer{testDepositOffer},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1841,7 +1843,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				DepositOffers:       []genesis.DepositOffer{testDepositOffer},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1866,8 +1868,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				DepositOffers:       []genesis.DepositOffer{testDepositOffer},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{2}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1893,7 +1895,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				DepositOffers:       []genesis.DepositOffer{testDepositOffer},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1919,7 +1921,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				DepositOffers:       []genesis.DepositOffer{testDepositOffer},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1954,7 +1956,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -1991,7 +1993,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2028,7 +2030,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2065,7 +2067,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2102,7 +2104,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2130,7 +2132,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, existingTxID),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2157,8 +2159,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultCaminoBalance, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{2}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, existingTxID, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2186,7 +2188,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, dummyOutputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, dummyOutputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2214,7 +2216,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2251,7 +2253,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2279,7 +2281,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2307,7 +2309,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance+10, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance+10, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2336,8 +2338,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{2}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, existingTxID),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2365,8 +2367,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultTxFee+defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultTxFee+defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{2}, 0, avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, existingTxID),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -2395,7 +2397,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				},
 			},
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, 0, avaxAssetID, defaultCaminoBalance, outputOwners, ids.Empty, ids.Empty),
 			},
 			generateIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
