@@ -15,13 +15,14 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
 
 var (
@@ -43,6 +44,7 @@ var (
 	errDepositDurationToBig       = errors.New("deposit duration is greater than deposit offer maximum duration")
 	errSupplyOverflow             = errors.New("resulting total supply would be more, than allowed maximum")
 	errNotConsortiumMember        = errors.New("address isn't consortium member")
+	errValidatorNotFound          = errors.New("validator not found")
 	errConsortiumMemberHasNode    = errors.New("consortium member already has registered node")
 	errConsortiumSignatureMissing = errors.New("wrong consortium's member signature")
 	errNotNodeOwner               = errors.New("node is registered for another consortium member address")
@@ -408,21 +410,43 @@ func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) 
 		return errInvalidSystemTxBody
 	}
 
+	var currentStakerToRemove *state.Staker
+	var deferredStakerToRemove *state.Staker
+	var stakerToRemove *state.Staker
+	removeFromCurrent := false
+
 	currentStakerIterator, err := e.OnCommitState.GetCurrentStakerIterator()
 	if err != nil {
 		return err
 	}
-	if !currentStakerIterator.Next() {
+	if currentStakerIterator.Next() {
+		currentStakerToRemove = currentStakerIterator.Value()
+		currentStakerIterator.Release()
+	}
+
+	deferredStakerIterator, err := e.OnCommitState.GetDeferredStakerIterator()
+	if err != nil {
+		return err
+	}
+	if deferredStakerIterator.Next() {
+		deferredStakerToRemove = deferredStakerIterator.Value()
+		deferredStakerIterator.Release()
+	}
+
+	if currentStakerToRemove == nil && deferredStakerToRemove == nil {
 		return fmt.Errorf("failed to get next staker to remove: %w", database.ErrNotFound)
 	}
-	stakerToRemove := currentStakerIterator.Value()
-	currentStakerIterator.Release()
 
-	if stakerToRemove.TxID != tx.TxID {
+	switch {
+	case currentStakerToRemove != nil && currentStakerToRemove.TxID == tx.TxID:
+		removeFromCurrent = true
+		stakerToRemove = currentStakerToRemove
+	case deferredStakerToRemove != nil && deferredStakerToRemove.TxID == tx.TxID:
+		stakerToRemove = deferredStakerToRemove
+	default:
 		return fmt.Errorf(
-			"removing validator %s instead of %s: %w",
+			"trying to remove validator %s: %w",
 			tx.TxID,
-			stakerToRemove.TxID,
 			errRemoveWrongValidator,
 		)
 	}
@@ -439,15 +463,6 @@ func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) 
 		)
 	}
 
-	if _, err := e.OnCommitState.GetCurrentValidator(
-		constants.PrimaryNetworkID,
-		stakerToRemove.NodeID,
-	); err != nil {
-		// This should never error because the staker set is in memory and
-		// primary network validators are removed last.
-		return err
-	}
-
 	stakerTx, _, err := e.OnCommitState.GetTx(stakerToRemove.TxID)
 	if err != nil {
 		return fmt.Errorf("failed to get next removed staker tx: %w", err)
@@ -461,8 +476,13 @@ func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) 
 		return errShouldBePermissionlessStaker
 	}
 
-	e.OnCommitState.DeleteCurrentValidator(stakerToRemove)
-	e.OnAbortState.DeleteCurrentValidator(stakerToRemove)
+	if removeFromCurrent {
+		e.OnCommitState.DeleteCurrentValidator(stakerToRemove)
+		e.OnAbortState.DeleteCurrentValidator(stakerToRemove)
+	} else {
+		e.OnCommitState.DeleteDeferredValidator(stakerToRemove)
+		e.OnAbortState.DeleteDeferredValidator(stakerToRemove)
+	}
 
 	txID := e.Tx.ID()
 
@@ -947,6 +967,26 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	}
 
 	txID := e.Tx.ID()
+
+	if tx.State == txs.AddressStateNodeDeferred {
+		if tx.Remove {
+			// transfer staker to from deferred to current stakers set
+			stakerToTransfer, err := e.State.GetDeferredValidator(constants.PrimaryNetworkID, ids.NodeID(tx.Address))
+			if err != nil {
+				return fmt.Errorf("validator with nodeID %s, does not exist in deferred stakers set: %w", ids.NodeID(tx.Address), errValidatorNotFound)
+			}
+			e.State.DeleteDeferredValidator(stakerToTransfer)
+			e.State.PutCurrentValidator(stakerToTransfer)
+		} else {
+			// transfer staker to from current to deferred stakers set
+			stakerToTransfer, err := e.State.GetCurrentValidator(constants.PrimaryNetworkID, ids.NodeID(tx.Address))
+			if err != nil {
+				return fmt.Errorf("validator with nodeID %s, does not exist in current stakers set: %w", ids.NodeID(tx.Address), errValidatorNotFound)
+			}
+			e.State.DeleteCurrentValidator(stakerToTransfer)
+			e.State.PutDeferredValidator(stakerToTransfer)
+		}
+	}
 
 	// Consume the UTXOS
 	utxo.Consume(e.State, tx.Ins)

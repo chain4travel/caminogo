@@ -291,8 +291,13 @@ func TestGetNextStakerToReward(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			state := tt.stateF(ctrl)
-			txID, shouldReward, err := getNextStakerToReward(tt.timestamp, state)
+			mockState := tt.stateF(ctrl).(*state.MockChain)
+			deferredStakerIter := state.NewMockStakerIterator(ctrl)
+			deferredStakerIter.EXPECT().Next().Return(false).AnyTimes()
+			deferredStakerIter.EXPECT().Release().AnyTimes()
+			mockState.EXPECT().GetDeferredStakerIterator().Return(deferredStakerIter, nil).AnyTimes()
+
+			txID, shouldReward, err := getNextStakerToReward(tt.timestamp, mockState)
 			if tt.expectedErr != nil {
 				require.Equal(tt.expectedErr, err)
 				return
@@ -670,13 +675,19 @@ func TestBuildBlock(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
+			parentState := tt.parentStateF(ctrl).(*state.MockChain)
+			deferredStakerIter := state.NewMockStakerIterator(ctrl)
+			deferredStakerIter.EXPECT().Next().Return(false).AnyTimes()
+			deferredStakerIter.EXPECT().Release().AnyTimes()
+			parentState.EXPECT().GetDeferredStakerIterator().Return(deferredStakerIter, nil).AnyTimes()
+
 			gotBlk, err := buildBlock(
 				tt.builderF(ctrl),
 				parentID,
 				height,
 				tt.timestamp,
 				tt.forceAdvanceTime,
-				tt.parentStateF(ctrl),
+				parentState,
 			)
 			if tt.expectedErr != nil {
 				require.ErrorIs(err, tt.expectedErr)

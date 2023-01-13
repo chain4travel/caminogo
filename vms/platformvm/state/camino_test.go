@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
@@ -40,6 +41,8 @@ func TestSyncGenesis(t *testing.T) {
 	s, _ := newInitializedState(require)
 
 	baseDBManager := db_manager.NewMemDB(version.Semantic1_0_0)
+	baseDB := versiondb.New(baseDBManager.Current().Database)
+	validatorsDB := prefixdb.New(validatorsPrefix, baseDB)
 
 	outputOwners := secp256k1fx.OutputOwners{
 		Addrs: []ids.ShortID{shortID},
@@ -122,7 +125,7 @@ func TestSyncGenesis(t *testing.T) {
 					},
 				}, depositTxs),
 			},
-			cs: *wrappers.IgnoreError(newCaminoState(versiondb.New(baseDBManager.Current().Database), prometheus.NewRegistry())).(*caminoState),
+			cs: *wrappers.IgnoreError(newCaminoState(baseDB, validatorsDB, prometheus.NewRegistry())).(*caminoState),
 			want: caminoDiff{
 				modifiedAddressStates: map[ids.ShortID]uint64{initialAdmin: txs.AddressStateRoleAdminBit, shortID: txs.AddressStateRoleValidatorBit},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{},

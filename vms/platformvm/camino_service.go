@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/keystore"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -473,13 +472,10 @@ func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, re
 
 	reply.TxID = tx.ID()
 
-	errs := wrappers.Errs{}
-	errs.Add(
-		err,
-		s.vm.Builder.AddUnverifiedTx(tx),
-	)
-
-	return errs.Err
+	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
+		return err
+	}
+	return nil
 }
 
 type GetClaimablesArgs struct {
