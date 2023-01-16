@@ -19,6 +19,7 @@ var (
 	errNotSecp256Cred  = errors.New("expected secp256k1 credentials")
 	errWrongOutputType = errors.New("wrong output type")
 	errMsigCombination = errors.New("msig combinations not supported")
+	errNotAliasGetter  = errors.New("state isn't msig alias getter")
 )
 
 type Owned interface {
@@ -29,12 +30,9 @@ type AliasGetter interface {
 	GetMultisigAlias(ids.ShortID) (*multisig.Alias, error)
 }
 
-type defaultAliasGetter struct{}
-type RecoverMap map[ids.ShortID][crypto.SECP256K1RSigLen]byte
-
-func (*defaultAliasGetter) GetMultisigAlias(ids.ShortID) (*multisig.Alias, error) {
-	return nil, database.ErrNotFound
-}
+type (
+	RecoverMap map[ids.ShortID][crypto.SECP256K1RSigLen]byte
+)
 
 func (fx *Fx) RecoverAddresses(utx UnsignedTx, verifies []verify.Verifiable) (RecoverMap, error) {
 	ret := make(RecoverMap, len(verifies))
@@ -68,8 +66,7 @@ func (*Fx) VerifyMultisigOwner(outIntf, msigIntf interface{}) error {
 	}
 	msig, ok := msigIntf.(AliasGetter)
 	if !ok {
-		// we assume tests without state / diff here
-		return nil
+		return errNotAliasGetter
 	}
 
 	// We don't support msig combinations / nesting
@@ -104,7 +101,7 @@ func (fx *Fx) VerifyMultisigTransfer(txIntf, inIntf, credIntf, utxoIntf, msigInt
 
 	msig, ok := msigIntf.(AliasGetter)
 	if !ok {
-		msig = &defaultAliasGetter{}
+		return errNotAliasGetter
 	}
 
 	if err := verify.All(out, in, cred); err != nil {
