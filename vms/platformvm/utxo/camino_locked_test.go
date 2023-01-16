@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package utxo
@@ -452,6 +452,7 @@ func TestLock(t *testing.T) {
 				internalState.EXPECT().GetUTXO(utxo.InputID()).Return(testState.GetUTXO(utxo.InputID()))
 			}
 			internalState.EXPECT().UTXOIDs(address.Bytes(), ids.Empty, math.MaxInt).Return(utxoIDs, nil)
+			internalState.EXPECT().GetMultisigAlias(gomock.Any()).Return(nil, database.ErrNotFound).AnyTimes()
 
 			testHandler := defaultCaminoHandler(t, internalState)
 
@@ -484,7 +485,10 @@ func TestVerifyLockUTXOs(t *testing.T) {
 	err = fx.Bootstrapped()
 	require.NoError(t, err)
 
-	testHandler := defaultCaminoHandler(t, nil)
+	ctrl := gomock.NewController(t)
+	internalState := state.NewMockState(ctrl)
+	internalState.EXPECT().GetMultisigAlias(gomock.Any()).Return(nil, database.ErrNotFound).AnyTimes()
+	testHandler := defaultCaminoHandler(t, internalState)
 
 	assetID := testHandler.ctx.AVAXAssetID
 
