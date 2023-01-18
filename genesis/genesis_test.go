@@ -378,7 +378,7 @@ func TestGenesis(t *testing.T) {
 		},
 		{
 			networkID:  constants.KopernikusID,
-			expectedID: "QoL5hk4px3Lr8sY7CqiYGoBjmzgjiBSdXA9PnrwuyATDdoNxL",
+			expectedID: "2jKs6s57q8eo3kFK1ky7PqvG7atzMD4hJDSZ1BFh8gGmdS558H",
 		},
 		{
 			networkID:  constants.LocalID,
@@ -443,7 +443,7 @@ func TestVMGenesis(t *testing.T) {
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "2oBwpcTG6ZLViVnigvZ2MLgmz4mL2JYGR89ymRnUM6wNpN8cvq",
+					expectedID: "TKWj11JpGAfnVzEfVXVKeE1WHCHzBNapjoFzWLQe6gQApQ3F2",
 				},
 			},
 		},
