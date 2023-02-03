@@ -98,17 +98,20 @@ func getExpectedSupply(config root_genesis.Config, s *state, genBytes []byte, re
 
 	allocationsSum := totalXAmount + totalPAmount + totalIAmount
 
-	offers := make(map[ids.ID]genesis.DepositOffer, len(config.Camino.DepositOffers))
+	offers := make(map[string]genesis.DepositOffer, len(config.Camino.DepositOffers))
 	for _, offer := range config.Camino.DepositOffers {
-		offerID, _ := offer.ID()
-		offers[offerID] = offer
+		offers[offer.Memo] = offer
 	}
 
 	totalRewardAmount := uint64(0)
 	for _, alloc := range config.Camino.Allocations {
 		for _, palloc := range alloc.PlatformAllocations {
-			if palloc.DepositOfferID != ids.Empty {
-				depositOffer, err := s.GetDepositOffer(palloc.DepositOfferID)
+			if palloc.DepositOfferMemo != "" {
+				offer, ok := offers[palloc.DepositOfferMemo]
+				require.True(ok)
+				offerID, err := offer.ID()
+				require.NoError(err)
+				depositOffer, err := s.GetDepositOffer(offerID)
 				require.NoError(err)
 
 				dep := deposit.Deposit{
@@ -280,27 +283,25 @@ func defaultConfig(lockModeBondDeposit bool, nodeID ids.NodeID, deposit bool) ro
 		defaultMinValidatorStake = 5 * units.MilliAvax
 		minStake                 = root_genesis.GetStakingConfig(testNetworkID).MinValidatorStake
 		minStakeDuration         = uint64(1000)
-		depositOfferID           = ids.Empty
+		depositOfferMemo         = ""
 		initialAdmin             = ids.GenerateTestShortID()
 	)
 
-	depositOffers := []genesis.DepositOffer{
-		{
-			InterestRateNominator:   1,
-			Start:                   2,
-			End:                     3,
-			MinAmount:               4,
-			MinDuration:             5,
-			MaxDuration:             6,
-			UnlockPeriodDuration:    7,
-			NoRewardsPeriodDuration: 2,
-			Flags:                   9,
-		},
-	}
+	depositOffers := []genesis.DepositOffer{{
+		InterestRateNominator:   1,
+		Start:                   2,
+		End:                     3,
+		MinAmount:               4,
+		MinDuration:             5,
+		MaxDuration:             6,
+		UnlockPeriodDuration:    7,
+		NoRewardsPeriodDuration: 2,
+		Flags:                   9,
+		Memo:                    "offer memo",
+	}}
 
 	if deposit {
-		depositOfferID, _ = depositOffers[0].ID()
-		depositOffers[0].OfferID = depositOfferID
+		depositOfferMemo = depositOffers[0].Memo
 	}
 
 	var caminoAllocations []root_genesis.CaminoAllocation
@@ -313,7 +314,7 @@ func defaultConfig(lockModeBondDeposit bool, nodeID ids.NodeID, deposit bool) ro
 			ValidatorDuration: defaultMinValidatorStake,
 			DepositDuration:   5,
 			TimestampOffset:   10,
-			DepositOfferID:    depositOfferID,
+			DepositOfferMemo:  depositOfferMemo,
 			Memo:              "",
 		},
 	}

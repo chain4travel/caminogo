@@ -128,7 +128,7 @@ type UnparsedPlatformAllocation struct {
 	ValidatorDuration uint64 `json:"validatorDuration,omitempty"`
 	DepositDuration   uint64 `json:"depositDuration,omitempty"`
 	TimestampOffset   uint64 `json:"timestampOffset,omitempty"`
-	DepositOfferID    string `json:"depositOfferID,omitempty"`
+	DepositOfferMemo  string `json:"depositOfferMemo,omitempty"`
 	Memo              string `json:"memo,omitempty"`
 }
 
@@ -137,17 +137,9 @@ func (ua UnparsedPlatformAllocation) Parse() (PlatformAllocation, error) {
 		Amount:            ua.Amount,
 		ValidatorDuration: ua.ValidatorDuration,
 		DepositDuration:   ua.DepositDuration,
+		DepositOfferMemo:  ua.DepositOfferMemo,
 		TimestampOffset:   ua.TimestampOffset,
 		Memo:              ua.Memo,
-	}
-
-	depositOfferID := ids.Empty
-	if ua.DepositOfferID != "" {
-		parsedDepositOfferID, err := ids.FromString(ua.DepositOfferID)
-		if err != nil {
-			return a, err
-		}
-		depositOfferID = parsedDepositOfferID
 	}
 
 	nodeID := ids.EmptyNodeID
@@ -160,7 +152,6 @@ func (ua UnparsedPlatformAllocation) Parse() (PlatformAllocation, error) {
 	}
 
 	a.NodeID = nodeID
-	a.DepositOfferID = depositOfferID
 
 	return a, nil
 }
@@ -217,7 +208,6 @@ func (uma UnparsedMultisigAlias) Parse() (genesis.MultisigAlias, error) {
 }
 
 type UnparsedDepositOffer struct {
-	OfferID                 string                    `json:"offerID"`
 	InterestRateNominator   uint64                    `json:"interestRateNominator"`
 	StartOffset             uint64                    `json:"startOffset"`
 	EndOffset               uint64                    `json:"endOffset"`
@@ -226,6 +216,7 @@ type UnparsedDepositOffer struct {
 	MaxDuration             uint32                    `json:"maxDuration"`
 	UnlockPeriodDuration    uint32                    `json:"unlockPeriodDuration"`
 	NoRewardsPeriodDuration uint32                    `json:"noRewardsPeriodDuration"`
+	Memo                    string                    `json:"memo"`
 	Flags                   UnparsedDepositOfferFlags `json:"flags"`
 }
 
@@ -241,6 +232,7 @@ func (udo UnparsedDepositOffer) Parse(startTime uint64) (genesis.DepositOffer, e
 		MaxDuration:             udo.MaxDuration,
 		UnlockPeriodDuration:    udo.UnlockPeriodDuration,
 		NoRewardsPeriodDuration: udo.NoRewardsPeriodDuration,
+		Memo:                    udo.Memo,
 	}
 
 	offerStartTime, err := math.Add64(startTime, udo.StartOffset)
@@ -259,12 +251,6 @@ func (udo UnparsedDepositOffer) Parse(startTime uint64) (genesis.DepositOffer, e
 		do.Flags |= deposit.OfferFlagLocked
 	}
 
-	if offerID, err := ids.FromString(udo.OfferID); err != nil {
-		return do, err
-	} else {
-		do.OfferID = offerID
-	}
-
 	return do, nil
 }
 
@@ -275,12 +261,7 @@ func (udo *UnparsedDepositOffer) Unparse(do genesis.DepositOffer, startime uint6
 	udo.MaxDuration = do.MaxDuration
 	udo.UnlockPeriodDuration = do.UnlockPeriodDuration
 	udo.NoRewardsPeriodDuration = do.NoRewardsPeriodDuration
-
-	offerID, err := do.ID()
-	if err != nil {
-		return err
-	}
-	udo.OfferID = offerID.String()
+	udo.Memo = do.Memo
 
 	offerStartOffset, err := math.Sub(do.Start, startime)
 	if err != nil {

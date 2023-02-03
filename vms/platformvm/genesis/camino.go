@@ -52,7 +52,6 @@ type AddressState struct {
 }
 
 type DepositOffer struct {
-	OfferID                 ids.ID `serialize:"false"`
 	InterestRateNominator   uint64 `serialize:"true" json:"interestRateNominator"`
 	Start                   uint64 `serialize:"true" json:"start"`
 	End                     uint64 `serialize:"true" json:"end"`
@@ -61,6 +60,7 @@ type DepositOffer struct {
 	MaxDuration             uint32 `serialize:"true" json:"maxDuration"`
 	UnlockPeriodDuration    uint32 `serialize:"true" json:"unlockPeriodDuration"`
 	NoRewardsPeriodDuration uint32 `serialize:"true" json:"noRewardsPeriodDuration"`
+	Memo                    string `serialize:"true" json:"memo"`
 	Flags                   uint64 `serialize:"true" json:"flags"`
 }
 
@@ -106,12 +106,8 @@ func (offer DepositOffer) Verify() error {
 		)
 	}
 
-	calcID, err := offer.ID()
-	if err != nil {
-		return err
-	}
-	if offer.OfferID != calcID {
-		return fmt.Errorf("deposit offer ID (%s) mismatched with the calculated one (%s)", offer.OfferID, calcID)
+	if offer.Memo == "" {
+		return errors.New("deposit offer has no memo")
 	}
 
 	return nil

@@ -33,6 +33,7 @@ type Offer struct {
 	MaxDuration             uint32 `serialize:"true"`
 	UnlockPeriodDuration    uint32 `serialize:"true"`
 	NoRewardsPeriodDuration uint32 `serialize:"true"`
+	Memo                    string `serialize:"true"`
 	Flags                   uint64 `serialize:"true"`
 }
 

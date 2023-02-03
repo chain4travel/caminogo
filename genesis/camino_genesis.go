@@ -65,7 +65,8 @@ func validateCaminoConfig(config *Config) error {
 	}
 
 	// validation deposit offers
-	offers := make(map[ids.ID]genesis.DepositOffer, len(config.Camino.DepositOffers))
+	offersByMemo := make(map[string]genesis.DepositOffer, len(config.Camino.DepositOffers))
+	uniqueOffers := make(map[ids.ID]genesis.DepositOffer, len(config.Camino.DepositOffers))
 	for _, offer := range config.Camino.DepositOffers {
 		if err := offer.Verify(); err != nil {
 			return err
@@ -76,10 +77,15 @@ func validateCaminoConfig(config *Config) error {
 			return err
 		}
 
-		if _, ok := offers[offerID]; ok {
+		if _, ok := uniqueOffers[offerID]; ok {
 			return errors.New("deposit offer duplicate")
 		}
-		offers[offerID] = offer
+		uniqueOffers[offerID] = offer
+
+		if _, ok := offersByMemo[offer.Memo]; ok {
+			return errors.New("genesis deposit offer memo duplicate")
+		}
+		offersByMemo[offer.Memo] = offer
 	}
 
 	// validation allocations and stakers
@@ -107,10 +113,11 @@ func validateCaminoConfig(config *Config) error {
 				return errors.New("consortium member not kyc verified")
 			}
 
-			if platformAllocation.DepositOfferID != ids.Empty {
-				offer, ok := offers[platformAllocation.DepositOfferID]
+			isDeposited := platformAllocation.DepositOfferMemo != ""
+			if isDeposited {
+				offer, ok := offersByMemo[platformAllocation.DepositOfferMemo]
 				if !ok {
-					return errors.New("allocation deposit offer id doesn't match any offer")
+					return errors.New("allocation deposit offer memo doesn't match any offer")
 				}
 				if platformAllocation.DepositDuration < uint64(offer.MinDuration) {
 					return errors.New("allocation deposit duration is less than deposit offer min duration")
@@ -140,8 +147,8 @@ func validateCaminoConfig(config *Config) error {
 				}
 			}
 
-			if platformAllocation.DepositOfferID == ids.Empty && platformAllocation.DepositDuration != 0 {
-				return errors.New("allocation has non-zero deposit duration, while deposit offer id is nil")
+			if !isDeposited && platformAllocation.DepositDuration != 0 {
+				return errors.New("allocation has non-zero deposit duration, while deposit offer memo isn't empty")
 			}
 
 			if platformAllocation.NodeID != ids.EmptyNodeID {
@@ -300,6 +307,11 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	minValidatorStake := GetStakingConfig(config.NetworkID).MinValidatorStake
 	maxValidatorStake := GetStakingConfig(config.NetworkID).MaxValidatorStake
 
+	offers := make(map[string]genesis.DepositOffer, len(config.Camino.DepositOffers))
+	for _, offer := range config.Camino.DepositOffers {
+		offers[offer.Memo] = offer
+	}
+
 	for _, allocation := range config.Camino.Allocations {
 		var addrState uint64
 		if allocation.AddressStates.ConsortiumMember {
@@ -335,6 +347,18 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 			utxo := api.UTXO{
 				Address: allocationAddress,
 				Message: allocationMessage,
+			}
+
+			depositOfferID := ids.Empty
+			if platformAllocation.DepositOfferMemo != "" {
+				offer, ok := offers[platformAllocation.DepositOfferMemo]
+				if !ok {
+					return nil, ids.Empty, errors.New("allocation deposit offer memo doesn't match any offer")
+				}
+				depositOfferID, err = offer.ID()
+				if err != nil {
+					return nil, ids.Empty, fmt.Errorf("couldn't get deposit offer id: %w", err)
+				}
 			}
 
 			if platformAllocation.NodeID != ids.EmptyNodeID && stakeRemaining > 0 {
@@ -373,7 +397,7 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 				)
 				platformvmArgs.Camino.ValidatorDeposits = append(platformvmArgs.Camino.ValidatorDeposits,
 					[]api.UTXODeposit{{
-						OfferID:         platformAllocation.DepositOfferID,
+						OfferID:         depositOfferID,
 						Duration:        platformAllocation.DepositDuration,
 						TimestampOffset: platformAllocation.TimestampOffset,
 						Memo:            platformAllocation.Memo,
@@ -385,7 +409,7 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 				utxo.Amount = json.Uint64(amountRemaining)
 				platformvmArgs.Camino.UTXODeposits = append(platformvmArgs.Camino.UTXODeposits,
 					api.UTXODeposit{
-						OfferID:         platformAllocation.DepositOfferID,
+						OfferID:         depositOfferID,
 						Duration:        platformAllocation.DepositDuration,
 						TimestampOffset: platformAllocation.TimestampOffset,
 						Memo:            platformAllocation.Memo,

@@ -17,14 +17,12 @@ import (
 )
 
 var (
-	sampleID                    = ids.GenerateTestID()
-	sampleIDWithInvalidChecksum = "Zda4gsqTjRaX6XVZekVNi3ovMFPHDRQiGbzYuAb7Nwqy1rGFc"
-	sampleShortID               = ids.GenerateTestShortID()
-	addressWithInvalidFormat    = ids.GenerateTestShortID().String()
-	addressWithInvalidChecksum  = "X-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu8n"
-	xAddress                    = "X-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu7n"
-	cAddress                    = "C-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu7n"
-	toShortID                   = wrappers.IgnoreError(ids.ToShortID([]byte(cAddress))).(ids.ShortID)
+	sampleShortID              = ids.GenerateTestShortID()
+	addressWithInvalidFormat   = ids.GenerateTestShortID().String()
+	addressWithInvalidChecksum = "X-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu8n"
+	xAddress                   = "X-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu7n"
+	cAddress                   = "C-camino1859dz2uwazfgahey3j53ef2kqrans0c8htcu7n"
+	toShortID                  = wrappers.IgnoreError(ids.ToShortID([]byte(cAddress))).(ids.ShortID)
 )
 
 func TestParse(t *testing.T) {
@@ -79,25 +77,6 @@ func TestParse(t *testing.T) {
 			},
 			err: errors.New("no separator found in address"),
 		},
-		"Invalid allocation - invalid depositOfferID": {
-			fields: fields{
-				VerifyNodeSignature: true,
-				LockModeBondDeposit: true,
-				InitialAdmin:        xAddress,
-				DepositOffers:       nil,
-				Allocations: []UnparsedCaminoAllocation{{
-					ETHAddr:  "0x" + hex.EncodeToString(toShortID.Bytes()),
-					AVAXAddr: xAddress,
-					PlatformAllocations: []UnparsedPlatformAllocation{{
-						Amount:            1,
-						NodeID:            ids.NodeIDPrefix + sampleShortID.String(),
-						ValidatorDuration: 1,
-						DepositOfferID:    sampleIDWithInvalidChecksum,
-					}},
-				}},
-			},
-			err: errors.New("invalid input checksum"),
-		},
 		"Invalid allocation - invalid nodeID": {
 			fields: fields{
 				VerifyNodeSignature: true,
@@ -111,7 +90,6 @@ func TestParse(t *testing.T) {
 						Amount:            1,
 						NodeID:            sampleShortID.String(),
 						ValidatorDuration: 1,
-						DepositOfferID:    sampleID.String(),
 					}},
 				}},
 			},
@@ -130,7 +108,10 @@ func TestParse(t *testing.T) {
 						Amount:            1,
 						NodeID:            ids.NodeIDPrefix + sampleShortID.String(),
 						ValidatorDuration: 1,
-						DepositOfferID:    sampleID.String(),
+						DepositDuration:   1,
+						DepositOfferMemo:  "deposit offer memo",
+						TimestampOffset:   1,
+						Memo:              "some str",
 					}},
 				}},
 				UnparsedMultisigAlias: []UnparsedMultisigAlias{{
@@ -154,7 +135,10 @@ func TestParse(t *testing.T) {
 						Amount:            1,
 						NodeID:            ids.NodeID(sampleShortID),
 						ValidatorDuration: 1,
-						DepositOfferID:    sampleID,
+						DepositDuration:   1,
+						DepositOfferMemo:  "deposit offer memo",
+						TimestampOffset:   1,
+						Memo:              "some str",
 					}},
 				}},
 				InitialMultisigAddresses: []genesis.MultisigAlias{{
@@ -195,7 +179,6 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 		"Columbus 8% offer with OfferID": {
 			startTime: uint64(1671058800),
 			udo: UnparsedDepositOffer{
-				OfferID:                 "2SAadCwUEjHWfZEiK2DgRNQTE4YHgT8guTvmhB4uJDswabvvsi",
 				InterestRateNominator:   80000,
 				StartOffset:             0,
 				EndOffset:               112795200,
@@ -212,7 +195,6 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 		"Camino 8% offer with OfferID - diff StartTime & OfferID": {
 			startTime: uint64(1670956381),
 			udo: UnparsedDepositOffer{
-				OfferID:                 "2Tw263fNqheTwcHguRao5FFLJWF1ppkygf7Gnb7YTCAZT1h7Pc",
 				InterestRateNominator:   80000,
 				StartOffset:             0,
 				EndOffset:               112795200,
@@ -229,7 +211,6 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 		"0% Camino with OfferID, no Flags": {
 			startTime: uint64(1670956381),
 			udo: UnparsedDepositOffer{
-				OfferID:                 "x4Y4buPNQS1an99Rt4MxdKCyVtxB6wXtrmkNaKiSWAbL18Mxf",
 				InterestRateNominator:   0,
 				StartOffset:             0,
 				EndOffset:               158889600,
@@ -243,7 +224,6 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 		"Template does require OfferID as well": {
 			startTime: uint64(0),
 			udo: UnparsedDepositOffer{
-				OfferID:                 "2Wh3B62v2huDhA9fWrqCVQqnRqv2GCxdbEdfaz1avzrTiMg2Po",
 				InterestRateNominator:   11,
 				StartOffset:             0,
 				EndOffset:               63072000,
@@ -260,12 +240,6 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			do, err := tt.udo.Parse(tt.startTime)
 			require.NoError(t, err)
-
-			if tt.udo.OfferID != "" {
-				require.NotEqualf(t, do.OfferID, ids.Empty, "OfferID should not be empty")
-				require.Equal(t, tt.udo.OfferID, do.OfferID.String())
-				require.NoError(t, do.Verify())
-			}
 
 			// Don't check template equality
 			if tt.startTime > 0 {

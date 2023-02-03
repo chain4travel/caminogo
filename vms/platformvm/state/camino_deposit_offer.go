@@ -101,6 +101,7 @@ func ParseDepositOfferFromGenesisOffer(genesisOffer *genesis.DepositOffer) (*dep
 		MaxDuration:             genesisOffer.MaxDuration,
 		UnlockPeriodDuration:    genesisOffer.UnlockPeriodDuration,
 		NoRewardsPeriodDuration: genesisOffer.NoRewardsPeriodDuration,
+		Memo:                    genesisOffer.Memo,
 		Flags:                   genesisOffer.Flags,
 	}
 	if err := offer.SetID(); err != nil {

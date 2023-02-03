@@ -15,9 +15,8 @@ import (
 )
 
 var (
-	nodeID         = ids.GenerateTestNodeID()
-	depositOfferID = ids.GenerateTestID()
-	shortID2       = ids.GenerateTestShortID()
+	nodeID   = ids.GenerateTestNodeID()
+	shortID2 = ids.GenerateTestShortID()
 )
 
 func TestUnparse(t *testing.T) {
@@ -54,7 +53,10 @@ func TestUnparse(t *testing.T) {
 						Amount:            1,
 						NodeID:            nodeID,
 						ValidatorDuration: 1,
-						DepositOfferID:    depositOfferID,
+						DepositDuration:   1,
+						DepositOfferMemo:  "deposit offer memo",
+						TimestampOffset:   1,
+						Memo:              "some str",
 					}},
 				}},
 				InitialMultisigAddresses: []genesis.MultisigAlias{{
@@ -77,7 +79,10 @@ func TestUnparse(t *testing.T) {
 						Amount:            1,
 						NodeID:            nodeID.String(),
 						ValidatorDuration: 1,
-						DepositOfferID:    depositOfferID.String(),
+						DepositDuration:   1,
+						DepositOfferMemo:  "deposit offer memo",
+						TimestampOffset:   1,
+						Memo:              "some str",
 					}},
 				}},
 				InitialMultisigAddresses: []UnparsedMultisigAlias{{
