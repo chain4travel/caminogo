@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 )
 
@@ -18,7 +19,7 @@ type Camino struct {
 	VerifyNodeSignature      bool                    `json:"verifyNodeSignature"`
 	LockModeBondDeposit      bool                    `json:"lockModeBondDeposit"`
 	InitialAdmin             ids.ShortID             `json:"initialAdmin"`
-	DepositOffers            []genesis.DepositOffer  `json:"depositOffers"`
+	DepositOffers            []DepositOffer          `json:"depositOffers"`
 	Allocations              []CaminoAllocation      `json:"allocations"`
 	InitialMultisigAddresses []genesis.MultisigAlias `json:"initialMultisigAddresses"`
 }
@@ -51,11 +52,10 @@ func (c Camino) Unparse(networkID uint32, starttime uint64) (UnparsedCamino, err
 	}
 
 	for i := range uc.DepositOffers {
-		var udo *UnparsedDepositOffer
-		if err := udo.Unparse(c.DepositOffers[i], starttime); err != nil {
+		uc.DepositOffers[i], err = c.DepositOffers[i].Unparse(starttime)
+		if err != nil {
 			return uc, err
 		}
-		uc.DepositOffers[i] = *udo
 	}
 
 	for i, ma := range c.InitialMultisigAddresses {
@@ -177,4 +177,47 @@ func (uma *UnparsedMultisigAlias) Unparse(msigAlias genesis.MultisigAlias, netwo
 type AddressStates struct {
 	ConsortiumMember bool `json:"consortiumMember"`
 	KYCVerified      bool `json:"kycVerified"`
+}
+
+type DepositOffer struct {
+	InterestRateNominator   uint64 `json:"interestRateNominator"`
+	Start                   uint64 `json:"start"`
+	End                     uint64 `json:"end"`
+	MinAmount               uint64 `json:"minAmount"`
+	MinDuration             uint32 `json:"minDuration"`
+	MaxDuration             uint32 `json:"maxDuration"`
+	UnlockPeriodDuration    uint32 `json:"unlockPeriodDuration"`
+	NoRewardsPeriodDuration uint32 `json:"noRewardsPeriodDuration"`
+	Memo                    string `json:"memo"`
+	Flags                   uint64 `json:"flags"`
+}
+
+func (parsedOffer DepositOffer) Unparse(startime uint64) (UnparsedDepositOffer, error) {
+	unparsedOffer := UnparsedDepositOffer{
+		InterestRateNominator:   parsedOffer.InterestRateNominator,
+		MinAmount:               parsedOffer.MinAmount,
+		MinDuration:             parsedOffer.MinDuration,
+		MaxDuration:             parsedOffer.MaxDuration,
+		UnlockPeriodDuration:    parsedOffer.UnlockPeriodDuration,
+		NoRewardsPeriodDuration: parsedOffer.NoRewardsPeriodDuration,
+		Memo:                    parsedOffer.Memo,
+	}
+
+	offerStartOffset, err := math.Sub(parsedOffer.Start, startime)
+	if err != nil {
+		return unparsedOffer, err
+	}
+	unparsedOffer.StartOffset = offerStartOffset
+
+	offerEndOffset, err := math.Sub(parsedOffer.End, startime)
+	if err != nil {
+		return unparsedOffer, err
+	}
+	unparsedOffer.EndOffset = offerEndOffset
+
+	if parsedOffer.Flags&deposit.OfferFlagLocked != 0 {
+		unparsedOffer.Flags.Locked = true
+	}
+
+	return unparsedOffer, nil
 }

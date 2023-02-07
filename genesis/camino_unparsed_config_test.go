@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/stretchr/testify/require"
 )
@@ -26,40 +27,32 @@ var (
 )
 
 func TestParse(t *testing.T) {
-	type fields struct {
-		VerifyNodeSignature   bool
-		LockModeBondDeposit   bool
-		InitialAdmin          string
-		DepositOffers         []UnparsedDepositOffer
-		Allocations           []UnparsedCaminoAllocation
-		UnparsedMultisigAlias []UnparsedMultisigAlias
-	}
 	tests := map[string]struct {
-		fields fields
-		want   Camino
-		err    error
+		unparsedCamino UnparsedCamino
+		want           Camino
+		err            error
 	}{
 		"Invalid address - no prefix": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				InitialAdmin: addressWithInvalidFormat,
 			},
 			err: errCannotParseInitialAdmin,
 		},
 		"Invalid address - bad checksum": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				InitialAdmin: addressWithInvalidChecksum,
 			},
 			err: errCannotParseInitialAdmin,
 		},
 		"Invalid allocation - missing eth address": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				InitialAdmin: xAddress,
 				Allocations:  []UnparsedCaminoAllocation{{}},
 			},
 			err: errInvalidETHAddress,
 		},
 		"Invalid allocation - invalid eth address": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				InitialAdmin: xAddress,
 				Allocations: []UnparsedCaminoAllocation{{
 					ETHAddr: ids.GenerateTestShortID().String(),
@@ -68,7 +61,7 @@ func TestParse(t *testing.T) {
 			err: errors.New("encoding/hex: invalid byte"),
 		},
 		"Invalid allocation - invalid avax address": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				InitialAdmin: xAddress,
 				Allocations: []UnparsedCaminoAllocation{{
 					ETHAddr:  "0x" + hex.EncodeToString(toShortID.Bytes()),
@@ -78,7 +71,7 @@ func TestParse(t *testing.T) {
 			err: errors.New("no separator found in address"),
 		},
 		"Invalid allocation - invalid nodeID": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
 				InitialAdmin:        xAddress,
@@ -96,11 +89,24 @@ func TestParse(t *testing.T) {
 			err: fmt.Errorf("ID: %s is missing the prefix: %s", sampleShortID.String(), ids.NodeIDPrefix),
 		},
 		"Valid allocation": {
-			fields: fields{
+			unparsedCamino: UnparsedCamino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
 				InitialAdmin:        xAddress,
-				DepositOffers:       nil,
+				DepositOffers: []UnparsedDepositOffer{{
+					InterestRateNominator:   1,
+					StartOffset:             2,
+					EndOffset:               3,
+					MinAmount:               4,
+					MinDuration:             5,
+					MaxDuration:             6,
+					UnlockPeriodDuration:    7,
+					NoRewardsPeriodDuration: 8,
+					Memo:                    "offer memo",
+					Flags: UnparsedDepositOfferFlags{
+						Locked: true,
+					},
+				}},
 				Allocations: []UnparsedCaminoAllocation{{
 					ETHAddr:  "0x" + hex.EncodeToString(toShortID.Bytes()),
 					AVAXAddr: xAddress,
@@ -109,12 +115,12 @@ func TestParse(t *testing.T) {
 						NodeID:            ids.NodeIDPrefix + sampleShortID.String(),
 						ValidatorDuration: 1,
 						DepositDuration:   1,
-						DepositOfferMemo:  "deposit offer memo",
+						DepositOfferMemo:  "offer memo",
 						TimestampOffset:   1,
 						Memo:              "some str",
 					}},
 				}},
-				UnparsedMultisigAlias: []UnparsedMultisigAlias{{
+				InitialMultisigAddresses: []UnparsedMultisigAlias{{
 					Alias:     wrappers.IgnoreError(address.Format(configChainIDAlias, "local", sampleShortID.Bytes())).(string),
 					Threshold: 1,
 					Addresses: []string{wrappers.IgnoreError(address.Format(configChainIDAlias, "local", shortID2.Bytes())).(string)},
@@ -124,7 +130,18 @@ func TestParse(t *testing.T) {
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
 				InitialAdmin:        toAvaxAddr(xAddress),
-				DepositOffers:       []genesis.DepositOffer{},
+				DepositOffers: []DepositOffer{{
+					InterestRateNominator:   1,
+					Start:                   2,
+					End:                     3,
+					MinAmount:               4,
+					MinDuration:             5,
+					MaxDuration:             6,
+					UnlockPeriodDuration:    7,
+					NoRewardsPeriodDuration: 8,
+					Memo:                    "offer memo",
+					Flags:                   deposit.OfferFlagLocked,
+				}},
 				Allocations: []CaminoAllocation{{
 					ETHAddr: func() ids.ShortID {
 						i, _ := ids.ShortFromString("0x" + hex.EncodeToString(toShortID.Bytes()))
@@ -136,7 +153,7 @@ func TestParse(t *testing.T) {
 						NodeID:            ids.NodeID(sampleShortID),
 						ValidatorDuration: 1,
 						DepositDuration:   1,
-						DepositOfferMemo:  "deposit offer memo",
+						DepositOfferMemo:  "offer memo",
 						TimestampOffset:   1,
 						Memo:              "some str",
 					}},
@@ -151,15 +168,7 @@ func TestParse(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			uc := UnparsedCamino{
-				VerifyNodeSignature:      tt.fields.VerifyNodeSignature,
-				LockModeBondDeposit:      tt.fields.LockModeBondDeposit,
-				InitialAdmin:             tt.fields.InitialAdmin,
-				DepositOffers:            tt.fields.DepositOffers,
-				Allocations:              tt.fields.Allocations,
-				InitialMultisigAddresses: tt.fields.UnparsedMultisigAlias,
-			}
-			got, err := uc.Parse(0)
+			got, err := tt.unparsedCamino.Parse(0)
 
 			if tt.err != nil {
 				require.ErrorContains(t, err, tt.err.Error())
@@ -243,8 +252,8 @@ func TestParsingAndUnparsingDepositOffer(t *testing.T) {
 
 			// Don't check template equality
 			if tt.startTime > 0 {
-				udo := UnparsedDepositOffer{}
-				require.NoError(t, udo.Unparse(do, tt.startTime))
+				udo, err := do.Unparse(tt.startTime)
+				require.NoError(t, err)
 				require.Equal(t, tt.udo, udo)
 			}
 		})

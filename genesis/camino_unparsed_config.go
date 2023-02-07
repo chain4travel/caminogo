@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -31,7 +31,7 @@ func (uc UnparsedCamino) Parse(startTime uint64) (Camino, error) {
 	c := Camino{
 		VerifyNodeSignature:      uc.VerifyNodeSignature,
 		LockModeBondDeposit:      uc.LockModeBondDeposit,
-		DepositOffers:            make([]genesis.DepositOffer, len(uc.DepositOffers)),
+		DepositOffers:            make([]DepositOffer, len(uc.DepositOffers)),
 		Allocations:              make([]CaminoAllocation, len(uc.Allocations)),
 		InitialMultisigAddresses: make([]genesis.MultisigAlias, len(uc.InitialMultisigAddresses)),
 	}
@@ -224,8 +224,8 @@ type UnparsedDepositOfferFlags struct {
 	Locked bool `json:"locked"`
 }
 
-func (udo UnparsedDepositOffer) Parse(startTime uint64) (genesis.DepositOffer, error) {
-	do := genesis.DepositOffer{
+func (udo UnparsedDepositOffer) Parse(startTime uint64) (DepositOffer, error) {
+	do := DepositOffer{
 		InterestRateNominator:   udo.InterestRateNominator,
 		MinAmount:               udo.MinAmount,
 		MinDuration:             udo.MinDuration,
@@ -252,32 +252,4 @@ func (udo UnparsedDepositOffer) Parse(startTime uint64) (genesis.DepositOffer, e
 	}
 
 	return do, nil
-}
-
-func (udo *UnparsedDepositOffer) Unparse(do genesis.DepositOffer, startime uint64) error {
-	udo.InterestRateNominator = do.InterestRateNominator
-	udo.MinAmount = do.MinAmount
-	udo.MinDuration = do.MinDuration
-	udo.MaxDuration = do.MaxDuration
-	udo.UnlockPeriodDuration = do.UnlockPeriodDuration
-	udo.NoRewardsPeriodDuration = do.NoRewardsPeriodDuration
-	udo.Memo = do.Memo
-
-	offerStartOffset, err := math.Sub(do.Start, startime)
-	if err != nil {
-		return err
-	}
-	udo.StartOffset = offerStartOffset
-
-	offerEndOffset, err := math.Sub(do.End, startime)
-	if err != nil {
-		return err
-	}
-	udo.EndOffset = offerEndOffset
-
-	if do.Flags&deposit.OfferFlagLocked != 0 {
-		udo.Flags.Locked = true
-	}
-
-	return nil
 }

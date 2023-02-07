@@ -21,13 +21,17 @@ import (
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	pchaintxs "github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/propertyfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
-var errEmptyAllocation = errors.New("allocation with zero value")
+var (
+	errEmptyAllocation  = errors.New("allocation with zero value")
+	errNonExistingOffer = errors.New("allocation deposit offer memo doesn't match any offer")
+)
 
 func validateCaminoConfig(config *Config) error {
 	// validation initial admin address
@@ -65,27 +69,31 @@ func validateCaminoConfig(config *Config) error {
 	}
 
 	// validation deposit offers
-	offersByMemo := make(map[string]genesis.DepositOffer, len(config.Camino.DepositOffers))
-	uniqueOffers := make(map[ids.ID]genesis.DepositOffer, len(config.Camino.DepositOffers))
-	for _, offer := range config.Camino.DepositOffers {
-		if err := offer.Verify(); err != nil {
-			return err
-		}
-
-		offerID, err := offer.ID()
+	offers := make(map[string]*deposit.Offer, len(config.Camino.DepositOffers))
+	offerIDs := set.NewSet[ids.ID](len(config.Camino.DepositOffers))
+	for _, configOffer := range config.Camino.DepositOffers {
+		offer, err := ParseDepositOfferFromConfig(configOffer)
 		if err != nil {
 			return err
 		}
 
-		if _, ok := uniqueOffers[offerID]; ok {
+		if err := offer.Verify(); err != nil {
+			return err
+		}
+
+		if offerIDs.Contains(offer.ID) {
 			return errors.New("deposit offer duplicate")
 		}
-		uniqueOffers[offerID] = offer
+		offerIDs.Add(offer.ID)
 
-		if _, ok := offersByMemo[offer.Memo]; ok {
+		if len(offer.Memo) == 0 {
+			return errors.New("deposit offer has no memo")
+		}
+
+		if _, ok := offers[configOffer.Memo]; ok {
 			return errors.New("genesis deposit offer memo duplicate")
 		}
-		offersByMemo[offer.Memo] = offer
+		offers[configOffer.Memo] = offer
 	}
 
 	// validation allocations and stakers
@@ -115,9 +123,9 @@ func validateCaminoConfig(config *Config) error {
 
 			isDeposited := platformAllocation.DepositOfferMemo != ""
 			if isDeposited {
-				offer, ok := offersByMemo[platformAllocation.DepositOfferMemo]
+				offer, ok := offers[platformAllocation.DepositOfferMemo]
 				if !ok {
-					return errors.New("allocation deposit offer memo doesn't match any offer")
+					return errNonExistingOffer
 				}
 				if platformAllocation.DepositDuration < uint64(offer.MinDuration) {
 					return errors.New("allocation deposit duration is less than deposit offer min duration")
@@ -200,7 +208,6 @@ func caminoArgFromConfig(config *Config) api.Camino {
 		VerifyNodeSignature:      config.Camino.VerifyNodeSignature,
 		LockModeBondDeposit:      config.Camino.LockModeBondDeposit,
 		InitialAdmin:             config.Camino.InitialAdmin,
-		DepositOffers:            config.Camino.DepositOffers,
 		InitialMultisigAddresses: config.Camino.InitialMultisigAddresses,
 	}
 }
@@ -292,6 +299,7 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	}
 
 	// Specify the initial state of the Platform Chain
+
 	platformvmArgs := api.BuildGenesisArgs{
 		AvaxAssetID:   avaxAssetID,
 		NetworkID:     json.Uint32(config.NetworkID),
@@ -307,10 +315,21 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	minValidatorStake := GetStakingConfig(config.NetworkID).MinValidatorStake
 	maxValidatorStake := GetStakingConfig(config.NetworkID).MaxValidatorStake
 
-	offers := make(map[string]genesis.DepositOffer, len(config.Camino.DepositOffers))
-	for _, offer := range config.Camino.DepositOffers {
-		offers[offer.Memo] = offer
+	// Getting args from deposit offers, filling offer.Memo -> offerID map
+
+	offerIDs := make(map[string]ids.ID, len(config.Camino.DepositOffers))
+	platformvmArgs.Camino.DepositOffers = make([]*deposit.Offer, len(config.Camino.DepositOffers))
+	for i := range config.Camino.DepositOffers {
+		offer, err := ParseDepositOfferFromConfig(config.Camino.DepositOffers[i])
+		if err != nil {
+			return nil, ids.Empty, err
+		}
+
+		offerIDs[config.Camino.DepositOffers[i].Memo] = offer.ID
+		platformvmArgs.Camino.DepositOffers[i] = offer
 	}
+
+	// Getting args from allocations
 
 	for _, allocation := range config.Camino.Allocations {
 		var addrState uint64
@@ -351,14 +370,11 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 
 			depositOfferID := ids.Empty
 			if platformAllocation.DepositOfferMemo != "" {
-				offer, ok := offers[platformAllocation.DepositOfferMemo]
+				offerID, ok := offerIDs[platformAllocation.DepositOfferMemo]
 				if !ok {
-					return nil, ids.Empty, errors.New("allocation deposit offer memo doesn't match any offer")
+					return nil, ids.Empty, errNonExistingOffer
 				}
-				depositOfferID, err = offer.ID()
-				if err != nil {
-					return nil, ids.Empty, fmt.Errorf("couldn't get deposit offer id: %w", err)
-				}
+				depositOfferID = offerID
 			}
 
 			if platformAllocation.NodeID != ids.EmptyNodeID && stakeRemaining > 0 {
@@ -420,6 +436,7 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	}
 
 	// Specify the chains that exist upon this network's creation
+
 	genesisStr, err := formatting.Encode(defaultEncoding, []byte(config.CChainGenesis))
 	if err != nil {
 		return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
@@ -443,6 +460,8 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 			Name:        "C-Chain",
 		},
 	}
+
+	// Building genesis
 
 	platformvmReply := api.BuildGenesisReply{}
 	platformvmSS := api.StaticService{}
@@ -504,4 +523,28 @@ func GetGenesisBlocksIDs(genesisBytes []byte, genesis *genesis.Genesis) ([]ids.I
 	}
 
 	return blockIDs, nil
+}
+
+func ParseDepositOfferFromConfig(configDepositOffer DepositOffer) (*deposit.Offer, error) {
+	memo, err := formatting.Encode(defaultEncoding, []byte(configDepositOffer.Memo))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode deposit offer memo: %w", err)
+	}
+
+	offer := &deposit.Offer{
+		InterestRateNominator:   configDepositOffer.InterestRateNominator,
+		Start:                   configDepositOffer.Start,
+		End:                     configDepositOffer.End,
+		MinAmount:               configDepositOffer.MinAmount,
+		MinDuration:             configDepositOffer.MinDuration,
+		MaxDuration:             configDepositOffer.MaxDuration,
+		UnlockPeriodDuration:    configDepositOffer.UnlockPeriodDuration,
+		NoRewardsPeriodDuration: configDepositOffer.NoRewardsPeriodDuration,
+		Memo:                    []byte(memo),
+		Flags:                   configDepositOffer.Flags,
+	}
+	if err := offer.SetID(); err != nil {
+		return nil, err
+	}
+	return offer, nil
 }
