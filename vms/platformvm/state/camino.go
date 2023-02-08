@@ -48,8 +48,7 @@ var (
 	consortiumMemberNodesPrefix = []byte("consortiumMemberNodes")
 	claimablesPrefix            = []byte("claimables")
 
-	nodeSignatureKey                 = []byte("nodeSignature")
-	depositBondModeKey               = []byte("depositBondMode")
+	caminoConfigKey                  = []byte("caminoConfig")
 	notDistributedValidatorRewardKey = []byte("notDistributedValidatorReward")
 	lastRewardImportTimestampKey     = []byte("lastRewardImportTimestamp")
 
@@ -104,7 +103,7 @@ type Camino interface {
 	CaminoDiff
 
 	LockedUTXOs(set.Set[ids.ID], set.Set[ids.ShortID], locked.State) ([]*avax.UTXO, error)
-	CaminoConfig() (*CaminoConfig, error)
+	CaminoConfig() (*config.CaminoGenesisConfig, error)
 	Config() (*config.Config, error)
 }
 
@@ -112,16 +111,11 @@ type Camino interface {
 type CaminoState interface {
 	CaminoDiff
 
-	CaminoConfig() *CaminoConfig
+	CaminoConfig() *config.CaminoGenesisConfig
 	SyncGenesis(*state, *genesis.State) error
 	Load() error
 	Write() error
 	Close() error
-}
-
-type CaminoConfig struct {
-	VerifyNodeSignature bool
-	LockModeBondDeposit bool
 }
 
 type caminoDiff struct {
@@ -138,10 +132,10 @@ type caminoDiff struct {
 type caminoState struct {
 	*caminoDiff
 
-	caminoDB            database.Database
-	genesisSynced       bool
-	verifyNodeSignature bool
-	lockModeBondDeposit bool
+	config *config.CaminoGenesisConfig
+
+	caminoDB      database.Database
+	genesisSynced bool
 
 	// Address State
 	addressStateCache cache.Cacher
@@ -238,20 +232,16 @@ func newCaminoState(baseDB *versiondb.Database, metricsReg prometheus.Registerer
 }
 
 // Return current genesis args
-func (cs *caminoState) CaminoConfig() *CaminoConfig {
-	return &CaminoConfig{
-		VerifyNodeSignature: cs.verifyNodeSignature,
-		LockModeBondDeposit: cs.lockModeBondDeposit,
-	}
+func (cs *caminoState) CaminoConfig() *config.CaminoGenesisConfig {
+	return cs.config
 }
 
 // Extract camino tag from genesis
 func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 	cs.genesisSynced = true
-	cs.lockModeBondDeposit = g.Camino.LockModeBondDeposit
-	cs.verifyNodeSignature = g.Camino.VerifyNodeSignature
+	cs.config = &g.Camino.Config
 
-	if cs.lockModeBondDeposit {
+	if cs.config.LockModeBondDeposit {
 		// overwriting initial supply because state.SyncGenesis
 		// added potential avax validator rewards to it
 		s.SetCurrentSupply(constants.PrimaryNetworkID, g.InitialSupply)
@@ -420,18 +410,15 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 }
 
 func (cs *caminoState) Load() error {
-	// Read the singletons
-	nodeSig, err := database.GetBool(cs.caminoDB, nodeSignatureKey)
+	configBytes, err := cs.caminoDB.Get(caminoConfigKey)
 	if err != nil {
 		return err
 	}
-	cs.verifyNodeSignature = nodeSig
-
-	mode, err := database.GetBool(cs.caminoDB, depositBondModeKey)
-	if err != nil {
+	config := &config.CaminoGenesisConfig{}
+	if _, err := blocks.GenesisCodec.Unmarshal(configBytes, config); err != nil {
 		return err
 	}
-	cs.lockModeBondDeposit = mode
+	cs.config = config
 
 	return cs.loadDepositOffers()
 }
@@ -439,12 +426,14 @@ func (cs *caminoState) Load() error {
 func (cs *caminoState) Write() error {
 	// Write the singletons (only once after sync)
 	if cs.genesisSynced {
-		if err := database.PutBool(cs.caminoDB, nodeSignatureKey, cs.verifyNodeSignature); err != nil {
-			return fmt.Errorf("failed to write verifyNodeSignature: %w", err)
+		configBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, cs.config)
+		if err != nil {
+			return fmt.Errorf("failed to serialize camino config: %w", err)
 		}
-		if err := database.PutBool(cs.caminoDB, depositBondModeKey, cs.lockModeBondDeposit); err != nil {
-			return fmt.Errorf("failed to write lockModeBondDeposit: %w", err)
+		if err := cs.caminoDB.Put(caminoConfigKey, configBytes); err != nil {
+			return err
 		}
+		cs.genesisSynced = false
 	}
 
 	if err := cs.writeAddressStates(); err != nil {

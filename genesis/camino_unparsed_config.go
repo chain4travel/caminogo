@@ -19,21 +19,23 @@ import (
 var errCannotParseInitialAdmin = errors.New("cannot parse initialAdmin from genesis")
 
 type UnparsedCamino struct {
-	VerifyNodeSignature      bool                       `json:"verifyNodeSignature"`
-	LockModeBondDeposit      bool                       `json:"lockModeBondDeposit"`
-	InitialAdmin             string                     `json:"initialAdmin"`
-	DepositOffers            []UnparsedDepositOffer     `json:"depositOffers"`
-	Allocations              []UnparsedCaminoAllocation `json:"allocations"`
-	InitialMultisigAddresses []UnparsedMultisigAlias    `json:"initialMultisigAddresses"`
+	VerifyNodeSignature       bool                       `json:"verifyNodeSignature"`
+	LockModeBondDeposit       bool                       `json:"lockModeBondDeposit"`
+	ValidatorRewardsStartTime uint64                     `json:"validatorRewardsStartTime"`
+	InitialAdmin              string                     `json:"initialAdmin"`
+	DepositOffers             []UnparsedDepositOffer     `json:"depositOffers"`
+	Allocations               []UnparsedCaminoAllocation `json:"allocations"`
+	InitialMultisigAddresses  []UnparsedMultisigAlias    `json:"initialMultisigAddresses"`
 }
 
 func (uc UnparsedCamino) Parse(startTime uint64) (Camino, error) {
 	c := Camino{
-		VerifyNodeSignature:      uc.VerifyNodeSignature,
-		LockModeBondDeposit:      uc.LockModeBondDeposit,
-		DepositOffers:            make([]DepositOffer, len(uc.DepositOffers)),
-		Allocations:              make([]CaminoAllocation, len(uc.Allocations)),
-		InitialMultisigAddresses: make([]genesis.MultisigAlias, len(uc.InitialMultisigAddresses)),
+		VerifyNodeSignature:       uc.VerifyNodeSignature,
+		LockModeBondDeposit:       uc.LockModeBondDeposit,
+		ValidatorRewardsStartTime: uc.ValidatorRewardsStartTime,
+		DepositOffers:             make([]DepositOffer, len(uc.DepositOffers)),
+		Allocations:               make([]CaminoAllocation, len(uc.Allocations)),
+		InitialMultisigAddresses:  make([]genesis.MultisigAlias, len(uc.InitialMultisigAddresses)),
 	}
 
 	_, _, avaxAddrBytes, err := address.Parse(uc.InitialAdmin)

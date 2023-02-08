@@ -32,6 +32,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -101,7 +102,7 @@ func TestApricotProposalBlockTimeVerification(t *testing.T) {
 	}
 
 	// setup state to validate proposal block transaction
-	onParentAccept.EXPECT().CaminoConfig().Return(&state.CaminoConfig{}, nil)
+	onParentAccept.EXPECT().CaminoConfig().Return(&config.CaminoGenesisConfig{}, nil)
 	onParentAccept.EXPECT().GetTimestamp().Return(chainTime).AnyTimes()
 
 	currentStakersIt := state.NewMockStakerIterator(ctrl)
@@ -185,7 +186,7 @@ func TestBanffProposalBlockTimeVerification(t *testing.T) {
 	env.mockedState.EXPECT().GetTimestamp().Return(chainTime).AnyTimes()
 
 	onParentAccept := state.NewMockDiff(ctrl)
-	onParentAccept.EXPECT().CaminoConfig().Return(&state.CaminoConfig{}, nil)
+	onParentAccept.EXPECT().CaminoConfig().Return(&config.CaminoGenesisConfig{}, nil)
 	onParentAccept.EXPECT().GetTimestamp().Return(parentTime).AnyTimes()
 	onParentAccept.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).Return(uint64(1000), nil).AnyTimes()
 

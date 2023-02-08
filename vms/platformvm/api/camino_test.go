@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -79,8 +80,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				}},
 				Chains: []Chain{},
 				Camino: Camino{
-					VerifyNodeSignature:        true,
-					LockModeBondDeposit:        true,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: true,
+					},
 					ValidatorConsortiumMembers: []ids.ShortID{addr},
 					ValidatorDeposits: [][]UTXODeposit{{{
 						depositOffer.ID,
@@ -294,11 +297,13 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 					Chains: []*txs.Tx{},
 					Camino: genesis.Camino{
-						VerifyNodeSignature: true,
-						LockModeBondDeposit: true,
-						InitialAdmin:        ids.ShortEmpty,
-						AddressStates:       []genesis.AddressState{},
-						DepositOffers:       []*deposit.Offer{depositOffer},
+						Config: config.CaminoGenesisConfig{
+							VerifyNodeSignature: true,
+							LockModeBondDeposit: true,
+						},
+						InitialAdmin:  ids.ShortEmpty,
+						AddressStates: []genesis.AddressState{},
+						DepositOffers: []*deposit.Offer{depositOffer},
 						Blocks: []*genesis.Block{
 							{
 								Timestamp:  0,
@@ -350,8 +355,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				},
 				Chains: []Chain{},
 				Camino: Camino{
-					VerifyNodeSignature: true,
-					LockModeBondDeposit: false,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: false,
+					},
 					ValidatorConsortiumMembers: []ids.ShortID{
 						ids.GenerateTestShortID(),
 					},
@@ -395,8 +402,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				Time:       5,
 				Encoding:   formatting.Hex,
 				Camino: Camino{
-					VerifyNodeSignature: true,
-					LockModeBondDeposit: true,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: true,
+					},
 					UTXODeposits: []UTXODeposit{
 						{
 							ids.GenerateTestID(),
@@ -439,8 +448,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				Time:     5,
 				Encoding: formatting.Hex,
 				Camino: Camino{
-					VerifyNodeSignature: true,
-					LockModeBondDeposit: true,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: true,
+					},
 					ValidatorDeposits: [][]UTXODeposit{
 						{
 							{
@@ -484,8 +495,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				Time:     5,
 				Encoding: formatting.Hex,
 				Camino: Camino{
-					VerifyNodeSignature: true,
-					LockModeBondDeposit: true,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: true,
+					},
 					ValidatorConsortiumMembers: []ids.ShortID{
 						ids.GenerateTestShortID(),
 					},
@@ -533,8 +546,10 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				},
 				Chains: []Chain{},
 				Camino: Camino{
-					VerifyNodeSignature: true,
-					LockModeBondDeposit: true,
+					Config: config.CaminoGenesisConfig{
+						VerifyNodeSignature: true,
+						LockModeBondDeposit: true,
+					},
 					ValidatorConsortiumMembers: []ids.ShortID{
 						ids.GenerateTestShortID(),
 					},

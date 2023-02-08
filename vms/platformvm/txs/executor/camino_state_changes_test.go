@@ -24,10 +24,10 @@ import (
 )
 
 func TestCaminoAdvanceTimeTo(t *testing.T) {
-	caminoGenesisConf := api.Camino{
+	caminoGenesisConf := api.Camino{Config: config.CaminoGenesisConfig{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
-	}
+	}}
 	caminoVMConfig := config.CaminoConfig{
 		ValidatorsRewardPeriod: 10,
 	}

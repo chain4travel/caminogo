@@ -43,7 +43,7 @@ func (s *state) Config() (*config.Config, error) {
 	return s.cfg, nil
 }
 
-func (s *state) CaminoConfig() (*CaminoConfig, error) {
+func (s *state) CaminoConfig() (*config.CaminoGenesisConfig, error) {
 	return s.caminoState.CaminoConfig(), nil
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	pchaintxs "github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -203,12 +204,15 @@ func validateCaminoConfig(config *Config) error {
 	return nil
 }
 
-func caminoArgFromConfig(config *Config) api.Camino {
+func caminoArgFromConfig(cfg *Config) api.Camino {
 	return api.Camino{
-		VerifyNodeSignature:      config.Camino.VerifyNodeSignature,
-		LockModeBondDeposit:      config.Camino.LockModeBondDeposit,
-		InitialAdmin:             config.Camino.InitialAdmin,
-		InitialMultisigAddresses: config.Camino.InitialMultisigAddresses,
+		Config: config.CaminoGenesisConfig{
+			VerifyNodeSignature:       cfg.Camino.VerifyNodeSignature,
+			LockModeBondDeposit:       cfg.Camino.LockModeBondDeposit,
+			ValidatorRewardsStartTime: cfg.Camino.ValidatorRewardsStartTime,
+		},
+		InitialAdmin:             cfg.Camino.InitialAdmin,
+		InitialMultisigAddresses: cfg.Camino.InitialMultisigAddresses,
 	}
 }
 
@@ -495,7 +499,7 @@ func GenesisChainData(genesisBytes []byte, vmIDs []ids.ID) ([]*pchaintxs.Tx, boo
 			return nil, false, fmt.Errorf("couldn't find blockchain with VM ID %s", vmID)
 		}
 	}
-	return result, genesis.Camino.LockModeBondDeposit, nil
+	return result, genesis.Camino.Config.LockModeBondDeposit, nil
 }
 
 func GetGenesisBlocksIDs(genesisBytes []byte, genesis *genesis.Genesis) ([]ids.ID, error) {

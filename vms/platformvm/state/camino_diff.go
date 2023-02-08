@@ -82,7 +82,7 @@ func (d *diff) Config() (*config.Config, error) {
 	return parentState.Config()
 }
 
-func (d *diff) CaminoConfig() (*CaminoConfig, error) {
+func (d *diff) CaminoConfig() (*config.CaminoGenesisConfig, error) {
 	parentState, ok := d.stateVersions.GetState(d.parentID)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)

@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -37,21 +38,19 @@ type UTXODeposit struct {
 }
 
 type Camino struct {
-	VerifyNodeSignature        bool                    `json:"verifyNodeSignature"`
-	LockModeBondDeposit        bool                    `json:"lockModeBondDeposit"`
-	InitialAdmin               ids.ShortID             `json:"initialAdmin"`
-	AddressStates              []genesis.AddressState  `json:"addressStates"`
-	DepositOffers              []*deposit.Offer        `json:"depositOffers"`
-	ValidatorDeposits          [][]UTXODeposit         `json:"validatorDeposits"`
-	ValidatorConsortiumMembers []ids.ShortID           `json:"validatorConsortiumMembers"`
-	UTXODeposits               []UTXODeposit           `json:"utxoDeposits"`
-	InitialMultisigAddresses   []genesis.MultisigAlias `json:"initialMultisigAddresses"`
+	Config                     config.CaminoGenesisConfig `json:"config"`
+	InitialAdmin               ids.ShortID                `json:"initialAdmin"`
+	AddressStates              []genesis.AddressState     `json:"addressStates"`
+	DepositOffers              []*deposit.Offer           `json:"depositOffers"`
+	ValidatorDeposits          [][]UTXODeposit            `json:"validatorDeposits"`
+	ValidatorConsortiumMembers []ids.ShortID              `json:"validatorConsortiumMembers"`
+	UTXODeposits               []UTXODeposit              `json:"utxoDeposits"`
+	InitialMultisigAddresses   []genesis.MultisigAlias    `json:"initialMultisigAddresses"`
 }
 
 func (c Camino) ParseToGenesis() genesis.Camino {
 	return genesis.Camino{
-		VerifyNodeSignature:      c.VerifyNodeSignature,
-		LockModeBondDeposit:      c.LockModeBondDeposit,
+		Config:                   c.Config,
 		InitialAdmin:             c.InitialAdmin,
 		AddressStates:            c.AddressStates,
 		DepositOffers:            c.DepositOffers,
@@ -61,7 +60,7 @@ func (c Camino) ParseToGenesis() genesis.Camino {
 
 // BuildGenesis build the genesis state of the Platform Chain (and thereby the Avalanche network.)
 func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error {
-	if !args.Camino.LockModeBondDeposit {
+	if !args.Camino.Config.LockModeBondDeposit {
 		return errWrongLockMode
 	}
 	if len(args.Camino.UTXODeposits) != len(args.UTXOs) {

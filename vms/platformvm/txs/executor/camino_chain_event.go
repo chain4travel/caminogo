@@ -22,12 +22,18 @@ func GetNextChainEventTime(state state.Chain, stakerChangeTime time.Time) (time.
 		return stakerChangeTime, nil
 	}
 
+	caminoConfig, err := state.CaminoConfig()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("couldn't get camino config: %w", err)
+	}
+
 	validatorsRewardTime := getNextValidatorsRewardTime(
 		uint64(state.GetTimestamp().Unix()),
 		cfg.CaminoConfig.ValidatorsRewardPeriod,
 	)
 
-	if stakerChangeTime.Before(validatorsRewardTime) {
+	if stakerChangeTime.Before(validatorsRewardTime) ||
+		uint64(validatorsRewardTime.Unix()) < caminoConfig.ValidatorRewardsStartTime {
 		return stakerChangeTime, nil
 	}
 

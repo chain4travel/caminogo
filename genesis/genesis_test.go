@@ -208,7 +208,7 @@ func TestGenesisFromFile(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "e505cde775294a30c34e0d9ad52957f1ee41437b4fdc70373679b5168c29951d",
+			expected:     "a7a108f54a0211529d4a7f83c4cd5041fa45490759a6eaafe18a0f1818dd5d40",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -290,7 +290,7 @@ func TestGenesisFromFlag(t *testing.T) {
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "e505cde775294a30c34e0d9ad52957f1ee41437b4fdc70373679b5168c29951d",
+			expected:     "a7a108f54a0211529d4a7f83c4cd5041fa45490759a6eaafe18a0f1818dd5d40",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
@@ -362,27 +362,27 @@ func TestGenesis(t *testing.T) {
 	}{
 		{
 			networkID:  constants.MainnetID,
-			expectedID: "2eP2teFA41Pb61nQyQYJY38onkCqkrJDPSVeQz8v9ahbEma18S",
+			expectedID: "Xkj35wayDQs6eG5TBZpTjUMbP3ppAPTmngaXFfUskghNdHiSH",
 		},
 		{
 			networkID:  constants.FujiID,
-			expectedID: "2fAKF9ph6o4jxr12QVWmbww8dVfkNKepBt547QFEJ5eyD9x2Z9",
+			expectedID: "2tnvZSBadkJidWwMZGu8Xr9bLn1mjYwytx3roJjbFbhFTn5DTw",
 		},
 		{
 			networkID:  constants.CaminoID,
-			expectedID: "2Xp77XhWks5ByoqyEtGqhu7P7b7ayBgndtBi65N4Zjp9D5VZUb",
+			expectedID: "W7gR4gBg3dyBzRXaUA4uVSBC2BCSXVLwAuX34iinJnvSjMeTs",
 		},
 		{
 			networkID:  constants.ColumbusID,
-			expectedID: "cjJ1mMfD2LMVqyBCj9JsRTyzGKDpDw1uZwQANEAt5JknckhjJ",
+			expectedID: "2vYtAz4YC1Zj17p8Z6L5U4un4ky9An6tTVkZe1vpKMDyBK5jVC",
 		},
 		{
 			networkID:  constants.KopernikusID,
-			expectedID: "2Aq1D2Jo8NDBo9qFft7UEY837yqunjT4gPz7r4dnRcY62kELod",
+			expectedID: "2b7EnGqirVn6Jb8n6euMXBzJLwPoHE7gh38b2UqDPRnYUgjgEi",
 		},
 		{
 			networkID:  constants.LocalID,
-			expectedID: "294HrmVEniYX2mrvLjww9AmpV9NZnFhEi6eRrCsAzxZ2PkvdVb",
+			expectedID: "MeUKdmy7vSDwEEKWB1kEKLfF1K1UfX4MZTqh89aAyK2XtjY7s",
 		},
 	}
 	for _, test := range tests {

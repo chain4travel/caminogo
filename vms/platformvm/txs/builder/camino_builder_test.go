@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -28,10 +29,10 @@ import (
 )
 
 func TestCaminoEnv(t *testing.T) {
-	caminoGenesisConf := api.Camino{
+	caminoGenesisConf := api.Camino{Config: config.CaminoGenesisConfig{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
-	}
+	}}
 	env := newCaminoEnvironment( /*postBanff*/ false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
@@ -42,10 +43,10 @@ func TestCaminoEnv(t *testing.T) {
 }
 
 func TestCaminoBuilderTxAddressState(t *testing.T) {
-	caminoConfig := api.Camino{
+	caminoConfig := api.Camino{Config: config.CaminoGenesisConfig{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
-	}
+	}}
 
 	env := newCaminoEnvironment(true, caminoConfig)
 	env.ctx.Lock.Lock()
@@ -118,28 +119,28 @@ func TestCaminoBuilderNewAddSubnetValidatorTxNodeSig(t *testing.T) {
 		expectedErr  error
 	}{
 		"Happy path, LockModeBondDeposit false, VerifyNodeSignature true": {
-			caminoConfig: api.Camino{
+			caminoConfig: api.Camino{Config: config.CaminoGenesisConfig{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: false,
-			},
+			}},
 			nodeID:      nodeID1,
 			nodeKey:     nodeKey1,
 			expectedErr: nil,
 		},
 		"NodeId node and signature mismatch, LockModeBondDeposit false, VerifyNodeSignature true": {
-			caminoConfig: api.Camino{
+			caminoConfig: api.Camino{Config: config.CaminoGenesisConfig{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: false,
-			},
+			}},
 			nodeID:      nodeID1,
 			nodeKey:     nodeKey2,
 			expectedErr: errKeyMissing,
 		},
 		"NodeId node and signature mismatch, LockModeBondDeposit true, VerifyNodeSignature true": {
-			caminoConfig: api.Camino{
+			caminoConfig: api.Camino{Config: config.CaminoGenesisConfig{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
-			},
+			}},
 			nodeID:      nodeID1,
 			nodeKey:     nodeKey2,
 			expectedErr: errKeyMissing,
@@ -173,8 +174,10 @@ func TestCaminoBuilderNewAddSubnetValidatorTxNodeSig(t *testing.T) {
 
 func TestUnlockDepositTx(t *testing.T) {
 	caminoGenesisConf := api.Camino{
-		VerifyNodeSignature: true,
-		LockModeBondDeposit: true,
+		Config: config.CaminoGenesisConfig{
+			VerifyNodeSignature: true,
+			LockModeBondDeposit: true,
+		},
 		DepositOffers: []*deposits.Offer{{
 			UnlockPeriodDuration:  60,
 			InterestRateNominator: 0,
@@ -271,7 +274,7 @@ func TestUnlockDepositTx(t *testing.T) {
 }
 
 func TestNewClaimRewardTx(t *testing.T) {
-	caminoConfig := &state.CaminoConfig{
+	caminoConfig := &config.CaminoGenesisConfig{
 		LockModeBondDeposit: true,
 	}
 

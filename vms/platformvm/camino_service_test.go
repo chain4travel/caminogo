@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/stretchr/testify/require"
@@ -41,9 +42,9 @@ func TestGetCaminoBalance(t *testing.T) {
 		expectedError   error
 	}{
 		"Genesis Validator with added balance": {
-			camino: api.Camino{
+			camino: api.Camino{Config: config.CaminoGenesisConfig{
 				LockModeBondDeposit: true,
-			},
+			}},
 			genesisUTXOs: []api.UTXO{
 				{
 					Amount:  json.Uint64(defaultBalance),
@@ -54,9 +55,9 @@ func TestGetCaminoBalance(t *testing.T) {
 			bonded:  defaultWeight,
 		},
 		"Genesis Validator with deposited amount": {
-			camino: api.Camino{
+			camino: api.Camino{Config: config.CaminoGenesisConfig{
 				LockModeBondDeposit: true,
-			},
+			}},
 			genesisUTXOs: []api.UTXO{
 				{
 					Amount:  json.Uint64(defaultBalance),
@@ -68,9 +69,9 @@ func TestGetCaminoBalance(t *testing.T) {
 			deposited: defaultBalance,
 		},
 		"Genesis Validator with depositedBonded amount": {
-			camino: api.Camino{
+			camino: api.Camino{Config: config.CaminoGenesisConfig{
 				LockModeBondDeposit: true,
-			},
+			}},
 			genesisUTXOs: []api.UTXO{
 				{
 					Amount:  json.Uint64(defaultBalance),
@@ -82,9 +83,9 @@ func TestGetCaminoBalance(t *testing.T) {
 			depositedBonded: defaultBalance,
 		},
 		"Genesis Validator with added balance and disabled LockModeBondDeposit": {
-			camino: api.Camino{
+			camino: api.Camino{Config: config.CaminoGenesisConfig{
 				LockModeBondDeposit: false,
-			},
+			}},
 			genesisUTXOs: []api.UTXO{
 				{
 					Amount:  json.Uint64(defaultBalance),
@@ -95,9 +96,9 @@ func TestGetCaminoBalance(t *testing.T) {
 			bonded:  defaultWeight,
 		},
 		"Error - Empty address ": {
-			camino: api.Camino{
+			camino: api.Camino{Config: config.CaminoGenesisConfig{
 				LockModeBondDeposit: true,
-			},
+			}},
 			expectedError: fmt.Errorf("couldn't parse address %q: %s", "P-", ""),
 		},
 	}
@@ -152,7 +153,7 @@ func TestGetCaminoBalance(t *testing.T) {
 			require.NoError(t, err)
 			expectedBalance := json.Uint64(defaultBalance + tt.bonded + tt.deposited + tt.depositedBonded)
 
-			if !tt.camino.LockModeBondDeposit {
+			if !tt.camino.Config.LockModeBondDeposit {
 				response := responseWrapper.avax
 				require.Equal(t, json.Uint64(defaultBalance), response.Balance, "Wrong balance. Expected %d ; Returned %d", json.Uint64(defaultBalance), response.Balance)
 				require.Equal(t, json.Uint64(0), response.LockedStakeable, "Wrong locked stakeable balance. Expected %d ; Returned %d", 0, response.LockedStakeable)

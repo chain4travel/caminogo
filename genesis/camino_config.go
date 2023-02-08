@@ -16,21 +16,23 @@ import (
 )
 
 type Camino struct {
-	VerifyNodeSignature      bool                    `json:"verifyNodeSignature"`
-	LockModeBondDeposit      bool                    `json:"lockModeBondDeposit"`
-	InitialAdmin             ids.ShortID             `json:"initialAdmin"`
-	DepositOffers            []DepositOffer          `json:"depositOffers"`
-	Allocations              []CaminoAllocation      `json:"allocations"`
-	InitialMultisigAddresses []genesis.MultisigAlias `json:"initialMultisigAddresses"`
+	VerifyNodeSignature       bool                    `json:"verifyNodeSignature"`
+	LockModeBondDeposit       bool                    `json:"lockModeBondDeposit"`
+	ValidatorRewardsStartTime uint64                  `json:"validatorRewardsStartTime"`
+	InitialAdmin              ids.ShortID             `json:"initialAdmin"`
+	DepositOffers             []DepositOffer          `json:"depositOffers"`
+	Allocations               []CaminoAllocation      `json:"allocations"`
+	InitialMultisigAddresses  []genesis.MultisigAlias `json:"initialMultisigAddresses"`
 }
 
 func (c Camino) Unparse(networkID uint32, starttime uint64) (UnparsedCamino, error) {
 	uc := UnparsedCamino{
-		VerifyNodeSignature:      c.VerifyNodeSignature,
-		LockModeBondDeposit:      c.LockModeBondDeposit,
-		DepositOffers:            make([]UnparsedDepositOffer, len(c.DepositOffers)),
-		Allocations:              make([]UnparsedCaminoAllocation, len(c.Allocations)),
-		InitialMultisigAddresses: make([]UnparsedMultisigAlias, len(c.InitialMultisigAddresses)),
+		VerifyNodeSignature:       c.VerifyNodeSignature,
+		LockModeBondDeposit:       c.LockModeBondDeposit,
+		ValidatorRewardsStartTime: c.ValidatorRewardsStartTime,
+		DepositOffers:             make([]UnparsedDepositOffer, len(c.DepositOffers)),
+		Allocations:               make([]UnparsedCaminoAllocation, len(c.Allocations)),
+		InitialMultisigAddresses:  make([]UnparsedMultisigAlias, len(c.InitialMultisigAddresses)),
 	}
 
 	avaxAddr, err := address.Format(

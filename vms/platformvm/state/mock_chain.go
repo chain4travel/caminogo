@@ -130,10 +130,10 @@ func (mr *MockChainMockRecorder) AddUTXO(arg0 interface{}) *gomock.Call {
 }
 
 // CaminoConfig mocks base method.
-func (m *MockChain) CaminoConfig() (*CaminoConfig, error) {
+func (m *MockChain) CaminoConfig() (*config.CaminoGenesisConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CaminoConfig")
-	ret0, _ := ret[0].(*CaminoConfig)
+	ret0, _ := ret[0].(*config.CaminoGenesisConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -16,20 +16,20 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
 // Camino genesis args
 type Camino struct {
-	VerifyNodeSignature      bool                     `serialize:"true"`
-	LockModeBondDeposit      bool                     `serialize:"true"`
-	InitialAdmin             ids.ShortID              `serialize:"true"`
-	AddressStates            []AddressState           `serialize:"true"`
-	DepositOffers            []*deposit.Offer         `serialize:"true"`
-	Blocks                   []*Block                 `serialize:"true"` // arranged in a block order
-	ConsortiumMembersNodeIDs []ConsortiumMemberNodeID `serialize:"true"`
-	InitialMultisigAddresses []MultisigAlias          `serialize:"true"`
+	Config                   config.CaminoGenesisConfig `serialize:"true"`
+	InitialAdmin             ids.ShortID                `serialize:"true"`
+	AddressStates            []AddressState             `serialize:"true"`
+	DepositOffers            []*deposit.Offer           `serialize:"true"`
+	Blocks                   []*Block                   `serialize:"true"` // arranged in a block order
+	ConsortiumMembersNodeIDs []ConsortiumMemberNodeID   `serialize:"true"`
+	InitialMultisigAddresses []MultisigAlias            `serialize:"true"`
 }
 
 func (c *Camino) Init() error {

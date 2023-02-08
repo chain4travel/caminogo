@@ -216,7 +216,7 @@ func bech32ToID(addrStr string) (ids.ShortID, error) {
 func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, reply *BuildGenesisReply) error {
 	// Specify the UTXOs on the Platform chain that exist at genesis.
 	var vdrs txheap.TimedHeap
-	if args.Camino.LockModeBondDeposit {
+	if args.Camino.Config.LockModeBondDeposit {
 		return buildCaminoGenesis(args, reply)
 	}
 
