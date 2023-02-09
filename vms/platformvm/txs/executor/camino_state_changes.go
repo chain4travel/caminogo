@@ -88,9 +88,15 @@ func caminoAdvanceTimeTo(
 		return nil
 	}
 
+	caminoConfig, err := parentState.CaminoConfig()
+	if err != nil {
+		return err
+	}
+
 	nextValidatorsRewardTime := getNextValidatorsRewardTime(
 		uint64(parentState.GetTimestamp().Unix()),
 		backend.Config.CaminoConfig.ValidatorsRewardPeriod,
+		caminoConfig.ValidatorRewardsStartTime,
 	)
 
 	if !nextValidatorsRewardTime.After(newChainTime) {

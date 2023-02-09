@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 )
 
@@ -30,16 +31,16 @@ func GetNextChainEventTime(state state.Chain, stakerChangeTime time.Time) (time.
 	validatorsRewardTime := getNextValidatorsRewardTime(
 		uint64(state.GetTimestamp().Unix()),
 		cfg.CaminoConfig.ValidatorsRewardPeriod,
+		caminoConfig.ValidatorRewardsStartTime,
 	)
 
-	if stakerChangeTime.Before(validatorsRewardTime) ||
-		uint64(validatorsRewardTime.Unix()) < caminoConfig.ValidatorRewardsStartTime {
+	if stakerChangeTime.Before(validatorsRewardTime) {
 		return stakerChangeTime, nil
 	}
 
 	return validatorsRewardTime, nil
 }
 
-func getNextValidatorsRewardTime(chainTime uint64, validatorsRewardPeriod uint64) time.Time {
-	return time.Unix(int64(chainTime-chainTime%validatorsRewardPeriod+validatorsRewardPeriod), 0)
+func getNextValidatorsRewardTime(chainTime, rewardPeriod, rewardStartTime uint64) time.Time {
+	return time.Unix(int64(math.Max(chainTime-chainTime%rewardPeriod+rewardPeriod, rewardStartTime)), 0)
 }
