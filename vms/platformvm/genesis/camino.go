@@ -21,7 +21,7 @@ type Camino struct {
 	DepositOffers            []*deposit.Offer         `serialize:"true"`
 	Blocks                   []*Block                 `serialize:"true"` // arranged in a block order
 	ConsortiumMembersNodeIDs []ConsortiumMemberNodeID `serialize:"true"`
-	MultisigAliases          []*multisig.Alias        `serialize:"true"`
+	MultisigAliases          []*multisig.AliasRaw     `serialize:"true"`
 }
 
 func (c *Camino) Init() error {

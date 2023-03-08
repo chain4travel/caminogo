@@ -18,7 +18,7 @@ type MultisigAliasTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 	// Multisig alias definition. MultisigAlias.ID must be empty, if its the new alias
-	MultisigAlias multisig.Alias `serialize:"true"`
+	MultisigAlias multisig.AliasRaw `serialize:"true"`
 	// Auth that allows existing owners to change an alias
 	ChangeAuth verify.Verifiable `serialize:"true" json:"changeAuthorization"`
 }
@@ -28,7 +28,6 @@ type MultisigAliasTx struct {
 // the addresses can be json marshalled into human readable format
 func (tx *MultisigAliasTx) InitCtx(ctx *snow.Context) {
 	tx.BaseTx.InitCtx(ctx)
-	tx.MultisigAlias.InitCtx(ctx)
 }
 
 // SyntacticVerify returns nil if [tx] is valid

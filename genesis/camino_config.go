@@ -154,25 +154,21 @@ func (a PlatformAllocation) Unparse() (UnparsedPlatformAllocation, error) {
 }
 
 type MultisigAlias struct {
-	Alias     ids.ShortID   `serialize:"true" json:"alias"`
-	Threshold uint32        `serialize:"true" json:"threshold"`
-	Addresses []ids.ShortID `serialize:"true" json:"addresses"`
-	Memo      string        `serialize:"true" json:"memo"`
+	Alias      ids.ShortID          `serialize:"true" json:"alias"`
+	Threshold  uint32               `serialize:"true" json:"threshold"`
+	PublicKeys []multisig.PublicKey `serialize:"true" json:"publicKeys"`
+	Memo       string               `serialize:"true" json:"memo"`
 }
 
 func (ma MultisigAlias) Unparse(networkID uint32) (UnparsedMultisigAlias, error) {
 	uma := UnparsedMultisigAlias{
-		Threshold: ma.Threshold,
-		Addresses: make([]string, len(ma.Addresses)),
-		Memo:      ma.Memo,
+		Threshold:  ma.Threshold,
+		PublicKeys: make([]string, len(ma.PublicKeys)),
+		Memo:       ma.Memo,
 	}
 
-	for i, elem := range ma.Addresses {
-		addr, err := address.Format(configChainIDAlias, constants.GetHRP(networkID), elem.Bytes())
-		if err != nil {
-			return uma, fmt.Errorf("while unparsing cannot format multisig address %s: %w", addr, err)
-		}
-		uma.Addresses[i] = addr
+	for i, mem := range ma.PublicKeys {
+		uma.PublicKeys[i] = mem.String()
 	}
 
 	alias, err := address.Format(configChainIDAlias, constants.GetHRP(networkID), ma.Alias.Bytes())
@@ -190,19 +186,19 @@ func (ma MultisigAlias) ComputeAlias(txID ids.ID) ids.ShortID {
 	thresholdBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(thresholdBytes, ma.Threshold)
 	memoLen := len(ma.Memo)
-	allBytes := make([]byte, 32+4+memoLen+20*len(ma.Addresses))
+	allBytes := make([]byte, 32+4+memoLen+33*len(ma.PublicKeys))
 
 	copy(allBytes, txIDBytes)
 	copy(allBytes[32:], thresholdBytes)
 	copy(allBytes[32+4:], ma.Memo)
 
 	beg := 32 + 4 + memoLen
-	for _, addr := range ma.Addresses {
-		copy(allBytes[beg:], addr.Bytes())
-		beg += 20
+	for _, mem := range ma.PublicKeys {
+		copy(allBytes[beg:], mem.Bytes())
+		beg += 33
 	}
 
-	return multisig.ComputeAliasID(hashing.ComputeHash256Array(allBytes))
+	return hashing.ComputeHash160Array(hashing.ComputeHash256(allBytes))
 }
 
 type AddressStates struct {

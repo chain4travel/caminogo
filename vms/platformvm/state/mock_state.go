@@ -891,16 +891,16 @@ func (mr *MockStateMockRecorder) SetLastAccepted(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLastAccepted", reflect.TypeOf((*MockState)(nil).SetLastAccepted), arg0)
 }
 
-// SetMultisigAlias mocks base method.
-func (m *MockState) SetMultisigAlias(arg0 *multisig.Alias) {
+// SetMultisigAliasRaw mocks base method.
+func (m *MockState) SetMultisigAliasRaw(arg0 *multisig.AliasRaw) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAliasRaw", arg0)
 }
 
-// SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockStateMockRecorder) SetMultisigAlias(arg0 interface{}) *gomock.Call {
+// SetMultisigAliasRaw indicates an expected call of SetMultisigAliasRaw.
+func (mr *MockStateMockRecorder) SetMultisigAliasRaw(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockState)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAliasRaw", reflect.TypeOf((*MockState)(nil).SetMultisigAliasRaw), arg0)
 }
 
 // SetNotDistributedValidatorReward mocks base method.

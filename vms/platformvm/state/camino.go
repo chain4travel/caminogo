@@ -35,6 +35,7 @@ const (
 	addressStateCacheSize          = 1024
 	depositsCacheSize              = 1024
 	consortiumMemberNodesCacheSize = 1024
+	msigOwnersCacheSize            = 16_384
 )
 
 var (
@@ -85,7 +86,7 @@ type CaminoDiff interface {
 	// Multisig Owners
 
 	GetMultisigAlias(ids.ShortID) (*multisig.Alias, error)
-	SetMultisigAlias(*multisig.Alias)
+	SetMultisigAliasRaw(*multisig.AliasRaw)
 
 	// ShortIDsLink
 
@@ -137,7 +138,7 @@ type caminoDiff struct {
 	modifiedAddressStates                 map[ids.ShortID]uint64
 	modifiedDepositOffers                 map[ids.ID]*deposit.Offer
 	modifiedDeposits                      map[ids.ID]*deposit.Deposit
-	modifiedMultisigOwners                map[ids.ShortID]*multisig.Alias
+	modifiedMultisigOwners                map[ids.ShortID]*multisig.AliasRaw
 	modifiedShortLinks                    map[ids.ID]*ids.ShortID
 	modifiedClaimables                    map[ids.ID]*Claimable
 	modifiedNotDistributedValidatorReward *uint64
@@ -170,7 +171,8 @@ type caminoState struct {
 	depositsDB    database.Database
 
 	// MSIG aliases
-	multisigOwnersDB database.Database
+	multisigOwnersCache cache.Cacher
+	multisigOwnersDB    database.Database
 
 	// shortIDs link
 	shortLinksCache cache.Cacher
@@ -185,7 +187,7 @@ func newCaminoDiff() *caminoDiff {
 		modifiedAddressStates:  make(map[ids.ShortID]uint64),
 		modifiedDepositOffers:  make(map[ids.ID]*deposit.Offer),
 		modifiedDeposits:       make(map[ids.ID]*deposit.Deposit),
-		modifiedMultisigOwners: make(map[ids.ShortID]*multisig.Alias),
+		modifiedMultisigOwners: make(map[ids.ShortID]*multisig.AliasRaw),
 		modifiedShortLinks:     make(map[ids.ID]*ids.ShortID),
 		modifiedClaimables:     make(map[ids.ID]*Claimable),
 	}
@@ -222,6 +224,14 @@ func newCaminoState(baseDB *versiondb.Database, validatorsDB *prefixdb.Database,
 	depositOffersDB := prefixdb.New(depositOffersPrefix, baseDB)
 	deferredValidatorsDB := prefixdb.New(deferredPrefix, validatorsDB)
 
+	multisigOwnersCache, err := metercacher.New(
+		"msig_owners_cache",
+		metricsReg,
+		&cache.LRU{Size: msigOwnersCacheSize},
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &caminoState{
 		// Address State
 		addressStateDB:    prefixdb.New(addressStatePrefix, baseDB),
@@ -237,7 +247,8 @@ func newCaminoState(baseDB *versiondb.Database, validatorsDB *prefixdb.Database,
 		depositsDB:    prefixdb.New(depositsPrefix, baseDB),
 
 		// Multisig Owners
-		multisigOwnersDB: prefixdb.New(multisigOwnersPrefix, baseDB),
+		multisigOwnersCache: multisigOwnersCache,
+		multisigOwnersDB:    prefixdb.New(multisigOwnersPrefix, baseDB),
 
 		// Consortium member nodes
 		shortLinksCache: consortiumMemberNodesCache,
@@ -331,7 +342,7 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 	// adding msig aliases
 
 	for _, multisigAlias := range g.Camino.MultisigAliases {
-		cs.SetMultisigAlias(multisigAlias)
+		cs.SetMultisigAliasRaw(multisigAlias)
 	}
 
 	// adding blocks (validators and deposits)

@@ -716,16 +716,16 @@ func (mr *MockChainMockRecorder) SetLastRewardImportTimestamp(arg0 interface{}) 
 		arg0)
 }
 
-// SetMultisigAlias mocks base method.
-func (m *MockChain) SetMultisigAlias(arg0 *multisig.Alias) {
+// SetMultisigAliasRaw mocks base method.
+func (m *MockChain) SetMultisigAliasRaw(arg0 *multisig.AliasRaw) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAliasRaw", arg0)
 }
 
-// SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockChainMockRecorder) SetMultisigAlias(arg0 interface{}) *gomock.Call {
+// SetMultisigAliasRaw indicates an expected call of SetMultisigAliasRaw.
+func (mr *MockChainMockRecorder) SetMultisigAliasRaw(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockChain)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAliasRaw", reflect.TypeOf((*MockChain)(nil).SetMultisigAliasRaw), arg0)
 }
 
 // SetNotDistributedValidatorReward mocks base method.

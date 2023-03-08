@@ -91,3 +91,28 @@ func FakePrivateKey(addr ids.ShortID) *PrivateKeySECP256K1R {
 func (k *PrivateKeySECP256K1R) IsZero() bool {
 	return k.sk.Key.IsZero()
 }
+
+func (k *PublicKeySECP256K1R) CompressedBytes() []byte {
+	// cannot rely on `PublicKeySECP256K1R.Bytes()` because it may return uncompressed bytes
+	return k.pk.SerializeCompressed()
+}
+
+func PublicKeyFromBytes(bytes []byte) (*PublicKeySECP256K1R, error) {
+	// we support both lengths but return only compressed bytes
+	if len(bytes) != 33 && len(bytes) != 65 {
+		return nil, errors.New("invalid byte slice, expected 33 or 65 bytes key")
+	}
+
+	fx := FactorySECP256K1R{}
+	pk, err := fx.ToPublicKey(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	secPk, ok := pk.(*PublicKeySECP256K1R)
+	if !ok {
+		return nil, errors.New("invalid public key type")
+	}
+
+	return secPk, nil
+}

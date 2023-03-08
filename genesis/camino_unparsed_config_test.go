@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/stretchr/testify/require"
 )
@@ -120,9 +121,9 @@ func TestParse(t *testing.T) {
 					}},
 				}},
 				InitialMultisigAddresses: []UnparsedMultisigAlias{{
-					Alias:     wrappers.IgnoreError(address.Format(configChainIDAlias, "local", sampleShortID.Bytes())).(string),
-					Threshold: 1,
-					Addresses: []string{wrappers.IgnoreError(address.Format(configChainIDAlias, "local", shortID2.Bytes())).(string)},
+					Alias:      wrappers.IgnoreError(address.Format(configChainIDAlias, "local", sampleShortID.Bytes())).(string),
+					Threshold:  1,
+					PublicKeys: []string{testMember.String()},
 				}},
 			},
 			want: Camino{
@@ -158,9 +159,9 @@ func TestParse(t *testing.T) {
 					}},
 				}},
 				InitialMultisigAddresses: []MultisigAlias{{
-					Alias:     sampleShortID,
-					Threshold: 1,
-					Addresses: []ids.ShortID{shortID2},
+					Alias:      sampleShortID,
+					Threshold:  1,
+					PublicKeys: []multisig.PublicKey{testMember},
 				}},
 			},
 		},

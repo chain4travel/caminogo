@@ -195,21 +195,21 @@ func validateCaminoConfig(config *Config) error {
 	txID := ids.Empty
 	uniqAliases := set.NewSet[ids.ShortID](len(config.Camino.InitialMultisigAddresses))
 	for _, configMsigAlias := range config.Camino.InitialMultisigAddresses {
+		msigAliasRaw, err := MultisigAliasRawFromConfig(configMsigAlias)
+		if err != nil {
+			return fmt.Errorf("wrong msig alias definition [memo: %s]: %w", configMsigAlias.Memo, err)
+		}
+
+		if err := msigAliasRaw.Verify(); err != nil {
+			return err
+		}
+
 		if expectedAlias := configMsigAlias.ComputeAlias(txID); configMsigAlias.Alias != expectedAlias {
 			hrp := constants.GetHRP(config.NetworkID)
 			expectedMsigAliasAddr, _ := address.Format(configChainIDAlias, hrp, expectedAlias.Bytes())
 			msigAliasAddr, _ := address.Format(configChainIDAlias, hrp, configMsigAlias.Alias.Bytes())
 			return fmt.Errorf("%w: expected %s, but got %s",
 				errWrongMisgAliasAddr, expectedMsigAliasAddr, msigAliasAddr)
-		}
-
-		msigAlias, err := MultisigAliasFromConfig(configMsigAlias)
-		if err != nil {
-			return err
-		}
-
-		if err = msigAlias.Verify(); err != nil {
-			return fmt.Errorf("wrong msig alias definition: %w", err)
 		}
 
 		if uniqAliases.Contains(configMsigAlias.Alias) {
@@ -352,13 +352,13 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 
 	// Getting args from multisig aliases
 
-	platformvmArgs.Camino.MultisigAliases = make([]*multisig.Alias, len(config.Camino.InitialMultisigAddresses))
+	platformvmArgs.Camino.MultisigAliases = make([]*multisig.AliasRaw, len(config.Camino.InitialMultisigAddresses))
 	for i := range config.Camino.InitialMultisigAddresses {
-		multisigAlias, err := MultisigAliasFromConfig(config.Camino.InitialMultisigAddresses[i])
+		msigAliasRaw, err := MultisigAliasRawFromConfig(config.Camino.InitialMultisigAddresses[i])
 		if err != nil {
 			return nil, ids.Empty, err
 		}
-		platformvmArgs.Camino.MultisigAliases[i] = multisigAlias
+		platformvmArgs.Camino.MultisigAliases[i] = msigAliasRaw
 	}
 
 	// Getting args from allocations
@@ -576,13 +576,20 @@ func DepositOfferFromConfig(configDepositOffer DepositOffer) (*deposit.Offer, er
 	return offer, nil
 }
 
-func MultisigAliasFromConfig(configMsigAlias MultisigAlias) (*multisig.Alias, error) {
-	return &multisig.Alias{
-		Owners: &secp256k1fx.OutputOwners{
-			Threshold: configMsigAlias.Threshold,
-			Addrs:     configMsigAlias.Addresses,
-		},
-		Memo: types.JSONByteSlice(configMsigAlias.Memo),
-		ID:   configMsigAlias.Alias,
+func MultisigAliasRawFromConfig(configMsigAlias MultisigAlias) (*multisig.AliasRaw, error) {
+	pubKeyBytes := make([]multisig.PublicKey, len(configMsigAlias.PublicKeys))
+	for i, member := range configMsigAlias.PublicKeys {
+		pubKey, err := multisig.PublicKeyFromBytes(member.Bytes())
+		if err != nil {
+			return nil, err
+		}
+		pubKeyBytes[i] = pubKey
+	}
+
+	return &multisig.AliasRaw{
+		ID:         configMsigAlias.Alias,
+		Memo:       types.JSONByteSlice(configMsigAlias.Memo),
+		PublicKeys: pubKeyBytes,
+		Threshold:  configMsigAlias.Threshold,
 	}, nil
 }

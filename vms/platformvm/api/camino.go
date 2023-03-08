@@ -46,7 +46,7 @@ type Camino struct {
 	ValidatorDeposits          [][]UTXODeposit        `json:"validatorDeposits"`
 	ValidatorConsortiumMembers []ids.ShortID          `json:"validatorConsortiumMembers"`
 	UTXODeposits               []UTXODeposit          `json:"utxoDeposits"`
-	MultisigAliases            []*multisig.Alias      `json:"multisigAliases"`
+	MultisigAliases            []*multisig.AliasRaw   `json:"multisigAliases"`
 }
 
 func (c Camino) ParseToGenesis() genesis.Camino {

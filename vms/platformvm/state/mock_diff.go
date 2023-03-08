@@ -727,16 +727,16 @@ func (mr *MockDiffMockRecorder) SetCurrentSupply(arg0, arg1 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSupply", reflect.TypeOf((*MockDiff)(nil).SetCurrentSupply), arg0, arg1)
 }
 
-// SetMultisigAlias mocks base method.
-func (m *MockDiff) SetMultisigAlias(arg0 *multisig.Alias) {
+// SetMultisigAliasRaw mocks base method.
+func (m *MockDiff) SetMultisigAliasRaw(arg0 *multisig.AliasRaw) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAliasRaw", arg0)
 }
 
-// SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockDiffMockRecorder) SetMultisigAlias(arg0 interface{}) *gomock.Call {
+// SetMultisigAliasRaw indicates an expected call of SetMultisigAliasRaw.
+func (mr *MockDiffMockRecorder) SetMultisigAliasRaw(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockDiff)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAliasRaw", reflect.TypeOf((*MockDiff)(nil).SetMultisigAliasRaw), arg0)
 }
 
 // SetNotDistributedValidatorReward mocks base method.

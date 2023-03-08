@@ -9,8 +9,10 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
 
@@ -161,17 +163,17 @@ func (ua UnparsedPlatformAllocation) Parse() (PlatformAllocation, error) {
 // All addresses are encoded to string the same way as ShortID String() method does.
 // [Threshold] is the number of signatures required to sign transactions from the multisignature address.
 type UnparsedMultisigAlias struct {
-	Alias     string   `json:"alias"`
-	Addresses []string `json:"addresses"`
-	Threshold uint32   `json:"threshold"`
-	Memo      string   `json:"memo,omitempty"`
+	Alias      string   `json:"alias"`
+	PublicKeys []string `json:"members"`
+	Threshold  uint32   `json:"threshold"`
+	Memo       string   `json:"memo,omitempty"`
 }
 
 func (uma UnparsedMultisigAlias) Parse() (MultisigAlias, error) {
 	ma := MultisigAlias{
-		Threshold: uma.Threshold,
-		Memo:      uma.Memo,
-		Addresses: make([]ids.ShortID, len(uma.Addresses)),
+		Threshold:  uma.Threshold,
+		Memo:       uma.Memo,
+		PublicKeys: make([]multisig.PublicKey, len(uma.PublicKeys)),
 	}
 
 	alias, err := address.ParseToID(uma.Alias)
@@ -180,15 +182,29 @@ func (uma UnparsedMultisigAlias) Parse() (MultisigAlias, error) {
 	}
 	ma.Alias = alias
 
-	for i, unparsedAddr := range uma.Addresses {
-		addr, err := address.ParseToID(unparsedAddr)
+	for i, unparsedMem := range uma.PublicKeys {
+		key, err := parsePublicKey(unparsedMem)
 		if err != nil {
 			return ma, err
 		}
-		ma.Addresses[i] = addr
+		ma.PublicKeys[i] = key
 	}
 
 	return ma, nil
+}
+
+// allows to provide any valid public key in hex format (33 or 65 bytes)
+func parsePublicKey(hexStr string) (multisig.PublicKey, error) {
+	keyBytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return multisig.PublicKey{}, err
+	}
+	key, err := crypto.PublicKeyFromBytes(keyBytes)
+	if err != nil {
+		return multisig.PublicKey{}, err
+	}
+
+	return multisig.PublicKeyFromBytes(key.CompressedBytes())
 }
 
 type UnparsedDepositOffer struct {

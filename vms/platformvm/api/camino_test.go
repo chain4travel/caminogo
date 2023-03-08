@@ -27,6 +27,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 	hrp := constants.NetworkIDToHRP[testNetworkID]
 	nodeID := ids.NodeID{1}
 	addr := ids.ShortID(nodeID)
+	pubKey := multisig.PublicKey{}
 	addrStr, err := address.FormatBech32(hrp, addr.Bytes())
 	require.NoError(t, err)
 
@@ -96,13 +97,11 @@ func TestBuildCaminoGenesis(t *testing.T) {
 						"",
 					}},
 					DepositOffers: []*deposit.Offer{depositOffer},
-					MultisigAliases: []*multisig.Alias{{
-						ID:   addr,
-						Memo: []byte("some memo"),
-						Owners: &secp256k1fx.OutputOwners{
-							Threshold: 1,
-							Addrs:     []ids.ShortID{addr},
-						},
+					MultisigAliases: []*multisig.AliasRaw{{
+						ID:         addr,
+						Memo:       []byte("some memo"),
+						Threshold:  1,
+						PublicKeys: []multisig.PublicKey{pubKey},
 					}},
 				},
 				Time:          5,
@@ -324,13 +323,11 @@ func TestBuildCaminoGenesis(t *testing.T) {
 							ConsortiumMemberAddress: addr,
 							NodeID:                  nodeID,
 						}},
-						MultisigAliases: []*multisig.Alias{{
-							ID:   addr,
-							Memo: []byte("some memo"),
-							Owners: &secp256k1fx.OutputOwners{
-								Threshold: 1,
-								Addrs:     []ids.ShortID{addr},
-							},
+						MultisigAliases: []*multisig.AliasRaw{{
+							ID:         addr,
+							Memo:       []byte("some memo"),
+							Threshold:  1,
+							PublicKeys: []multisig.PublicKey{pubKey},
 						}},
 					},
 				}, nil

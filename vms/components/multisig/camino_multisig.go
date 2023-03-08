@@ -4,11 +4,13 @@
 package multisig
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/types"
 )
@@ -22,22 +24,70 @@ type Alias struct {
 	Owners verify.State        `serialize:"true" json:"owners"`
 }
 
-func (ma *Alias) InitCtx(ctx *snow.Context) {
-	ma.Owners.InitCtx(ctx)
+// AliasRaw is the definition of a Multisig alias used for storage
+type AliasRaw struct {
+	ID         ids.ShortID         `serialize:"true" json:"id"`
+	Memo       types.JSONByteSlice `serialize:"true" json:"memo"`
+	Threshold  uint32              `serialize:"true" json:"threshold"`
+	PublicKeys []PublicKey         `serialize:"true" json:"pubKeyBytes"`
 }
 
-func (ma *Alias) Verify() error {
-	if len(ma.Memo) > MaxMemoSize {
-		return fmt.Errorf("msig alias memo is larger (%d bytes) than max of %d bytes", len(ma.Memo), MaxMemoSize)
+// Verify returns an error if the basic verification of the multisig AliasRaw fails
+func (a *AliasRaw) Verify() error {
+	if len(a.Memo) > MaxMemoSize {
+		return fmt.Errorf("msig alias memo is larger (%d bytes) than max of %d bytes", len(a.Memo), MaxMemoSize)
 	}
 
-	return ma.Owners.Verify()
+	if !utils.IsSortedAndUniqueSortable(a.PublicKeys) {
+		return fmt.Errorf("multisig alias public keys are not sorted and unique")
+	}
+
+	if a.Threshold > uint32(len(a.PublicKeys)) {
+		return fmt.Errorf("multisig alias threshold is greater than the number of public keys")
+	}
+
+	if a.Threshold == 0 {
+		return fmt.Errorf("multisig alias threshold is 0")
+	}
+
+	if a.ID == ids.ShortEmpty {
+		return fmt.Errorf("multisig alias is empty")
+	}
+
+	return nil
 }
 
-func (ma *Alias) VerifyState() error {
-	return ma.Verify()
+func (a *AliasRaw) VerifyState() error {
+	return a.Verify()
 }
 
-func ComputeAliasID(txID ids.ID) ids.ShortID {
-	return hashing.ComputeHash160Array(txID[:])
+type PublicKey [33]byte
+
+func (pk PublicKey) Bytes() []byte {
+	return pk[:]
+}
+
+func (pk PublicKey) String() string {
+	return hex.EncodeToString(pk.Bytes())
+}
+
+func PublicKeyFromBytes(bytes []byte) (PublicKey, error) {
+	pubKey := PublicKey{}
+	if len(bytes) != 33 {
+		return pubKey, fmt.Errorf("expected 33 bytes, got %d", len(bytes))
+	}
+	copy(pubKey[:], bytes)
+	return pubKey, nil
+}
+
+func PublicKeyFromString(hexBytes string) (PublicKey, error) {
+	bytes, err := hex.DecodeString(strings.TrimPrefix(hexBytes, "0x"))
+	if err != nil {
+		return PublicKey{}, err
+	}
+	return PublicKeyFromBytes(bytes)
+}
+
+func (pk PublicKey) Less(other PublicKey) bool {
+	return bytes.Compare(pk[:], other[:]) < 0
 }

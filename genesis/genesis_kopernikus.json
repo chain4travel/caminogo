@@ -195,17 +195,17 @@
     ],
     "initialMultisigAddresses": [
       {
-        "alias": "X-kopernikus1fq0jc8svlyazhygkj0s36qnl6s0km0h3uuc99w",
-        "addresses": [
-          "X-kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3"
+        "alias": "X-kopernikus13ly4uk9wecwh5u557e4vv0lh572xvh2e9gfmz8",
+        "members": [
+          "02f44e03514f8c89d295597a41baad37603d7fd64acd04be3883b3e980eed4ee82"
         ],
         "threshold": 1
       },
       {
-        "alias": "X-kopernikus1k4przmfu79ypp4u7y98glmdpzwk0u3sc7saazy",
-        "addresses": [
-          "X-kopernikus18jma8ppw3nhx5r4ap8clazz0dps7rv5uuvjh68",
-          "X-kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3"
+        "alias": "X-kopernikus15p0uvxdeahmg2qjd5mulx36fcvxarv0gc5jt4m",
+        "members": [
+          "04d5625f5341a824df63cf28c2502e0d4bd3497f9fad219c02c94a8715f51ba7ece11356ee3a535366c627251c5c4ca3a255b9367d7ac29d01db8ef04c61f1c338",
+          "0427448e78ffa8cdb24cf19be0204ad954b1bdb4db8c51183534c1eecf2ebd094e28644a0982c69420f823dafe7a062dc9fd4d894be33d088fb02e63ab61710ccb"
         ],
         "threshold": 2
       }

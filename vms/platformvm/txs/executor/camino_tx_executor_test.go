@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/chains/atomic"
-
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
@@ -73,6 +72,14 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 
 	addr0 := caminoPreFundedKeys[0].Address()
 	addr1 := caminoPreFundedKeys[1].Address()
+
+	publicKeys := make([]multisig.PublicKey, 2)
+	for i, prefPrivKey := range caminoPreFundedKeys[:2] {
+		pub := prefPrivKey.PublicKey()
+		pubKey, err := multisig.PublicKeyFromBytes(pub.(*crypto.PublicKeySECP256K1R).CompressedBytes())
+		require.NoError(t, err)
+		publicKeys[i] = pubKey
+	}
 
 	require.NoError(t, env.state.Commit())
 
@@ -277,15 +284,10 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
 				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &msigAlias)
-				env.state.SetMultisigAlias(&multisig.Alias{
-					ID: msigAlias,
-					Owners: &secp256k1fx.OutputOwners{
-						Threshold: 2,
-						Addrs: []ids.ShortID{
-							caminoPreFundedKeys[0].Address(),
-							caminoPreFundedKeys[1].Address(),
-						},
-					},
+				env.state.SetMultisigAliasRaw(&multisig.AliasRaw{
+					ID:         msigAlias,
+					Threshold:  2,
+					PublicKeys: publicKeys,
 				})
 			},
 			expectedErr: errConsortiumSignatureMissing,

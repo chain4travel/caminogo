@@ -14,15 +14,16 @@ import (
 
 func TestVerify(t *testing.T) {
 	tests := map[string]struct {
-		alias               Alias
+		alias               AliasRaw
 		message             string
 		expectedErrorString string
 	}{
 		"MemoSizeShouldBeLowerThanMaxMemoSize": {
-			alias: Alias{
-				Owners: &avax.TestVerifiable{},
-				Memo:   make([]byte, avax.MaxMemoSize+1),
-				ID:     hashing.ComputeHash160Array(ids.Empty[:]),
+			alias: AliasRaw{
+				PublicKeys: []PublicKey{{}, {}},
+				Threshold:  1,
+				Memo:       make([]byte, avax.MaxMemoSize+1),
+				ID:         hashing.ComputeHash160Array(ids.Empty[:]),
 			},
 			message:             "memo size should be lower than max memo size",
 			expectedErrorString: "msig alias memo is larger (257 bytes) than max of 256 bytes",

@@ -75,8 +75,8 @@ func (s *state) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) {
 	return s.caminoState.GetDeposit(depositTxID)
 }
 
-func (s *state) SetMultisigAlias(owner *multisig.Alias) {
-	s.caminoState.SetMultisigAlias(owner)
+func (s *state) SetMultisigAliasRaw(owner *multisig.AliasRaw) {
+	s.caminoState.SetMultisigAliasRaw(owner)
 }
 
 func (s *state) GetMultisigAlias(alias ids.ShortID) (*multisig.Alias, error) {

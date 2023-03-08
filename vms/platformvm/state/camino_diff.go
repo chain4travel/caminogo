@@ -169,16 +169,20 @@ func (d *diff) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) {
 	return parentState.GetDeposit(depositTxID)
 }
 
-func (d *diff) SetMultisigAlias(owner *multisig.Alias) {
+func (d *diff) SetMultisigAliasRaw(owner *multisig.AliasRaw) {
 	d.caminoDiff.modifiedMultisigOwners[owner.ID] = owner
 }
 
 func (d *diff) GetMultisigAlias(alias ids.ShortID) (*multisig.Alias, error) {
-	if msigOwner, ok := d.caminoDiff.modifiedMultisigOwners[alias]; ok {
-		if msigOwner == nil {
+	if msigDef, ok := d.caminoDiff.modifiedMultisigOwners[alias]; ok {
+		if msigDef == nil {
 			return nil, database.ErrNotFound
 		}
-		return msigOwner, nil
+		msigAlias, err := msigAliasRawToMsigAlias(msigDef)
+		if err != nil {
+			return nil, err
+		}
+		return msigAlias, nil
 	}
 
 	parentState, ok := d.stateVersions.GetState(d.parentID)
@@ -306,7 +310,7 @@ func (d *diff) ApplyCaminoState(baseState State) {
 	}
 
 	for _, v := range d.caminoDiff.modifiedMultisigOwners {
-		baseState.SetMultisigAlias(v)
+		baseState.SetMultisigAliasRaw(v)
 	}
 
 	for fullKey, link := range d.caminoDiff.modifiedShortLinks {
