@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -57,14 +58,13 @@ var (
 	errNodeAlreadyRegistered        = errors.New("node is already registered")
 	errDepositCredentialMissmatch   = errors.New("deposit credential isn't matching")
 	errClaimableCredentialMissmatch = errors.New("claimable credential isn't matching")
-	errDepositNotFound              = errors.New("deposit tx not found")
+	errDepositNotFound              = errors.New("deposit not found")
 	errNotSECPOwner                 = errors.New("owner is not *secp256k1fx.OutputOwners")
 	errWrongCredentialsNumber       = errors.New("unexpected number of credentials")
 	errWrongOwnerType               = errors.New("wrong owner type")
 	errImportedUTXOMissmatch        = errors.New("imported input doesn't match expected utxo")
 	errInputAmountMissmatch         = errors.New("utxo amount doesn't match input amount")
 	errInputsUTXOSMismatch          = errors.New("number of inputs is different from number of utxos")
-	errClaimingNonTreasuryUTXO      = errors.New("claiming utxo owned by other owner, than treasury owner")
 	errWrongClaimedAmount           = errors.New("claiming more than was available to claim")
 	errMsigAlias                    = errors.New("can't use msig alias here")
 )
@@ -680,7 +680,6 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 	}
 
 	txID := e.Tx.ID()
-	depositRewardOutIndex := 0
 
 	for depositTxID, newUnlockedAmount := range newUnlockedAmounts {
 		deposit, err := e.State.GetDeposit(depositTxID)
@@ -714,15 +713,6 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 					return err
 				}
 
-				outIntf, err := e.Fx.CreateOutput(remainingReward, treasury.Owner)
-				if err != nil {
-					return fmt.Errorf("failed to create output: %w", err)
-				}
-				out, ok := outIntf.(verify.State)
-				if !ok {
-					return errInvalidState
-				}
-
 				claimable, err := e.State.GetClaimable(claimableOwnerID)
 				if err == database.ErrNotFound {
 					scepOwner, ok := depositTx.RewardsOwner.(*secp256k1fx.OutputOwners)
@@ -746,18 +736,6 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 					return err
 				}
 
-				utxo := &avax.UTXO{
-					UTXOID: avax.UTXOID{
-						TxID:        txID,
-						OutputIndex: uint32(len(tx.Outs) + depositRewardOutIndex),
-					},
-					Asset: avax.Asset{ID: e.Ctx.AVAXAssetID},
-					Out:   out,
-				}
-				depositRewardOutIndex++
-
-				e.State.AddRewardUTXO(txID, utxo)
-				e.State.AddUTXO(utxo)
 				e.State.SetClaimable(claimableOwnerID, newClaimable)
 			}
 			e.State.RemoveDeposit(depositTxID, deposit)
@@ -816,9 +794,18 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 	claimableCredential := []verify.Verifiable{e.Tx.Creds[len(e.Tx.Creds)-1]}
 	txID := e.Tx.ID()
 
+	newClaimTo := false
+	if secpOwner, ok := tx.ClaimTo.(*secp256k1fx.OutputOwners); !ok {
+		return errNotSECPOwner
+	} else if len(secpOwner.Addrs) != 0 {
+		newClaimTo = true
+	}
+
 	// Checking deposits sigs and creating reward outputs
 
-	for i, depositTxID := range tx.DepositTxs {
+	mintedOutsCount := 0
+
+	for _, depositTxID := range tx.DepositTxIDs {
 		// getting deposit tx
 
 		signedDepositTx, txStatus, err := e.State.GetTx(depositTxID)
@@ -853,7 +840,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 
 		deposit, err := e.State.GetDeposit(depositTxID)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %s", errDepositNotFound, err)
 		}
 
 		depositOffer, err := e.State.GetDepositOffer(deposit.DepositOfferID)
@@ -863,16 +850,12 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 
 		claimableReward := deposit.ClaimableReward(depositOffer, currentTimestamp)
 		if claimableReward > 0 {
-			rewardsOwner := tx.DepositRewardsOwner
-			secpOwners, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
-			if !ok {
-				return errNotSECPOwner
-			}
-			if len(secpOwners.Addrs) == 0 {
-				rewardsOwner = depositTx.RewardsOwner
+			claimTo := depositTx.RewardsOwner
+			if newClaimTo {
+				claimTo = tx.ClaimTo
 			}
 
-			outIntf, err := e.Fx.CreateOutput(claimableReward, rewardsOwner)
+			outIntf, err := e.Fx.CreateOutput(claimableReward, claimTo)
 			if err != nil {
 				return fmt.Errorf("failed to create output: %w", err)
 			}
@@ -884,11 +867,12 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 			utxo := &avax.UTXO{
 				UTXOID: avax.UTXOID{
 					TxID:        txID,
-					OutputIndex: uint32(len(tx.Outs) + len(tx.ClaimableOuts) + i),
+					OutputIndex: uint32(len(tx.Outs) + mintedOutsCount),
 				},
 				Asset: avax.Asset{ID: e.Ctx.AVAXAssetID},
 				Out:   out,
 			}
+			mintedOutsCount++
 
 			e.State.AddUTXO(utxo)
 			e.State.AddRewardUTXO(depositTxID, utxo)
@@ -903,7 +887,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 		}
 	}
 
-	// Checking claimables sigs and claimable amounts, updating claimables in state
+	// Checking claimables sigs and claimable amounts, updating claimables in state // todo@ comment
 
 	for i, ownerID := range tx.ClaimableOwnerIDs {
 		claimable, err := e.State.GetClaimable(ownerID)
@@ -923,7 +907,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 			return fmt.Errorf("%w: %s", errClaimableCredentialMissmatch, err)
 		}
 
-		amountToClaim := tx.ClaimedAmount[i]
+		amountToClaim := tx.ClaimedAmounts[i]
 
 		newClaimableValidatorReward := claimable.ValidatorReward
 		if amountToClaim > newClaimableValidatorReward {
@@ -947,6 +931,33 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 			return errWrongClaimedAmount
 		}
 
+		var claimTo fx.Owner = claimable.Owner
+		if newClaimTo {
+			claimTo = tx.ClaimTo
+		}
+
+		outIntf, err := e.Fx.CreateOutput(tx.ClaimedAmounts[i], claimTo)
+		if err != nil {
+			return fmt.Errorf("failed to create output: %w", err)
+		}
+		out, ok := outIntf.(verify.State)
+		if !ok {
+			return errInvalidState
+		}
+
+		utxo := &avax.UTXO{
+			UTXOID: avax.UTXOID{
+				TxID:        txID,
+				OutputIndex: uint32(len(tx.Outs) + mintedOutsCount),
+			},
+			Asset: avax.Asset{ID: e.Ctx.AVAXAssetID},
+			Out:   out,
+		}
+		mintedOutsCount++
+
+		e.State.AddUTXO(utxo)
+		e.State.AddRewardUTXO(txID, utxo)
+
 		var newClaimabe *state.Claimable
 		if newClaimableDepositReward != 0 || newClaimableValidatorReward != 0 {
 			newClaimabe = &state.Claimable{
@@ -956,41 +967,6 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 			}
 		}
 		e.State.SetClaimable(ownerID, newClaimabe)
-	}
-
-	// Checking treasury consume
-
-	for _, in := range tx.ClaimableIns {
-		treasuryUTXO, err := e.State.GetUTXO(in.InputID())
-		if err != nil {
-			return err
-		}
-		treasuryOut, ok := treasuryUTXO.Out.(*secp256k1fx.TransferOutput)
-		if !ok {
-			return locked.ErrWrongOutType
-		}
-
-		if !treasuryOut.OutputOwners.Equals(treasury.Owner) {
-			return errClaimingNonTreasuryUTXO
-		}
-
-		if treasuryOut.Amt != in.In.Amount() {
-			return fmt.Errorf("utxo.Amt %d, input.Amt %d: %w", treasuryOut.Amt, in.In.Amount(), errInputAmountMissmatch)
-		}
-	}
-
-	// Consuming / producing treasury and claimed utxos
-
-	utxo.Consume(e.State, tx.ClaimableIns)
-	for i, output := range tx.ClaimableOuts {
-		e.State.AddUTXO(&avax.UTXO{
-			UTXOID: avax.UTXOID{
-				TxID:        txID,
-				OutputIndex: uint32(len(tx.Outs) + i),
-			},
-			Asset: avax.Asset{ID: e.Ctx.AVAXAssetID},
-			Out:   output.Out,
-		})
 	}
 
 	// Consuming / producing fee utxos
@@ -1138,8 +1114,6 @@ func (e *CaminoStandardTxExecutor) RewardsImportTx(tx *txs.RewardsImportTx) erro
 		return errWrongLockMode
 	}
 
-	outs := tx.Outputs()
-
 	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
@@ -1228,7 +1202,15 @@ func (e *CaminoStandardTxExecutor) RewardsImportTx(tx *txs.RewardsImportTx) erro
 		return err
 	}
 
-	amountToDistribute, err := math.Add64(tx.Outs[0].Out.Amount(), notDistributedAmount)
+	importedAmount := uint64(0)
+	for _, in := range tx.Ins {
+		importedAmount, err = math.Add64(importedAmount, in.In.Amount())
+		if err != nil {
+			return err
+		}
+	}
+
+	amountToDistribute, err := math.Add64(importedAmount, notDistributedAmount)
 	if err != nil {
 		return err
 	}
@@ -1276,9 +1258,7 @@ func (e *CaminoStandardTxExecutor) RewardsImportTx(tx *txs.RewardsImportTx) erro
 		}
 	}
 
-	// Produce UTXOs and atomic request
-
-	utxo.Produce(e.State, e.Tx.ID(), outs)
+	// Atomic request
 
 	utxoIDs := make([][]byte, len(tx.Ins))
 	e.Inputs = set.NewSet[ids.ID](len(tx.Ins))
