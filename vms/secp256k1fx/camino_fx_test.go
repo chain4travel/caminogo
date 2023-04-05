@@ -454,6 +454,63 @@ func TestExtractFromAndSigners(t *testing.T) {
 	}
 }
 
+func TestCollectMultisigAliases(t *testing.T) {
+	_, addr1 := generateKey(t)
+	_, addr2 := generateKey(t)
+	_, addr3 := generateKey(t)
+	_, aliasAddr1 := generateKey(t)
+
+	noAliasesMsigGetter := func(c *gomock.Controller) AliasGetter {
+		msig := NewMockAliasGetter(c)
+		msig.EXPECT().GetMultisigAlias(gomock.Any()).Return(nil, database.ErrNotFound).AnyTimes()
+		return msig
+	}
+
+	tests := map[string]struct {
+		owners          *OutputOwners
+		msig            func(c *gomock.Controller) AliasGetter
+		expectedAliases int
+		expectedError   error
+	}{
+		"OK: 2 addrs, no msig alias": {
+			owners: &OutputOwners{
+				Threshold: 2,
+				Addrs:     []ids.ShortID{addr1, addr2},
+			},
+			msig: noAliasesMsigGetter,
+		},
+		"OK 1 msig alias": {
+			owners: &OutputOwners{
+				Threshold: 2,
+				Addrs:     []ids.ShortID{addr1, aliasAddr1},
+			},
+			msig: func(c *gomock.Controller) AliasGetter {
+				msig := NewMockAliasGetter(c)
+				expectGetMultisigAliases(msig, []*multisig.Alias{{
+					ID: aliasAddr1,
+					Owners: &OutputOwners{
+						Threshold: 1,
+						Addrs:     []ids.ShortID{addr2, addr3},
+					},
+				}})
+				return msig
+			},
+			expectedAliases: 1,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			fx := defaultFx(t)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			aliases, err := fx.collectMultisigAliases(tt.owners, tt.msig(ctrl))
+			require.ErrorIs(t, err, tt.expectedError)
+			require.Equal(t, len(aliases), tt.expectedAliases)
+		})
+	}
+}
+
 func defaultFx(t *testing.T) *Fx {
 	require := require.New(t)
 	vm := TestVM{
