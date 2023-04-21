@@ -16,6 +16,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms"
 	"github.com/ava-labs/avalanchego/vms/registry"
+
+	"github.com/gorilla/rpc/v2"
 )
 
 var errOops = errors.New("oops")
@@ -120,4 +122,23 @@ func TestLoadVMsGetAliasesFails(t *testing.T) {
 	err := resources.admin.LoadVMs(&http.Request{}, nil, &reply)
 
 	require.Equal(t, err, errOops)
+}
+
+func TestBlockRequestsWithNonMatchingHostnamesWrongHostname(t *testing.T) {
+	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "something-else.com"}}
+	f := BlockRequestsWithNonMatchingHostnames("test.com")
+
+	err := f(&rpcReq, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "unrecognized hostname")
+}
+
+func TestBlockRequestsWithNonMatchingHostnamesCorrectHostname(t *testing.T) {
+	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "test.com"}}
+	f := BlockRequestsWithNonMatchingHostnames("test.com")
+
+	err := f(&rpcReq, nil)
+
+	require.Nil(t, err, "result error was not nil, expected matching Hostnames to not raise erros")
 }
