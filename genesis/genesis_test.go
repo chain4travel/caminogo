@@ -443,7 +443,7 @@ func TestVMGenesis(t *testing.T) {
 				},
 				{
 					vmID:       constants.EVMID,
-					expectedID: "2TKWj11JpGAfnVzEfVXVKeE1WHCHzBNapjoFzWLQe6gQApQ3F",
+					expectedID: "TKWj11JpGAfnVzEfVXVKeE1WHCHzBNapjoFzWLQe6gQApQ3F2",
 				},
 			},
 		},
