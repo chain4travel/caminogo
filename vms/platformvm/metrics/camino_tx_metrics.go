@@ -19,8 +19,7 @@ type caminoTxMetrics struct {
 	numClaimTxs,
 	numRegisterNodeTxs,
 	numRewardsImportTxs,
-	numBaseTxs,
-	numCaminoAddValidatorTxs prometheus.Counter
+	numBaseTxs prometheus.Counter
 }
 
 func newCaminoTxMetrics(
@@ -36,14 +35,13 @@ func newCaminoTxMetrics(
 	m := &caminoTxMetrics{
 		txMetrics: *txm,
 		// Camino specific tx metrics
-		numAddressStateTxs:       newTxMetric(namespace, "add_address_state", registerer, &errs),
-		numDepositTxs:            newTxMetric(namespace, "deposit", registerer, &errs),
-		numUnlockDepositTxs:      newTxMetric(namespace, "unlock_deposit", registerer, &errs),
-		numClaimTxs:              newTxMetric(namespace, "claim", registerer, &errs),
-		numRegisterNodeTxs:       newTxMetric(namespace, "register_node", registerer, &errs),
-		numRewardsImportTxs:      newTxMetric(namespace, "rewards_import", registerer, &errs),
-		numBaseTxs:               newTxMetric(namespace, "base", registerer, &errs),
-		numCaminoAddValidatorTxs: newTxMetric(namespace, "camino_add_validator", registerer, &errs),
+		numAddressStateTxs:  newTxMetric(namespace, "add_address_state", registerer, &errs),
+		numDepositTxs:       newTxMetric(namespace, "deposit", registerer, &errs),
+		numUnlockDepositTxs: newTxMetric(namespace, "unlock_deposit", registerer, &errs),
+		numClaimTxs:         newTxMetric(namespace, "claim", registerer, &errs),
+		numRegisterNodeTxs:  newTxMetric(namespace, "register_node", registerer, &errs),
+		numRewardsImportTxs: newTxMetric(namespace, "rewards_import", registerer, &errs),
+		numBaseTxs:          newTxMetric(namespace, "base", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -120,6 +118,6 @@ func (m *caminoTxMetrics) BaseTx(*txs.BaseTx) error {
 }
 
 func (m *caminoTxMetrics) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
-	m.numCaminoAddValidatorTxs.Inc()
+	m.numAddValidatorTxs.Inc()
 	return nil
 }
