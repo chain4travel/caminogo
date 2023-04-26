@@ -197,23 +197,21 @@ func (b *caminoBuilder) NewCaminoAddValidatorTx(
 	signers = append(signers, nodeOwnerSigners)
 
 	utx := &txs.CaminoAddValidatorTx{
-		AddValidatorTx: txs.AddValidatorTx{
-			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				NetworkID:    b.ctx.NetworkID,
-				BlockchainID: b.ctx.ChainID,
-				Ins:          ins,
-				Outs:         outs,
-			}},
-			Validator: validator.Validator{
-				NodeID: nodeID,
-				Start:  startTime,
-				End:    endTime,
-				Wght:   stakeAmount,
-			},
-			RewardsOwner: &secp256k1fx.OutputOwners{
-				Threshold: 1,
-				Addrs:     []ids.ShortID{rewardAddress},
-			},
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		Validator: validator.Validator{
+			NodeID: nodeID,
+			Start:  startTime,
+			End:    endTime,
+			Wght:   stakeAmount,
+		},
+		RewardsOwner: &secp256k1fx.OutputOwners{
+			Threshold: 1,
+			Addrs:     []ids.ShortID{rewardAddress},
 		},
 		NodeOwnerAuth: &nodeOwnerInput.(*secp256k1fx.TransferInput).Input,
 	}

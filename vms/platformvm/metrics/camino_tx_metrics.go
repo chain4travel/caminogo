@@ -19,7 +19,8 @@ type caminoTxMetrics struct {
 	numClaimTxs,
 	numRegisterNodeTxs,
 	numRewardsImportTxs,
-	numBaseTxs prometheus.Counter
+	numBaseTxs,
+	numCaminoAddValidatorTxs prometheus.Counter
 }
 
 func newCaminoTxMetrics(
@@ -35,13 +36,14 @@ func newCaminoTxMetrics(
 	m := &caminoTxMetrics{
 		txMetrics: *txm,
 		// Camino specific tx metrics
-		numAddressStateTxs:  newTxMetric(namespace, "add_address_state", registerer, &errs),
-		numDepositTxs:       newTxMetric(namespace, "deposit", registerer, &errs),
-		numUnlockDepositTxs: newTxMetric(namespace, "unlock_deposit", registerer, &errs),
-		numClaimTxs:         newTxMetric(namespace, "claim", registerer, &errs),
-		numRegisterNodeTxs:  newTxMetric(namespace, "register_node", registerer, &errs),
-		numRewardsImportTxs: newTxMetric(namespace, "rewards_import", registerer, &errs),
-		numBaseTxs:          newTxMetric(namespace, "base", registerer, &errs),
+		numAddressStateTxs:       newTxMetric(namespace, "add_address_state", registerer, &errs),
+		numDepositTxs:            newTxMetric(namespace, "deposit", registerer, &errs),
+		numUnlockDepositTxs:      newTxMetric(namespace, "unlock_deposit", registerer, &errs),
+		numClaimTxs:              newTxMetric(namespace, "claim", registerer, &errs),
+		numRegisterNodeTxs:       newTxMetric(namespace, "register_node", registerer, &errs),
+		numRewardsImportTxs:      newTxMetric(namespace, "rewards_import", registerer, &errs),
+		numBaseTxs:               newTxMetric(namespace, "base", registerer, &errs),
+		numCaminoAddValidatorTxs: newTxMetric(namespace, "camino_add_validator", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -73,6 +75,10 @@ func (*txMetrics) RewardsImportTx(*txs.RewardsImportTx) error {
 }
 
 func (*txMetrics) BaseTx(*txs.BaseTx) error {
+	return nil
+}
+
+func (*txMetrics) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
 	return nil
 }
 
@@ -110,5 +116,10 @@ func (m *caminoTxMetrics) RewardsImportTx(*txs.RewardsImportTx) error {
 
 func (m *caminoTxMetrics) BaseTx(*txs.BaseTx) error {
 	m.numBaseTxs.Inc()
+	return nil
+}
+
+func (m *caminoTxMetrics) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
+	m.numCaminoAddValidatorTxs.Inc()
 	return nil
 }

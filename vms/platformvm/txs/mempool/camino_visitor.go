@@ -44,6 +44,11 @@ func (i *issuer) BaseTx(*txs.BaseTx) error {
 	return nil
 }
 
+func (i *issuer) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
+	i.m.addDecisionTx(i.tx)
+	return nil
+}
+
 // Remover
 
 func (r *remover) AddressStateTx(*txs.AddressStateTx) error {
@@ -77,6 +82,11 @@ func (r *remover) RewardsImportTx(*txs.RewardsImportTx) error {
 }
 
 func (r *remover) BaseTx(*txs.BaseTx) error {
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
+	return nil
+}
+
+func (r *remover) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
 	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil
 }

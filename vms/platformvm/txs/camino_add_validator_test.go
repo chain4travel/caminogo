@@ -56,13 +56,6 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 			},
 			expectedSpecificErr: avax.ErrWrongNetworkID,
 		},
-		"Too many shares": {
-			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
-				utx.DelegationShares++
-				return utx
-			},
-			expectedSpecificErr: errTooManyShares,
-		},
 		"Weight mismatch": {
 			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
 				utx.Validator.Wght++
@@ -80,13 +73,6 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 			},
 			expectedSpecificErr: errAssetNotAVAX,
 		},
-		"Stake outputs are not empty": {
-			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
-				utx.StakeOuts = append(utx.StakeOuts, generateTestStakeableOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners))
-				return utx
-			},
-			expectedSpecificErr: errStakeOutsNotEmpty,
-		},
 		"Lock owner has no addresses": {
 			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
 				utx.Outs[1].Out.(*locked.Out).TransferableOut.(*secp256k1fx.TransferOutput).Addrs = nil
@@ -99,29 +85,27 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			utx := &CaminoAddValidatorTx{
-				AddValidatorTx: AddValidatorTx{
-					BaseTx: BaseTx{BaseTx: avax.BaseTx{
-						NetworkID:    ctx.NetworkID,
-						BlockchainID: ctx.ChainID,
-						Ins: []*avax.TransferableInput{
-							generateTestIn(ctx.AVAXAssetID, defaultCaminoValidatorWeight*2, ids.Empty, ids.Empty, sigIndices),
-						},
-						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-							generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
-						},
-					}},
-					Validator: validator.Validator{
-						NodeID: nodeID,
-						Start:  uint64(defaultValidateStartTime.Unix()) + 1,
-						End:    uint64(defaultValidateEndTime.Unix()),
-						Wght:   defaultCaminoValidatorWeight,
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    ctx.NetworkID,
+					BlockchainID: ctx.ChainID,
+					Ins: []*avax.TransferableInput{
+						generateTestIn(ctx.AVAXAssetID, defaultCaminoValidatorWeight*2, ids.Empty, ids.Empty, sigIndices),
 					},
-					RewardsOwner: &secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{ids.ShortEmpty},
+					Outs: []*avax.TransferableOutput{
+						generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+						generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
 					},
+				}},
+				Validator: validator.Validator{
+					NodeID: nodeID,
+					Start:  uint64(defaultValidateStartTime.Unix()) + 1,
+					End:    uint64(defaultValidateEndTime.Unix()),
+					Wght:   defaultCaminoValidatorWeight,
+				},
+				RewardsOwner: &secp256k1fx.OutputOwners{
+					Locktime:  0,
+					Threshold: 1,
+					Addrs:     []ids.ShortID{ids.ShortEmpty},
 				},
 				NodeOwnerAuth: &secp256k1fx.Input{},
 			}

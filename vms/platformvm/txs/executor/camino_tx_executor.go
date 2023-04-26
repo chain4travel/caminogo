@@ -104,35 +104,25 @@ func (e *CaminoStandardTxExecutor) verifyNodeSignatureSig(nodeID ids.NodeID, sig
 	return nil
 }
 
-func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error {
+func (e *CaminoStandardTxExecutor) CaminoAddValidatorTx(tx *txs.CaminoAddValidatorTx) error {
 	caminoConfig, err := e.State.CaminoConfig()
 	if err != nil {
 		return err
+	}
+
+	if !caminoConfig.LockModeBondDeposit {
+		return errWrongLockMode
 	}
 
 	if err := locked.VerifyLockMode(tx.Ins, tx.Outs, caminoConfig.LockModeBondDeposit); err != nil {
 		return err
 	}
 
-	// verify avax tx
-
-	caminoAddValidatorTx, isCaminoTx := e.Tx.Unsigned.(*txs.CaminoAddValidatorTx)
-
-	if !caminoConfig.LockModeBondDeposit && !isCaminoTx {
-		return e.StandardTxExecutor.AddValidatorTx(tx)
-	}
-
-	if !caminoConfig.LockModeBondDeposit || !isCaminoTx {
-		return errWrongLockMode
-	}
-
-	// verify camino tx
-
 	if err := e.Tx.SyntacticVerify(e.Backend.Ctx); err != nil {
 		return err
 	}
 
-	// verify that node owned by consortium member
+	// verify node owner
 
 	consortiumMemberAddress, err := e.State.GetShortIDLink(
 		ids.ShortID(tx.NodeID()),
@@ -144,8 +134,8 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 
 	if err := e.Backend.Fx.VerifyMultisigPermission(
 		e.Tx.Unsigned,
-		caminoAddValidatorTx.NodeOwnerAuth,
-		e.Tx.Creds[len(e.Tx.Creds)-1], // consortium member cred
+		tx.NodeOwnerAuth,
+		e.Tx.Creds[len(e.Tx.Creds)-1], // node owner cred
 		&secp256k1fx.OutputOwners{
 			Threshold: 1,
 			Addrs:     []ids.ShortID{consortiumMemberAddress},

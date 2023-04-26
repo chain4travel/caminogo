@@ -37,6 +37,10 @@ func (*StandardTxExecutor) BaseTx(*txs.BaseTx) error {
 	return errWrongTxType
 }
 
+func (*StandardTxExecutor) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
+	return errWrongTxType
+}
+
 // Proposal
 
 func (*ProposalTxExecutor) AddressStateTx(*txs.AddressStateTx) error {
@@ -64,6 +68,10 @@ func (*ProposalTxExecutor) RewardsImportTx(*txs.RewardsImportTx) error {
 }
 
 func (*ProposalTxExecutor) BaseTx(*txs.BaseTx) error {
+	return errWrongTxType
+}
+
+func (*ProposalTxExecutor) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
 	return errWrongTxType
 }
 
@@ -97,6 +105,10 @@ func (*AtomicTxExecutor) BaseTx(*txs.BaseTx) error {
 	return errWrongTxType
 }
 
+func (*AtomicTxExecutor) CaminoAddValidatorTx(*txs.CaminoAddValidatorTx) error {
+	return errWrongTxType
+}
+
 // MemPool
 
 func (v *MempoolTxVerifier) AddressStateTx(tx *txs.AddressStateTx) error {
@@ -124,5 +136,9 @@ func (v *MempoolTxVerifier) RewardsImportTx(tx *txs.RewardsImportTx) error {
 }
 
 func (v *MempoolTxVerifier) BaseTx(tx *txs.BaseTx) error {
+	return v.standardTx(tx)
+}
+
+func (v *MempoolTxVerifier) CaminoAddValidatorTx(tx *txs.CaminoAddValidatorTx) error {
 	return v.standardTx(tx)
 }

@@ -114,42 +114,39 @@ func TestBuildCaminoGenesis(t *testing.T) {
 			expectedGenesis: func(t *testing.T) (*genesis.Genesis, error) {
 				validatorTx := &txs.Tx{
 					Unsigned: &txs.CaminoAddValidatorTx{
-						AddValidatorTx: txs.AddValidatorTx{
-							BaseTx: txs.BaseTx{
-								BaseTx: avax.BaseTx{
-									NetworkID:    0,
-									BlockchainID: ids.Empty,
-									Memo:         []byte{},
-									Ins:          []*avax.TransferableInput{},
-									Outs: []*avax.TransferableOutput{{
-										Asset: avax.Asset{ID: avaxAssetID},
-										Out: &locked.Out{
-											IDs: locked.IDs{
-												DepositTxID: ids.Empty,
-												BondTxID:    locked.ThisTxID,
-											},
-											TransferableOut: &secp256k1fx.TransferOutput{
-												Amt: uint64(weight),
-												OutputOwners: secp256k1fx.OutputOwners{
-													Threshold: 1,
-													Addrs:     []ids.ShortID{addr},
-												},
+						BaseTx: txs.BaseTx{
+							BaseTx: avax.BaseTx{
+								NetworkID:    0,
+								BlockchainID: ids.Empty,
+								Memo:         []byte{},
+								Ins:          []*avax.TransferableInput{},
+								Outs: []*avax.TransferableOutput{{
+									Asset: avax.Asset{ID: avaxAssetID},
+									Out: &locked.Out{
+										IDs: locked.IDs{
+											DepositTxID: ids.Empty,
+											BondTxID:    locked.ThisTxID,
+										},
+										TransferableOut: &secp256k1fx.TransferOutput{
+											Amt: uint64(weight),
+											OutputOwners: secp256k1fx.OutputOwners{
+												Threshold: 1,
+												Addrs:     []ids.ShortID{addr},
 											},
 										},
-									}},
-								},
+									},
+								}},
 							},
-							Validator: validator.Validator{
-								NodeID: nodeID,
-								Start:  0,
-								End:    20,
-								Wght:   uint64(weight),
-							},
-							RewardsOwner: &secp256k1fx.OutputOwners{
-								Threshold: 1,
-								Addrs:     []ids.ShortID{addr},
-							},
-							StakeOuts: []*avax.TransferableOutput{},
+						},
+						Validator: validator.Validator{
+							NodeID: nodeID,
+							Start:  0,
+							End:    20,
+							Wght:   uint64(weight),
+						},
+						RewardsOwner: &secp256k1fx.OutputOwners{
+							Threshold: 1,
+							Addrs:     []ids.ShortID{addr},
 						},
 						NodeOwnerAuth: &secp256k1fx.Input{},
 					},

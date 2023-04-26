@@ -733,24 +733,22 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 			avax.SortTransferableOutputs(tt.outs, txs.Codec)
 
 			utx := &txs.CaminoAddValidatorTx{
-				AddValidatorTx: txs.AddValidatorTx{
-					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-						NetworkID:    env.ctx.NetworkID,
-						BlockchainID: env.ctx.ChainID,
-						Ins:          ins,
-						Outs:         tt.outs,
-					}},
-					Validator: validator.Validator{
-						NodeID: nodeID,
-						Start:  uint64(defaultValidateStartTime.Unix()) + 1,
-						End:    uint64(defaultValidateEndTime.Unix()),
-						Wght:   env.config.MinValidatorStake,
-					},
-					RewardsOwner: &secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{ids.ShortEmpty},
-					},
+				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    env.ctx.NetworkID,
+					BlockchainID: env.ctx.ChainID,
+					Ins:          ins,
+					Outs:         tt.outs,
+				}},
+				Validator: validator.Validator{
+					NodeID: nodeID,
+					Start:  uint64(defaultValidateStartTime.Unix()) + 1,
+					End:    uint64(defaultValidateEndTime.Unix()),
+					Wght:   env.config.MinValidatorStake,
+				},
+				RewardsOwner: &secp256k1fx.OutputOwners{
+					Locktime:  0,
+					Threshold: 1,
+					Addrs:     []ids.ShortID{ids.ShortEmpty},
 				},
 				NodeOwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
 			}
@@ -1537,7 +1535,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		generateUTXOsAfterReward: func(txID ids.ID) []*avax.UTXO {
 			return []*avax.UTXO{
 				generateTestUTXO(txID, env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, stakeOwners, ids.Empty, ids.Empty),
-				generateTestUTXOWithIndex(unlockedUTXOTxID, 2, env.ctx.AVAXAssetID, defaultCaminoBalance, stakeOwners, ids.Empty, ids.Empty, true),
+				generateTestUTXOWithIndex(unlockedUTXOTxID, 1, env.ctx.AVAXAssetID, defaultCaminoBalance, stakeOwners, ids.Empty, ids.Empty, true),
 			}
 		},
 		expectedErr: nil,

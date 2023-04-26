@@ -6,8 +6,6 @@ package txs
 import (
 	"time"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/units"

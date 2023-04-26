@@ -6,25 +6,33 @@ package txs
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 )
 
 var (
-	_ ValidatorTx = (*CaminoAddValidatorTx)(nil)
-
-	errAssetNotAVAX      = errors.New("locked output must be AVAX")
-	errStakeOutsNotEmpty = errors.New("stake outputs must be empty")
+	_               ValidatorTx = (*CaminoAddValidatorTx)(nil)
+	errAssetNotAVAX             = errors.New("locked output must be AVAX")
 )
 
 // CaminoAddValidatorTx is an unsigned caminoAddValidatorTx
 type CaminoAddValidatorTx struct {
-	AddValidatorTx `serialize:"true"`
+	// Metadata, inputs and outputs
+	BaseTx `serialize:"true"`
+	// Describes the delegatee
+	Validator validator.Validator `serialize:"true" json:"validator"`
+	// Where to send staking rewards when done validating
+	RewardsOwner fx.Owner `serialize:"true" json:"rewardsOwner"`
 
 	// Auth that will be used to verify credential for [NodeOwnerAuth].
 	// If node owner address is msig-alias, auth must match real signatures.
@@ -41,6 +49,50 @@ func (tx *CaminoAddValidatorTx) Stake() []*avax.TransferableOutput {
 	return stake
 }
 
+func (*CaminoAddValidatorTx) SubnetID() ids.ID {
+	return constants.PrimaryNetworkID
+}
+
+func (tx *CaminoAddValidatorTx) NodeID() ids.NodeID {
+	return tx.Validator.NodeID
+}
+
+func (*CaminoAddValidatorTx) PublicKey() (*bls.PublicKey, bool, error) {
+	return nil, false, nil
+}
+
+func (tx *CaminoAddValidatorTx) StartTime() time.Time {
+	return tx.Validator.StartTime()
+}
+
+func (tx *CaminoAddValidatorTx) EndTime() time.Time {
+	return tx.Validator.EndTime()
+}
+
+func (tx *CaminoAddValidatorTx) Weight() uint64 {
+	return tx.Validator.Wght
+}
+
+func (*CaminoAddValidatorTx) PendingPriority() Priority {
+	return PrimaryNetworkValidatorPendingPriority
+}
+
+func (*CaminoAddValidatorTx) CurrentPriority() Priority {
+	return PrimaryNetworkValidatorCurrentPriority
+}
+
+func (tx *CaminoAddValidatorTx) ValidationRewardsOwner() fx.Owner {
+	return tx.RewardsOwner
+}
+
+func (tx *CaminoAddValidatorTx) DelegationRewardsOwner() fx.Owner {
+	return tx.RewardsOwner
+}
+
+func (*CaminoAddValidatorTx) Shares() uint32 {
+	return 0
+}
+
 // SyntacticVerify returns nil if [tx] is valid
 func (tx *CaminoAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 	switch {
@@ -48,8 +100,6 @@ func (tx *CaminoAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		return ErrNilTx
 	case tx.SyntacticallyVerified: // already passed syntactic verification
 		return nil
-	case tx.DelegationShares > 0:
-		return errTooManyShares
 	case tx.Validator.NodeID == ids.EmptyNodeID:
 		return errEmptyNodeID
 	}
@@ -78,14 +128,15 @@ func (tx *CaminoAddValidatorTx) SyntacticVerify(ctx *snow.Context) error {
 		}
 	}
 
-	switch {
-	case len(tx.StakeOuts) > 0:
-		return errStakeOutsNotEmpty
-	case totalStakeWeight != tx.Validator.Wght:
+	if totalStakeWeight != tx.Validator.Wght {
 		return fmt.Errorf("%w: weight %d != stake %d", errValidatorWeightMismatch, tx.Validator.Wght, totalStakeWeight)
 	}
 
 	// cache that this is valid
 	tx.SyntacticallyVerified = true
 	return nil
+}
+
+func (tx *CaminoAddValidatorTx) Visit(visitor Visitor) error {
+	return visitor.CaminoAddValidatorTx(tx)
 }

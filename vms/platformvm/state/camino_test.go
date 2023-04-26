@@ -414,11 +414,9 @@ func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.T
 			InitialAdmin:  initialAdmin,
 			Blocks: []*pvm_genesis.Block{{
 				Validators: []*txs.Tx{{Unsigned: &txs.CaminoAddValidatorTx{
-					AddValidatorTx: txs.AddValidatorTx{
-						BaseTx:       txs.BaseTx{},
-						Validator:    validator.Validator{},
-						RewardsOwner: &secp256k1fx.OutputOwners{},
-					},
+					BaseTx:        txs.BaseTx{},
+					Validator:     validator.Validator{},
+					RewardsOwner:  &secp256k1fx.OutputOwners{},
 					NodeOwnerAuth: &secp256k1fx.Input{},
 				}}},
 				Deposits: deposits,

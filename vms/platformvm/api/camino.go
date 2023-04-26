@@ -333,20 +333,18 @@ func makeValidator(
 	}
 
 	tx := &txs.Tx{Unsigned: &txs.CaminoAddValidatorTx{
-		AddValidatorTx: txs.AddValidatorTx{
-			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				NetworkID:    networkID,
-				BlockchainID: ids.Empty,
-				Outs:         bond,
-			}},
-			Validator: validator.Validator{
-				NodeID: vdr.NodeID,
-				Start:  uint64(vdr.StartTime),
-				End:    uint64(vdr.EndTime),
-				Wght:   weight,
-			},
-			RewardsOwner: rewardsOwner,
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    networkID,
+			BlockchainID: ids.Empty,
+			Outs:         bond,
+		}},
+		Validator: validator.Validator{
+			NodeID: vdr.NodeID,
+			Start:  uint64(vdr.StartTime),
+			End:    uint64(vdr.EndTime),
+			Wght:   weight,
 		},
+		RewardsOwner:  rewardsOwner,
 		NodeOwnerAuth: &secp256k1fx.Input{},
 	}}
 	if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
