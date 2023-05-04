@@ -4,8 +4,13 @@
 package p
 
 import (
+	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/crypto/keychain"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 // backend
@@ -69,6 +74,43 @@ func (s *signerVisitor) ClaimTx(tx *txs.ClaimTx) error {
 	if err != nil {
 		return err
 	}
+
+	claimableSignersKC := secp256k1fx.NewKeychain()
+	for _, depositTxID := range tx.DepositTxs {
+		depositRewardOwner, err := s.getDepositRewardsOwner(depositTxID)
+		if err != nil {
+			return err
+		}
+		_, keys, able := kc.Match(depositRewardOwner, uint64(time.Now().Unix())) // ? @evlekht ok time?
+		if !able {
+			return err // TODO @evlekht err
+		}
+
+		for _, key := range keys {
+			claimableSignersKC.Add(key)
+		}
+
+	}
+
+	for _, ownerID := range tx.ClaimableOwnerIDs {
+		// TODO @evlekht we need to extend backend state to fetch and store claimables
+		// ! @evlelkth or store owners, not ownerIDs in tx !
+		claimable, err := s.backend.GetClaimable(ownerID)
+		if err != nil {
+			return nil, err
+		}
+
+		_, keys, able := kc.Match(claimable.Owner, uint64(time.Now().Unix())) // ? @evlekht ok time?
+		if !able {
+			return err // TODO @evlekht err
+		}
+
+		for _, key := range keys {
+			claimableSignersKC.Add(key)
+		}
+	}
+
+	// TODO@ get deposits and claimables signers
 	return sign(s.tx, txSigners)
 }
 
@@ -77,6 +119,28 @@ func (s *signerVisitor) RegisterNodeTx(tx *txs.RegisterNodeTx) error {
 	if err != nil {
 		return err
 	}
+
+	nodeSigners := []keychain.Signer{}
+	if tx.NewNodeID != ids.EmptyNodeID {
+		nodeKey, found := s.kc.Get(ids.ShortID(tx.NewNodeID))
+		if !found {
+			return err // TODO @evlekht err
+		}
+		nodeSigners = []keychain.Signer{nodeKey}
+	}
+	txSigners = append(txSigners, nodeSigners)
+
+	// TODO @evlekht we need to extend backend state to fetch and store msig owners
+	owner, err := s.backend.GetOwner(tx.ConsortiumMemberAddress)
+	if err != nil {
+		return err
+	}
+	consortiuMemberSigners, err := s.getOwnerSigners(owner, tx.ConsortiumMemberAuth)
+	if err != nil {
+		return err
+	}
+
+	txSigners = append(txSigners, consortiuMemberSigners)
 	return sign(s.tx, txSigners)
 }
 
@@ -90,4 +154,42 @@ func (s *signerVisitor) BaseTx(tx *txs.BaseTx) error {
 		return err
 	}
 	return sign(s.tx, txSigners)
+}
+
+
+func (s *signerVisitor) getOwnerSigners(owner *secp256k1fx.OutputOwners, authInput *secp256k1fx.Input) ([]keychain.Signer, error) {
+	authSigners := make([]keychain.Signer, len(authInput.SigIndices))
+	for sigIndex, addrIndex := range authInput.SigIndices {
+		if addrIndex >= uint32(len(owner.Addrs)) {
+			return nil, errInvalidUTXOSigIndex
+		}
+
+		addr := owner.Addrs[addrIndex]
+		key, ok := s.kc.Get(addr)
+		if !ok {
+			// If we don't have access to the key, then we can't sign this
+			// transaction. However, we can attempt to partially sign it.
+			continue
+		}
+		authSigners[sigIndex] = key
+	}
+	return authSigners, nil
+}
+
+func (s *signerVisitor) getDepositRewardsOwner(depositTxID ids.ID) (*secp256k1fx.OutputOwners, error) {
+	signedDepositTx, err := s.backend.GetTx(s.ctx, depositTxID)
+	if err != nil {
+		return nil, err
+	}
+	depositTx, ok := signedDepositTx.Unsigned.(*txs.DepositTx)
+	if !ok {
+		return nil, errWrongTxType
+	}
+
+	depositRewardsOwner, ok := depositTx.RewardsOwner.(*secp256k1fx.OutputOwners)
+	if !ok {
+		return nil, err // TODO@ errNotSECPOwner
+	}
+
+	return depositRewardsOwner, nil
 }
