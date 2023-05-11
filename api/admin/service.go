@@ -49,8 +49,9 @@ const (
 )
 
 var (
-	errAliasTooLong = errors.New("alias length is too long")
-	errNoLogLevel   = errors.New("need to specify either displayLevel or logLevel")
+	errAliasTooLong         = errors.New("alias length is too long")
+	errNoLogLevel           = errors.New("need to specify either displayLevel or logLevel")
+	errUnrecognizedHostName = errors.New("unrecognized hostname")
 )
 
 type Config struct {
@@ -62,6 +63,7 @@ type Config struct {
 	HTTPServer   server.PathAdderWithReadLock
 	VMRegistry   registry.VMRegistry
 	VMManager    vms.Manager
+	HTTPHost     string
 }
 
 // Admin is the API service for node admin management
@@ -83,7 +85,20 @@ func NewService(config Config) (*common.HTTPHandler, error) {
 	}, "admin"); err != nil {
 		return nil, err
 	}
+
+	// Check if the given hostname matches the configured host via CLI
+	newServer.RegisterValidateRequestFunc(BlockRequestsWithNonMatchingHostnames(config.HTTPHost))
+
 	return &common.HTTPHandler{Handler: newServer}, nil
+}
+
+func BlockRequestsWithNonMatchingHostnames(hostName string) func(r *rpc.RequestInfo, _i interface{}) error {
+	return func(r *rpc.RequestInfo, _i interface{}) error {
+		if r.Request.Host != hostName {
+			return errUnrecognizedHostName
+		}
+		return nil
+	}
 }
 
 // StartCPUProfiler starts a cpu profile writing to the specified file
