@@ -71,6 +71,30 @@ func TestCaminoBuilderTxAddressState(t *testing.T) {
 			address:     caminoPreFundedKeys[0].PublicKey().Address(),
 			expectedErr: nil,
 		},
+		"KYC Verified: Add": {
+			remove:      false,
+			state:       txs.AddressStateKycVerified,
+			address:     caminoPreFundedKeys[0].PublicKey().Address(),
+			expectedErr: nil,
+		},
+		"KYC Verified: Remove": {
+			remove:      true,
+			state:       txs.AddressStateKycVerified,
+			address:     caminoPreFundedKeys[0].PublicKey().Address(),
+			expectedErr: nil,
+		},
+		"KYB Verified: Add": {
+			remove:      false,
+			state:       txs.AddressStateKybVerified,
+			address:     caminoPreFundedKeys[0].PublicKey().Address(),
+			expectedErr: nil,
+		},
+		"KYB Verified: Remove": {
+			remove:      true,
+			state:       txs.AddressStateKybVerified,
+			address:     caminoPreFundedKeys[0].PublicKey().Address(),
+			expectedErr: nil,
+		},
 		"Admin Role: Add": {
 			remove:      false,
 			state:       txs.AddressStateRoleAdmin,
