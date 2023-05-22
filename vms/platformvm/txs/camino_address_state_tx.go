@@ -19,13 +19,13 @@ const (
 	AddressStateRoleKycBit   = uint64(0b10)
 	AddressStateRoleBits     = uint64(0b11)
 
+	AddressStateKybVerified    = uint8(31)
+	AddressStateKybVerifiedBit = uint64(0b0010000000000000000000000000000000)
 	AddressStateKycVerified    = uint8(32)
-	AddressStateKycVerifiedBit = uint64(0b00100000000000000000000000000000000)
+	AddressStateKycVerifiedBit = uint64(0b0100000000000000000000000000000000)
 	AddressStateKycExpired     = uint8(33)
-	AddressStateKycExpiredBit  = uint64(0b01000000000000000000000000000000000)
-	AddressStateKybVerified    = uint8(34)
-	AddressStateKybVerifiedBit = uint64(0b10000000000000000000000000000000000)
-	AddressStateKycBits        = uint64(0b11100000000000000000000000000000000)
+	AddressStateKycExpiredBit  = uint64(0b1000000000000000000000000000000000)
+	AddressStateKycBits        = uint64(0b11111111000000000000000000000000000)
 
 	AddressStateConsortium      = uint8(38)
 	AddressStateConsortiumBit   = uint64(0b0100000000000000000000000000000000000000)
