@@ -90,7 +90,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 			Memo:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
 		}},
 		Address: preFundedKeys[0].PublicKey().Address(),
-		State:   AddressStateRoleAdmin,
+		State:   AddressStateBitRoleAdmin,
 		Remove:  false,
 	}
 
@@ -104,7 +104,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 			Memo:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
 		}},
 		Address: preFundedKeys[0].PublicKey().Address(),
-		State:   AddressStateRoleAdmin,
+		State:   AddressStateBitRoleAdmin,
 		Remove:  false,
 	}
 
@@ -118,7 +118,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 			Memo:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
 		}},
 		Address: preFundedKeys[0].PublicKey().Address(),
-		State:   AddressStateRoleAdmin,
+		State:   AddressStateBitRoleAdmin,
 		Remove:  false,
 	}
 
@@ -143,7 +143,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 	require.NoError(err)
 	err = stx.SyntacticVerify(ctx)
 	require.Error(err, ErrInvalidState)
-	addressStateTx.State = AddressStateRoleAdmin
+	addressStateTx.State = AddressStateBitRoleAdmin
 
 	// Locked out
 	stx, err = NewSigned(addressStateTxLocked, Codec, signers)
