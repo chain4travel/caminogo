@@ -5,9 +5,9 @@ package state
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
-
 	"github.com/ava-labs/avalanchego/database/linkeddb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -99,6 +99,26 @@ func writeDeferredDiff(
 	}
 	if err != nil {
 		return fmt.Errorf("failed to update deferred validator: %w", err)
+	}
+	return nil
+}
+
+func (cs *caminoState) SetValidatorUptime(subnetID ids.ID, nodeID ids.NodeID, uptime time.Duration) {
+	if cs.modifiedUptimes[nodeID] == nil {
+		cs.modifiedUptimes[nodeID] = make(map[ids.ID]time.Duration)
+	}
+	cs.modifiedUptimes[nodeID][subnetID] = uptime
+}
+
+func (cs *caminoState) writeValidatorUptimes() error {
+	for nodeID, uptimes := range cs.modifiedUptimes {
+		for subnetID, uptime := range uptimes {
+			err := cs.state.SetUptime(nodeID, subnetID, uptime, time.Now())
+			if err != nil {
+				return err
+			}
+			delete(cs.modifiedUptimes[nodeID], subnetID)
+		}
 	}
 	return nil
 }

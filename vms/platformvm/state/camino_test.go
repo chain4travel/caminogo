@@ -8,24 +8,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database/prefixdb"
-	"github.com/ava-labs/avalanchego/database/versiondb"
-	root_genesis "github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
-	pvm_genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
-	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	db_manager "github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/cache"
+	"github.com/ava-labs/avalanchego/cache/metercacher"
+	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/prefixdb"
+	"github.com/ava-labs/avalanchego/database/versiondb"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	root_genesis "github.com/ava-labs/avalanchego/genesis"
+	pvm_genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 )
 
 const (
@@ -167,10 +169,9 @@ func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	s, _ := newInitializedState(require)
-	baseDBManager := db_manager.NewMemDB(version.Semantic1_0_0)
+	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
 	baseDB := versiondb.New(baseDBManager.Current().Database)
-	validatorsDB := prefixdb.New(validatorsPrefix, baseDB)
+	s, _ := newInitializedState(require)
 
 	var (
 		id           = ids.GenerateTestID()
@@ -232,6 +233,20 @@ func TestSyncGenesis(t *testing.T) {
 
 	depositTxs := []*txs.Tx{depositTx1, depositTx2}
 
+	prometheusRegistry := prometheus.NewRegistry()
+	addressStateCache, err := metercacher.New[ids.ShortID, uint64](
+		"address_state_cache",
+		prometheusRegistry,
+		&cache.LRU[ids.ShortID, uint64]{Size: addressStateCacheSize},
+	)
+	require.NoError(err)
+	depositsCache, err := metercacher.New[ids.ID, *deposit.Deposit](
+		"deposits_cache",
+		prometheusRegistry,
+		&cache.LRU[ids.ID, *deposit.Deposit]{Size: depositsCacheSize},
+	)
+	require.NoError(err)
+
 	type args struct {
 		s *state
 		g *pvm_genesis.State
@@ -256,7 +271,16 @@ func TestSyncGenesis(t *testing.T) {
 					},
 				}, depositTxs, initialAdmin),
 			},
-			cs: *wrappers.IgnoreError(newCaminoState(baseDB, validatorsDB, prometheus.NewRegistry())).(*caminoState),
+			cs: caminoState{
+				depositsDB: prefixdb.New(depositsPrefix, baseDB),
+				caminoDiff: &caminoDiff{
+					modifiedAddressStates: map[ids.ShortID]uint64{},
+					modifiedDepositOffers: map[ids.ID]*deposit.Offer{},
+					modifiedDeposits:      map[ids.ID]*depositDiff{},
+				},
+				addressStateCache: addressStateCache,
+				depositsCache:     depositsCache,
+			},
 			want: caminoDiff{
 				modifiedAddressStates: map[ids.ShortID]uint64{initialAdmin: txs.AddressStateRoleAdminBit, shortID: txs.AddressStateRoleKycBit},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{

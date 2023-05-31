@@ -1456,6 +1456,7 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 			}
 			e.State.DeleteDeferredValidator(stakerToReactivate)
 			e.State.PutCurrentValidator(stakerToReactivate)
+			e.State.SetValidatorUptime(constants.PrimaryNetworkID, nodeID, e.Clk.Time().Sub(stakerToReactivate.StartTime))
 		} else {
 			// transfer staker to from current to deferred stakers set
 			stakerToDefer, err := e.State.GetCurrentValidator(constants.PrimaryNetworkID, nodeID)

@@ -115,6 +115,10 @@ type CaminoDiff interface {
 	PutDeferredValidator(staker *Staker)
 	DeleteDeferredValidator(staker *Staker)
 	GetDeferredStakerIterator() (StakerIterator, error)
+
+	// Validators uptime
+
+	SetValidatorUptime(subnetID ids.ID, node ids.NodeID, uptime time.Duration)
 }
 
 // For state and diff
@@ -151,10 +155,13 @@ type caminoDiff struct {
 	modifiedShortLinks                    map[ids.ID]*ids.ShortID
 	modifiedClaimables                    map[ids.ID]*Claimable
 	modifiedNotDistributedValidatorReward *uint64
+	modifiedUptimes                       map[ids.NodeID]map[ids.ID]time.Duration
 }
 
 type caminoState struct {
 	*caminoDiff
+
+	state *state
 
 	caminoDB            database.Database
 	genesisSynced       bool
@@ -203,10 +210,11 @@ func newCaminoDiff() *caminoDiff {
 		modifiedMultisigAliases: make(map[ids.ShortID]*multisig.AliasWithNonce),
 		modifiedShortLinks:      make(map[ids.ID]*ids.ShortID),
 		modifiedClaimables:      make(map[ids.ID]*Claimable),
+		modifiedUptimes:         make(map[ids.NodeID]map[ids.ID]time.Duration),
 	}
 }
 
-func newCaminoState(baseDB, validatorsDB database.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
+func newCaminoState(state *state, baseDB, validatorsDB database.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
 	addressStateCache, err := metercacher.New[ids.ShortID, uint64](
 		"address_state_cache",
 		metricsReg,
@@ -255,6 +263,8 @@ func newCaminoState(baseDB, validatorsDB database.Database, metricsReg prometheu
 	deferredValidatorsDB := prefixdb.New(deferredPrefix, validatorsDB)
 
 	return &caminoState{
+		state: state,
+
 		// Address State
 		addressStateDB:    prefixdb.New(addressStatePrefix, baseDB),
 		addressStateCache: addressStateCache,
@@ -515,6 +525,7 @@ func (cs *caminoState) Write() error {
 		cs.writeShortLinks(),
 		cs.writeClaimableAndValidatorRewards(),
 		cs.writeDeferredStakers(),
+		cs.writeValidatorUptimes(),
 	)
 	return errs.Err
 }

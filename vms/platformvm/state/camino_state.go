@@ -16,6 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 )
 
+func (s *state) CaminoState() (CaminoState, error) {
+	return s.caminoState, nil
+}
+
 func (s *state) LockedUTXOs(txIDs set.Set[ids.ID], addresses set.Set[ids.ShortID], lockState locked.State) ([]*avax.UTXO, error) {
 	retUtxos := []*avax.UTXO{}
 	for address := range addresses {
@@ -138,4 +142,8 @@ func (s *state) DeleteDeferredValidator(staker *Staker) {
 
 func (s *state) GetDeferredStakerIterator() (StakerIterator, error) {
 	return s.caminoState.GetDeferredStakerIterator()
+}
+
+func (s *state) SetValidatorUptime(subnetID ids.ID, nodeID ids.NodeID, uptime time.Duration) {
+	s.caminoState.SetValidatorUptime(subnetID, nodeID, uptime)
 }

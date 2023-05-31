@@ -389,6 +389,13 @@ func (d *diff) GetDeferredStakerIterator() (StakerIterator, error) {
 	return d.caminoDiff.deferredStakerDiffs.GetStakerIterator(parentIterator), nil
 }
 
+func (d *diff) SetValidatorUptime(subnetID ids.ID, nodeID ids.NodeID, uptime time.Duration) {
+	if d.caminoDiff.modifiedUptimes[nodeID] == nil {
+		d.caminoDiff.modifiedUptimes[nodeID] = make(map[ids.ID]time.Duration)
+	}
+	d.caminoDiff.modifiedUptimes[nodeID][subnetID] = uptime
+}
+
 // Finally apply all changes
 func (d *diff) ApplyCaminoState(baseState State) {
 	if d.caminoDiff.modifiedNotDistributedValidatorReward != nil {
@@ -435,6 +442,12 @@ func (d *diff) ApplyCaminoState(baseState State) {
 			case deleted:
 				baseState.DeleteDeferredValidator(validatorDiff.validator)
 			}
+		}
+	}
+
+	for nodeID, subnetMap := range d.caminoDiff.modifiedUptimes {
+		for subnetID, uptime := range subnetMap {
+			baseState.SetValidatorUptime(subnetID, nodeID, uptime)
 		}
 	}
 }

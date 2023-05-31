@@ -498,12 +498,7 @@ func new(
 		return nil, err
 	}
 
-	caminoState, err := newCaminoState(baseDB, validatorsDB, metricsReg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &state{
+	state := state{
 		validatorUptimes: newValidatorUptimes(),
 
 		cfg:          cfg,
@@ -519,8 +514,6 @@ func new(
 
 		currentStakers: newBaseStakers(),
 		pendingStakers: newBaseStakers(),
-
-		caminoState: caminoState,
 
 		validatorsDB:                 validatorsDB,
 		currentValidatorsDB:          currentValidatorsDB,
@@ -575,7 +568,15 @@ func new(
 		chainDBCache: chainDBCache,
 
 		singletonDB: prefixdb.New(singletonPrefix, baseDB),
-	}, nil
+	}
+
+	caminoState, err := newCaminoState(&state, baseDB, validatorsDB, metricsReg)
+	if err != nil {
+		return nil, err
+	}
+	state.caminoState = caminoState
+
+	return &state, nil
 }
 
 func (s *state) GetCurrentValidator(subnetID ids.ID, nodeID ids.NodeID) (*Staker, error) {

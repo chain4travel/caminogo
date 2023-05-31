@@ -1049,3 +1049,30 @@ func (mr *MockStateMockRecorder) RemoveDeposit(arg0, arg1 interface{}) *gomock.C
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveDeposit", reflect.TypeOf((*MockState)(nil).RemoveDeposit), arg0, arg1)
 }
+
+// SetValidatorUptime mocks base method.
+func (m *MockState) SetValidatorUptime(arg0 ids.ID, arg1 ids.NodeID, arg2 time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetValidatorUptime", arg0, arg1, arg2)
+}
+
+// SetValidatorUptime indicates an expected call of SetValidatorUptime.
+func (mr *MockStateMockRecorder) SetValidatorUptime(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValidatorUptime", reflect.TypeOf((*MockDiff)(nil).SetValidatorUptime), arg0, arg1, arg2)
+}
+
+// CaminoState mocks base method.
+func (m *MockState) CaminoState() (CaminoState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CaminoState")
+	ret0, _ := ret[0].(CaminoState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CaminoState indicates an expected call of CaminoState.
+func (mr *MockStateMockRecorder) CaminoState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CaminoState", reflect.TypeOf((*MockChain)(nil).CaminoState))
+}
