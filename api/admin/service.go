@@ -15,12 +15,16 @@ package admin
 
 import (
 	"crypto/rsa"
-	"errors"
 	"net/http"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/gorilla/rpc/v2"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/api/server"
@@ -87,17 +91,41 @@ func NewService(config Config) (*common.HTTPHandler, error) {
 	}
 
 	// Check if the given hostname matches the configured host via CLI
-	newServer.RegisterValidateRequestFunc(BlockRequestsWithNonMatchingHostnames(config.HTTPHost))
+
+	mw, err := BlockRequestsWithNonMatchingHostnames(config.HTTPHost)
+	if err != nil {
+		return nil, err
+	}
+
+	newServer.RegisterValidateRequestFunc(mw)
 
 	return &common.HTTPHandler{Handler: newServer}, nil
 }
 
-func BlockRequestsWithNonMatchingHostnames(hostName string) func(r *rpc.RequestInfo, _i interface{}) error {
-	return func(r *rpc.RequestInfo, _i interface{}) error {
-		if r.Request.Host != hostName {
-			return errUnrecognizedHostName
+func BlockRequestsWithNonMatchingHostnames(hostName string) (func(r *rpc.RequestInfo, _i interface{}) error, error) {
+	host := strings.Split(hostName, ":")
+	if len(host) == 1 {
+		return func(r *rpc.RequestInfo, _i interface{}) error {
+			requestHostName := strings.Split(r.Request.Host, ":")
+			if requestHostName[0] != host[0] {
+				return errUnrecognizedHostName
+			}
+			return nil
+		}, nil
+	} else if len(host) == 2 {
+		_, err := strconv.ParseUint(host[1], 10, 16)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid port")
 		}
-		return nil
+		return func(r *rpc.RequestInfo, _i interface{}) error {
+			requestHostName := strings.Split(r.Request.Host, ":")
+			if !slices.Equal(requestHostName, host) {
+				return errUnrecognizedHostName
+			}
+			return nil
+		}, nil
+	} else {
+		return nil, errors.New("invalid hostname")
 	}
 }
 

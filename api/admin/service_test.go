@@ -126,7 +126,8 @@ func TestLoadVMsGetAliasesFails(t *testing.T) {
 
 func TestBlockRequestsWithNonMatchingHostnamesWrongHostname(t *testing.T) {
 	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "something-else.com"}}
-	f := BlockRequestsWithNonMatchingHostnames("test.com")
+	f, fErr := BlockRequestsWithNonMatchingHostnames("test.com")
+	require.NoError(t, fErr)
 
 	err := f(&rpcReq, nil)
 
@@ -135,10 +136,50 @@ func TestBlockRequestsWithNonMatchingHostnamesWrongHostname(t *testing.T) {
 }
 
 func TestBlockRequestsWithNonMatchingHostnamesCorrectHostname(t *testing.T) {
-	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "test.com"}}
-	f := BlockRequestsWithNonMatchingHostnames("test.com")
+	f, fErr := BlockRequestsWithNonMatchingHostnames("test.com")
+	require.NoError(t, fErr)
 
+	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "test.com"}}
 	err := f(&rpcReq, nil)
 
 	require.Nil(t, err, "result error was not nil, expected matching Hostnames to not raise erros")
+
+	rpcReq2 := rpc.RequestInfo{Request: &http.Request{Host: "test.com:443"}}
+	err = f(&rpcReq2, nil)
+
+	require.Nil(t, err, "result error was not nil, expected matching Hostnames to not raise erros")
+}
+
+func TestBlockRequestsWithNonMatchingHostnamesCorrectHostnameWithInvalidPort(t *testing.T) {
+	invalidPorts := []string{"-1", "-100", "9999999", "65536", "--1", "kekw", "one"}
+
+	for _, port := range invalidPorts {
+		f, fErr := BlockRequestsWithNonMatchingHostnames("test.com:" + port)
+		require.Error(t, fErr)
+		require.Nil(t, f)
+		require.ErrorContains(t, fErr, "invalid port")
+	}
+}
+
+func TestBlockRequestsWithNonMatchingHostnamesCorrectHostnameWithPort(t *testing.T) {
+	f, fErr := BlockRequestsWithNonMatchingHostnames("test.com:5555")
+	require.NoError(t, fErr)
+
+	rpcReq := rpc.RequestInfo{Request: &http.Request{Host: "test.com:5555"}}
+	err := f(&rpcReq, nil)
+
+	require.Nil(t, err, "result error was not nil, expected matching Hostnames to not raise erros")
+
+	rpcReq2 := rpc.RequestInfo{Request: &http.Request{Host: "test.com"}}
+	err = f(&rpcReq2, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "unrecognized hostname")
+}
+
+func TestBlockRequestsWithWrongHostname(t *testing.T) {
+	f, fErr := BlockRequestsWithNonMatchingHostnames("test.com:5555:5555")
+	require.Error(t, fErr)
+	require.Nil(t, f)
+	require.ErrorContains(t, fErr, "invalid hostname")
 }
