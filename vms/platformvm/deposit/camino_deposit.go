@@ -14,14 +14,17 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/types"
 )
+
+type OfferFlag uint64
 
 const (
 	interestRateBase        = 365 * 24 * 60 * 60
 	interestRateDenominator = 1_000_000 * interestRateBase
 
-	OfferFlagLocked uint64 = 0b1
+	OfferFlagLocked OfferFlag = 0b1
 )
 
 var bigInterestRateDenominator = (&big.Int{}).SetInt64(interestRateDenominator)
@@ -40,7 +43,7 @@ type Offer struct {
 	UnlockPeriodDuration    uint32              `serialize:"true" json:"unlockPeriodDuration"`    // Duration of period during which tokens deposited with this offer will be unlocked. The unlock period starts at the end of deposit minus unlockPeriodDuration
 	NoRewardsPeriodDuration uint32              `serialize:"true" json:"noRewardsPeriodDuration"` // Duration of period during which rewards won't be accumulated. No rewards period starts at the end of deposit minus unlockPeriodDuration
 	Memo                    types.JSONByteSlice `serialize:"true" json:"memo"`                    // Arbitrary offer memo
-	Flags                   uint64              `serialize:"true" json:"flags"`                   // Bitfield with flags
+	Flags                   OfferFlag           `serialize:"true" json:"flags"`                   // Bitfield with flags
 }
 
 // Sets offer id from its bytes hash
@@ -112,12 +115,13 @@ func (o *Offer) Verify() error {
 }
 
 type Deposit struct {
-	DepositOfferID      ids.ID `serialize:"true"` // ID of deposit offer that was used to create this deposit
-	UnlockedAmount      uint64 `serialize:"true"` // How many tokens have already been unlocked from this deposit
-	ClaimedRewardAmount uint64 `serialize:"true"` // How many reward tokens have already been claimed for this deposit
-	Start               uint64 `serialize:"true"` // Timestamp of time, when this deposit was created
-	Duration            uint32 `serialize:"true"` // Duration of this deposit in seconds
-	Amount              uint64 `serialize:"true"` // How many tokens were locked with this deposit
+	DepositOfferID      ids.ID   `serialize:"true"` // ID of deposit offer that was used to create this deposit
+	UnlockedAmount      uint64   `serialize:"true"` // How many tokens have already been unlocked from this deposit
+	ClaimedRewardAmount uint64   `serialize:"true"` // How many reward tokens have already been claimed for this deposit
+	Start               uint64   `serialize:"true"` // Timestamp of time, when this deposit was created
+	Duration            uint32   `serialize:"true"` // Duration of this deposit in seconds
+	Amount              uint64   `serialize:"true"` // How many tokens were locked with this deposit
+	RewardOwner         fx.Owner `serialize:"true"` // The owner who has right to claim rewards for this deposit
 }
 
 func (deposit *Deposit) StartTime() time.Time {

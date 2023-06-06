@@ -9,7 +9,7 @@ import (
 	_ "embed"
 
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
+	"github.com/ava-labs/avalanchego/vms/platformvm/caminoconfig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 )
 
@@ -29,17 +29,17 @@ var (
 			UptimeRequirement: .8, // 80%
 			MinValidatorStake: 100 * units.KiloAvax,
 			MaxValidatorStake: 100 * units.KiloAvax,
-			MinDelegatorStake: 25 * units.Avax,
-			MinDelegationFee:  20000, // 2%
+			MinDelegatorStake: 0,
+			MinDelegationFee:  0,
 			MinStakeDuration:  24 * time.Hour,
 			MaxStakeDuration:  365 * 24 * time.Hour,
 			RewardConfig: reward.Config{
-				MaxConsumptionRate: .12 * reward.PercentDenominator,
-				MinConsumptionRate: .10 * reward.PercentDenominator,
+				MaxConsumptionRate: 0,
+				MinConsumptionRate: 0,
 				MintingPeriod:      365 * 24 * time.Hour,
 				SupplyCap:          1000 * units.MegaAvax,
 			},
-			CaminoConfig: config.CaminoConfig{
+			CaminoConfig: caminoconfig.Config{
 				DaoProposalBondAmount: 100 * units.Avax,
 			},
 		},

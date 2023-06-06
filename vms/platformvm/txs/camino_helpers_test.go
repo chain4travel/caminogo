@@ -6,10 +6,11 @@ package txs
 import (
 	"time"
 
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -23,7 +24,7 @@ const (
 )
 
 var (
-	caminoPreFundedKeys      = crypto.BuildTestKeys()
+	caminoPreFundedKeys      = secp256k1.TestKeys()
 	defaultGenesisTime       = time.Date(1997, 1, 1, 0, 0, 0, 0, time.UTC)
 	defaultValidateStartTime = defaultGenesisTime
 	defaultValidateEndTime   = defaultValidateStartTime.Add(10 * defaultMinStakingDuration)
@@ -62,6 +63,21 @@ func generateTestStakeableOut(assetID ids.ID, amount, locktime uint64, outputOwn
 	}
 }
 
+func generateTestStakeableIn(assetID ids.ID, amount, locktime uint64, sigIndices []uint32) *avax.TransferableInput { //nolint:unparam
+	return &avax.TransferableInput{
+		Asset: avax.Asset{ID: assetID},
+		In: &stakeable.LockIn{
+			Locktime: locktime,
+			TransferableIn: &secp256k1fx.TransferInput{
+				Amt: amount,
+				Input: secp256k1fx.Input{
+					SigIndices: sigIndices,
+				},
+			},
+		},
+	}
+}
+
 func generateTestIn(assetID ids.ID, amount uint64, depositTxID, bondTxID ids.ID, sigIndices []uint32) *avax.TransferableInput {
 	var in avax.TransferableIn = &secp256k1fx.TransferInput{
 		Amt: amount,
@@ -83,4 +99,12 @@ func generateTestIn(assetID ids.ID, amount uint64, depositTxID, bondTxID ids.ID,
 		Asset:  avax.Asset{ID: assetID},
 		In:     in,
 	}
+}
+
+func defaultContext() *snow.Context {
+	ctx := snow.DefaultContextTest()
+	ctx.AVAXAssetID = ids.ID{'C', 'A', 'M'}
+	ctx.NetworkID = 5
+	ctx.ChainID = ids.ID{'T', 'E', 'S', 'T'}
+	return ctx
 }

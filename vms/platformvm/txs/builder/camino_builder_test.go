@@ -13,12 +13,11 @@ import (
 	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
-	"github.com/ava-labs/avalanchego/vms/platformvm/status"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -56,37 +55,37 @@ func TestCaminoBuilderTxAddressState(t *testing.T) {
 
 	tests := map[string]struct {
 		remove      bool
-		state       uint8
+		state       txs.AddressStateBit
 		address     ids.ShortID
 		expectedErr error
 	}{
 		"KYC Role: Add": {
 			remove:      false,
-			state:       txs.AddressStateRoleKyc,
+			state:       txs.AddressStateBitRoleKYC,
 			address:     caminoPreFundedKeys[0].PublicKey().Address(),
 			expectedErr: nil,
 		},
 		"KYC Role: Remove": {
 			remove:      true,
-			state:       txs.AddressStateRoleKyc,
+			state:       txs.AddressStateBitRoleKYC,
 			address:     caminoPreFundedKeys[0].PublicKey().Address(),
 			expectedErr: nil,
 		},
 		"Admin Role: Add": {
 			remove:      false,
-			state:       txs.AddressStateRoleAdmin,
+			state:       txs.AddressStateBitRoleAdmin,
 			address:     caminoPreFundedKeys[0].PublicKey().Address(),
 			expectedErr: nil,
 		},
 		"Admin Role: Remove": {
 			remove:      true,
-			state:       txs.AddressStateRoleAdmin,
+			state:       txs.AddressStateBitRoleAdmin,
 			address:     caminoPreFundedKeys[0].PublicKey().Address(),
 			expectedErr: nil,
 		},
 		"Empty Address": {
 			remove:      false,
-			state:       txs.AddressStateRoleKyc,
+			state:       txs.AddressStateBitRoleKYC,
 			address:     ids.ShortEmpty,
 			expectedErr: txs.ErrEmptyAddress,
 		},
@@ -113,7 +112,7 @@ func TestCaminoBuilderNewAddSubnetValidatorTxNodeSig(t *testing.T) {
 	tests := map[string]struct {
 		caminoConfig api.Camino
 		nodeID       ids.NodeID
-		nodeKey      *crypto.PrivateKeySECP256K1R
+		nodeKey      *secp256k1.PrivateKey
 		expectedErr  error
 	}{
 		"Happy path, LockModeBondDeposit false, VerifyNodeSignature true": {
@@ -162,7 +161,7 @@ func TestCaminoBuilderNewAddSubnetValidatorTxNodeSig(t *testing.T) {
 				uint64(defaultValidateEndTime.Unix()),
 				tt.nodeID,
 				testSubnet1.ID(),
-				[]*crypto.PrivateKeySECP256K1R{testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], tt.nodeKey},
+				[]*secp256k1.PrivateKey{testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], tt.nodeKey},
 				ids.ShortEmpty,
 			)
 			require.ErrorIs(t, err, tt.expectedErr)
@@ -196,9 +195,10 @@ func TestUnlockDepositTx(t *testing.T) {
 	depositStartTime := time.Now()
 	depositExpiredTime := depositStartTime.Add(100 * time.Second)
 	deposit := &deposits.Deposit{
-		Duration: 60,
-		Amount:   defaultCaminoValidatorWeight,
-		Start:    uint64(depositStartTime.Unix()),
+		Duration:    60,
+		Amount:      defaultCaminoValidatorWeight,
+		Start:       uint64(depositStartTime.Unix()),
+		RewardOwner: &outputOwners,
 	}
 
 	tests := map[string]struct {
@@ -253,7 +253,7 @@ func TestUnlockDepositTx(t *testing.T) {
 
 			tx, err := env.txBuilder.NewUnlockDepositTx(
 				[]ids.ID{depositTxID},
-				[]*crypto.PrivateKeySECP256K1R{testKey.(*crypto.PrivateKeySECP256K1R)},
+				[]*secp256k1.PrivateKey{testKey},
 				nil,
 			)
 			require.ErrorIs(t, err, tt.expectedErr)
@@ -286,31 +286,33 @@ func TestNewClaimTx(t *testing.T) {
 
 	feeUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, feeUTXOOwner, ids.Empty, ids.Empty)
 
-	baseTx := txs.BaseTx{
-		BaseTx: avax.BaseTx{
-			NetworkID:    ctx.NetworkID,
-			BlockchainID: ctx.ChainID,
-			Ins: []*avax.TransferableInput{{
-				UTXOID: feeUTXO.UTXOID,
-				Asset:  feeUTXO.Asset,
-				In: &secp256k1fx.TransferInput{
-					Amt:   defaultTxFee,
-					Input: secp256k1fx.Input{SigIndices: []uint32{0}},
-				},
-			}},
-			Outs: []*avax.TransferableOutput{},
-		},
-		SyntacticallyVerified: true,
+	baseTxWithFeeInput := func(outs []*avax.TransferableOutput) *txs.BaseTx {
+		return &txs.BaseTx{
+			BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
+				Ins: []*avax.TransferableInput{{
+					UTXOID: avax.UTXOID{
+						TxID:        feeUTXO.TxID,
+						OutputIndex: feeUTXO.OutputIndex,
+					},
+					Asset: feeUTXO.Asset,
+					In: &secp256k1fx.TransferInput{
+						Amt:   defaultTxFee,
+						Input: secp256k1fx.Input{SigIndices: []uint32{0}},
+					},
+				}},
+				Outs: outs,
+			},
+			SyntacticallyVerified: true,
+		}
 	}
 
 	type args struct {
-		depositTxIDs      []ids.ID
-		claimableOwnerIDs []ids.ID
-		amountToClaim     []uint64
-		claimType         txs.ClaimType
-		claimTo           *secp256k1fx.OutputOwners
-		keys              []*crypto.PrivateKeySECP256K1R
-		change            *secp256k1fx.OutputOwners
+		claimables []txs.ClaimAmount
+		claimTo    *secp256k1fx.OutputOwners
+		keys       []*secp256k1.PrivateKey
+		change     *secp256k1fx.OutputOwners
 	}
 
 	tests := map[string]struct {
@@ -326,24 +328,39 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}, rewardOwner1Addr: {}})
 				// deposits
-				depositTx := &txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &rewardOwner1}}
-				s.EXPECT().GetTx(depositTxID1).Return(depositTx, status.Committed, nil)
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &rewardOwner1}, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys: []*crypto.PrivateKeySECP256K1R{
+				claimables: []txs.ClaimAmount{{
+					ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11,
+				}},
+				claimTo: &rewardOwner1,
+				keys: []*secp256k1.PrivateKey{
 					feeKey,
 					rewardOwner1Key,
 				},
 			},
 			expectedTx: func(t *testing.T) *txs.Tx {
 				tx, err := txs.NewSigned(&txs.ClaimTx{
-					BaseTx:       baseTx,
-					DepositTxIDs: []ids.ID{depositTxID1},
-					ClaimTo:      &rewardOwner1,
-				}, txs.Codec, [][]*crypto.PrivateKeySECP256K1R{{feeKey}, {rewardOwner1Key}})
+					BaseTx: *baseTxWithFeeInput([]*avax.TransferableOutput{{
+						Asset: avax.Asset{ID: ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          11,
+							OutputOwners: rewardOwner1,
+						},
+					}}),
+					Claimables: []txs.ClaimAmount{{
+						ID:        depositTxID1,
+						Type:      txs.ClaimTypeActiveDepositReward,
+						Amount:    11,
+						OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+					}},
+				}, txs.Codec, [][]*secp256k1.PrivateKey{
+					{feeKey},
+					{rewardOwner1Key},
+				})
 				require.NoError(t, err)
 				return tx
 			},
@@ -356,16 +373,19 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}, rewardOwner1Addr: {}, rewardOwner2Addr: {}})
 				// deposits
-				depositTx1 := &txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &rewardOwner1}}
-				depositTx2 := &txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &rewardOwner2}}
-				s.EXPECT().GetTx(depositTxID1).Return(depositTx1, status.Committed, nil)
-				s.EXPECT().GetTx(depositTxID2).Return(depositTx2, status.Committed, nil)
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &rewardOwner1}, nil)
+				s.EXPECT().GetDeposit(depositTxID2).Return(&deposits.Deposit{RewardOwner: &rewardOwner2}, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
+				s.EXPECT().GetMultisigAlias(rewardOwner2Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1, depositTxID2},
-				claimTo:      &rewardOwner1,
-				keys: []*crypto.PrivateKeySECP256K1R{
+				claimables: []txs.ClaimAmount{
+					{ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11},
+					{ID: depositTxID2, Type: txs.ClaimTypeActiveDepositReward, Amount: 22},
+				},
+				claimTo: &rewardOwner1,
+				keys: []*secp256k1.PrivateKey{
 					feeKey,
 					rewardOwner1Key,
 					rewardOwner2Key,
@@ -373,10 +393,41 @@ func TestNewClaimTx(t *testing.T) {
 			},
 			expectedTx: func(t *testing.T) *txs.Tx {
 				tx, err := txs.NewSigned(&txs.ClaimTx{
-					BaseTx:       baseTx,
-					DepositTxIDs: []ids.ID{depositTxID1, depositTxID2},
-					ClaimTo:      &rewardOwner1,
-				}, txs.Codec, [][]*crypto.PrivateKeySECP256K1R{{feeKey}, {rewardOwner1Key, rewardOwner2Key}})
+					BaseTx: *baseTxWithFeeInput([]*avax.TransferableOutput{
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          11,
+								OutputOwners: rewardOwner1,
+							},
+						},
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          22,
+								OutputOwners: rewardOwner1,
+							},
+						},
+					}),
+					Claimables: []txs.ClaimAmount{
+						{
+							ID:        depositTxID1,
+							Type:      txs.ClaimTypeActiveDepositReward,
+							Amount:    11,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+						},
+						{
+							ID:        depositTxID2,
+							Type:      txs.ClaimTypeActiveDepositReward,
+							Amount:    22,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+						},
+					},
+				}, txs.Codec, [][]*secp256k1.PrivateKey{
+					{feeKey},
+					{rewardOwner1Key},
+					{rewardOwner2Key},
+				})
 				require.NoError(t, err)
 				return tx
 			},
@@ -389,24 +440,25 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}, rewardOwner1Addr: {}, rewardOwner2Addr: {}})
 				// deposits
-				depositTx1 := &txs.Tx{Unsigned: &txs.DepositTx{
-					RewardsOwner: &secp256k1fx.OutputOwners{
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{
+					RewardOwner: &secp256k1fx.OutputOwners{
 						Threshold: 2,
-						Addrs: []ids.ShortID{
-							rewardOwner1Key.Address(),
-							rewardOwner2Key.Address(),
-						},
+						Addrs:     []ids.ShortID{rewardOwner1Addr, rewardOwner2Addr},
 					},
-				}}
-				depositTx2 := &txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &rewardOwner1}}
-				s.EXPECT().GetTx(depositTxID1).Return(depositTx1, status.Committed, nil)
-				s.EXPECT().GetTx(depositTxID2).Return(depositTx2, status.Committed, nil)
+				}, nil)
+				s.EXPECT().GetDeposit(depositTxID2).Return(&deposits.Deposit{RewardOwner: &rewardOwner1}, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
+				s.EXPECT().GetMultisigAlias(rewardOwner2Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1, depositTxID2},
-				claimTo:      &rewardOwner1,
-				keys: []*crypto.PrivateKeySECP256K1R{
+				claimables: []txs.ClaimAmount{
+					{ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11},
+					{ID: depositTxID2, Type: txs.ClaimTypeActiveDepositReward, Amount: 22},
+				},
+				claimTo: &rewardOwner1,
+				keys: []*secp256k1.PrivateKey{
 					feeKey,
 					rewardOwner1Key,
 					rewardOwner2Key,
@@ -414,10 +466,41 @@ func TestNewClaimTx(t *testing.T) {
 			},
 			expectedTx: func(t *testing.T) *txs.Tx {
 				tx, err := txs.NewSigned(&txs.ClaimTx{
-					BaseTx:       baseTx,
-					DepositTxIDs: []ids.ID{depositTxID1, depositTxID2},
-					ClaimTo:      &rewardOwner1,
-				}, txs.Codec, [][]*crypto.PrivateKeySECP256K1R{{feeKey}, {rewardOwner1Key, rewardOwner2Key}})
+					BaseTx: *baseTxWithFeeInput([]*avax.TransferableOutput{
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          11,
+								OutputOwners: rewardOwner1,
+							},
+						},
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          22,
+								OutputOwners: rewardOwner1,
+							},
+						},
+					}),
+					Claimables: []txs.ClaimAmount{
+						{
+							ID:        depositTxID1,
+							Type:      txs.ClaimTypeActiveDepositReward,
+							Amount:    11,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0, 1}},
+						},
+						{
+							ID:        depositTxID2,
+							Type:      txs.ClaimTypeActiveDepositReward,
+							Amount:    22,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+						},
+					},
+				}, txs.Codec, [][]*secp256k1.PrivateKey{
+					{feeKey},
+					{rewardOwner1Key, rewardOwner2Key},
+					{rewardOwner1Key},
+				})
 				require.NoError(t, err)
 				return tx
 			},
@@ -432,26 +515,38 @@ func TestNewClaimTx(t *testing.T) {
 				// claimables
 				claimable := &state.Claimable{Owner: &rewardOwner1, ExpiredDepositReward: 10, ValidatorReward: 100}
 				s.EXPECT().GetClaimable(claimableOwnerID).Return(claimable, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				claimableOwnerIDs: []ids.ID{claimableOwnerID},
-				amountToClaim:     []uint64{60},
-				claimType:         txs.ClaimTypeAll,
-				claimTo:           &rewardOwner1,
-				keys: []*crypto.PrivateKeySECP256K1R{
+				claimables: []txs.ClaimAmount{{
+					ID: claimableOwnerID, Type: txs.ClaimTypeAllTreasury, Amount: 60,
+				}},
+				claimTo: &rewardOwner1,
+				keys: []*secp256k1.PrivateKey{
 					feeKey,
 					rewardOwner1Key,
 				},
 			},
 			expectedTx: func(t *testing.T) *txs.Tx {
 				tx, err := txs.NewSigned(&txs.ClaimTx{
-					BaseTx:            baseTx,
-					ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-					ClaimedAmounts:    []uint64{60},
-					ClaimType:         txs.ClaimTypeAll,
-					ClaimTo:           &rewardOwner1,
-				}, txs.Codec, [][]*crypto.PrivateKeySECP256K1R{{feeKey}, {rewardOwner1Key}})
+					BaseTx: *baseTxWithFeeInput([]*avax.TransferableOutput{{
+						Asset: avax.Asset{ID: ctx.AVAXAssetID},
+						Out: &secp256k1fx.TransferOutput{
+							Amt:          60,
+							OutputOwners: rewardOwner1,
+						},
+					}}),
+					Claimables: []txs.ClaimAmount{{
+						ID:        claimableOwnerID,
+						Type:      txs.ClaimTypeAllTreasury,
+						Amount:    60,
+						OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+					}},
+				}, txs.Codec, [][]*secp256k1.PrivateKey{
+					{feeKey},
+					{rewardOwner1Key},
+				})
 				require.NoError(t, err)
 				return tx
 			},
@@ -464,25 +559,25 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}, rewardOwner1Addr: {}, rewardOwner2Addr: {}})
 				// deposits
-				depositTx1 := &txs.Tx{Unsigned: &txs.DepositTx{
-					RewardsOwner: &secp256k1fx.OutputOwners{
-						Threshold: 2,
-						Addrs:     []ids.ShortID{rewardOwner1Addr, rewardOwner2Addr},
-					},
-				}}
-				s.EXPECT().GetTx(depositTxID1).Return(depositTx1, status.Committed, nil)
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &secp256k1fx.OutputOwners{
+					Threshold: 2,
+					Addrs:     []ids.ShortID{rewardOwner1Addr, rewardOwner2Addr},
+				}}, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
+				s.EXPECT().GetMultisigAlias(rewardOwner2Addr).Return(nil, database.ErrNotFound)
 				// claimables
 				claimable := &state.Claimable{Owner: &rewardOwner1, ExpiredDepositReward: 10, ValidatorReward: 100}
 				s.EXPECT().GetClaimable(claimableOwnerID).Return(claimable, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs:      []ids.ID{depositTxID1},
-				claimableOwnerIDs: []ids.ID{claimableOwnerID},
-				amountToClaim:     []uint64{60},
-				claimType:         txs.ClaimTypeAll,
-				claimTo:           &rewardOwner1,
-				keys: []*crypto.PrivateKeySECP256K1R{
+				claimables: []txs.ClaimAmount{
+					{ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11},
+					{ID: claimableOwnerID, Type: txs.ClaimTypeAllTreasury, Amount: 60},
+				},
+				claimTo: &rewardOwner1,
+				keys: []*secp256k1.PrivateKey{
 					feeKey,
 					rewardOwner1Key,
 					rewardOwner2Key,
@@ -490,13 +585,41 @@ func TestNewClaimTx(t *testing.T) {
 			},
 			expectedTx: func(t *testing.T) *txs.Tx {
 				tx, err := txs.NewSigned(&txs.ClaimTx{
-					BaseTx:            baseTx,
-					DepositTxIDs:      []ids.ID{depositTxID1},
-					ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-					ClaimedAmounts:    []uint64{60},
-					ClaimType:         txs.ClaimTypeAll,
-					ClaimTo:           &rewardOwner1,
-				}, txs.Codec, [][]*crypto.PrivateKeySECP256K1R{{feeKey}, {rewardOwner1Key, rewardOwner2Key}})
+					BaseTx: *baseTxWithFeeInput([]*avax.TransferableOutput{
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          11,
+								OutputOwners: rewardOwner1,
+							},
+						},
+						{
+							Asset: avax.Asset{ID: ctx.AVAXAssetID},
+							Out: &secp256k1fx.TransferOutput{
+								Amt:          60,
+								OutputOwners: rewardOwner1,
+							},
+						},
+					}),
+					Claimables: []txs.ClaimAmount{
+						{
+							ID:        depositTxID1,
+							Type:      txs.ClaimTypeActiveDepositReward,
+							Amount:    11,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0, 1}},
+						},
+						{
+							ID:        claimableOwnerID,
+							Type:      txs.ClaimTypeAllTreasury,
+							Amount:    60,
+							OwnerAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+						},
+					},
+				}, txs.Codec, [][]*secp256k1.PrivateKey{
+					{feeKey},
+					{rewardOwner1Key, rewardOwner2Key},
+					{rewardOwner1Key},
+				})
 				require.NoError(t, err)
 				return tx
 			},
@@ -509,53 +632,17 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
 				// deposits
-				s.EXPECT().GetTx(depositTxID1).Return(nil, status.Unknown, database.ErrNotFound)
+				s.EXPECT().GetDeposit(depositTxID1).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys:         []*crypto.PrivateKeySECP256K1R{feeKey},
+				claimables: []txs.ClaimAmount{{
+					ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11,
+				}},
+				claimTo: &rewardOwner1,
+				keys:    []*secp256k1.PrivateKey{feeKey},
 			},
 			expectedErr: database.ErrNotFound,
-		},
-		"Fail, deposit not committed": {
-			state: func(ctrl *gomock.Controller) state.State {
-				s := state.NewMockState(ctrl)
-				s.EXPECT().CaminoConfig().Return(caminoConfig, nil)
-				// fee
-				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
-				// deposits
-				s.EXPECT().GetTx(depositTxID1).Return(nil, status.Unknown, nil)
-				return s
-			},
-			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys:         []*crypto.PrivateKeySECP256K1R{feeKey},
-			},
-			expectedErr: errTxIsNotCommitted,
-		},
-		"Fail, deposit isn't deposit": {
-			state: func(ctrl *gomock.Controller) state.State {
-				s := state.NewMockState(ctrl)
-				s.EXPECT().CaminoConfig().Return(caminoConfig, nil)
-				// fee
-				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
-				// deposits
-				s.EXPECT().GetTx(depositTxID1).Return(
-					&txs.Tx{Unsigned: &txs.CaminoAddValidatorTx{}},
-					status.Committed,
-					nil,
-				)
-				return s
-			},
-			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys:         []*crypto.PrivateKeySECP256K1R{feeKey},
-			},
-			expectedErr: errWrongTxType,
 		},
 		"Fail, deposit rewards owner isn't secp type (shouldn't happen)": {
 			state: func(ctrl *gomock.Controller) state.State {
@@ -564,17 +651,15 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
 				// deposits
-				s.EXPECT().GetTx(depositTxID1).Return(
-					&txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &avax.TransferableOutput{}}},
-					status.Committed,
-					nil,
-				)
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &avax.TransferableOutput{}}, nil)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys:         []*crypto.PrivateKeySECP256K1R{feeKey},
+				claimables: []txs.ClaimAmount{{
+					ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11,
+				}},
+				claimTo: &rewardOwner1,
+				keys:    []*secp256k1.PrivateKey{feeKey},
 			},
 			expectedErr: errNotSECPOwner,
 		},
@@ -585,17 +670,16 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
 				// deposits
-				s.EXPECT().GetTx(depositTxID1).Return(
-					&txs.Tx{Unsigned: &txs.DepositTx{RewardsOwner: &rewardOwner1}},
-					status.Committed,
-					nil,
-				)
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &rewardOwner1}, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				depositTxIDs: []ids.ID{depositTxID1},
-				claimTo:      &rewardOwner1,
-				keys:         []*crypto.PrivateKeySECP256K1R{feeKey},
+				claimables: []txs.ClaimAmount{{
+					ID: depositTxID1, Type: txs.ClaimTypeActiveDepositReward, Amount: 11,
+				}},
+				claimTo: &rewardOwner1,
+				keys:    []*secp256k1.PrivateKey{feeKey},
 			},
 			expectedErr: errKeyMissing,
 		},
@@ -610,10 +694,11 @@ func TestNewClaimTx(t *testing.T) {
 				return s
 			},
 			args: args{
-				claimableOwnerIDs: []ids.ID{claimableOwnerID},
-				amountToClaim:     []uint64{1},
-				claimTo:           &rewardOwner1,
-				keys:              []*crypto.PrivateKeySECP256K1R{feeKey},
+				claimables: []txs.ClaimAmount{{
+					ID: claimableOwnerID, Type: txs.ClaimTypeAllTreasury, Amount: 1,
+				}},
+				claimTo: &rewardOwner1,
+				keys:    []*secp256k1.PrivateKey{feeKey},
 			},
 			expectedErr: database.ErrNotFound,
 		},
@@ -626,13 +711,15 @@ func TestNewClaimTx(t *testing.T) {
 				// claimables
 				claimable := &state.Claimable{Owner: &rewardOwner1}
 				s.EXPECT().GetClaimable(claimableOwnerID).Return(claimable, nil)
+				s.EXPECT().GetMultisigAlias(rewardOwner1Addr).Return(nil, database.ErrNotFound)
 				return s
 			},
 			args: args{
-				claimableOwnerIDs: []ids.ID{claimableOwnerID},
-				amountToClaim:     []uint64{1},
-				claimTo:           &rewardOwner1,
-				keys:              []*crypto.PrivateKeySECP256K1R{feeKey},
+				claimables: []txs.ClaimAmount{{
+					ID: claimableOwnerID, Type: txs.ClaimTypeAllTreasury, Amount: 1,
+				}},
+				claimTo: &rewardOwner1,
+				keys:    []*secp256k1.PrivateKey{feeKey},
 			},
 			expectedErr: errKeyMissing,
 		},
@@ -648,10 +735,7 @@ func TestNewClaimTx(t *testing.T) {
 			}()
 
 			tx, err := b.NewClaimTx(
-				tt.args.depositTxIDs,
-				tt.args.claimableOwnerIDs,
-				tt.args.amountToClaim,
-				tt.args.claimType,
+				tt.args.claimables,
 				tt.args.claimTo,
 				tt.args.keys,
 				tt.args.change,

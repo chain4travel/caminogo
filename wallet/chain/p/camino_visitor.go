@@ -38,6 +38,10 @@ func (b *backendVisitor) BaseTx(tx *txs.BaseTx) error {
 	return b.baseTx(tx)
 }
 
+func (b *backendVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {
+	return b.baseTx(&tx.BaseTx)
+}
+
 // signer
 
 func (s *signerVisitor) AddressStateTx(tx *txs.AddressStateTx) error {
@@ -45,7 +49,7 @@ func (s *signerVisitor) AddressStateTx(tx *txs.AddressStateTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
 }
 
 func (s *signerVisitor) DepositTx(tx *txs.DepositTx) error {
@@ -53,7 +57,7 @@ func (s *signerVisitor) DepositTx(tx *txs.DepositTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
 }
 
 func (s *signerVisitor) UnlockDepositTx(tx *txs.UnlockDepositTx) error {
@@ -61,7 +65,7 @@ func (s *signerVisitor) UnlockDepositTx(tx *txs.UnlockDepositTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
 }
 
 func (s *signerVisitor) ClaimTx(tx *txs.ClaimTx) error {
@@ -69,7 +73,7 @@ func (s *signerVisitor) ClaimTx(tx *txs.ClaimTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
 }
 
 func (s *signerVisitor) RegisterNodeTx(tx *txs.RegisterNodeTx) error {
@@ -77,7 +81,7 @@ func (s *signerVisitor) RegisterNodeTx(tx *txs.RegisterNodeTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
 }
 
 func (*signerVisitor) RewardsImportTx(*txs.RewardsImportTx) error {
@@ -89,5 +93,13 @@ func (s *signerVisitor) BaseTx(tx *txs.BaseTx) error {
 	if err != nil {
 		return err
 	}
-	return sign(s.tx, txSigners)
+	return sign(s.tx, false, txSigners)
+}
+
+func (s *signerVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {
+	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
+	if err != nil {
+		return err
+	}
+	return sign(s.tx, false, txSigners)
 }

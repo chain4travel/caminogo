@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package staking
@@ -28,9 +28,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/crypto"
+	utilsSecp256k1 "github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/perms"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
 var errDuplicateExtension = errors.New("duplicate certificate extension")
@@ -38,13 +39,13 @@ var errDuplicateExtension = errors.New("duplicate certificate extension")
 // InitNodeStakingKeyPair generates a self-signed TLS key/cert pair to use in
 // staking. The key and files will be placed at [keyPath] and [certPath],
 // respectively. If there is already a file at [keyPath], returns nil.
-func InitNodeStakingKeyPair(keyPath, certPath string) error {
+func InitNodeStakingKeyPair(keyPath, certPath string, secpKey *secp256k1.PrivateKey) error {
 	// If there is already a file at [keyPath], do nothing
 	if _, err := os.Stat(keyPath); !os.IsNotExist(err) {
 		return nil
 	}
 
-	certBytes, keyBytes, err := NewCertAndKeyBytes()
+	certBytes, keyBytes, err := NewCertAndKeyBytesWithSecpKey(secpKey)
 	if err != nil {
 		return err
 	}
@@ -130,14 +131,20 @@ func NewTLSCert() (*tls.Certificate, error) {
 // Creates a new staking private key / staking certificate pair.
 // Returns the PEM byte representations of both.
 func NewCertAndKeyBytes() ([]byte, []byte, error) {
+	return NewCertAndKeyBytesWithSecpKey(nil)
+}
+
+func NewCertAndKeyBytesWithSecpKey(secpKey *secp256k1.PrivateKey) ([]byte, []byte, error) {
 	// Create RSA key to sign cert with
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't generate rsa key: %w", err)
 	}
 	// Create SECP256K1 key to sign cert with
-	secpKey := crypto.RsaPrivateKeyToSecp256PrivateKey(rsaKey)
-	extension := crypto.SignRsaPublicKey(secpKey, &rsaKey.PublicKey)
+	if secpKey == nil {
+		secpKey = utilsSecp256k1.RsaPrivateKeyToSecp256PrivateKey(rsaKey)
+	}
+	extension := utilsSecp256k1.SignRsaPublicKey(secpKey, &rsaKey.PublicKey)
 
 	// Create self-signed staking cert
 	certTemplate := &x509.Certificate{

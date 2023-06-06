@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
@@ -43,10 +43,8 @@ func TestRemoveDeferredValidator(t *testing.T) {
 
 	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
 
-	key, err := testKeyFactory.NewPrivateKey()
+	consortiumMemberKey, err := testKeyFactory.NewPrivateKey()
 	require.NoError(err)
-	consortiumMemberKey, ok := key.(*crypto.PrivateKeySECP256K1R)
-	require.True(ok)
 
 	outputOwners := &secp256k1fx.OutputOwners{
 		Locktime:  0,
@@ -81,8 +79,8 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	tx, err := vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
-		txs.AddressStateConsortium,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0]},
+		txs.AddressStateBitConsortium,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -102,7 +100,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 		ids.EmptyNodeID,
 		nodeID,
 		consortiumMemberKey.Address(),
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -120,14 +118,15 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	// Add the validator
 	startTime := vm.clock.Time().Add(txexecutor.SyncBound).Add(1 * time.Second)
 	endTime := defaultValidateEndTime.Add(-1 * time.Hour)
-	addValidatorTx, err := vm.txBuilder.NewAddValidatorTx(
+	addValidatorTx, err := vm.txBuilder.NewCaminoAddValidatorTx(
 		vm.Config.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
+		consortiumMemberKey.Address(),
 		ids.ShortEmpty,
 		reward.PercentDenominator,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0], consortiumMemberKey},
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], consortiumMemberKey},
 		ids.ShortEmpty,
 	)
 	require.NoError(err)
@@ -152,8 +151,8 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	tx, err = vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
-		txs.AddressStateNodeDeferred,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0]},
+		txs.AddressStateBitNodeDeferred,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -176,7 +175,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 
 	// Verify that the validator's owner's deferred state and consortium member is true
 	ownerState, _ := vm.state.GetAddressStates(consortiumMemberKey.Address())
-	require.Equal(ownerState, txs.AddressStateNodeDeferredBit|txs.AddressStateConsortiumBit)
+	require.Equal(ownerState, txs.AddressStateNodeDeferred|txs.AddressStateConsortiumMember)
 
 	// Fast-forward clock to time for validator to be rewarded
 	vm.clock.Set(endTime)
@@ -191,7 +190,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	require.NoError(err)
 
 	commit := options[1].(*blockexecutor.Block)
-	_, ok = commit.Block.(*blocks.BanffCommitBlock)
+	_, ok := commit.Block.(*blocks.BanffCommitBlock)
 	require.True(ok)
 
 	abort := options[0].(*blockexecutor.Block)
@@ -227,7 +226,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 
 	// Verify that the validator's owner's deferred state is false
 	ownerState, _ = vm.state.GetAddressStates(consortiumMemberKey.Address())
-	require.Equal(ownerState, txs.AddressStateConsortiumBit)
+	require.Equal(ownerState, txs.AddressStateConsortiumMember)
 
 	timestamp := vm.state.GetTimestamp()
 	require.Equal(endTime.Unix(), timestamp.Unix())
@@ -242,10 +241,8 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 
 	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
 
-	key, err := testKeyFactory.NewPrivateKey()
+	consortiumMemberKey, err := testKeyFactory.NewPrivateKey()
 	require.NoError(err)
-	consortiumMemberKey, ok := key.(*crypto.PrivateKeySECP256K1R)
-	require.True(ok)
 
 	outputOwners := &secp256k1fx.OutputOwners{
 		Locktime:  0,
@@ -280,8 +277,8 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	tx, err := vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
-		txs.AddressStateConsortium,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0]},
+		txs.AddressStateBitConsortium,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -301,7 +298,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		ids.EmptyNodeID,
 		nodeID,
 		consortiumMemberKey.Address(),
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -320,14 +317,15 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	vm.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr)
 	startTime := vm.clock.Time().Add(txexecutor.SyncBound).Add(1 * time.Second)
 	endTime := defaultValidateEndTime.Add(-1 * time.Hour)
-	addValidatorTx, err := vm.txBuilder.NewAddValidatorTx(
+	addValidatorTx, err := vm.txBuilder.NewCaminoAddValidatorTx(
 		vm.Config.MinValidatorStake,
 		uint64(startTime.Unix()),
 		uint64(endTime.Unix()),
 		nodeID,
+		consortiumMemberKey.Address(),
 		ids.ShortEmpty,
 		reward.PercentDenominator,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0], nodeKey},
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
 		ids.ShortEmpty,
 	)
 	require.NoError(err)
@@ -352,8 +350,8 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	tx, err = vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
-		txs.AddressStateNodeDeferred,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0]},
+		txs.AddressStateBitNodeDeferred,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -378,8 +376,8 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	tx, err = vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		true,
-		txs.AddressStateNodeDeferred,
-		[]*crypto.PrivateKeySECP256K1R{caminoPreFundedKeys[0]},
+		txs.AddressStateBitNodeDeferred,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
 		outputOwners,
 	)
 	require.NoError(err)
@@ -413,7 +411,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	require.NoError(err)
 
 	commit := options[1].(*blockexecutor.Block)
-	_, ok = commit.Block.(*blocks.BanffCommitBlock)
+	_, ok := commit.Block.(*blocks.BanffCommitBlock)
 	require.True(ok)
 
 	abort := options[0].(*blockexecutor.Block)
@@ -478,7 +476,7 @@ func TestDepositsAutoUnlock(t *testing.T) {
 		Address: depositOwnerAddrBech32,
 	}})
 	vm.ctx.Lock.Lock()
-	defer func() { require.NoError(vm.Shutdown(context.Background())) }() //nolint:revive
+	defer func() { require.NoError(vm.Shutdown(context.Background())) }() //nolint:lint
 
 	// Add deposit
 	depositTx, err := vm.txBuilder.NewDepositTx(
@@ -486,7 +484,7 @@ func TestDepositsAutoUnlock(t *testing.T) {
 		depositOffer.MaxDuration,
 		depositOffer.ID,
 		depositOwnerAddr,
-		[]*crypto.PrivateKeySECP256K1R{depositOwnerKey},
+		[]*secp256k1.PrivateKey{depositOwnerKey},
 		&depositOwner,
 	)
 	require.NoError(err)

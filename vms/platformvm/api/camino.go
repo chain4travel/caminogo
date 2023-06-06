@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/types"
 )
@@ -339,7 +338,7 @@ func makeValidator(
 				BlockchainID: ids.Empty,
 				Outs:         bond,
 			}},
-			Validator: validator.Validator{
+			Validator: txs.Validator{
 				NodeID: vdr.NodeID,
 				Start:  uint64(vdr.StartTime),
 				End:    uint64(vdr.EndTime),
@@ -347,6 +346,7 @@ func makeValidator(
 			},
 			RewardsOwner: rewardsOwner,
 		},
+		NodeOwnerAuth: &secp256k1fx.Input{},
 	}}
 	if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
 		return nil, err

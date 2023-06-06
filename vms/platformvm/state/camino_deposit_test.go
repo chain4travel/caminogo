@@ -15,13 +15,18 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetDeposit(t *testing.T) {
 	depositTxID := ids.GenerateTestID()
-	deposit1 := &deposit.Deposit{Duration: 101}
+	deposit1 := &deposit.Deposit{
+		RewardOwner: &secp256k1fx.OutputOwners{
+			Addrs: []ids.ShortID{{1}},
+		},
+	}
 	depositBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, deposit1)
 	require.NoError(t, err)
 	testError := errors.New("test error")
@@ -57,7 +62,7 @@ func TestGetDeposit(t *testing.T) {
 		},
 		"Fail: deposit in cache, but removed": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				cache := cache.NewMockCacher(c)
+				cache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				cache.EXPECT().Get(depositTxID).Return(nil, true)
 				return &caminoState{
 					depositsCache: cache,
@@ -119,7 +124,7 @@ func TestGetDeposit(t *testing.T) {
 		},
 		"OK: deposit in cache": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				cache := cache.NewMockCacher(c)
+				cache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				cache.EXPECT().Get(depositTxID).Return(deposit1, true)
 				return &caminoState{
 					depositsCache: cache,
@@ -137,7 +142,7 @@ func TestGetDeposit(t *testing.T) {
 		},
 		"OK: deposit in db": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				cache := cache.NewMockCacher(c)
+				cache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				cache.EXPECT().Get(depositTxID).Return(nil, false)
 				cache.EXPECT().Put(depositTxID, deposit1)
 				db := database.NewMockDatabase(c)
@@ -160,7 +165,7 @@ func TestGetDeposit(t *testing.T) {
 		},
 		"Fail: db error": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				cache := cache.NewMockCacher(c)
+				cache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				cache.EXPECT().Get(depositTxID).Return(nil, false)
 				db := database.NewMockDatabase(c)
 				db.EXPECT().Get(depositTxID[:]).Return(nil, testError)
@@ -239,7 +244,7 @@ func TestModifyDeposit(t *testing.T) {
 	}{
 		"OK": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				depositsCache := cache.NewMockCacher(c)
+				depositsCache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				depositsCache.EXPECT().Evict(depositTxID)
 				return &caminoState{
 					depositsCache: depositsCache,
@@ -283,7 +288,7 @@ func TestRemoveDeposit(t *testing.T) {
 	}{
 		"OK": {
 			caminoState: func(c *gomock.Controller) *caminoState {
-				depositsCache := cache.NewMockCacher(c)
+				depositsCache := cache.NewMockCacher[ids.ID, *deposit.Deposit](c)
 				depositsCache.EXPECT().Evict(depositTxID)
 				return &caminoState{
 					depositsCache: depositsCache,
@@ -593,9 +598,24 @@ func TestWriteDeposits(t *testing.T) {
 	depositTxID1 := ids.ID{1}
 	depositTxID2 := ids.ID{2}
 	depositTxID3 := ids.ID{3}
-	deposit1 := &deposit.Deposit{Duration: 101, Amount: 1}
-	deposit2 := &deposit.Deposit{Duration: 101, Amount: 2}
-	deposit3 := &deposit.Deposit{Duration: 101, Amount: 3}
+	deposit1 := &deposit.Deposit{
+		Duration: 101,
+		RewardOwner: &secp256k1fx.OutputOwners{
+			Addrs: []ids.ShortID{{1}},
+		},
+	}
+	deposit2 := &deposit.Deposit{
+		Duration: 101,
+		RewardOwner: &secp256k1fx.OutputOwners{
+			Addrs: []ids.ShortID{{2}},
+		},
+	}
+	deposit3 := &deposit.Deposit{
+		Duration: 101,
+		RewardOwner: &secp256k1fx.OutputOwners{
+			Addrs: []ids.ShortID{{3}},
+		},
+	}
 	depositEndtime := deposit2.EndTime()
 	deposit1Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, deposit1)
 	require.NoError(t, err)

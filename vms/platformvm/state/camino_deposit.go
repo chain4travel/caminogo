@@ -45,11 +45,11 @@ func (cs *caminoState) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) 
 		return depositDiff.Deposit, nil
 	}
 
-	if depositIntf, ok := cs.depositsCache.Get(depositTxID); ok {
-		if depositIntf == nil {
+	if deposit, ok := cs.depositsCache.Get(depositTxID); ok {
+		if deposit == nil {
 			return nil, database.ErrNotFound
 		}
-		return depositIntf.(*deposit.Deposit), nil
+		return deposit, nil
 	}
 
 	depositBytes, err := cs.depositsDB.Get(depositTxID[:])
@@ -146,7 +146,7 @@ func (cs *caminoState) writeDeposits() error {
 		cs.depositsNextToUnlockTime = &nextUnlockTime
 	}
 
-	// adding new deposits to db
+	// adding new deposits to db, deleting removed deposits from db
 	for depositTxID, depositDiff := range cs.modifiedDeposits {
 		delete(cs.modifiedDeposits, depositTxID)
 		if depositDiff.removed {

@@ -7,15 +7,13 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRewardsImportTxSyntacticVerify(t *testing.T) {
-	ctx := snow.DefaultContextTest()
-	ctx.AVAXAssetID = ids.GenerateTestID()
+	ctx := defaultContext()
 
 	tests := map[string]struct {
 		tx          *RewardsImportTx
@@ -23,6 +21,8 @@ func TestRewardsImportTxSyntacticVerify(t *testing.T) {
 	}{
 		"OK": {
 			tx: &RewardsImportTx{BaseTx: BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
 				Ins: []*avax.TransferableInput{
 					generateTestIn(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
 					generateTestIn(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
@@ -34,6 +34,8 @@ func TestRewardsImportTxSyntacticVerify(t *testing.T) {
 		},
 		"Input has wrong asset": {
 			tx: &RewardsImportTx{BaseTx: BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
 				Ins: []*avax.TransferableInput{
 					generateTestIn(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
 					generateTestIn(ids.GenerateTestID(), 1, ids.Empty, ids.Empty, []uint32{}),
@@ -41,10 +43,22 @@ func TestRewardsImportTxSyntacticVerify(t *testing.T) {
 			}}},
 			expectedErr: errNotAVAXAsset,
 		},
-		"Not secp input": {
+		"Locked input": {
 			tx: &RewardsImportTx{BaseTx: BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
 				Ins: []*avax.TransferableInput{
 					generateTestIn(ctx.AVAXAssetID, 1, ids.GenerateTestID(), ids.Empty, []uint32{}),
+				},
+			}}},
+			expectedErr: locked.ErrWrongInType,
+		},
+		"Stakable input": {
+			tx: &RewardsImportTx{BaseTx: BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
+				Ins: []*avax.TransferableInput{
+					generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{}),
 				},
 			}}},
 			expectedErr: locked.ErrWrongInType,

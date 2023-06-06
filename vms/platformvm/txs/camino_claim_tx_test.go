@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -15,15 +14,12 @@ import (
 )
 
 func TestClaimTxSyntacticVerify(t *testing.T) {
-	ctx := snow.DefaultContextTest()
-	ctx.AVAXAssetID = ids.GenerateTestID()
-	owner1 := secp256k1fx.OutputOwners{
-		Threshold: 1,
-		Addrs:     []ids.ShortID{ids.GenerateTestShortID()},
-	}
-
-	depositTxID := ids.GenerateTestID()
-	claimableOwnerID := ids.GenerateTestID()
+	ctx := defaultContext()
+	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
+	depositTxID := ids.ID{0, 1}
+	claimableOwnerID1 := ids.ID{0, 2}
+	claimableOwnerID2 := ids.ID{0, 3}
+	claimableOwnerID3 := ids.ID{0, 4}
 
 	baseTx := BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    ctx.NetworkID,
@@ -37,45 +33,66 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 		"Nil tx": {
 			expectedErr: ErrNilTx,
 		},
-		"No depositTxs and claimableOwnerIDs": {
+		"No claimables": {
 			tx: &ClaimTx{
 				BaseTx: baseTx,
 			},
-			expectedErr: errNoDepositsOrClaimables,
+			expectedErr: errNoClaimables,
 		},
-		"Claimed amounts len not equal to claimable owner ids len": {
+		"Zero claimed amount": {
 			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{1, 2},
+				BaseTx: baseTx,
+				Claimables: []ClaimAmount{{
+					ID:        claimableOwnerID1,
+					Type:      ClaimTypeExpiredDepositReward,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
-			expectedErr: errWrongClaimedAmount,
+			expectedErr: errZeroClaimedAmount,
 		},
-		"Not unique depositTxs": {
+		"Not unique claimable id": {
 			tx: &ClaimTx{
-				BaseTx:       baseTx,
-				DepositTxIDs: []ids.ID{depositTxID, depositTxID},
+				BaseTx: baseTx,
+				Claimables: []ClaimAmount{
+					{
+						ID:        claimableOwnerID1,
+						Type:      ClaimTypeExpiredDepositReward,
+						Amount:    1,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+					{
+						ID:        claimableOwnerID1,
+						Type:      ClaimTypeValidatorReward,
+						Amount:    2,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+				},
 			},
-			expectedErr: errNonUniqueDepositTxID,
+			expectedErr: errNonUniqueClaimableID,
 		},
 		"Wrong claim type": {
 			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimTo:           &owner1,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{1},
-				ClaimType:         ClaimTypeAll + 1,
+				BaseTx: baseTx,
+				Claimables: []ClaimAmount{{
+					ID:        claimableOwnerID1,
+					Type:      ClaimTypeActiveDepositReward + 1,
+					Amount:    1,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
-			expectedErr: errWrongClaimType,
+			expectedErr: ErrWrongClaimType,
 		},
-		"Not unique ownerIDs": {
+		"Bad claimable auth": {
 			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID, claimableOwnerID},
-				ClaimedAmounts:    []uint64{1, 1},
-				ClaimType:         ClaimTypeAll,
+				BaseTx: baseTx,
+				Claimables: []ClaimAmount{{
+					ID:        claimableOwnerID1,
+					Type:      ClaimTypeActiveDepositReward,
+					Amount:    1,
+					OwnerAuth: (*secp256k1fx.Input)(nil),
+				}},
 			},
-			expectedErr: errNonUniqueOwnerID,
+			expectedErr: errBadClaimableAuth,
 		},
 		"Locked base tx input": {
 			tx: &ClaimTx{
@@ -83,11 +100,14 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, ids.GenerateTestID(), ids.Empty, []uint32{0}),
+						generateTestIn(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
 					},
 				}},
-				DepositTxIDs: []ids.ID{depositTxID},
-				ClaimTo:      &owner1,
+				Claimables: []ClaimAmount{{
+					Type:      ClaimTypeAllTreasury,
+					Amount:    1,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
 			expectedErr: locked.ErrWrongInType,
 		},
@@ -97,56 +117,80 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, 1, owner1, ids.GenerateTestID(), ids.Empty),
+						generateTestOut(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
 					},
 				}},
-				DepositTxIDs: []ids.ID{depositTxID},
-				ClaimTo:      &owner1,
+				Claimables: []ClaimAmount{{
+					Type:      ClaimTypeAllTreasury,
+					Amount:    1,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
 			expectedErr: locked.ErrWrongOutType,
 		},
-		"OK with deposits": {
+		"Stakable base tx input": {
 			tx: &ClaimTx{
-				BaseTx:       baseTx,
-				DepositTxIDs: []ids.ID{depositTxID},
-				ClaimTo:      &owner1,
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    ctx.NetworkID,
+					BlockchainID: ctx.ChainID,
+					Ins: []*avax.TransferableInput{
+						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+					},
+				}},
+				Claimables: []ClaimAmount{{
+					Type:      ClaimTypeAllTreasury,
+					Amount:    1,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
+			expectedErr: locked.ErrWrongInType,
 		},
-		"OK with claimables (all)": {
+		"Stakable base tx output": {
 			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimTo:           &owner1,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{20},
-				ClaimType:         ClaimTypeAll,
+				BaseTx: BaseTx{BaseTx: avax.BaseTx{
+					NetworkID:    ctx.NetworkID,
+					BlockchainID: ctx.ChainID,
+					Outs: []*avax.TransferableOutput{
+						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+					},
+				}},
+				Claimables: []ClaimAmount{{
+					Type:      ClaimTypeAllTreasury,
+					Amount:    1,
+					OwnerAuth: &secp256k1fx.Input{},
+				}},
 			},
+			expectedErr: locked.ErrWrongOutType,
 		},
-		"OK with claimables (expired deposit reward)": {
+		"OK": {
 			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimTo:           &owner1,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{20},
-				ClaimType:         ClaimTypeExpiredDepositReward,
-			},
-		},
-		"OK with claimables (validator reward)": {
-			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				ClaimTo:           &owner1,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{20},
-				ClaimType:         ClaimTypeValidatorReward,
-			},
-		},
-		"OK with claimables and deposits": {
-			tx: &ClaimTx{
-				BaseTx:            baseTx,
-				DepositTxIDs:      []ids.ID{depositTxID},
-				ClaimTo:           &owner1,
-				ClaimableOwnerIDs: []ids.ID{claimableOwnerID},
-				ClaimedAmounts:    []uint64{20},
-				ClaimType:         ClaimTypeAll,
+				BaseTx: baseTx,
+				Claimables: []ClaimAmount{
+					{
+						ID:        depositTxID,
+						Type:      ClaimTypeActiveDepositReward,
+						Amount:    1,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+					{
+						ID:        claimableOwnerID1,
+						Type:      ClaimTypeExpiredDepositReward,
+						Amount:    1,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+					{
+						ID:        claimableOwnerID2,
+						Type:      ClaimTypeValidatorReward,
+						Amount:    1,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+					{
+						ID:        claimableOwnerID3,
+						Type:      ClaimTypeAllTreasury,
+						Amount:    1,
+						OwnerAuth: &secp256k1fx.Input{},
+					},
+				},
 			},
 		},
 	}

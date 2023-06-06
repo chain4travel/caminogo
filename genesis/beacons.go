@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -35,6 +35,19 @@ func getNodes(networkID uint32) []node {
 			{
 				ip:     "35.205.189.109:9651",
 				nodeID: "NodeID-6rsqgkg4F1i3SBjzj4tS5ucQWH7JMEouj",
+			},
+		}
+	case constants.CaminoID:
+		return []node{
+			// Camino Foundation
+			{
+				ip:     "34.79.120.198:9651",
+				nodeID: "NodeID-MUTNPmSqwWtchZhVvkWRfF8SUK8FtfnwP",
+			},
+			// Chain4Travel
+			{
+				ip:     "34.147.107.229:9651",
+				nodeID: "NodeID-KumZcRwRSAE7CUkFE18ZLMnPsCVDpQXz8",
 			},
 		}
 	default:

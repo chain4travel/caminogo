@@ -20,7 +20,6 @@ import (
 	pvm_genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
@@ -249,17 +248,17 @@ func TestSyncGenesis(t *testing.T) {
 				g: defaultGenesisState([]pvm_genesis.AddressState{
 					{
 						Address: initialAdmin,
-						State:   txs.AddressStateRoleAdminBit,
+						State:   txs.AddressStateRoleAdmin,
 					},
 					{
 						Address: shortID,
-						State:   txs.AddressStateRoleKycBit,
+						State:   txs.AddressStateRoleKYC,
 					},
 				}, depositTxs, initialAdmin),
 			},
 			cs: *wrappers.IgnoreError(newCaminoState(baseDB, validatorsDB, prometheus.NewRegistry())).(*caminoState),
 			want: caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]uint64{initialAdmin: txs.AddressStateRoleAdminBit, shortID: txs.AddressStateRoleKycBit},
+				modifiedAddressStates: map[ids.ShortID]txs.AddressState{initialAdmin: txs.AddressStateRoleAdmin, shortID: txs.AddressStateRoleKYC},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{
 					depositOffers[0].ID: depositOffers[0],
 					depositOffers[1].ID: depositOffers[1],
@@ -416,9 +415,10 @@ func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.T
 				Validators: []*txs.Tx{{Unsigned: &txs.CaminoAddValidatorTx{
 					AddValidatorTx: txs.AddValidatorTx{
 						BaseTx:       txs.BaseTx{},
-						Validator:    validator.Validator{},
+						Validator:    txs.Validator{},
 						RewardsOwner: &secp256k1fx.OutputOwners{},
 					},
+					NodeOwnerAuth: &secp256k1fx.Input{},
 				}}},
 				Deposits: deposits,
 			}},

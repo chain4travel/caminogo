@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -35,23 +35,23 @@ var (
 	errWrongUTXOOutType          = errors.New("wrong utxo output type")
 	errWrongProducedAmount       = errors.New("produced more tokens, than input had")
 	errInputsCredentialsMismatch = errors.New("number of inputs is different from number of credentials")
-	errInputsUTXOSMismatch       = errors.New("number of inputs is different from number of utxos")
-	errWrongCredentials          = errors.New("wrong credentials")
+	errInputsUTXOsMismatch       = errors.New("number of inputs is different from number of utxos")
+	errBadCredentials            = errors.New("bad credentials")
 	errNotBurnedEnough           = errors.New("burned less tokens, than needed to")
 	errAssetIDMismatch           = errors.New("utxo/input/output assetID is different from expected asset id")
 	errLockIDsMismatch           = errors.New("input lock ids is different from utxo lock ids")
 	errFailToGetDeposit          = errors.New("couldn't get deposit")
-	errUnlockedMoreThanAvailable = errors.New("unlocked more deposited tokens, than was available for unlock")
-	errNotConsumedDeposit        = errors.New("didn't consume whole deposit amount, but deposit is expired and can't be partially unlocked")
 	errLockedUTXO                = errors.New("can't spend locked utxo")
 	errNotLockedUTXO             = errors.New("can't spend unlocked utxo")
+	errUTXOOutTypeOrAmtMismatch  = errors.New("inner out isn't *secp256k1fx.TransferOutput or inner out amount != input.Amt")
+	errCantSpend                 = errors.New("can't spend utxo with given credential and input")
 )
 
 // Creates UTXOs from [outs] and adds them to the UTXO set.
 // UTXOs with LockedOut will have 'thisTxID' replaced with [txID].
 // [txID] is the ID of the tx that created [outs].
 func ProduceLocked(
-	utxoDB state.UTXOAdder,
+	utxoDB avax.UTXOAdder,
 	txID ids.ID,
 	outs []*avax.TransferableOutput,
 	appliedLockState locked.State,
@@ -96,7 +96,8 @@ type CaminoSpender interface {
 	// - [signers] the proof of ownership of the funds being moved
 	// - [owners] the owners used for proof of ownership, used e.g. for multiSig
 	Lock(
-		keys []*crypto.PrivateKeySECP256K1R,
+		utxoDB avax.UTXOReader,
+		keys []*secp256k1.PrivateKey,
 		totalAmountToLock uint64,
 		totalAmountToBurn uint64,
 		appliedLockState locked.State,
@@ -106,7 +107,7 @@ type CaminoSpender interface {
 	) (
 		[]*avax.TransferableInput, // inputs
 		[]*avax.TransferableOutput, // outputs
-		[][]*crypto.PrivateKeySECP256K1R, // signers
+		[][]*secp256k1.PrivateKey, // signers
 		[]*secp256k1fx.OutputOwners, // owners
 		error,
 	)
@@ -122,12 +123,12 @@ type CaminoSpender interface {
 	// - [signers] the unsorted proof of ownership of the funds being moved
 	UnlockDeposit(
 		state state.Chain,
-		keys []*crypto.PrivateKeySECP256K1R,
+		keys []*secp256k1.PrivateKey,
 		depositTxIDs []ids.ID,
 	) (
 		[]*avax.TransferableInput, // inputs
 		[]*avax.TransferableOutput, // outputs
-		[][]*crypto.PrivateKeySECP256K1R, // signers
+		[][]*secp256k1.PrivateKey, // signers
 		error,
 	)
 
@@ -139,17 +140,18 @@ type CaminoVerifier interface {
 	// Arguments:
 	// - [ins] and [outs] are the inputs and outputs of [tx].
 	// - [creds] are the credentials of [tx], which allow [ins] to be spent.
-	// - [ins] must have at least [burnedAmount] more than the [outs].
+	// - [ins] must have at least ([mintedAmount] - [burnedAmount]) less than the [outs].
 	// - [assetID] is id of allowed asset, ins/outs with other assets will return error
 	// - [appliedLockState] are lockState that was applied to [ins] lockState to produce [outs]
 	//
 	// Precondition: [tx] has already been syntactically verified.
 	VerifyLock(
 		tx txs.UnsignedTx,
-		utxoDB state.UTXOGetter,
+		utxoDB avax.UTXOGetter,
 		ins []*avax.TransferableInput,
 		outs []*avax.TransferableOutput,
 		creds []verify.Verifiable,
+		mintedAmount uint64,
 		burnedAmount uint64,
 		assetID ids.ID,
 		appliedLockState locked.State,
@@ -161,19 +163,19 @@ type CaminoVerifier interface {
 	// - [creds] are the credentials of [tx], which allow [ins] to be spent.
 	// - [burnedAmount] if any of deposits are still active, then unlocked inputs must have at least [burnedAmount] more than unlocked outs.
 	// - [assetID] is id of allowed asset, ins/outs with other assets will return error
-	// Returns:
-	// - map[depositTxID]unlockedAmount
+	// - [verifyCreds] if false, [creds] will be ignored
 	//
 	// Precondition: [tx] has already been syntactically verified.
 	VerifyUnlockDeposit(
-		state state.Chain,
+		utxoDB avax.UTXOGetter,
 		tx txs.UnsignedTx,
 		ins []*avax.TransferableInput,
 		outs []*avax.TransferableOutput,
 		creds []verify.Verifiable,
 		burnedAmount uint64,
 		assetID ids.ID,
-	) (map[ids.ID]uint64, error)
+		verifyCreds bool,
+	) error
 
 	Unlocker
 }
@@ -203,7 +205,8 @@ type Unlocker interface {
 }
 
 func (h *handler) Lock(
-	keys []*crypto.PrivateKeySECP256K1R,
+	utxoDB avax.UTXOReader,
+	keys []*secp256k1.PrivateKey,
 	totalAmountToLock uint64,
 	totalAmountToBurn uint64,
 	appliedLockState locked.State,
@@ -213,7 +216,7 @@ func (h *handler) Lock(
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
-	[][]*crypto.PrivateKeySECP256K1R, // signers
+	[][]*secp256k1.PrivateKey, // signers
 	[]*secp256k1fx.OutputOwners, // owners
 	error,
 ) {
@@ -227,7 +230,7 @@ func (h *handler) Lock(
 
 	addrs, signer := secp256k1fx.ExtractFromAndSigners(keys)
 
-	utxos, err := avax.GetAllUTXOs(h.utxosReader, addrs) // The UTXOs controlled by [keys]
+	utxos, err := avax.GetAllUTXOs(utxoDB, addrs) // The UTXOs controlled by [keys]
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
 	}
@@ -244,7 +247,7 @@ func (h *handler) Lock(
 
 	ins := []*avax.TransferableInput{}
 	outs := []*avax.TransferableOutput{}
-	signers := [][]*crypto.PrivateKeySECP256K1R{}
+	signers := [][]*secp256k1.PrivateKey{}
 	owners := []*secp256k1fx.OutputOwners{}
 
 	// Amount of AVAX that has been locked
@@ -327,7 +330,7 @@ func (h *handler) Lock(
 			continue
 		}
 
-		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, now, h.utxosReader)
+		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, now, utxoDB)
 		if err != nil {
 			// We couldn't spend the output, so move on to the next one
 			continue
@@ -358,7 +361,7 @@ func (h *handler) Lock(
 			if toOwnerID != nil {
 				lockedOwnerID = OwnerID{to, toOwnerID}
 			}
-			if changeOwnerID != nil && !h.isMultisigTransferOutput(innerOut) {
+			if changeOwnerID != nil && !h.isMultisigTransferOutput(utxoDB, innerOut) {
 				remainingOwnerID = OwnerID{change, changeOwnerID}
 			}
 		}
@@ -380,9 +383,12 @@ func (h *handler) Lock(
 			}
 
 			ins = append(ins, &avax.TransferableInput{
-				UTXOID: utxo.UTXOID,
-				Asset:  avax.Asset{ID: h.ctx.AVAXAssetID},
-				In:     in,
+				UTXOID: avax.UTXOID{
+					TxID:        utxo.TxID,
+					OutputIndex: utxo.OutputIndex,
+				},
+				Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
+				In:    in,
 			})
 			signers = append(signers, inSigners)
 			owners = append(owners, &innerOut.OutputOwners)
@@ -563,11 +569,8 @@ func (h *handler) unlockUTXOs(
 
 	for _, utxo := range utxos {
 		out, ok := utxo.Out.(*locked.Out)
-		if !ok {
-			// This output isn't locked
-			return nil, nil, errNotLockedUTXO
-		} else if !out.IsLockedWith(removedLockState) {
-			// This output doesn't have required lockState
+		if !ok || !out.IsLockedWith(removedLockState) {
+			// This output isn't locked or doesn't have required lockState
 			return nil, nil, errNotLockedUTXO
 		}
 
@@ -579,13 +582,16 @@ func (h *handler) unlockUTXOs(
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  avax.Asset{ID: h.ctx.AVAXAssetID},
+			UTXOID: avax.UTXOID{
+				TxID:        utxo.TxID,
+				OutputIndex: utxo.OutputIndex,
+			},
+			Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
 			In: &locked.In{
 				IDs: out.IDs,
 				TransferableIn: &secp256k1fx.TransferInput{
 					Amt:   out.Amount(),
-					Input: secp256k1fx.Input{},
+					Input: secp256k1fx.Input{SigIndices: []uint32{}},
 				},
 			},
 		})
@@ -620,12 +626,12 @@ func (h *handler) unlockUTXOs(
 
 func (h *handler) UnlockDeposit(
 	state state.Chain,
-	keys []*crypto.PrivateKeySECP256K1R,
+	keys []*secp256k1.PrivateKey,
 	depositTxIDs []ids.ID,
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
-	[][]*crypto.PrivateKeySECP256K1R, // signers
+	[][]*secp256k1.PrivateKey, // signers
 	error,
 ) {
 	addrs := set.NewSet[ids.ShortID](len(keys)) // The addresses controlled by [keys]
@@ -657,7 +663,7 @@ func (h *handler) UnlockDeposit(
 
 	ins := []*avax.TransferableInput{}
 	outs := []*avax.TransferableOutput{}
-	signers := [][]*crypto.PrivateKeySECP256K1R{}
+	signers := [][]*secp256k1.PrivateKey{}
 
 	for _, utxo := range utxos {
 		out, ok := utxo.Out.(*locked.Out)
@@ -681,7 +687,7 @@ func (h *handler) UnlockDeposit(
 			continue
 		}
 
-		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, currentTimestamp, h.utxosReader)
+		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, currentTimestamp, state)
 		if err != nil {
 			// We couldn't spend the output, so move on to the next one
 			continue
@@ -698,8 +704,11 @@ func (h *handler) UnlockDeposit(
 
 		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  avax.Asset{ID: h.ctx.AVAXAssetID},
+			UTXOID: avax.UTXOID{
+				TxID:        utxo.TxID,
+				OutputIndex: utxo.OutputIndex,
+			},
+			Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
 			In: &locked.In{
 				IDs:            out.IDs,
 				TransferableIn: in,
@@ -754,14 +763,20 @@ func (h *handler) UnlockDeposit(
 
 func (h *handler) VerifyLock(
 	tx txs.UnsignedTx,
-	utxoDB state.UTXOGetter,
+	utxoDB avax.UTXOGetter,
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
 	creds []verify.Verifiable,
+	mintedAmount uint64,
 	burnedAmount uint64,
 	assetID ids.ID,
 	appliedLockState locked.State,
 ) error {
+	msigState, ok := utxoDB.(secp256k1fx.AliasGetter)
+	if !ok {
+		return secp256k1fx.ErrNotAliasGetter
+	}
+
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
@@ -775,15 +790,17 @@ func (h *handler) VerifyLock(
 		utxos[index] = utxo
 	}
 
-	return h.VerifyLockUTXOs(tx, utxos, ins, outs, creds, burnedAmount, assetID, appliedLockState)
+	return h.VerifyLockUTXOs(msigState, tx, utxos, ins, outs, creds, mintedAmount, burnedAmount, assetID, appliedLockState)
 }
 
 func (h *handler) VerifyLockUTXOs(
+	msigState secp256k1fx.AliasGetter,
 	tx txs.UnsignedTx,
 	utxos []*avax.UTXO,
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
 	creds []verify.Verifiable,
+	mintedAmount uint64,
 	burnedAmount uint64,
 	assetID ids.ID,
 	appliedLockState locked.State,
@@ -808,13 +825,13 @@ func (h *handler) VerifyLockUTXOs(
 			"there are %d inputs and %d utxos: %w",
 			len(ins),
 			len(utxos),
-			errInputsUTXOSMismatch,
+			errInputsUTXOsMismatch,
 		)
 	}
 
 	for _, cred := range creds {
 		if err := cred.Verify(); err != nil {
-			return errWrongCredentials
+			return errBadCredentials
 		}
 	}
 
@@ -822,6 +839,7 @@ func (h *handler) VerifyLockUTXOs(
 	// if appliedLockState == bond, then otherLockTxID is depositTxID and vice versa
 	// ownerID -> otherLockTxID -> amount
 	consumed := make(map[ids.ID]map[ids.ID]uint64)
+	consumed[ids.Empty] = map[ids.ID]uint64{ids.Empty: mintedAmount} // TODO @evlekth simplify with dedicated var
 
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
@@ -881,7 +899,7 @@ func (h *handler) VerifyLockUTXOs(
 			return errLockedFundsNotMarkedAsLocked
 		}
 
-		if err := h.fx.VerifyMultisigTransfer(tx, in, creds[index], out, h.utxosReader); err != nil {
+		if err := h.fx.VerifyMultisigTransfer(tx, in, creds[index], out, msigState); err != nil {
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 
@@ -933,11 +951,10 @@ func (h *handler) VerifyLockUTXOs(
 		if lockedOut, ok := out.(*locked.Out); ok {
 			lockIDs = &lockedOut.IDs
 			out = lockedOut.TransferableOut
-		} else {
-			// unlocked tokens can be transferred and must be checked
-			if err := h.fx.VerifyMultisigOwner(out, h.utxosReader); err != nil {
-				return err
-			}
+		}
+
+		if err := h.fx.VerifyMultisigOwner(out, msigState); err != nil {
+			return err
 		}
 
 		otherLockTxID := &lockIDs.DepositTxID
@@ -999,19 +1016,25 @@ func (h *handler) VerifyLockUTXOs(
 }
 
 func (h *handler) VerifyUnlockDeposit(
-	state state.Chain,
+	utxoDB avax.UTXOGetter,
 	tx txs.UnsignedTx,
 	ins []*avax.TransferableInput,
 	outs []*avax.TransferableOutput,
 	creds []verify.Verifiable,
 	burnedAmount uint64,
 	assetID ids.ID,
-) (map[ids.ID]uint64, error) {
+	verifyCreds bool,
+) error {
+	msigState, ok := utxoDB.(secp256k1fx.AliasGetter)
+	if !ok {
+		return secp256k1fx.ErrNotAliasGetter
+	}
+
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
-		utxo, err := state.GetUTXO(input.InputID())
+		utxo, err := utxoDB.GetUTXO(input.InputID())
 		if err != nil {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"failed to read consumed UTXO %s due to: %w",
 				&input.UTXOID,
 				err,
@@ -1020,11 +1043,11 @@ func (h *handler) VerifyUnlockDeposit(
 		utxos[index] = utxo
 	}
 
-	return h.VerifyUnlockDepositedUTXOs(state, tx, utxos, ins, outs, creds, burnedAmount, assetID)
+	return h.VerifyUnlockDepositedUTXOs(msigState, tx, utxos, ins, outs, creds, burnedAmount, assetID, verifyCreds)
 }
 
 func (h *handler) VerifyUnlockDepositedUTXOs(
-	chainState state.Chain,
+	msigState secp256k1fx.AliasGetter,
 	tx txs.UnsignedTx,
 	utxos []*avax.UTXO,
 	ins []*avax.TransferableInput,
@@ -1032,9 +1055,19 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 	creds []verify.Verifiable,
 	burnedAmount uint64,
 	assetID ids.ID,
-) (map[ids.ID]uint64, error) {
-	if len(ins) != len(creds) {
-		return nil, fmt.Errorf(
+	verifyCreds bool,
+) error {
+	if len(ins) != len(utxos) {
+		return fmt.Errorf(
+			"there are %d inputs and %d utxos: %w",
+			len(ins),
+			len(utxos),
+			errInputsUTXOsMismatch,
+		)
+	}
+
+	if verifyCreds && len(ins) != len(creds) {
+		return fmt.Errorf(
 			"there are %d inputs and %d credentials: %w",
 			len(ins),
 			len(creds),
@@ -1042,38 +1075,23 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		)
 	}
 
-	if len(ins) != len(utxos) {
-		return nil, fmt.Errorf(
-			"there are %d inputs and %d utxos: %w",
-			len(ins),
-			len(utxos),
-			errInputsUTXOSMismatch,
-		)
-	}
-
-	for _, cred := range creds {
-		if err := cred.Verify(); err != nil {
-			return nil, errWrongCredentials
+	if verifyCreds {
+		for _, cred := range creds {
+			if err := cred.Verify(); err != nil {
+				return errBadCredentials
+			}
 		}
 	}
-
-	type depositUnlock struct {
-		consumed uint64 // consumed amount
-		produced uint64 // produced amount
-	}
-	depositUnlocks := make(map[ids.ID]*depositUnlock) // depositTxID -> *depositUnlock
 
 	consumedUnlocked := uint64(0)
 	consumed := make(map[ids.ID]map[ids.ID]uint64) // ownerID -> bondTxID -> amount
 
-	currentTimestamp := uint64(chainState.GetTimestamp().Unix())
-
-	// iterate over ins, get utxos, fill the maps (consumed, depositUnlock)
+	// iterate over ins, get utxos, calculate consumed values
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
 
 		if utxoAssetID := utxo.AssetID(); utxoAssetID != assetID {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"utxo %d has asset ID %s but expect %s: %w",
 				index,
 				utxoAssetID,
@@ -1083,7 +1101,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		}
 
 		if inputAssetID := input.AssetID(); inputAssetID != assetID {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"input %d has asset ID %s but expect %s: %w",
 				index,
 				inputAssetID,
@@ -1094,12 +1112,11 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		out := utxo.Out
 		lockIDs := &locked.IDsEmpty
-		isDeposited := false
 		if lockedOut, ok := out.(*locked.Out); ok {
 			// utxo isn't deposited, so it can't be unlocked
 			// bonded-not-deposited utxos are not allowed
-			if isDeposited = lockedOut.DepositTxID != ids.Empty; !isDeposited {
-				return nil, errUnlockingUnlockedUTXO
+			if lockedOut.DepositTxID == ids.Empty {
+				return errUnlockingUnlockedUTXO
 			}
 			out = lockedOut.TransferableOut
 			lockIDs = &lockedOut.IDs
@@ -1107,29 +1124,31 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		in := input.In
 		if lockedIn, ok := in.(*locked.In); ok {
-			// This input is locked, but its LockIDs is wrong
+			// Input is locked, but LockIDs isn't matching utxo's
 			if *lockIDs != lockedIn.IDs {
-				return nil, errLockIDsMismatch
+				return errLockIDsMismatch
 			}
 			in = lockedIn.TransferableIn
 		} else if lockIDs.IsLocked() {
-			// The UTXO says it's locked, but this input, which consumes it,
-			// is not locked - this is invalid.
-			return nil, errLockedFundsNotMarkedAsLocked
+			// The UTXO is locked, but consuming input isn't locked
+			return errLockedFundsNotMarkedAsLocked
 		}
 
 		consumedAmount := in.Amount()
 
-		if isDeposited {
-			// verifying that input amount equal to utxo amount
-			if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
-				return nil, fmt.Errorf("failed to verify transfer: utxo inner out isn't *secp256k1fx.TransferOutput or inner out amount != input.Am")
+		if verifyCreds {
+			if err := h.fx.VerifyMultisigTransfer(tx, in, creds[index], out, msigState); err != nil {
+				return fmt.Errorf("failed to verify transfer: %w: %s", errCantSpend, err)
 			}
+		} else if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
+			return fmt.Errorf("failed to verify transfer: %w", errUTXOOutTypeOrAmtMismatch)
+		}
 
-			// calculating consumed amounts
+		// calculating consumed amounts
+		if lockIDs.IsLocked() {
 			ownerID, err := txs.GetOutputOwnerID(out)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			consumedOwnerAmounts, ok := consumed[ownerID]
@@ -1140,38 +1159,19 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 			newAmount, err := math.Add64(consumedOwnerAmounts[lockIDs.BondTxID], consumedAmount)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			consumedOwnerAmounts[lockIDs.BondTxID] = newAmount
-
-			depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]
-			if !ok {
-				depUnlock = &depositUnlock{}
-				depositUnlocks[lockIDs.DepositTxID] = depUnlock
-			}
-
-			newAmount, err = math.Add64(depUnlock.consumed, consumedAmount)
-			if err != nil {
-				return nil, err
-			}
-			depUnlock.consumed = newAmount
 		} else {
-			if err := h.fx.VerifyMultisigTransfer(tx, in, creds[index], out, h.utxosReader); err != nil {
-				return nil, fmt.Errorf("failed to verify transfer: %w", err)
-			}
-
-			// calculating consumed amounts
 			newAmount, err := math.Add64(consumedUnlocked, consumedAmount)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			consumedUnlocked = newAmount
 		}
 	}
 
 	// iterating over outs, checking produced amounts with consumed map
-	// filling deposit produced amounts
-
 	for _, output := range outs {
 		out := output.Out
 		lockIDs := &locked.IDsEmpty
@@ -1181,8 +1181,8 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			out = lockedOut.TransferableOut
 		} else {
 			// unlocked tokens can be transferred and must be checked
-			if err := h.fx.VerifyMultisigOwner(out, h.utxosReader); err != nil {
-				return nil, err
+			if err := h.fx.VerifyMultisigOwner(out, msigState); err != nil {
+				return err
 			}
 		}
 
@@ -1190,7 +1190,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		ownerID, err := txs.GetOutputOwnerID(out)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		consumedOwnerAmounts, ok := consumed[ownerID]
@@ -1204,7 +1204,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		if consumedAmount < amountToRemoveFromConsumed {
 			if isLocked {
-				return nil, fmt.Errorf(
+				return fmt.Errorf(
 					"address %s produces %d and consumes %d for lockIDs %+v with unlock '%s': %w",
 					ownerID,
 					producedAmount,
@@ -1218,7 +1218,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			amountToRemoveFromConsumed = consumedAmount
 			amountToRemoveFromConsumedUnlocked := producedAmount - consumedAmount
 			if consumedUnlocked < amountToRemoveFromConsumedUnlocked {
-				return nil, fmt.Errorf(
+				return fmt.Errorf(
 					"address %s produces %d and consumes %d unlocked and %d locked with %+v: %w",
 					ownerID,
 					producedAmount,
@@ -1231,76 +1231,11 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 			consumedUnlocked -= amountToRemoveFromConsumedUnlocked
 		}
 		consumedOwnerAmounts[lockIDs.BondTxID] -= amountToRemoveFromConsumed
-
-		if depUnlock, ok := depositUnlocks[lockIDs.DepositTxID]; ok {
-			newAmount, err := math.Add64(depUnlock.produced, producedAmount)
-			if err != nil {
-				return nil, err
-			}
-			depUnlock.produced = newAmount
-		}
-	}
-
-	// this map will list how much tokens was unlocked from each deposit
-	unlockedAmount := make(map[ids.ID]uint64) // depositTxID -> amount
-	// if there are no deposits - its not system tx and we need to burn fee
-	needToBurn := len(depositUnlocks) == 0
-
-	for depositTxID, depUnlock := range depositUnlocks {
-		if depUnlock.consumed < depUnlock.produced {
-			return nil, errWrongProducedAmount
-		}
-
-		unlockedDepositAmount := depUnlock.consumed - depUnlock.produced
-
-		deposit, err := chainState.GetDeposit(depositTxID)
-		if err != nil {
-			return nil, err
-		}
-
-		depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
-		if err != nil {
-			return nil, err
-		}
-
-		unlockableAmount := deposit.UnlockableAmount(depositOffer, currentTimestamp)
-
-		// if we don't need keys, than deposit is expired and must be fully unlocked
-		// that means that tx must fully consume remaining deposited tokens and
-		// produce them as unlocked
-		isExpired := deposit.IsExpired(currentTimestamp)
-
-		// if there are active deposit - its not system tx and we need to burn fee
-		if !isExpired {
-			needToBurn = true
-		}
-
-		if isExpired &&
-			(unlockedDepositAmount != unlockableAmount ||
-				depUnlock.consumed != unlockableAmount) {
-			return nil, fmt.Errorf("expired deposit (%s) unlockable amount (%d) isn't equal to consumed (%d) and produced (%d) amount: %w",
-				depositTxID,
-				unlockableAmount,
-				depUnlock.consumed,
-				depUnlock.produced,
-				errNotConsumedDeposit)
-		}
-
-		// checking that we unlocked no more, than was available for unlock
-		if unlockedDepositAmount > unlockableAmount {
-			return nil, fmt.Errorf("unlockedDepositAmount %d > %d unlockableAmount: %w",
-				unlockedDepositAmount,
-				unlockableAmount,
-				errUnlockedMoreThanAvailable)
-		}
-
-		unlockedAmount[depositTxID] = unlockedDepositAmount
 	}
 
 	// checking that we burned required amount
-
-	if needToBurn && consumedUnlocked < burnedAmount {
-		return nil, fmt.Errorf(
+	if consumedUnlocked < burnedAmount {
+		return fmt.Errorf(
 			"asset %s burned %d unlocked, but needed to burn %d: %w",
 			assetID,
 			consumedUnlocked,
@@ -1309,10 +1244,10 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 		)
 	}
 
-	return unlockedAmount, nil
+	return nil
 }
 
-func (h *handler) isMultisigTransferOutput(out verify.State) bool {
+func (*handler) isMultisigTransferOutput(utxoDB avax.UTXOReader, out verify.State) bool {
 	secpOut, ok := out.(*secp256k1fx.TransferOutput)
 	if !ok {
 		// Conversion should succeed, otherwise it will be handled by the caller
@@ -1322,7 +1257,7 @@ func (h *handler) isMultisigTransferOutput(out verify.State) bool {
 	// ! because currently there is no support for adding new msig aliases after genesis,
 	// ! we assume that state diffs won't contain any changes to msig aliases state
 	// ! that must be changed later
-	state, ok := h.utxosReader.(state.CaminoDiff)
+	state, ok := utxoDB.(state.CaminoDiff)
 	if !ok {
 		return false
 	}
