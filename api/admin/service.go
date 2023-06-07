@@ -67,7 +67,7 @@ type Config struct {
 	HTTPServer   server.PathAdderWithReadLock
 	VMRegistry   registry.VMRegistry
 	VMManager    vms.Manager
-	HTTPHost     string
+	HTTPHost     *string
 }
 
 // Admin is the API service for node admin management
@@ -91,13 +91,14 @@ func NewService(config Config) (*common.HTTPHandler, error) {
 	}
 
 	// Check if the given hostname matches the configured host via CLI
+	if config.HTTPHost != nil {
+		mw, err := BlockRequestsWithNonMatchingHostnames(*config.HTTPHost)
+		if err != nil {
+			return nil, err
+		}
 
-	mw, err := BlockRequestsWithNonMatchingHostnames(config.HTTPHost)
-	if err != nil {
-		return nil, err
+		newServer.RegisterValidateRequestFunc(mw)
 	}
-
-	newServer.RegisterValidateRequestFunc(mw)
 
 	return &common.HTTPHandler{Handler: newServer}, nil
 }

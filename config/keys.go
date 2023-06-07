@@ -133,6 +133,7 @@ const (
 	SnowMixedQueryNumPushNonVdrKey                     = "snow-mixed-query-num-push-non-vdr"
 	TrackSubnetsKey                                    = "track-subnets"
 	AdminAPIEnabledKey                                 = "api-admin-enabled"
+	AdminAPIDisableSafeModeKey                         = "unsafe-api-admin-enabled"
 	InfoAPIEnabledKey                                  = "api-info-enabled"
 	KeystoreAPIEnabledKey                              = "api-keystore-enabled"
 	MetricsAPIEnabledKey                               = "api-metrics-enabled"
