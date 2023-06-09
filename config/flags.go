@@ -226,6 +226,7 @@ func addNodeFlags(fs *flag.FlagSet) {
 
 	// Enable/Disable APIs
 	fs.Bool(AdminAPIEnabledKey, false, "If true, this node exposes the Admin API")
+	fs.Bool(AdminAPIDisableSafeModeKey, false, "If true, the DNS rebinding mitigation will be disabled - use with care")
 	fs.Bool(InfoAPIEnabledKey, true, "If true, this node exposes the Info API")
 	fs.Bool(KeystoreAPIEnabledKey, false, "If true, this node exposes the Keystore API")
 	fs.Bool(MetricsAPIEnabledKey, true, "If true, this node exposes the Metrics API")

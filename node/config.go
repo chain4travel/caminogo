@@ -66,7 +66,7 @@ type APIConfig struct {
 
 	// Enable/Disable APIs
 	AdminAPIEnabled       bool `json:"adminAPIEnabled"`
-	UnsafeAdminAPIEnabled bool `json:"unsageAdminAPIEnabled"`
+	UnsafeAdminAPIEnabled bool `json:"unsafeAdminAPIEnabled"`
 	InfoAPIEnabled        bool `json:"infoAPIEnabled"`
 	KeystoreAPIEnabled    bool `json:"keystoreAPIEnabled"`
 	MetricsAPIEnabled     bool `json:"metricsAPIEnabled"`
