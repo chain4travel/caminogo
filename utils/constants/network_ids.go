@@ -58,6 +58,7 @@ const (
 var (
 	PrimaryNetworkID = ids.Empty
 	PlatformChainID  = ids.Empty
+	TimestampChainID = ids.ID{'t', 'i', 'm', 'e', 's', 't', 'a', 'm', 'p'}
 
 	NetworkIDToNetworkName = map[uint32]string{
 		MainnetID:    MainnetName,
