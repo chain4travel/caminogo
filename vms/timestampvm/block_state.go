@@ -8,6 +8,8 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
 )
 
 const (
@@ -26,8 +28,8 @@ var _ BlockState = &blockState{}
 
 // BlockState defines methods to manage state with Blocks and LastAcceptedIDs.
 type BlockState interface {
-	GetBlock(blkID ids.ID) (*Block, error)
-	PutBlock(blk *Block) error
+	GetBlock(blkID ids.ID) (blocks.Block, error)
+	PutBlock(blk blocks.Block) error
 	GetLastAccepted() (ids.ID, error)
 	SetLastAccepted(ids.ID) error
 }
@@ -35,7 +37,7 @@ type BlockState interface {
 // blockState implements BlocksState interface with database and cache.
 type blockState struct {
 	// cache to store blocks
-	blkCache cache.Cacher[ids.ID, *Block]
+	blkCache cache.Cacher[ids.ID, *blkWrapper]
 	// block database
 	blockDB      database.Database
 	lastAccepted ids.ID
@@ -46,29 +48,31 @@ type blockState struct {
 
 // blkWrapper wraps the actual blk bytes and status to persist them together
 type blkWrapper struct {
-	Blk    []byte         `serialize:"true"`
+	Block  []byte         `serialize:"true"`
 	Status choices.Status `serialize:"true"`
+
+	block blocks.Block
 }
 
 // NewBlockState returns BlockState with a new cache and given db
 func NewBlockState(db database.Database, vm *VM) BlockState {
 	return &blockState{
-		blkCache: &cache.LRU[ids.ID, *Block]{Size: blockCacheSize},
+		blkCache: &cache.LRU[ids.ID, *blkWrapper]{Size: blockCacheSize},
 		blockDB:  db,
 		vm:       vm,
 	}
 }
 
 // GetBlock gets Block from either cache or database
-func (s *blockState) GetBlock(blkID ids.ID) (*Block, error) {
+func (s *blockState) GetBlock(blkID ids.ID) (blocks.Block, error) {
 	// Check if cache has this blkID
-	if blk, cached := s.blkCache.Get(blkID); cached {
+	if blkWrapper, cached := s.blkCache.Get(blkID); cached {
 		// there is a key but value is nil, so return an error
-		if blk == nil {
+		if blkWrapper == nil {
 			return nil, database.ErrNotFound
 		}
 		// We found it return the block in cache
-		return blk, nil
+		return blkWrapper.block, nil
 	}
 
 	// get block bytes from db with the blkID key
@@ -86,42 +90,43 @@ func (s *blockState) GetBlock(blkID ids.ID) (*Block, error) {
 
 	// first decode/unmarshal the block wrapper so we can have status and block bytes
 	blkw := blkWrapper{}
-	if _, err := Codec.Unmarshal(wrappedBytes, &blkw); err != nil {
+	if _, err := txs.Codec.Unmarshal(wrappedBytes, &blkw); err != nil {
 		return nil, err
 	}
 
 	// now decode/unmarshal the actual block bytes to block
-	blk := &Block{}
-	if _, err := Codec.Unmarshal(blkw.Blk, blk); err != nil {
+	blk := &blocks.StandardBlock{}
+	if _, err := txs.Codec.Unmarshal(blkw.Block, blk); err != nil {
 		return nil, err
 	}
 
 	// initialize block with block bytes, status and vm
-	blk.Initialize(blkw.Blk, blkw.Status, s.vm)
+	blk.Initialize(blkw.Block, blkw.Status, s.vm) //TODO clarify if necessary or if status should be also cached
 
 	// put block into cache
-	s.blkCache.Put(blkID, blk)
+	blkw.block = blk
+	s.blkCache.Put(blkID, &blkw)
 
 	return blk, nil
 }
 
 // PutBlock puts block into both database and cache
-func (s *blockState) PutBlock(blk *Block) error {
+func (s *blockState) PutBlock(blk blocks.Block) error {
 	// create block wrapper with block bytes and status
 	blkw := blkWrapper{
-		Blk:    blk.Bytes(),
-		Status: blk.Status(),
+		Block: blk.Bytes(),
+		//Status: blk.Status(),
 	}
 
 	// encode block wrapper to its byte representation
-	wrappedBytes, err := Codec.Marshal(CodecVersion, &blkw)
+	wrappedBytes, err := txs.Codec.Marshal(txs.Version, &blkw)
 	if err != nil {
 		return err
 	}
 
 	blkID := blk.ID()
 	// put actual block to cache, so we can directly fetch it from cache
-	s.blkCache.Put(blkID, blk)
+	s.blkCache.Put(blkID, &blkw)
 
 	// put wrapped block bytes into database
 	return s.blockDB.Put(blkID[:], wrappedBytes)

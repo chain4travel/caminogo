@@ -1,12 +1,13 @@
 // Copyright (C) 2022, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package timestampvm
+package state
 
 import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
+	"github.com/ava-labs/avalanchego/vms/timestampvm"
 )
 
 var (
@@ -24,7 +25,7 @@ type State interface {
 	// SingletonState is defined in avalanchego,
 	// it is used to understand if db is initialized already.
 	SingletonState
-	BlockState
+	timestampvm.BlockState
 
 	Commit() error
 	Close() error
@@ -32,12 +33,12 @@ type State interface {
 
 type state struct {
 	SingletonState
-	BlockState
+	timestampvm.BlockState
 
 	baseDB *versiondb.Database
 }
 
-func NewState(db database.Database, vm *VM) State {
+func NewState(db database.Database, vm *timestampvm.VM) State {
 	// create a new baseDB
 	baseDB := versiondb.New(db)
 
@@ -48,7 +49,7 @@ func NewState(db database.Database, vm *VM) State {
 
 	// return state with created sub state components
 	return &state{
-		BlockState:     NewBlockState(blockDB, vm),
+		BlockState:     timestampvm.NewBlockState(blockDB, vm),
 		SingletonState: NewSingletonState(singletonDB),
 		baseDB:         baseDB,
 	}

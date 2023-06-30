@@ -7,6 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/api"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/metrics"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
+	"github.com/prometheus/client_golang/prometheus"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -22,6 +26,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/version"
+
+	tvm_block "github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
+	tvm_state "github.com/ava-labs/avalanchego/vms/timestampvm/state"
 )
 
 const (
@@ -50,8 +57,9 @@ type VM struct {
 	snowCtx   *snow.Context
 	dbManager manager.Manager
 
+	metrics metrics.Metrics
 	// State of this VM
-	state State
+	State tvm_state.State
 
 	// ID of the preferred block
 	preferred ids.ID
@@ -65,7 +73,7 @@ type VM struct {
 	// Block ID --> Block
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
-	verifiedBlocks map[ids.ID]*Block
+	VerifiedBlocks map[ids.ID]*tvm_block.StandardBlock
 
 	// Indicates that this VM has finised bootstrapping for the chain
 	bootstrapped utils.Atomic[bool]
@@ -90,6 +98,13 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	_ common.AppSender,
 ) error {
+	snowCtx.Log.Verbo("initializing t chain")
+
+	registerer := prometheus.NewRegistry()
+	if err := snowCtx.Metrics.Register(registerer); err != nil {
+		return err
+	}
+
 	version, err := vm.Version(ctx)
 	if err != nil {
 		snowCtx.Log.Error("error initializing Timestamp VM: %v", zap.Error(err))
@@ -97,13 +112,19 @@ func (vm *VM) Initialize(
 	}
 	snowCtx.Log.Info("Initializing Timestamp VM", zap.String("Version", version))
 
+	// Initialize metrics as soon as possible
+	vm.metrics, err = metrics.New("", registerer)
+	if err != nil {
+		return fmt.Errorf("failed to initialize metrics: %w", err)
+	}
+
 	vm.dbManager = dbManager
 	vm.snowCtx = snowCtx
 	vm.toEngine = toEngine
-	vm.verifiedBlocks = make(map[ids.ID]*Block)
+	vm.VerifiedBlocks = make(map[ids.ID]*tvm_block.StandardBlock)
 
 	// Create new state
-	vm.state = NewState(vm.dbManager.Current().Database, vm)
+	vm.State = tvm_state.NewState(vm.dbManager.Current().Database, vm)
 
 	// Initialize genesis
 	if err := vm.initGenesis(genesisData); err != nil {
@@ -111,7 +132,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Get last accepted
-	lastAccepted, err := vm.state.GetLastAccepted()
+	lastAccepted, err := vm.State.GetLastAccepted()
 	if err != nil {
 		return err
 	}
@@ -126,7 +147,7 @@ func (vm *VM) Initialize(
 
 // Initializes Genesis if required
 func (vm *VM) initGenesis(genesisData []byte) error {
-	stateInitialized, err := vm.state.IsInitialized()
+	stateInitialized, err := vm.State.IsInitialized()
 	if err != nil {
 		return err
 	}
@@ -154,7 +175,7 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	}
 
 	// Put genesis block to state
-	if err := vm.state.PutBlock(genesisBlock); err != nil {
+	if err := vm.State.PutBlock(genesisBlock); err != nil {
 		vm.snowCtx.Log.Error("error while saving genesis block: %v", zap.Error(err))
 		return err
 	}
@@ -166,12 +187,12 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	}
 
 	// Mark this vm's state as initialized, so we can skip initGenesis in further restarts
-	if err := vm.state.SetInitialized(); err != nil {
+	if err := vm.State.SetInitialized(); err != nil {
 		return fmt.Errorf("error while setting db to initialized: %w", err)
 	}
 
 	// Flush VM's database to underlying db
-	return vm.state.Commit()
+	return vm.State.Commit()
 }
 
 // CreateHandlers returns a map where:
@@ -200,7 +221,7 @@ func (*VM) CreateStaticHandlers(_ context.Context) (map[string]*common.HTTPHandl
 	server := rpc.NewServer()
 	server.RegisterCodec(json.NewCodec(), "application/json")
 	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
-	if err := server.RegisterService(&StaticService{}, Name); err != nil {
+	if err := server.RegisterService(&api.StaticService{}, Name); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +253,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 
 	// Gets Preferred Block
-	preferredBlock, err := vm.getBlock(vm.preferred)
+	preferredBlock, err := vm.GetBlock(ctx, vm.preferred)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get preferred block: %w", err)
 	}
@@ -263,20 +284,20 @@ func (vm *VM) NotifyBlockReady() {
 
 // GetBlock implements the snowman.ChainVM interface
 func (vm *VM) GetBlock(_ context.Context, blkID ids.ID) (snowman.Block, error) {
-	return vm.getBlock(blkID)
-}
-
-func (vm *VM) getBlock(blkID ids.ID) (*Block, error) {
 	// If block is in memory, return it.
-	if blk, exists := vm.verifiedBlocks[blkID]; exists {
+	if blk, exists := vm.VerifiedBlocks[blkID]; exists {
 		return blk, nil
 	}
 
-	return vm.state.GetBlock(blkID)
+	_, err := vm.State.GetBlock(blkID)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil //TODO
 }
 
 // LastAccepted returns the block most recently accepted
-func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) { return vm.state.GetLastAccepted() }
+func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) { return vm.State.GetLastAccepted() }
 
 // proposeBlock appends [data] to [p.mempool].
 // Then it notifies the consensus engine
@@ -295,12 +316,12 @@ func (vm *VM) proposeBlock(data [DataLen]byte) bool {
 // This function is used by the vm's state to unmarshal blocks saved in state
 // and by the consensus layer when it receives the byte representation of a block
 // from another node
-func (vm *VM) ParseBlock(_ context.Context, bytes []byte) (snowman.Block, error) {
+func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
 	// A new empty block
-	block := &Block{}
+	block := &tvm_block.StandardBlock{}
 
 	// Unmarshal the byte repr. of the block into our empty block
-	_, err := Codec.Unmarshal(bytes, block)
+	_, err := txs.Codec.Unmarshal(bytes, block)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +329,7 @@ func (vm *VM) ParseBlock(_ context.Context, bytes []byte) (snowman.Block, error)
 	// Initialize the block
 	block.Initialize(bytes, choices.Processing, vm)
 
-	if blk, err := vm.getBlock(block.ID()); err == nil {
+	if blk, err := vm.GetBlock(ctx, block.ID()); err == nil {
 		// If we have seen this block before, return it with the most up-to-date
 		// info
 		return blk, nil
@@ -322,8 +343,8 @@ func (vm *VM) ParseBlock(_ context.Context, bytes []byte) (snowman.Block, error)
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [DataLen]byte, timestamp time.Time) (*Block, error) {
-	block := &Block{
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [DataLen]byte, timestamp time.Time) (*tvm_block.StandardBlock, error) {
+	block := &tvm_block.StandardBlock{
 		PrntID: parentID,
 		Hght:   height,
 		Tmstmp: timestamp.Unix(),
@@ -331,7 +352,7 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [DataLen]byte, times
 	}
 
 	// Get the byte representation of the block
-	blockBytes, err := Codec.Marshal(CodecVersion, block)
+	blockBytes, err := txs.Codec.Marshal(txs.Version, block)
 	if err != nil {
 		return nil, err
 	}
@@ -344,11 +365,11 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [DataLen]byte, times
 
 // Shutdown this vm
 func (vm *VM) Shutdown(_ context.Context) error {
-	if vm.state == nil {
+	if vm.State == nil {
 		return nil
 	}
 
-	return vm.state.Close() // close versionDB
+	return vm.State.Close() // close versionDB
 }
 
 // SetPreference sets the block with ID [ID] as the preferred block

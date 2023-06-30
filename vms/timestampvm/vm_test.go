@@ -25,7 +25,7 @@ func TestGenesis(t *testing.T) {
 	vm, _, _, err := newTestVM()
 	require.NoError(err)
 	// Verify that the db is initialized
-	ok, err := vm.state.IsInitialized()
+	ok, err := vm.State.IsInitialized()
 	require.NoError(err)
 	require.True(ok)
 
@@ -34,9 +34,9 @@ func TestGenesis(t *testing.T) {
 	require.NoError(err)
 	require.NotEqual(ids.Empty, lastAccepted)
 
-	// Verify that getBlock returns the genesis block, and the genesis block
+	// Verify that GetBlock returns the genesis block, and the genesis block
 	// is the type we expect
-	genesisBlock, err := vm.getBlock(lastAccepted) // genesisBlock as snowman.Block
+	genesisBlock, err := vm.GetBlock(lastAccepted) // genesisBlock as snowman.Block
 	require.NoError(err)
 
 	// Verify that the genesis block has the data we expect
@@ -54,7 +54,7 @@ func TestHappyPath(t *testing.T) {
 
 	lastAcceptedID, err := vm.LastAccepted(ctx)
 	require.NoError(err)
-	genesisBlock, err := vm.getBlock(lastAcceptedID)
+	genesisBlock, err := vm.GetBlock(lastAcceptedID)
 	require.NoError(err)
 
 	// in an actual execution, the engine would set the preference
@@ -84,7 +84,7 @@ func TestHappyPath(t *testing.T) {
 	require.NoError(err)
 
 	// Should be the block we just accepted
-	block2, err := vm.getBlock(lastAcceptedID)
+	block2, err := vm.GetBlock(lastAcceptedID)
 	require.NoError(err)
 
 	// require the block we accepted has the data we expect
@@ -115,7 +115,7 @@ func TestHappyPath(t *testing.T) {
 	lastAcceptedID, err = vm.LastAccepted(ctx)
 	require.NoError(err)
 	// The block we just accepted
-	block3, err := vm.getBlock(lastAcceptedID)
+	block3, err := vm.GetBlock(lastAcceptedID)
 	require.NoError(err)
 
 	// require the block we accepted has the data we expect
@@ -125,11 +125,11 @@ func TestHappyPath(t *testing.T) {
 	require.NoError(block3.Verify(ctx))
 
 	// Next, check the blocks we added are there
-	block2FromState, err := vm.getBlock(block2.ID())
+	block2FromState, err := vm.GetBlock(block2.ID())
 	require.NoError(err)
 	require.Equal(block2.ID(), block2FromState.ID())
 
-	block3FromState, err := vm.getBlock(snowmanBlock3.ID())
+	block3FromState, err := vm.GetBlock(snowmanBlock3.ID())
 	require.NoError(err)
 	require.Equal(snowmanBlock3.ID(), block3FromState.ID())
 

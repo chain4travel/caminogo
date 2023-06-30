@@ -59,7 +59,7 @@ type GetBlockReply struct {
 
 // GetBlock gets the block whose ID is [args.ID]
 // If [args.ID] is empty, get the latest block
-func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockReply) error {
+func (s *Service) GetBlock(r *http.Request, args *GetBlockArgs, reply *GetBlockReply) error {
 	// If an ID is given, parse its string representation to an ids.ID
 	// If no ID is given, ID becomes the ID of last accepted block
 	var (
@@ -68,25 +68,25 @@ func (s *Service) GetBlock(_ *http.Request, args *GetBlockArgs, reply *GetBlockR
 	)
 
 	if args.ID == nil {
-		id, err = s.vm.state.GetLastAccepted()
+		id, err = s.vm.State.GetLastAccepted()
 		if err != nil {
 			return errCannotGetLastAccepted
 		}
 	} else {
 		id = *args.ID
 	}
-
+	ctx := r.Context()
 	// Get the block from the database
-	block, err := s.vm.getBlock(id)
+	block, err := s.vm.GetBlock(ctx, id)
 	if err != nil {
 		return errNoSuchBlock
 	}
 
 	// Fill out the response with the block's data
 	reply.Timestamp = json.Uint64(block.Timestamp().Unix())
-	data := block.Data()
-	reply.Data, err = formatting.Encode(formatting.Hex, data[:])
-	reply.Height = json.Uint64(block.Hght)
+	//data := b.Data()
+	//reply.Data, err = formatting.Encode(formatting.Hex, data[:])
+	reply.Height = json.Uint64(block.Height())
 	reply.ID = block.ID()
 	reply.ParentID = block.Parent()
 
