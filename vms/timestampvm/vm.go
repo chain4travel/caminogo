@@ -163,12 +163,12 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 
 	// genesisData is a byte slice but each block contains an byte array
 	// Take the first [DataLen] bytes from genesisData and put them in an array
-	genesisDataArr := BytesToData(genesisData)
-	// TODO fix vm.snowCtx.Log.Debug("genesis", zap.ByteStrings("data", genesisDataArr)
+	//genesisDataArr := BytesToData(genesisData) TODO add genesis logic back in later if necessary with appropriate parsing/validating logic
+	// TODO fix vm.snowCtx.Log.Debug("genesis",  zap.ByteStrings("data", genesisDataArr)
 
 	// Create the genesis block
 	// Timestamp of genesis block is 0. It has no parent.
-	genesisBlock, err := vm.NewBlock(ids.Empty, 0, genesisDataArr, time.Unix(0, 0))
+	genesisBlock, err := vm.NewBlock(ids.Empty, 0, time.Unix(0, 0))
 	if err != nil {
 		vm.snowCtx.Log.Error("error while creating genesis block: %v", zap.Error(err))
 		return err
@@ -343,12 +343,11 @@ func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, erro
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, data [DataLen]byte, timestamp time.Time) (*tvm_block.StandardBlock, error) {
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time) (*tvm_block.StandardBlock, error) {
 	block := &tvm_block.StandardBlock{
 		PrntID: parentID,
 		Hght:   height,
 		Tmstmp: timestamp.Unix(),
-		Dt:     data,
 	}
 
 	// Get the byte representation of the block
