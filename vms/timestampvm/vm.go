@@ -243,7 +243,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 
 	// Get the value to put in the new block
-	value := vm.mempool[0]
+	//value := vm.mempool[0] TODO replace data field with transactions
 	vm.mempool = vm.mempool[1:]
 
 	// Notify consensus engine that there are more pending data for blocks
@@ -260,7 +260,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	preferredHeight := preferredBlock.Height()
 
 	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, value, time.Now())
+	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build block: %w", err)
 	}
@@ -327,7 +327,7 @@ func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, erro
 	}
 
 	// Initialize the block
-	block.Initialize(bytes, choices.Processing, vm)
+	block.Initialize(bytes, choices.Processing)
 
 	if blk, err := vm.GetBlock(ctx, block.ID()); err == nil {
 		// If we have seen this block before, return it with the most up-to-date
@@ -358,7 +358,7 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time) (*tv
 
 	// Initialize the block by providing it with its byte representation
 	// and a reference to this VM
-	block.Initialize(blockBytes, choices.Processing, vm)
+	block.Initialize(blockBytes, choices.Processing)
 	return block, nil
 }
 
