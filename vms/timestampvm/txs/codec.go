@@ -1,4 +1,14 @@
 // Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
+// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -18,7 +28,8 @@ const (
 
 // Codecs do serialization and deserialization
 var (
-	Codec codec.Manager
+	Codec        codec.Manager
+	GenesisCodec codec.Manager
 )
 
 func init() {
@@ -26,6 +37,7 @@ func init() {
 	c := linearcodec.NewCaminoDefault()
 	Codec = codec.NewDefaultManager()
 	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32)
+	GenesisCodec = codec.NewManager(math.MaxInt32)
 
 	// Register codec to manager with Version
 	if err := Codec.RegisterCodec(Version, c); err != nil {
@@ -42,6 +54,7 @@ func init() {
 	}
 	errs.Add(
 		Codec.RegisterCodec(Version, c),
+		GenesisCodec.RegisterCodec(Version, gc),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

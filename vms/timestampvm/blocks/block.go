@@ -4,27 +4,18 @@
 package blocks
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/codec"
-	//"github.com/ava-labs/avalanchego/vms/timestampvm"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
 	"time"
 
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
 )
 
 var (
-	errTimestampTooEarly = errors.New("block's timestamp is earlier than its parent's timestamp")
-	errDatabaseGet       = errors.New("error while retrieving data from database")
-	errTimestampTooLate  = errors.New("block's timestamp is more than 1 hour ahead of local time")
-
-	_ snowman.Block = &StandardBlock{}
-	_ Block         = &StandardBlock{}
+	_ Block = &StandardBlock{}
 )
 
 type Block interface {
@@ -70,85 +61,12 @@ func (b *StandardBlock) initialize(bytes []byte, cm codec.Manager) error {
 	return nil
 }
 
-// Verify returns nil iff this block is valid.
-// To be valid, it must be that:
-// b.parent.Timestamp < b.Timestamp <= [local time] + 1 hour
-func (b *StandardBlock) Verify(ctx context.Context) error {
-	// Get [b]'s parent
-	parentID := b.Parent()
-	parent, err := b.vm.GetBlock(ctx, parentID)
-	if err != nil {
-		return errDatabaseGet
-	}
-
-	// Ensure [b]'s height comes right after its parent's height
-	if expectedHeight := parent.Height() + 1; expectedHeight != b.Hght {
-		return fmt.Errorf(
-			"expected block to have height %d, but found %d",
-			expectedHeight,
-			b.Hght,
-		)
-	}
-
-	// Ensure [b]'s timestamp is after its parent's timestamp.
-	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-		return errTimestampTooEarly
-	}
-
-	// Ensure [b]'s timestamp is not more than an hour
-	// ahead of this node's time
-	if b.Timestamp().Unix() >= time.Now().Add(time.Hour).Unix() {
-		return errTimestampTooLate
-	}
-
-	// Put that block to verified blocks in memory
-	b.vm.VerifiedBlocks[b.ID()] = b
-
-	return nil
-}
-
 // Initialize sets [b.bytes] to [bytes], [b.id] to hash([b.bytes]),
 // [b.status] to [status] and [b.vm] to [vm]
 func (b *StandardBlock) Initialize(bytes []byte, status choices.Status) {
 	b.bytes = bytes
 	b.id = hashing.ComputeHash256Array(b.bytes)
 	b.status = status
-}
-
-// Accept sets this block's status to Accepted and sets lastAccepted to this
-// block's ID and saves this info to b.vm.DB
-func (b *StandardBlock) Accept(_ context.Context) error {
-	b.SetStatus(choices.Accepted) // Change state of this block
-	blkID := b.ID()
-
-	// Persist data
-	if err := b.vm.State.PutBlock(b); err != nil {
-		return err
-	}
-
-	// Set last accepted ID to this block ID
-	if err := b.vm.State.SetLastAccepted(blkID); err != nil {
-		return err
-	}
-
-	// Delete this block from verified blocks as it's accepted
-	delete(b.vm.VerifiedBlocks, b.ID())
-
-	// Commit changes to database
-	return b.vm.State.Commit()
-}
-
-// Reject sets this block's status to Rejected and saves the status in state
-// Recall that b.vm.DB.Commit() must be called to persist to the DB
-func (b *StandardBlock) Reject(_ context.Context) error {
-	b.SetStatus(choices.Rejected) // Change state of this block
-	if err := b.vm.State.PutBlock(b); err != nil {
-		return err
-	}
-	// Delete this block from verified blocks as it's rejected
-	delete(b.vm.VerifiedBlocks, b.ID())
-	// Commit changes to database
-	return b.vm.State.Commit()
 }
 
 // ID returns the ID of this block

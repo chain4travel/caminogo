@@ -75,7 +75,7 @@ type VM struct {
 	// hasn't yet been accepted/rejected
 	VerifiedBlocks map[ids.ID]*tvm_block.StandardBlock
 
-	// Indicates that this VM has finised bootstrapping for the chain
+	// Indicates that this VM has finished bootstrapping for the chain
 	bootstrapped utils.Atomic[bool]
 }
 
@@ -124,7 +124,10 @@ func (vm *VM) Initialize(
 	vm.VerifiedBlocks = make(map[ids.ID]*tvm_block.StandardBlock)
 
 	// Create new state
-	vm.State = tvm_state.NewState(vm.dbManager.Current().Database, vm)
+	vm.State, err = tvm_state.NewState(vm.dbManager.Current().Database, registerer, vm)
+	if err != nil {
+		return err
+	}
 
 	// Initialize genesis
 	if err := vm.initGenesis(genesisData); err != nil {
@@ -132,10 +135,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Get last accepted
-	lastAccepted, err := vm.State.GetLastAccepted()
-	if err != nil {
-		return err
-	}
+	lastAccepted := vm.State.GetLastAccepted()
 
 	snowCtx.Log.Info("initializing last accepted block",
 		zap.Any("id", lastAccepted),
@@ -174,17 +174,15 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 		return err
 	}
 
-	// Put genesis block to state
-	if err := vm.State.PutBlock(genesisBlock); err != nil {
-		vm.snowCtx.Log.Error("error while saving genesis block: %v", zap.Error(err))
-		return err
-	}
-
-	// Accept the genesis block
-	// Sets [vm.lastAccepted] and [vm.preferred]
-	if err := genesisBlock.Accept(context.TODO()); err != nil {
-		return fmt.Errorf("error accepting genesis block: %w", err)
-	}
+	// TODO check if accept is necessary anymore
+	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)
+	genesisBlkID := genesisBlock.ID()
+	vm.State.SetLastAccepted(genesisBlkID)
+	//// Accept the genesis block
+	//// Sets [vm.lastAccepted] and [vm.preferred]
+	//if err := genesisBlock.Accept(context.TODO()); err != nil {
+	//	return fmt.Errorf("error accepting genesis block: %w", err)
+	//}
 
 	// Mark this vm's state as initialized, so we can skip initGenesis in further restarts
 	if err := vm.State.SetInitialized(); err != nil {
@@ -297,7 +295,7 @@ func (vm *VM) GetBlock(_ context.Context, blkID ids.ID) (snowman.Block, error) {
 }
 
 // LastAccepted returns the block most recently accepted
-func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) { return vm.State.GetLastAccepted() }
+func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) { return vm.State.GetLastAccepted(), nil }
 
 // proposeBlock appends [data] to [p.mempool].
 // Then it notifies the consensus engine
