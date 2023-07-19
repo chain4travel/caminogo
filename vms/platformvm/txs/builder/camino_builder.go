@@ -106,6 +106,10 @@ type CaminoTxBuilder interface {
 	NewSystemUnlockDepositTx(
 		depositTxIDs []ids.ID,
 	) (*txs.Tx, error)
+
+	FinishProposalsTx(
+		finishedProposalIDs []ids.ID,
+	) (*txs.Tx, error)
 }
 
 func NewCamino(
@@ -674,6 +678,31 @@ func (b *caminoBuilder) NewSystemUnlockDepositTx(
 			Ins:          ins,
 			Outs:         outs,
 		}},
+	}
+
+	tx, err := txs.NewSigned(utx, txs.Codec, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) FinishProposalsTx(
+	finishedProposalIDs []ids.ID,
+) (*txs.Tx, error) {
+	ins, outs, err := b.Unlock(b.state, finishedProposalIDs, locked.StateBonded)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	utx := &txs.FinishProposalsTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		FinishedProposalIDs: finishedProposalIDs,
 	}
 
 	tx, err := txs.NewSigned(utx, txs.Codec, nil)

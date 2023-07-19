@@ -11,7 +11,7 @@ import (
 )
 
 // GetNextChainEventTime returns the next chain event time
-// For example: stakers set changed, deposit expired
+// For example: stakers set changed, deposit expired, proposal expired
 func GetNextChainEventTime(state state.Chain, stakerChangeTime time.Time) (time.Time, error) {
 	earliestTime := stakerChangeTime
 	nextDeferredStakerEndTime, err := getNextDeferredStakerEndTime(state)
@@ -31,6 +31,17 @@ func GetNextChainEventTime(state state.Chain, stakerChangeTime time.Time) (time.
 	if err != database.ErrNotFound && depositUnlockTime.Before(earliestTime) {
 		earliestTime = depositUnlockTime
 	}
+
+	proposalExpirationTime, err := state.GetNextProposalExpirationTime(nil)
+	if err != nil && err != database.ErrNotFound {
+		return time.Time{}, err
+	}
+
+	if err != database.ErrNotFound && proposalExpirationTime.Before(earliestTime) {
+		earliestTime = proposalExpirationTime
+	}
+
+	// TODO@ ensure that block builder will try to build block if there is finished, but not expired proposals (props to execute)
 
 	return earliestTime, nil
 }

@@ -4,6 +4,7 @@
 package executor
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"golang.org/x/exp/slices"
 
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
@@ -72,12 +74,18 @@ var (
 	errBurnedDepositUnlock               = errors.New("burned undeposited tokens")
 	errAdminCannotBeDeleted              = errors.New("admin cannot be deleted")
 	errNotAthensPhase                    = errors.New("not allowed before AthensPhase")
+	errNotSunrisePhase2                  = errors.New("not allowed before SunrisePhase2")
 	errOfferCreatorCredentialMismatch    = errors.New("offer creator credential isn't matching")
 	errNotOfferCreator                   = errors.New("address isn't allowed to create deposit offers")
 	errDepositCreatorCredentialMismatch  = errors.New("deposit creator credential isn't matching")
 	errOfferPermissionCredentialMismatch = errors.New("offer-usage permission credential isn't matching")
 	errEmptyDepositCreatorAddress        = errors.New("empty deposit creator address, while offer owner isn't empty")
 	errWrongTxUpgradeVersion             = errors.New("wrong tx upgrade version")
+	errProposalStartToEarly              = errors.New("proposal start time is to early")
+	errProposalInactive                  = errors.New("proposal is inactive")
+	errProposerCredentialMismatch        = errors.New("proposer credential isn't matching")
+	errWrongProposalBondAmount           = errors.New("wrong proposal bond amount")
+	errVoterCredentialMismatch           = errors.New("voter credential isn't matching")
 )
 
 type CaminoStandardTxExecutor struct {
@@ -145,7 +153,7 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 
 	// verify camino tx
 
-	if err := e.Tx.SyntacticVerify(e.Backend.Ctx); err != nil {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
 
@@ -233,8 +241,8 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 			tx.Outs,
 			e.Tx.Creds[:len(e.Tx.Creds)-1],
 			0,
-			e.Backend.Config.AddPrimaryNetworkValidatorFee,
-			e.Backend.Ctx.AVAXAssetID,
+			e.Backend.Config.AddPrimaryNetworkValidatorFee, // TODO@ use baseFee?
+			e.Ctx.AVAXAssetID,
 			locked.StateBonded,
 		); err != nil {
 			return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
@@ -279,7 +287,7 @@ func (e *CaminoStandardTxExecutor) AddSubnetValidatorTx(tx *txs.AddSubnetValidat
 		defer addCreds(e.Tx, creds)
 	}
 
-	return e.StandardTxExecutor.AddSubnetValidatorTx(tx)
+	return e.StandardTxExecutor.AddSubnetValidatorTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) AddDelegatorTx(tx *txs.AddDelegatorTx) error {
@@ -296,7 +304,7 @@ func (e *CaminoStandardTxExecutor) AddDelegatorTx(tx *txs.AddDelegatorTx) error 
 		return err
 	}
 
-	return e.StandardTxExecutor.AddDelegatorTx(tx)
+	return e.StandardTxExecutor.AddDelegatorTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) AddPermissionlessValidatorTx(tx *txs.AddPermissionlessValidatorTx) error {
@@ -313,7 +321,7 @@ func (e *CaminoStandardTxExecutor) AddPermissionlessValidatorTx(tx *txs.AddPermi
 		return err
 	}
 
-	return e.StandardTxExecutor.AddPermissionlessValidatorTx(tx)
+	return e.StandardTxExecutor.AddPermissionlessValidatorTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) AddPermissionlessDelegatorTx(tx *txs.AddPermissionlessDelegatorTx) error {
@@ -330,7 +338,7 @@ func (e *CaminoStandardTxExecutor) AddPermissionlessDelegatorTx(tx *txs.AddPermi
 		return err
 	}
 
-	return e.StandardTxExecutor.AddPermissionlessDelegatorTx(tx)
+	return e.StandardTxExecutor.AddPermissionlessDelegatorTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) CreateChainTx(tx *txs.CreateChainTx) error {
@@ -338,7 +346,7 @@ func (e *CaminoStandardTxExecutor) CreateChainTx(tx *txs.CreateChainTx) error {
 		return err
 	}
 
-	return e.StandardTxExecutor.CreateChainTx(tx)
+	return e.StandardTxExecutor.CreateChainTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) CreateSubnetTx(tx *txs.CreateSubnetTx) error {
@@ -346,7 +354,7 @@ func (e *CaminoStandardTxExecutor) CreateSubnetTx(tx *txs.CreateSubnetTx) error 
 		return err
 	}
 
-	return e.StandardTxExecutor.CreateSubnetTx(tx)
+	return e.StandardTxExecutor.CreateSubnetTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) ExportTx(tx *txs.ExportTx) error {
@@ -358,7 +366,7 @@ func (e *CaminoStandardTxExecutor) ExportTx(tx *txs.ExportTx) error {
 		return err
 	}
 
-	if err := e.StandardTxExecutor.ExportTx(tx); err != nil {
+	if err := e.StandardTxExecutor.ExportTx(tx); err != nil { // TODO@ will use avax tx fee
 		return err
 	}
 
@@ -434,7 +442,7 @@ func (e *CaminoStandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 		return err
 	}
 
-	return e.StandardTxExecutor.ImportTx(tx)
+	return e.StandardTxExecutor.ImportTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) RemoveSubnetValidatorTx(tx *txs.RemoveSubnetValidatorTx) error {
@@ -442,7 +450,7 @@ func (e *CaminoStandardTxExecutor) RemoveSubnetValidatorTx(tx *txs.RemoveSubnetV
 		return err
 	}
 
-	return e.StandardTxExecutor.RemoveSubnetValidatorTx(tx)
+	return e.StandardTxExecutor.RemoveSubnetValidatorTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoStandardTxExecutor) TransformSubnetTx(tx *txs.TransformSubnetTx) error {
@@ -450,7 +458,7 @@ func (e *CaminoStandardTxExecutor) TransformSubnetTx(tx *txs.TransformSubnetTx) 
 		return err
 	}
 
-	return e.StandardTxExecutor.TransformSubnetTx(tx)
+	return e.StandardTxExecutor.TransformSubnetTx(tx) // TODO@ will use avax tx fee
 }
 
 func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) error {
@@ -618,7 +626,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		return err
 	}
 
-	if err := e.Tx.SyntacticVerify(e.Backend.Ctx); err != nil {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
 
@@ -719,6 +727,11 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		return err
 	}
 
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
+
 	if err := e.FlowChecker.VerifyLock(
 		tx,
 		e.State,
@@ -726,7 +739,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		tx.Outs,
 		baseTxCreds,
 		0,
-		e.Config.TxFee,
+		baseFee,
 		e.Ctx.AVAXAssetID,
 		locked.StateDeposited,
 	); err != nil {
@@ -778,7 +791,7 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 		return errWrongLockMode
 	}
 
-	if err := e.Tx.SyntacticVerify(e.Backend.Ctx); err != nil {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
 
@@ -843,9 +856,13 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 		return errBurnedDepositUnlock
 	}
 
-	amountToBurn := e.Config.TxFee
-	if hasExpiredDeposits {
-		amountToBurn = 0
+	amountToBurn := uint64(0)
+	if !hasExpiredDeposits {
+		baseFee, err := e.State.GetBaseFee()
+		if err != nil {
+			return err
+		}
+		amountToBurn = baseFee
 	}
 
 	if err := e.FlowChecker.VerifyUnlockDeposit(
@@ -941,10 +958,8 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 		}
 	}
 
-	txID := e.Tx.ID()
-
 	avax.Consume(e.State, tx.Ins)
-	avax.Produce(e.State, txID, tx.Outs)
+	avax.Produce(e.State, e.Tx.ID(), tx.Outs)
 
 	return nil
 }
@@ -961,7 +976,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 		return errWrongLockMode
 	}
 
-	if err := e.Tx.SyntacticVerify(e.Backend.Ctx); err != nil {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
 
@@ -1092,6 +1107,10 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 	}
 
 	// BaseTx check (fee, reward outs)
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
 
 	if err := e.FlowChecker.VerifyLock(
 		tx,
@@ -1100,7 +1119,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 		tx.Outs,
 		e.Tx.Creds[:len(e.Tx.Creds)-len(tx.Claimables)],
 		claimedAmount,
-		e.Config.TxFee,
+		baseFee,
 		e.Ctx.AVAXAssetID,
 		locked.StateUnlocked,
 	); err != nil {
@@ -1125,7 +1144,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 		return err
 	}
 
-	if consortiumMemberAddressState&txs.AddressStateConsortiumMember == 0 {
+	if consortiumMemberAddressState.IsNot(txs.AddressStateConsortiumMember) {
 		return errNotConsortiumMember
 	}
 
@@ -1195,6 +1214,10 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 	}
 
 	// verify the flowcheck
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
 
 	if err := e.FlowChecker.VerifyLock(
 		tx,
@@ -1203,7 +1226,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 		tx.Outs,
 		e.Tx.Creds[:len(e.Tx.Creds)-2], // base tx creds
 		0,
-		e.Config.TxFee,
+		baseFee,
 		e.Ctx.AVAXAssetID,
 		locked.StateUnlocked,
 	); err != nil {
@@ -1441,15 +1464,20 @@ func (e *CaminoStandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 	}
 
 	if e.Bootstrapped.Get() {
-		if err := e.Backend.FlowChecker.VerifyLock(
+		baseFee, err := e.State.GetBaseFee()
+		if err != nil {
+			return err
+		}
+
+		if err := e.FlowChecker.VerifyLock(
 			tx,
 			e.State,
 			tx.Ins,
 			tx.Outs,
 			e.Tx.Creds,
 			0,
-			e.Backend.Config.TxFee,
-			e.Backend.Ctx.AVAXAssetID,
+			baseFee,
+			e.Ctx.AVAXAssetID,
 			locked.StateUnlocked,
 		); err != nil {
 			return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
@@ -1505,6 +1533,10 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 	}
 
 	// verify the flowcheck
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
 
 	if err := e.FlowChecker.VerifyLock(
 		tx,
@@ -1513,7 +1545,7 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 		tx.Outs,
 		baseCreds,
 		0,
-		e.Config.TxFee,
+		baseFee,
 		e.Ctx.AVAXAssetID,
 		locked.StateUnlocked,
 	); err != nil {
@@ -1555,6 +1587,10 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 	}
 
 	// verify the flowcheck
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
 
 	if err := e.FlowChecker.VerifyLock(
 		tx,
@@ -1563,7 +1599,7 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 		tx.Outs,
 		e.Tx.Creds[:len(e.Tx.Creds)-1], // base tx credentials
 		0,
-		e.Config.TxFee,
+		baseFee,
 		e.Ctx.AVAXAssetID,
 		locked.StateUnlocked,
 	); err != nil {
@@ -1577,7 +1613,7 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 		return err
 	}
 
-	if depositOfferCreatorAddressState&txs.AddressStateOffersCreator == 0 {
+	if depositOfferCreatorAddressState.IsNot(txs.AddressStateOffersCreator) {
 		return errNotOfferCreator
 	}
 
@@ -1632,6 +1668,289 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 
 	avax.Consume(e.State, tx.Ins)
 	avax.Produce(e.State, txID, tx.Outs)
+
+	return nil
+}
+
+func (e *CaminoStandardTxExecutor) AddProposalTx(tx *txs.AddProposalTx) error {
+	caminoConfig, err := e.State.CaminoConfig()
+	if err != nil {
+		return err
+	}
+
+	if !caminoConfig.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
+	chainTime := e.State.GetTimestamp()
+
+	if !e.Config.IsSunrisePhase2Activated(chainTime) {
+		return errNotSunrisePhase2
+	}
+
+	txProposal, err := tx.Proposal()
+	if err != nil {
+		return err
+	}
+
+	// verify proposal
+
+	switch {
+	case tx.BondAmount() != e.Config.CaminoConfig.DACProposalBondAmount:
+		return errWrongProposalBondAmount
+	case txProposal.StartTime().Before(chainTime):
+		return errProposalStartToEarly
+	case len(e.Tx.Creds) < 2:
+		return errWrongCredentialsNumber
+	}
+
+	if err := e.Fx.VerifyMultisigPermission(
+		tx,
+		tx.ProposerAuth,
+		e.Tx.Creds[len(e.Tx.Creds)-1], // proposer credential
+		&secp256k1fx.OutputOwners{
+			Threshold: 1,
+			Addrs:     []ids.ShortID{tx.ProposerAddress},
+		},
+		e.State,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errProposerCredentialMismatch, err)
+	}
+
+	if err := txProposal.Visit(e.proposalVerifier(tx)); err != nil {
+		return err
+	}
+
+	// verify the flowcheck
+
+	lockState := locked.StateBonded
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
+
+	if err := e.FlowChecker.VerifyLock(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds[:len(e.Tx.Creds)-1], // base tx creds
+		0,
+		baseFee,
+		e.Ctx.AVAXAssetID,
+		lockState,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
+	}
+
+	// Getting active validators
+	// Only validators who were active when the proposal was created can vote
+
+	currentStakerIterator, err := e.State.GetCurrentStakerIterator()
+	if err != nil {
+		return err
+	}
+	defer currentStakerIterator.Release()
+
+	allowedVoters := []ids.ShortID{}
+	for currentStakerIterator.Next() {
+		staker := currentStakerIterator.Value()
+		if staker.SubnetID != constants.PrimaryNetworkID {
+			continue
+		}
+
+		consortiumMemberAddress, err := e.State.GetShortIDLink(ids.ShortID(staker.NodeID), state.ShortLinkKeyRegisterNode)
+		if err != nil {
+			return err
+		}
+
+		position, _ := slices.BinarySearchFunc(allowedVoters, consortiumMemberAddress, func(id, other ids.ShortID) int {
+			return bytes.Compare(id[:], other[:])
+		})
+		allowedVoters = append(allowedVoters, consortiumMemberAddress)
+		if position == len(allowedVoters)-1 {
+			copy(allowedVoters[position+1:], allowedVoters[position:])
+			allowedVoters[position] = consortiumMemberAddress
+		}
+	}
+
+	// update state
+
+	txID := e.Tx.ID()
+	e.State.AddProposal(txID, txProposal.CreateProposalState(allowedVoters))
+	avax.Consume(e.State, tx.Ins)
+	return utxo.ProduceLocked(e.State, txID, tx.Outs, locked.StateBonded)
+}
+
+func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
+	caminoConfig, err := e.State.CaminoConfig()
+	if err != nil {
+		return err
+	}
+
+	if !caminoConfig.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
+	chainTime := e.State.GetTimestamp()
+
+	if !e.Config.IsSunrisePhase2Activated(chainTime) {
+		return errNotSunrisePhase2
+	}
+
+	// verify vote with proposal
+
+	proposal, err := e.State.GetProposal(tx.ProposalID)
+	if err != nil {
+		return err
+	}
+
+	if !proposal.IsActiveAt(chainTime) {
+		// should never happen, cause inactive proposals are removed from state
+		return errProposalInactive
+	}
+
+	if err := proposal.VerifyCanVote(tx.VoterAddress); err != nil {
+		return err
+	}
+
+	// verify voter credential and address state (role)
+
+	voterAddressState, err := e.State.GetAddressStates(tx.VoterAddress)
+	if err != nil {
+		return err
+	}
+
+	if voterAddressState.IsNot(txs.AddressStateConsortiumMember) {
+		return errNotConsortiumMember
+	}
+
+	if len(e.Tx.Creds) < 2 {
+		return errWrongCredentialsNumber
+	}
+
+	if err := e.Backend.Fx.VerifyMultisigPermission(
+		e.Tx.Unsigned,
+		tx.VoterAuth,
+		e.Tx.Creds[len(e.Tx.Creds)-1], // voter credential
+		&secp256k1fx.OutputOwners{
+			Threshold: 1,
+			Addrs:     []ids.ShortID{tx.VoterAddress},
+		},
+		e.State,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errVoterCredentialMismatch, err)
+	}
+
+	// verify the flowcheck
+
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
+
+	if err := e.FlowChecker.VerifyLock(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds[:len(e.Tx.Creds)-1], // base tx creds
+		0,
+		baseFee,
+		e.Ctx.AVAXAssetID,
+		locked.StateUnlocked,
+	); err != nil {
+		return fmt.Errorf("%w: %s", errFlowCheckFailed, err)
+	}
+
+	// update state
+
+	vote, err := tx.Vote()
+	if err != nil {
+		return err
+	}
+
+	updatedProposal, err := proposal.AddVote(tx.VoterAddress, vote)
+	if err != nil {
+		return err
+	}
+	e.State.ModifyProposal(tx.ProposalID, updatedProposal)
+
+	if updatedProposal.CanBeFinished() {
+		e.State.AddProposalIDToFinish(tx.ProposalID)
+	}
+
+	avax.Consume(e.State, tx.Ins)
+	avax.Produce(e.State, e.Tx.ID(), tx.Outs)
+
+	return nil
+}
+
+func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) error {
+	caminoConfig, err := e.State.CaminoConfig()
+	if err != nil {
+		return err
+	}
+
+	if !caminoConfig.LockModeBondDeposit {
+		return errWrongLockMode
+	}
+
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
+	chainTime := e.State.GetTimestamp()
+
+	if !e.Config.IsSunrisePhase2Activated(chainTime) {
+		return errNotSunrisePhase2
+	}
+
+	if len(e.Tx.Creds) != 0 {
+		return errWrongCredentialsNumber
+	}
+
+	expectedIns, expectedOuts, err := e.FlowChecker.Unlock(e.State, tx.FinishedProposalIDs, locked.StateBonded)
+	if err != nil {
+		return err
+	}
+
+	// TODO @evlekht change rewardValidator tx in the same manner
+
+	if !inputsAreEqual(tx.Ins, expectedIns) {
+		return fmt.Errorf("%w: invalid inputs", errInvalidSystemTxBody)
+	}
+
+	if !outputsAreEqual(tx.Outs, expectedOuts) {
+		return fmt.Errorf("%w: invalid outputs", errInvalidSystemTxBody)
+	}
+
+	for _, proposalID := range tx.FinishedProposalIDs {
+		proposal, err := e.State.GetProposal(proposalID)
+		if err != nil {
+			return err
+		}
+
+		// ! @evlekht possible crticial issue: when adding new proposals,
+		// ! we can't foresee if proposals will conflict at the execution time
+		// try to execute proposal
+		if err := proposal.Visit(e.proposalExecutor()); err != nil {
+			return err
+		}
+
+		e.State.RemoveProposal(proposalID, proposal)
+	}
+
+	avax.Consume(e.State, tx.Ins)
+	avax.Produce(e.State, e.Tx.ID(), tx.Outs)
 
 	return nil
 }
@@ -1731,6 +2050,11 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	}
 
 	// Verify the flowcheck
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
+
 	if err := e.FlowChecker.VerifySpend(
 		tx,
 		e.State,
@@ -1738,7 +2062,7 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 		tx.Outs,
 		creds,
 		map[ids.ID]uint64{
-			e.Ctx.AVAXAssetID: e.Config.TxFee,
+			e.Ctx.AVAXAssetID: baseFee,
 		},
 	); err != nil {
 		return err
@@ -1786,9 +2110,9 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 // [state] must have only one bit set
 func verifyAccess(roles, state txs.AddressState) bool {
 	switch {
-	case roles&txs.AddressStateRoleAdmin != 0: // admin can do anything
-	case txs.AddressStateKYCAll&state != 0 && roles&txs.AddressStateRoleKYC != 0: // kyc role can change kyc status
-	case txs.AddressStateOffersCreator&state != 0 && roles&txs.AddressStateRoleOffersAdmin != 0: // offers admin can assign offers creator role
+	case roles.Is(txs.AddressStateRoleAdmin): // admin can do anything
+	case txs.AddressStateKYCAll&state != 0 && roles.Is(txs.AddressStateRoleKYC): // kyc role can change kyc status
+	case state == txs.AddressStateOffersCreator && roles.Is(txs.AddressStateRoleOffersAdmin): // offers admin can assign offers creator role
 	default:
 		return false
 	}
@@ -1808,4 +2132,22 @@ func validatorExists(state state.Chain, subnetID ids.ID, nodeID ids.NodeID) erro
 		)
 	}
 	return nil
+}
+
+// Inner ins must implement Equal(any) bool func.
+func inputsAreEqual(ins1, ins2 []*avax.TransferableInput) bool {
+	return slices.EqualFunc(ins1, ins2, func(in1, in2 *avax.TransferableInput) bool {
+		inEq1, ok := in1.In.(interface{ Equal(any) bool })
+		return ok &&
+			in1.Asset == in2.Asset && in1.TxID == in2.TxID && in1.OutputIndex == in2.OutputIndex &&
+			inEq1.Equal(in2.In)
+	})
+}
+
+// Inner outs must implement Equal(any) bool func.
+func outputsAreEqual(outs1, outs2 []*avax.TransferableOutput) bool {
+	return slices.EqualFunc(outs1, outs2, func(out1, out2 *avax.TransferableOutput) bool {
+		outEq1, ok := out1.Out.(interface{ Equal(any) bool })
+		return ok && out1.Asset == out2.Asset && outEq1.Equal(out2.Out)
+	})
 }

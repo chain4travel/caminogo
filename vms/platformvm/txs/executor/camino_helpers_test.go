@@ -31,6 +31,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -269,7 +270,7 @@ func defaultCaminoConfig(postBanff bool) config.Config {
 		ApricotPhase5Time: defaultValidateEndTime,
 		BanffTime:         banffTime,
 		CaminoConfig: caminoconfig.Config{
-			DaoProposalBondAmount: 100 * units.Avax,
+			DACProposalBondAmount: 100 * units.Avax,
 		},
 	}
 }
@@ -348,7 +349,7 @@ func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners s
 	return generateTestUTXOWithIndex(txID, 0, assetID, amount, outputOwners, depositTxID, bondTxID, true)
 }
 
-func generateTestUTXOWithIndex(txID ids.ID, outIndex uint32, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, depositTxID, bondTxID ids.ID, init bool) *avax.UTXO {
+func generateTestUTXOWithIndex(txID ids.ID, outIndex uint32, assetID ids.ID, amount uint64, outputOwners secp256k1fx.OutputOwners, depositTxID, bondTxID ids.ID, init bool) *avax.UTXO { //nolint:unparam
 	var out avax.TransferableOut = &secp256k1fx.TransferOutput{
 		Amt:          amount,
 		OutputOwners: outputOwners,
@@ -490,9 +491,13 @@ func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.Transfer
 }
 
 func generateInsFromUTXOs(utxos []*avax.UTXO) []*avax.TransferableInput {
+	return generateInsFromUTXOsWithSigIndices(utxos, []uint32{0})
+}
+
+func generateInsFromUTXOsWithSigIndices(utxos []*avax.UTXO, sigIndices []uint32) []*avax.TransferableInput {
 	ins := make([]*avax.TransferableInput, len(utxos))
 	for i := range utxos {
-		ins[i] = generateTestInFromUTXO(utxos[i], []uint32{0})
+		ins[i] = generateTestInFromUTXO(utxos[i], sigIndices)
 	}
 	return ins
 }
@@ -695,6 +700,34 @@ func expectVerifyUnlockDeposit(
 ) {
 	expectGetUTXOsFromInputs(s, ins, utxos)
 	expectGetMultisigAliases(s, addrs, aliases)
+}
+
+func expectUnlock(
+	s *state.MockDiff,
+	lockTxIDs []ids.ID,
+	addrs []ids.ShortID,
+	utxos []*avax.UTXO,
+	removedLockState locked.State, //nolint:unparam
+) {
+	lockTxIDsSet := set.NewSet[ids.ID](len(lockTxIDs))
+	addrsSet := set.NewSet[ids.ShortID](len(addrs))
+	lockTxIDsSet.Add(lockTxIDs...)
+	addrsSet.Add(addrs...)
+	for _, txID := range lockTxIDs {
+		s.EXPECT().GetTx(txID).Return(&txs.Tx{
+			Unsigned: &txs.BaseTx{BaseTx: avax.BaseTx{
+				Outs: []*avax.TransferableOutput{{
+					Out: &locked.Out{
+						IDs: locked.IDsEmpty.Lock(removedLockState),
+						TransferableOut: &secp256k1fx.TransferOutput{
+							OutputOwners: secp256k1fx.OutputOwners{Addrs: addrs},
+						},
+					},
+				}},
+			}},
+		}, status.Committed, nil)
+	}
+	s.EXPECT().LockedUTXOs(lockTxIDsSet, addrsSet, removedLockState).Return(utxos, nil)
 }
 
 func expectGetUTXOsFromInputs(s *state.MockDiff, ins []*avax.TransferableInput, utxos []*avax.UTXO) {
