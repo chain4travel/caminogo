@@ -227,8 +227,9 @@ func NewState(db database.Database, metricsReg prometheus.Registerer) (State, er
 	// return state with created sub state components
 	return &state{
 		blockState: blockState{
-			blockCache: &cache.LRU[ids.ID, *blkWrapper]{Size: blockCacheSize},
-			blockDB:    blockDB,
+			addedBlocks: make(map[ids.ID]blkWrapper),
+			blockCache:  &cache.LRU[ids.ID, *blkWrapper]{Size: blockCacheSize},
+			blockDB:     blockDB,
 		},
 		SingletonState: NewSingletonState(singletonDB),
 		baseDB:         baseDB,

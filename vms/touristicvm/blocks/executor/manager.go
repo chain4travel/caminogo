@@ -16,7 +16,6 @@ package executor
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/utils/window"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/metrics"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
@@ -40,7 +39,6 @@ func NewManager(
 	metrics metrics.Metrics,
 	s state.State,
 	txExecutorBackend *executor.Backend,
-	recentlyAccepted window.Window[ids.ID],
 ) Manager {
 	backend := &backend{
 		Mempool:      mempool,

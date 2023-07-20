@@ -21,9 +21,7 @@ const (
 )
 
 var (
-	// persists lastAccepted block IDs with this key
-	lastAcceptedKey            = []byte{lastAcceptedByte}
-	_               BlockState = &blockState{}
+	_ BlockState = &blockState{}
 )
 
 type BlockState interface {

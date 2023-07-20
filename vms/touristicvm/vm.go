@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/vms/touristicvm/config"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -22,16 +21,25 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/json"
+	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/api"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/config"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/metrics"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/txs/mempool"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/utxo"
 	"github.com/prometheus/client_golang/prometheus"
 
 	blockbuilder "github.com/ava-labs/avalanchego/vms/touristicvm/blocks/builder"
 	blockexecutor "github.com/ava-labs/avalanchego/vms/touristicvm/blocks/executor"
+	txbuilder "github.com/ava-labs/avalanchego/vms/touristicvm/txs/builder"
+	txexecutor "github.com/ava-labs/avalanchego/vms/touristicvm/txs/executor"
 )
 
 const (
@@ -61,10 +69,14 @@ type VM struct {
 	snowCtx   *snow.Context
 	dbManager manager.Manager
 
-	metrics metrics.Metrics
-	// State of this VM
-	State state.State
+	clock              mockable.Clock
+	metrics            metrics.Metrics
+	atomicUtxosManager avax.AtomicUTXOManager
 
+	// State of this VM
+	State state.State // TODO nikos refactor to private?
+
+	fx fx.Fx //TODO nikos check what we need
 	// ID of the preferred block
 	preferred ids.ID
 
@@ -77,7 +89,8 @@ type VM struct {
 	// Indicates that this VM has finished bootstrapping for the chain
 	bootstrapped utils.Atomic[bool]
 
-	manager blockexecutor.Manager
+	txBuilder txbuilder.Builder
+	manager   blockexecutor.Manager
 }
 
 // Initialize this vm
@@ -97,7 +110,7 @@ func (vm *VM) Initialize(
 	_ []byte,
 	toEngine chan<- common.Message,
 	_ []*common.Fx,
-	_ common.AppSender,
+	appSender common.AppSender,
 ) error {
 	snowCtx.Log.Verbo("initializing t chain")
 
@@ -112,6 +125,8 @@ func (vm *VM) Initialize(
 		return err
 	}
 	snowCtx.Log.Info("Initializing Timestamp VM", zap.String("Version", version))
+
+	vm.fx = &secp256k1fx.Fx{}
 
 	// Initialize metrics as soon as possible
 	vm.metrics, err = metrics.New("", registerer)
@@ -129,10 +144,58 @@ func (vm *VM) Initialize(
 		return err
 	}
 
+	vm.atomicUtxosManager = avax.NewAtomicUTXOManager(snowCtx.SharedMemory, txs.Codec)
+
 	// Initialize genesis
 	if err := vm.initGenesis(genesisData); err != nil {
 		return err
 	}
+
+	// Note: There is a circular dependency between the mempool and block
+	//       builder which is broken by passing in the vm.
+	mempool, err := mempool.NewMempool("mempool", registerer)
+	if err != nil {
+		return fmt.Errorf("failed to create mempool: %w", err)
+	}
+
+	utxoHandler := utxo.NewHandler(
+		vm.snowCtx,
+		&vm.clock,
+		vm.fx,
+	)
+	vm.txBuilder = txbuilder.New(
+		vm.snowCtx,
+		&vm.Config,
+		&vm.clock,
+		vm.fx,
+		vm.State,
+		vm.atomicUtxosManager,
+		utxoHandler,
+	)
+
+	txExecutorBackend := &txexecutor.Backend{
+		Config:       &vm.Config,
+		Ctx:          vm.snowCtx,
+		Clk:          &vm.clock,
+		FlowChecker:  utxoHandler,
+		Bootstrapped: &vm.bootstrapped,
+	}
+
+	vm.manager = blockexecutor.NewManager(
+		mempool,
+		vm.metrics,
+		vm.State,
+		txExecutorBackend,
+	)
+
+	vm.Builder = blockbuilder.New(
+		mempool,
+		vm.txBuilder,
+		txExecutorBackend,
+		vm.manager,
+		toEngine,
+		appSender,
+	)
 
 	// Get last accepted
 	lastAccepted := vm.State.GetLastAccepted()
