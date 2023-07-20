@@ -224,7 +224,7 @@ type caminoState struct {
 
 	proposalsNextExpirationTime *time.Time
 	proposalsNextToExpireIDs    []ids.ID
-	proposalIDsToExecute        []ids.ID
+	proposalIDsToExecute        []ids.ID // TODO@ rename all execute to finish
 	proposalsCache              cache.Cacher[ids.ID, dac.ProposalState]
 	proposalsDB                 database.Database
 	proposalIDsByEndtimeDB      database.Database
