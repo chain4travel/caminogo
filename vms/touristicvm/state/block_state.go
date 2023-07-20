@@ -8,7 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
-	"github.com/ava-labs/avalanchego/vms/touristicvm"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
 )
 
@@ -40,9 +39,6 @@ type blockState struct {
 	// block database
 	blockDB      database.Database
 	lastAccepted ids.ID
-
-	// vm reference
-	vm *touristicvm.VM
 }
 
 // blkWrapper wraps the actual blk bytes and status to persist them together

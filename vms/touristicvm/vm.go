@@ -41,7 +41,6 @@ const (
 )
 
 var (
-	errNoPendingBlocks = errors.New("there is no block to propose")
 	errBadGenesisBytes = errors.New("genesis data should be bytes (max length 32)")
 	Version            = &version.Semantic{
 		Major: 1,
@@ -125,7 +124,7 @@ func (vm *VM) Initialize(
 	vm.toEngine = toEngine
 
 	// Create new state
-	vm.State, err = state.NewState(vm.dbManager.Current().Database, registerer, vm)
+	vm.State, err = state.NewState(vm.dbManager.Current().Database, registerer)
 	if err != nil {
 		return err
 	}

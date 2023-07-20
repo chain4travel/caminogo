@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/touristicvm"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/status"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
@@ -204,7 +203,7 @@ func (s *state) SetTimestamp(t time.Time) {
 	s.timestamp = t
 }
 
-func NewState(db database.Database, metricsReg prometheus.Registerer, vm *touristicvm.VM) (State, error) {
+func NewState(db database.Database, metricsReg prometheus.Registerer) (State, error) {
 	// create a new baseDB
 	baseDB := versiondb.New(db)
 
@@ -230,7 +229,6 @@ func NewState(db database.Database, metricsReg prometheus.Registerer, vm *touris
 		blockState: blockState{
 			blockCache: &cache.LRU[ids.ID, *blkWrapper]{Size: blockCacheSize},
 			blockDB:    blockDB,
-			vm:         vm,
 		},
 		SingletonState: NewSingletonState(singletonDB),
 		baseDB:         baseDB,
