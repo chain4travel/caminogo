@@ -8,8 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 )
 
-const MaxVoteSize = 2048 // TODO@
-
 var (
 	_ Vote = (*SimpleVote)(nil)
 
@@ -23,10 +21,6 @@ type Vote interface {
 type VoteWithAddr struct {
 	Vote         `serialize:"true"`
 	VoterAddress ids.ShortID `serialize:"true"`
-}
-
-type VoteWrapper struct {
-	Vote `serialize:"true"`
 }
 
 type SimpleVote struct {

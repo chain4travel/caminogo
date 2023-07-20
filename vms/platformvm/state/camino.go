@@ -543,6 +543,11 @@ func (cs *caminoState) Load(s *state) error {
 	if err == database.ErrNotFound {
 		// if baseFee is not in db yet, than its first time when we access it
 		// and it should be equal to config base fee
+		config, err := s.Config()
+		if err != nil {
+			return err
+		}
+		baseFee = config.TxFee
 	} else if err != nil {
 		return err
 	}
@@ -566,10 +571,10 @@ func (cs *caminoState) Write() error {
 		errs.Add(
 			database.PutBool(cs.caminoDB, nodeSignatureKey, cs.verifyNodeSignature),
 			database.PutBool(cs.caminoDB, depositBondModeKey, cs.lockModeBondDeposit),
-			database.PutUInt64(cs.caminoDB, baseFeeKey, cs.baseFee),
 		)
 	}
 	errs.Add(
+		database.PutUInt64(cs.caminoDB, baseFeeKey, cs.baseFee),
 		cs.writeAddressStates(),
 		cs.writeDepositOffers(),
 		cs.writeDeposits(),

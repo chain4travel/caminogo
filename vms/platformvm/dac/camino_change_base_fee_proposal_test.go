@@ -268,24 +268,147 @@ func TestBaseFeeProposalStateGetMostVoted(t *testing.T) {
 		expectedMostVotedIndex  uint32
 		expectedUnambiguous     bool
 	}{
-		// TODO@
-		// "OK": {
-		// 	proposal: &BaseFeeProposalState{
-		// 		Start:         100,
-		// 		End:           101,
-		// 		AllowedVoters: []ids.ShortID{},
-		// 		Options:       []BaseFeeOption{},
-		// 	},
-		// 	expectedProposal: &BaseFeeProposalState{
-		// 		Start:         100,
-		// 		End:           101,
-		// 		AllowedVoters: []ids.ShortID{},
-		// 		Options:       []BaseFeeOption{},
-		// 	},
-		// 	expectedMostVotedWeight: 1,
-		// 	expectedMostVotedIndex:  1,
-		// 	expectedUnambiguous:     false,
-		// },
+		"OK: 3 different weights, no cache": {
+			proposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 4}, // 0
+						{Value: 2, Weight: 7}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedProposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 4}, // 0
+						{Value: 2, Weight: 7}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedMostVotedWeight: 7,
+			expectedMostVotedIndex:  1,
+			expectedUnambiguous:     true,
+		},
+		"OK: 2 equal and 1 higher weight, no cache": {
+			proposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 5}, // 0
+						{Value: 2, Weight: 7}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedProposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 5}, // 0
+						{Value: 2, Weight: 7}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedMostVotedWeight: 7,
+			expectedMostVotedIndex:  1,
+			expectedUnambiguous:     true,
+		},
+		"OK: 2 equal and 1 lower weight, no cache": {
+			proposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 4}, // 0
+						{Value: 2, Weight: 5}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedProposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 4}, // 0
+						{Value: 2, Weight: 5}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedMostVotedWeight: 5,
+			expectedMostVotedIndex:  1,
+			expectedUnambiguous:     false,
+		},
+		"OK: 3 equal weights, no cache": {
+			proposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 5}, // 0
+						{Value: 2, Weight: 5}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedProposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					Options: []SimpleVoteOption[uint64]{
+						{Value: 1, Weight: 5}, // 0
+						{Value: 2, Weight: 5}, // 1
+						{Value: 3, Weight: 5}, // 2
+					},
+				},
+			},
+			expectedMostVotedWeight: 5,
+			expectedMostVotedIndex:  0,
+			expectedUnambiguous:     false,
+		},
+		"OK: cached result": {
+			proposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					mostVotedWeight:      5,
+					mostVotedOptionIndex: 5,
+					unambiguous:          false,
+				},
+			},
+			expectedProposal: &BaseFeeProposalState{
+				Start:         100,
+				End:           101,
+				AllowedVoters: []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[uint64]{
+					mostVotedWeight:      5,
+					mostVotedOptionIndex: 5,
+					unambiguous:          false,
+				},
+			},
+			expectedMostVotedWeight: 5,
+			expectedMostVotedIndex:  5,
+			expectedUnambiguous:     false,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -298,35 +421,39 @@ func TestBaseFeeProposalStateGetMostVoted(t *testing.T) {
 	}
 }
 
-func TestBaseFeeProposalStateVerifyCanVote(t *testing.T) {
+func TestBaseFeeProposalStateCanBeVotedBy(t *testing.T) {
 	tests := map[string]struct {
 		proposal         *BaseFeeProposalState
 		voterAddr        ids.ShortID
 		expectedProposal *BaseFeeProposalState
-		expectedErr      error
+		expectedResult   bool
 	}{
-		// TODO@
-		// "OK": {
-		// 	proposal: &BaseFeeProposalState{
-		// 		Start:         100,
-		// 		End:           101,
-		// 		AllowedVoters: []ids.ShortID{},
-		// 		Options:       []BaseFeeOption{},
-		// 	},
-		// 	voterAddr: ids.ShortID{1},
-		// 	expectedProposal: &BaseFeeProposalState{
-		// 		Start:         100,
-		// 		End:           101,
-		// 		AllowedVoters: []ids.ShortID{},
-		// 		Options:       []BaseFeeOption{},
-		// 	},
-		// },
+		"Not allowed": {
+			proposal: &BaseFeeProposalState{
+				AllowedVoters: []ids.ShortID{{1}, {2}},
+			},
+			voterAddr: ids.ShortID{3},
+			expectedProposal: &BaseFeeProposalState{
+				AllowedVoters: []ids.ShortID{{1}, {2}},
+			},
+			expectedResult: false,
+		},
+		"OK": {
+			proposal: &BaseFeeProposalState{
+				AllowedVoters: []ids.ShortID{{1}, {2}},
+			},
+			voterAddr: ids.ShortID{1},
+			expectedProposal: &BaseFeeProposalState{
+				AllowedVoters: []ids.ShortID{{1}, {2}},
+			},
+			expectedResult: true,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := tt.proposal.VerifyCanVote(tt.voterAddr)
+			result := tt.proposal.CanBeVotedBy(tt.voterAddr)
+			require.Equal(t, tt.expectedResult, result)
 			require.Equal(t, tt.expectedProposal, tt.proposal)
-			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
 }

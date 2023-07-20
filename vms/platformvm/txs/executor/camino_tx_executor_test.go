@@ -6094,7 +6094,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 
 	feeUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
 
-	simpleVote := &dac.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}}
+	simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}}
 	voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
 	require.NoError(t, err)
 
@@ -6251,7 +6251,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey2},
 			},
-			expectedErr: dac.ErrNotAllowedToVoteOnThisProposal,
+			expectedErr: errNotAllowedToVoteOnProposal,
 		},
 		"Not allowed to vote for this proposal (wasn't active validator at proposal creation)": {
 			state: func(c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {
@@ -6273,7 +6273,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey4},
 			},
-			expectedErr: dac.ErrNotAllowedToVoteOnThisProposal,
+			expectedErr: errNotAllowedToVoteOnProposal,
 		},
 		"Voter isn't consortium member": {
 			state: func(c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {
@@ -6335,7 +6335,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
-				vote := &dac.VoteWrapper{Vote: &secp256k1fx.Input{}} // not SimpleVote
+				vote := &txs.VoteWrapper{Vote: &secp256k1fx.Input{}} // not SimpleVote
 				voteBytes, err := txs.Codec.Marshal(txs.Version, vote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
@@ -6364,7 +6364,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
-				simpleVote := &dac.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 5}} // just 3 options in proposal
+				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 5}} // just 3 options in proposal
 				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
@@ -6437,7 +6437,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
-				simpleVote := &dac.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
+				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
 				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{

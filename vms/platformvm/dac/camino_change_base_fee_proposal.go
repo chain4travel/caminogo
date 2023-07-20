@@ -94,8 +94,11 @@ func (p *BaseFeeProposalState) CanBeFinished() bool {
 	return voted == uint32(len(p.AllowedVoters)) || (unambiguous && mostVotedWeight > p.SuccessThreshold)
 }
 
-func (p *BaseFeeProposalState) VerifyCanVote(voterAddr ids.ShortID) error {
-	return verifyCanVote(p.AllowedVoters, voterAddr)
+func (p *BaseFeeProposalState) CanBeVotedBy(voterAddr ids.ShortID) bool {
+	_, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddr, func(id, other ids.ShortID) int {
+		return bytes.Compare(id[:], other[:])
+	})
+	return allowedToVote
 }
 
 // Votes must be valid for this proposal, could panic otherwise.

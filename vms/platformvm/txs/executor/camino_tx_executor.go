@@ -85,6 +85,7 @@ var (
 	errProposalInactive                  = errors.New("proposal is inactive")
 	errProposerCredentialMismatch        = errors.New("proposer credential isn't matching")
 	errWrongProposalBondAmount           = errors.New("wrong proposal bond amount")
+	errNotAllowedToVoteOnProposal        = errors.New("this address has already voted or not allowed to vote on this proposal")
 	errVoterCredentialMismatch           = errors.New("voter credential isn't matching")
 )
 
@@ -366,7 +367,7 @@ func (e *CaminoStandardTxExecutor) ExportTx(tx *txs.ExportTx) error {
 		return err
 	}
 
-	if err := e.StandardTxExecutor.ExportTx(tx); err != nil { // TODO@ will use avax tx fee
+	if err := e.StandardTxExecutor.ExportTx(tx); err != nil {
 		return err
 	}
 
@@ -442,7 +443,7 @@ func (e *CaminoStandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 		return err
 	}
 
-	return e.StandardTxExecutor.ImportTx(tx) // TODO@ will use avax tx fee
+	return e.StandardTxExecutor.ImportTx(tx)
 }
 
 func (e *CaminoStandardTxExecutor) RemoveSubnetValidatorTx(tx *txs.RemoveSubnetValidatorTx) error {
@@ -450,7 +451,7 @@ func (e *CaminoStandardTxExecutor) RemoveSubnetValidatorTx(tx *txs.RemoveSubnetV
 		return err
 	}
 
-	return e.StandardTxExecutor.RemoveSubnetValidatorTx(tx) // TODO@ will use avax tx fee
+	return e.StandardTxExecutor.RemoveSubnetValidatorTx(tx)
 }
 
 func (e *CaminoStandardTxExecutor) TransformSubnetTx(tx *txs.TransformSubnetTx) error {
@@ -1818,8 +1819,8 @@ func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
 		return errProposalInactive
 	}
 
-	if err := proposal.VerifyCanVote(tx.VoterAddress); err != nil {
-		return err
+	if proposal.CanBeVotedBy(tx.VoterAddress) {
+		return errNotAllowedToVoteOnProposal
 	}
 
 	// verify voter credential and address state (role)

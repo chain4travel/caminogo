@@ -19,11 +19,11 @@ func TestAddVoteTxSyntacticVerify(t *testing.T) {
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 
 	// Need invalid vote, but we don't have one yet. Instead using other registered type invalid value
-	badVote := &dac.VoteWrapper{Vote: &secp256k1fx.OutputOwners{Threshold: 1}}
+	badVote := &VoteWrapper{Vote: &secp256k1fx.OutputOwners{Threshold: 1}}
 	badVoteBytes, err := Codec.Marshal(Version, badVote)
 	require.NoError(t, err)
 
-	vote := &dac.VoteWrapper{Vote: &dac.SimpleVote{}}
+	vote := &VoteWrapper{Vote: &dac.SimpleVote{}}
 	voteBytes, err := Codec.Marshal(Version, vote)
 	require.NoError(t, err)
 
@@ -133,7 +133,7 @@ func TestAddVoteTxSyntacticVerify(t *testing.T) {
 }
 
 func TestAddVoteTxVote(t *testing.T) {
-	expectedVote := &dac.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
+	expectedVote := &VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
 	voteBytes, err := Codec.Marshal(Version, expectedVote)
 	require.NoError(t, err)
 

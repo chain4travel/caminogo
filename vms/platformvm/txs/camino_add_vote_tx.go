@@ -72,9 +72,13 @@ func (tx *AddVoteTx) SyntacticVerify(ctx *snow.Context) error {
 	return nil
 }
 
+type VoteWrapper struct {
+	dac.Vote `serialize:"true"`
+}
+
 func (tx *AddVoteTx) Vote() (dac.Vote, error) {
 	if tx.vote == nil {
-		vote := &dac.VoteWrapper{}
+		vote := &VoteWrapper{}
 		if _, err := Codec.Unmarshal(tx.VotePayload, vote); err != nil {
 			return nil, fmt.Errorf("%w: %s", errBadVote, err)
 		}

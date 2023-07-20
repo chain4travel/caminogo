@@ -177,5 +177,3 @@ func getExpiredProposals(
 
 	return nil, nil
 }
-
-// TODO@ integration block-builder tests with addProposalTx, addVoteTx, finishProposalsTx and time advancement!

@@ -254,6 +254,7 @@ func TestBanffProposalBlockTimeVerification(t *testing.T) {
 
 	onParentAccept.EXPECT().GetNextToUnlockDepositTime(nil).Return(time.Time{}, database.ErrNotFound).AnyTimes()
 	onParentAccept.EXPECT().GetNextProposalExpirationTime(nil).Return(time.Time{}, database.ErrNotFound).AnyTimes()
+	onParentAccept.EXPECT().GetProposalIDsToFinish().Return(nil, nil).AnyTimes()
 
 	env.mockedState.EXPECT().GetUptime(gomock.Any(), gomock.Any()).Return(
 		time.Duration(1000), /*upDuration*/
