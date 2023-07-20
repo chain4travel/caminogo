@@ -78,6 +78,7 @@ var (
 	errOfferPermissionCredentialMismatch = errors.New("offer-usage permission credential isn't matching")
 	errEmptyDepositCreatorAddress        = errors.New("empty deposit creator address, while offer owner isn't empty")
 	errWrongTxUpgradeVersion             = errors.New("wrong tx upgrade version")
+	errNestedMsigAlias                   = errors.New("nested msig aliases are not allowed")
 )
 
 type CaminoStandardTxExecutor struct {
@@ -1473,6 +1474,21 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 	nonce := uint64(0)
 
 	txID := e.Tx.ID()
+
+	// verify that alias isn't nesting another alias
+
+	owners, ok := tx.MultisigAlias.Owners.(*secp256k1fx.OutputOwners)
+	if !ok {
+		return errWrongOwnerType
+	}
+	for i := range owners.Addrs {
+		_, err := e.State.GetMultisigAlias(owners.Addrs[i])
+		if err != nil && err != database.ErrNotFound {
+			return err
+		} else if err == nil {
+			return errNestedMsigAlias
+		}
+	}
 
 	// Update existing multisig definition
 
