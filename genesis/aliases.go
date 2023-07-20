@@ -26,14 +26,14 @@ func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, err
 		},
 		path.Join(constants.ChainAliasPrefix, constants.TimestampChainID.String()): {
 			"T",
-			"tvm",
+			"touristic",
 			path.Join(constants.ChainAliasPrefix, "T"),
-			path.Join(constants.ChainAliasPrefix, "tvm"),
+			path.Join(constants.ChainAliasPrefix, "touristic"),
 		},
 	}
 	chainAliases := map[ids.ID][]string{
 		constants.PlatformChainID:  {"P", "platform"},
-		constants.TimestampChainID: {"T", "tvm"},
+		constants.TimestampChainID: {"T", "touristic"},
 	}
 
 	genesis, err := genesis.Parse(genesisBytes) // TODO let's not re-create genesis to do aliasing
@@ -81,6 +81,6 @@ func GetVMAliases() map[ids.ID][]string {
 		secp256k1fx.ID:          {"secp256k1fx"},
 		nftfx.ID:                {"nftfx"},
 		propertyfx.ID:           {"propertyfx"},
-		constants.TimestampVMID: {"timestampvm"},
+		constants.TouristicVMID: {"touristicvm"},
 	}
 }

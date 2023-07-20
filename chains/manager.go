@@ -1361,7 +1361,7 @@ func (m *manager) StartChainCreator(platformParams ChainParameters) error {
 		ID:       constants.TimestampChainID,
 		SubnetID: constants.PrimaryNetworkID,
 		//GenesisData:   genesisBytes, // Specifies other chains to create
-		VMID:          constants.TimestampVMID,
+		VMID:          constants.TouristicVMID,
 		CustomBeacons: platformParams.CustomBeacons, //TODO: remove this
 	}
 	m.createChain(timestampParams)
