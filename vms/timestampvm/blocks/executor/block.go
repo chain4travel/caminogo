@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,11 +34,14 @@ import (
 )
 
 var (
-	errTimestampTooEarly = errors.New("block's timestamp is earlier than its parent's timestamp")
-	errDatabaseGet       = errors.New("error while retrieving data from database")
-	errTimestampTooLate  = errors.New("block's timestamp is more than 1 hour ahead of local time")
+	errTimestampTooEarly    = errors.New("block's timestamp is earlier than its parent's timestamp")
+	errDatabaseGet          = errors.New("error while retrieving data from database")
+	errTimestampTooLate     = errors.New("block's timestamp is more than 1 hour ahead of local time")
+	errConflictingBatchTxs  = errors.New("block contains conflicting transactions")
+	errConflictingParentTxs = errors.New("block contains a transaction that conflicts with a transaction in a parent block")
 
-	_ snowman.Block = (*Block)(nil)
+	errEmptyBlock               = errors.New("block contains no transactions")
+	_             snowman.Block = (*Block)(nil)
 )
 
 // Exported for testing in platformvm package.
@@ -49,7 +53,7 @@ type Block struct {
 // Verify returns nil iff this block is valid.
 // To be valid, it must be that:
 // b.parent.Timestamp < b.Timestamp <= [local time] + 1 hour
-func (b *Block) Verify(ctx context.Context) error {
+func (b *Block) Verify(context.Context) error {
 	parentID := b.Parent()
 	onAcceptState, err := state.NewDiff(parentID, b.manager.backend)
 	if err != nil {
@@ -58,23 +62,12 @@ func (b *Block) Verify(ctx context.Context) error {
 
 	// Apply the changes, if any, from advancing the chain time.
 	nextChainTime := b.Timestamp()
-	changes, err := executor.AdvanceTimeTo(
-		b.manager.txExecutorBackend,
-		onAcceptState,
-		nextChainTime,
-	)
-	if err != nil {
-		return err
-	}
 
-	// If this block doesn't perform any changes, then it should never have been
-	// issued.
-	if changes.Len() == 0 && len(b.Txs()) == 0 {
-		return errBanffStandardBlockWithoutChanges
+	if len(b.Txs()) == 0 {
+		return errEmptyBlock
 	}
 
 	onAcceptState.SetTimestamp(nextChainTime)
-	changes.Apply(onAcceptState)
 
 	blkState := &blockState{
 		statelessBlock: b,
@@ -93,7 +86,7 @@ func (b *Block) Verify(ctx context.Context) error {
 		}
 		if err := tx.Unsigned.Visit(&txExecutor); err != nil {
 			txID := tx.ID()
-			v.MarkDropped(txID, err) // cache tx as dropped
+			b.manager.backend.Mempool.MarkDropped(txID, err) // cache tx as dropped
 			return err
 		}
 		// ensure it doesn't overlap with current input batch
@@ -121,7 +114,7 @@ func (b *Block) Verify(ctx context.Context) error {
 		}
 	}
 
-	if err := v.verifyUniqueInputs(b, blkState.inputs); err != nil {
+	if err := b.verifyUniqueInputs(b, blkState.inputs); err != nil {
 		return err
 	}
 
@@ -145,19 +138,47 @@ func (b *Block) Verify(ctx context.Context) error {
 // Accept sets this block's status to Accepted and sets lastAccepted to this
 // block's ID and saves this info to b.vm.DB
 func (b *Block) Accept(context.Context) error {
-
+	b.manager.ctx.Log.Debug(
+		"accepting block",
+		zap.String("blockType", "apricot standard"),
+		zap.Stringer("blkID", b.ID()),
+		zap.Uint64("height", b.Height()),
+		zap.Stringer("parentID", b.Parent()),
+	)
 	blkID := b.ID()
+	defer b.manager.backend.free(blkID)
 
-	if err := b.manager.metrics.MarkAccepted(b); err != nil {
-		return fmt.Errorf("failed to accept block %s: %w", blkID, err)
+	if err := b.commonAccept(); err != nil {
+		return err
 	}
 
-	b.manager.backend.lastAccepted = blkID
-	b.manager.state.SetLastAccepted(blkID)
-	//b.manager.state.SetHeight(b.Height()) TODO confirm not necessary
-	b.manager.state.AddStatelessBlock(b, choices.Accepted)
-	//b.manager.recentlyAccepted.Add(blkID) TODO confirm not necessary
+	blkState, ok := b.manager.blkIDToState[blkID]
+	if !ok {
+		return fmt.Errorf("couldn't find state of block %s", blkID)
+	}
 
+	// Update the state to reflect the changes made in [onAcceptState].
+	blkState.onAcceptState.Apply(b.manager.state)
+
+	defer b.manager.state.Abort()
+	batch, err := b.manager.state.CommitBatch()
+	if err != nil {
+		return fmt.Errorf(
+			"failed to commit VM's database for block %s: %w",
+			blkID,
+			err,
+		)
+	}
+
+	// Note that this method writes [batch] to the database.
+	if err := b.manager.ctx.SharedMemory.Apply(blkState.atomicRequests, batch); err != nil {
+		return fmt.Errorf("failed to apply vm's state to shared memory: %w", err)
+	}
+
+	if onAcceptFunc := blkState.onAcceptFunc; onAcceptFunc != nil {
+		onAcceptFunc()
+	}
+	return nil
 }
 
 // Reject sets this block's status to Rejected and saves the status in state
@@ -224,4 +245,44 @@ func (b *Block) Status() choices.Status {
 
 func (b *Block) Timestamp() time.Time {
 	return b.manager.getTimestamp(b.ID())
+}
+
+// verifyUniqueInputs verifies that the inputs of the given block are not
+// duplicated in any of the parent blocks pinned in memory.
+func (b *Block) verifyUniqueInputs(block blocks.Block, inputs set.Set[ids.ID]) error {
+	if inputs.Len() == 0 {
+		return nil
+	}
+
+	// Check for conflicts in ancestors.
+	for {
+		parentID := block.Parent()
+		parentState, ok := b.manager.blkIDToState[parentID]
+		if !ok {
+			// The parent state isn't pinned in memory.
+			// This means the parent must be accepted already.
+			return nil
+		}
+
+		if parentState.inputs.Overlaps(inputs) {
+			return errConflictingParentTxs
+		}
+
+		block = parentState.statelessBlock
+	}
+}
+
+func (b *Block) commonAccept() error {
+	blkID := b.ID()
+
+	if err := b.manager.metrics.MarkAccepted(b); err != nil {
+		return fmt.Errorf("failed to accept block %s: %w", blkID, err)
+	}
+
+	b.manager.backend.lastAccepted = blkID
+	b.manager.state.SetLastAccepted(blkID)
+	//a.state.SetHeight(b.Height())
+	b.manager.state.AddStatelessBlock(b, choices.Accepted)
+	//a.recentlyAccepted.Add(blkID) // TODO nikos check if this is needed
+	return nil
 }

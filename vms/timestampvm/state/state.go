@@ -63,6 +63,7 @@ type State interface {
 	SingletonState
 	BlockState
 	Chain
+	avax.UTXOReader
 
 	GetLastAccepted() ids.ID
 	SetLastAccepted(blkID ids.ID)
@@ -176,14 +177,17 @@ func (s *state) GetTimestamp() time.Time {
 	return s.timestamp
 }
 
+func (s *state) UTXOIDs(addr []byte, start ids.ID, limit int) ([]ids.ID, error) {
+	return s.utxoState.UTXOIDs(addr, start, limit)
+
+}
+
 func (s *state) AddUTXO(utxo *avax.UTXO) {
-	//TODO implement me
-	panic("implement me")
+	s.modifiedUTXOs[utxo.InputID()] = utxo
 }
 
 func (s *state) DeleteUTXO(utxoID ids.ID) {
-	//TODO implement me
-	panic("implement me")
+	s.modifiedUTXOs[utxoID] = nil
 }
 
 func (s *state) AddBlock(block blocks.Block) {

@@ -7,10 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/api"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/metrics"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/config"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -26,9 +23,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/api"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/metrics"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/state"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs"
+	"github.com/prometheus/client_golang/prometheus"
 
-	tvm_block "github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
-	tvm_state "github.com/ava-labs/avalanchego/vms/timestampvm/state"
+	blockbuilder "github.com/ava-labs/avalanchego/vms/timestampvm/blocks/builder"
+	blockexecutor "github.com/ava-labs/avalanchego/vms/timestampvm/blocks/executor"
 )
 
 const (
@@ -53,13 +56,15 @@ var (
 // Each block in this chain contains a Unix timestamp
 // and a piece of data (a string)
 type VM struct {
+	config.Config
+	blockbuilder.Builder
 	// The context of this vm
 	snowCtx   *snow.Context
 	dbManager manager.Manager
 
 	metrics metrics.Metrics
 	// State of this VM
-	State tvm_state.State
+	State state.State
 
 	// ID of the preferred block
 	preferred ids.ID
@@ -70,13 +75,10 @@ type VM struct {
 	// Proposed pieces of data that haven't been put into a block and proposed yet
 	mempool [][DataLen]byte
 
-	// Block ID --> Block
-	// Each element is a block that passed verification but
-	// hasn't yet been accepted/rejected
-	VerifiedBlocks map[ids.ID]*tvm_block.StandardBlock
-
 	// Indicates that this VM has finished bootstrapping for the chain
 	bootstrapped utils.Atomic[bool]
+
+	manager blockexecutor.Manager
 }
 
 // Initialize this vm
@@ -121,10 +123,9 @@ func (vm *VM) Initialize(
 	vm.dbManager = dbManager
 	vm.snowCtx = snowCtx
 	vm.toEngine = toEngine
-	vm.VerifiedBlocks = make(map[ids.ID]*tvm_block.StandardBlock)
 
 	// Create new state
-	vm.State, err = tvm_state.NewState(vm.dbManager.Current().Database, registerer, vm)
+	vm.State, err = state.NewState(vm.dbManager.Current().Database, registerer, vm)
 	if err != nil {
 		return err
 	}
@@ -235,40 +236,6 @@ func (*VM) CreateStaticHandlers(_ context.Context) (map[string]*common.HTTPHandl
 func (*VM) HealthCheck(_ context.Context) (interface{}, error) { return nil, nil }
 
 // BuildBlock returns a block that this vm wants to add to consensus
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	if len(vm.mempool) == 0 { // There is no block to be built
-		return nil, errNoPendingBlocks
-	}
-
-	// Get the value to put in the new block
-	//value := vm.mempool[0] TODO replace data field with transactions
-	vm.mempool = vm.mempool[1:]
-
-	// Notify consensus engine that there are more pending data for blocks
-	// (if that is the case) when done building this block
-	if len(vm.mempool) > 0 {
-		defer vm.NotifyBlockReady()
-	}
-
-	// Gets Preferred Block
-	preferredBlock, err := vm.GetBlock(ctx, vm.preferred)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get preferred block: %w", err)
-	}
-	preferredHeight := preferredBlock.Height()
-
-	// Build the block with preferred height
-	newBlock, err := vm.NewBlock(vm.preferred, preferredHeight+1, time.Now())
-	if err != nil {
-		return nil, fmt.Errorf("couldn't build block: %w", err)
-	}
-
-	// Verifies block
-	if err := newBlock.Verify(ctx); err != nil {
-		return nil, err
-	}
-	return newBlock, nil
-}
 
 // NotifyBlockReady tells the consensus engine that a new block
 // is ready to be created
@@ -282,16 +249,7 @@ func (vm *VM) NotifyBlockReady() {
 
 // GetBlock implements the snowman.ChainVM interface
 func (vm *VM) GetBlock(_ context.Context, blkID ids.ID) (snowman.Block, error) {
-	// If block is in memory, return it.
-	if blk, exists := vm.VerifiedBlocks[blkID]; exists {
-		return blk, nil
-	}
-
-	_, err := vm.State.GetBlock(blkID)
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil //TODO
+	return vm.manager.GetBlock(blkID)
 }
 
 // LastAccepted returns the block most recently accepted
@@ -315,37 +273,24 @@ func (vm *VM) proposeBlock(data [DataLen]byte) bool {
 // and by the consensus layer when it receives the byte representation of a block
 // from another node
 func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, error) {
-	// A new empty block
-	block := &tvm_block.StandardBlock{}
-
-	// Unmarshal the byte repr. of the block into our empty block
-	_, err := txs.Codec.Unmarshal(bytes, block)
+	// Note: blocks to be parsed are not verified, so we must use blocks.Codec
+	// rather than blocks.GenesisCodec
+	statelessBlk, err := blocks.Parse(blocks.Codec, bytes)
 	if err != nil {
 		return nil, err
 	}
-
-	// Initialize the block
-	block.Initialize(bytes, choices.Processing)
-
-	if blk, err := vm.GetBlock(ctx, block.ID()); err == nil {
-		// If we have seen this block before, return it with the most up-to-date
-		// info
-		return blk, nil
-	}
-
-	// Return the block
-	return block, nil
+	return vm.manager.NewBlock(statelessBlk), nil
 }
 
 // NewBlock returns a new Block where:
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time) (*tvm_block.StandardBlock, error) {
-	block := &tvm_block.StandardBlock{
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time) (*blocks.StandardBlock, error) {
+	block := &blocks.StandardBlock{
 		PrntID: parentID,
 		Hght:   height,
-		Tmstmp: timestamp.Unix(),
+		Tmstmp: uint64(timestamp.Unix()),
 	}
 
 	// Get the byte representation of the block

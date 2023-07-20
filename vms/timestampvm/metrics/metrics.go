@@ -20,7 +20,7 @@ type Metrics interface {
 	// Mark that an option vote that we initially preferred was rejected.
 	MarkOptionVoteLost()
 	// Mark that the given block was accepted.
-	MarkAccepted(blocks.StandardBlock) error
+	MarkAccepted(block blocks.Block) error
 }
 
 func New(
@@ -92,9 +92,9 @@ func (m *metrics) MarkOptionVoteLost() {
 	m.numVotesLost.Inc()
 }
 
-func (m *metrics) MarkAccepted(b blocks.StandardBlock) error {
+func (m *metrics) MarkAccepted(b blocks.Block) error {
 	m.blockMetrics.numStandardBlocks.Inc()
-	for _, tx := range b.Transactions {
+	for _, tx := range b.Txs() {
 		if err := tx.Unsigned.Visit(m.blockMetrics.txMetrics); err != nil {
 			return err
 		}

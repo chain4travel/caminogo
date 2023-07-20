@@ -15,11 +15,11 @@ package executor
 
 import (
 	"github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs/mempool"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/mempool"
 	"github.com/ava-labs/avalanchego/vms/timestampvm/state"
 )
 
@@ -43,7 +43,7 @@ type backend struct {
 }
 
 func (b *backend) GetState(blkID ids.ID) (state.Chain, bool) {
-	// If the block is in the map, it is either  processing or a proposal block
+	// If the block is in the map, it is either processing or a proposal block
 	// that was accepted without an accepted child.
 	if state, ok := b.blkIDToState[blkID]; ok {
 		if state.onAcceptState != nil {
@@ -56,7 +56,6 @@ func (b *backend) GetState(blkID ids.ID) (state.Chain, bool) {
 	//       returned in the above if statement.
 	return b.state, blkID == b.state.GetLastAccepted()
 }
-
 func (b *backend) getOnAbortState(blkID ids.ID) (state.Diff, bool) {
 	state, ok := b.blkIDToState[blkID]
 	if !ok || state.onAbortState == nil {

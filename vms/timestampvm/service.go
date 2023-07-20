@@ -68,10 +68,11 @@ func (s *Service) GetBlock(r *http.Request, args *GetBlockArgs, reply *GetBlockR
 	)
 
 	if args.ID == nil {
-		id, err = s.vm.State.GetLastAccepted()
-		if err != nil {
-			return errCannotGetLastAccepted
-		}
+		id = s.vm.State.GetLastAccepted()
+		// TODO nikos check change here
+		//if err != nil {
+		//	return errCannotGetLastAccepted
+		//}
 	} else {
 		id = *args.ID
 	}

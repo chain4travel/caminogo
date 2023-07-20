@@ -14,7 +14,7 @@ import (
 var _ txs.Visitor = (*txMetrics)(nil)
 
 type txMetrics struct {
-	numExportTxs prometheus.Counter
+	numImportTxs prometheus.Counter
 }
 
 func newTxMetrics(
@@ -23,7 +23,7 @@ func newTxMetrics(
 ) (*txMetrics, error) {
 	errs := wrappers.Errs{}
 	m := &txMetrics{
-		numExportTxs: newTxMetric(namespace, "export", registerer, &errs),
+		numImportTxs: newTxMetric(namespace, "import", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -42,7 +42,7 @@ func newTxMetric(
 	errs.Add(registerer.Register(txMetric))
 	return txMetric
 }
-func (m *txMetrics) ExportTx(*txs.ExportTx) error {
-	m.numExportTxs.Inc()
+func (m *txMetrics) ImportTx(*txs.ImportTx) error {
+	m.numImportTxs.Inc()
 	return nil
 }

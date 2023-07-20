@@ -37,7 +37,7 @@ type Block interface {
 type StandardBlock struct {
 	PrntID ids.ID `serialize:"true" json:"parentID"`  // parent's ID
 	Hght   uint64 `serialize:"true" json:"height"`    // This block's height. The genesis block is at height 0.
-	Tmstmp int64  `serialize:"true" json:"timestamp"` // Time this block was proposed at
+	Tmstmp uint64 `serialize:"true" json:"timestamp"` // Time this block was proposed at
 
 	id     ids.ID         // hold this block's ID
 	bytes  []byte         // this block's encoded bytes
@@ -79,7 +79,7 @@ func (b *StandardBlock) Parent() ids.ID { return b.PrntID }
 func (b *StandardBlock) Height() uint64 { return b.Hght }
 
 // Timestamp returns this block's time. The genesis block has time 0.
-func (b *StandardBlock) Timestamp() time.Time { return time.Unix(b.Tmstmp, 0) }
+func (b *StandardBlock) Timestamp() time.Time { return time.Unix(int64(b.Tmstmp), 0) }
 
 // Status returns the status of this block
 func (b *StandardBlock) Status() choices.Status { return b.status }

@@ -14,11 +14,12 @@
 package txs
 
 import (
+	"math"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"math"
 )
 
 const (
@@ -74,6 +75,6 @@ func RegisterUnsignedTxsTypes(targetCodec codec.CaminoRegistry) error {
 		targetCodec.RegisterType(&secp256k1fx.Input{}),
 		targetCodec.RegisterType(&secp256k1fx.OutputOwners{}),
 
-		targetCodec.RegisterType(&ExportTx{}))
+		targetCodec.RegisterType(&ImportTx{}))
 	return errs.Err
 }

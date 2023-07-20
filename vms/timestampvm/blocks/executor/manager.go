@@ -18,15 +18,16 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/utils/window"
 	"github.com/ava-labs/avalanchego/vms/timestampvm/blocks"
-	"github.com/ava-labs/avalanchego/vms/timestampvm/mempool"
 	"github.com/ava-labs/avalanchego/vms/timestampvm/metrics"
 	"github.com/ava-labs/avalanchego/vms/timestampvm/state"
 	"github.com/ava-labs/avalanchego/vms/timestampvm/txs/executor"
+	"github.com/ava-labs/avalanchego/vms/timestampvm/txs/mempool"
 )
 
 var _ Manager = (*manager)(nil)
 
 type Manager interface {
+	state.Versions
 
 	// Returns the ID of the most recently accepted block.
 	LastAccepted() ids.ID
