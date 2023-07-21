@@ -52,6 +52,7 @@ func (p *BaseFeeProposal) CreateProposalState(allowedVoters []ids.ShortID) Propo
 		End:              p.End,
 		AllowedVoters:    allowedVoters,
 		SuccessThreshold: uint32(len(allowedVoters) / 2),
+		FinishThreshold:  uint32(len(allowedVoters)),
 	}
 	for i := range p.Options {
 		stateProposal.Options[i].Value = p.Options[i]
@@ -70,6 +71,7 @@ type BaseFeeProposalState struct {
 	End              uint64        `serialize:"true"`
 	AllowedVoters    []ids.ShortID `serialize:"true"`
 	SuccessThreshold uint32        `serialize:"true"`
+	FinishThreshold  uint32        `serialize:"true"`
 }
 
 func (p *BaseFeeProposalState) StartTime() time.Time {
@@ -91,14 +93,7 @@ func (p *BaseFeeProposalState) CanBeFinished() bool {
 	for i := range p.Options {
 		voted += p.Options[i].Weight
 	}
-	return voted == uint32(len(p.AllowedVoters)) || (unambiguous && mostVotedWeight > p.SuccessThreshold)
-}
-
-func (p *BaseFeeProposalState) CanBeVotedBy(voterAddr ids.ShortID) bool {
-	_, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddr, func(id, other ids.ShortID) int {
-		return bytes.Compare(id[:], other[:])
-	})
-	return allowedToVote
+	return voted == p.FinishThreshold || (unambiguous && mostVotedWeight > p.SuccessThreshold)
 }
 
 // Votes must be valid for this proposal, could panic otherwise.
@@ -116,16 +111,22 @@ func (p *BaseFeeProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote) 
 	if int(vote.OptionIndex) >= len(p.Options) {
 		return nil, ErrWrongVote
 	}
-	voterAddrPos, _ := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
+
+	voterAddrPos, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
 		return bytes.Compare(id[:], other[:])
 	})
+	if !allowedToVote {
+		return nil, ErrNotAllowedToVoteOnProposal
+	}
+
 	updatedProposal := &BaseFeeProposalState{
 		Start:         p.Start,
 		End:           p.End,
-		AllowedVoters: make([]ids.ShortID, voterAddrPos),
+		AllowedVoters: make([]ids.ShortID, len(p.AllowedVoters)-1),
 		SimpleVoteOptions: SimpleVoteOptions[uint64]{
 			Options: make([]SimpleVoteOption[uint64], len(p.Options)),
 		},
+		SuccessThreshold: p.SuccessThreshold,
 	}
 	// we can't use the same slice, cause we need to change its elements
 	copy(updatedProposal.AllowedVoters, p.AllowedVoters[:voterAddrPos])

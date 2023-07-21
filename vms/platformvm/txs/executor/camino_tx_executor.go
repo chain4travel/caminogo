@@ -85,7 +85,6 @@ var (
 	errProposalInactive                  = errors.New("proposal is inactive")
 	errProposerCredentialMismatch        = errors.New("proposer credential isn't matching")
 	errWrongProposalBondAmount           = errors.New("wrong proposal bond amount")
-	errNotAllowedToVoteOnProposal        = errors.New("this address has already voted or not allowed to vote on this proposal")
 	errVoterCredentialMismatch           = errors.New("voter credential isn't matching")
 )
 
@@ -1769,13 +1768,13 @@ func (e *CaminoStandardTxExecutor) AddProposalTx(tx *txs.AddProposalTx) error {
 			return err
 		}
 
-		position, _ := slices.BinarySearchFunc(allowedVoters, consortiumMemberAddress, func(id, other ids.ShortID) int {
+		desiredPos, _ := slices.BinarySearchFunc(allowedVoters, consortiumMemberAddress, func(id, other ids.ShortID) int {
 			return bytes.Compare(id[:], other[:])
 		})
 		allowedVoters = append(allowedVoters, consortiumMemberAddress)
-		if position == len(allowedVoters)-1 {
-			copy(allowedVoters[position+1:], allowedVoters[position:])
-			allowedVoters[position] = consortiumMemberAddress
+		if desiredPos < len(allowedVoters)-1 {
+			copy(allowedVoters[desiredPos+1:], allowedVoters[desiredPos:])
+			allowedVoters[desiredPos] = consortiumMemberAddress
 		}
 	}
 
@@ -1817,10 +1816,6 @@ func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
 	if !proposal.IsActiveAt(chainTime) {
 		// should never happen, cause inactive proposals are removed from state
 		return errProposalInactive
-	}
-
-	if proposal.CanBeVotedBy(tx.VoterAddress) {
-		return errNotAllowedToVoteOnProposal
 	}
 
 	// verify voter credential and address state (role)

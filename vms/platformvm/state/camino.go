@@ -137,6 +137,7 @@ type CaminoDiff interface {
 	GetProposalIterator() (ProposalsIterator, error)
 	AddProposalIDToFinish(proposalID ids.ID)
 	GetProposalIDsToFinish() ([]ids.ID, error)
+	ClearProposalIDToFinish() // TODO@
 	GetNextProposalExpirationTime(removedProposalIDs set.Set[ids.ID]) (time.Time, error)
 	GetNextToExpireProposalIDsAndTime(removedProposalIDs set.Set[ids.ID]) ([]ids.ID, time.Time, error)
 }

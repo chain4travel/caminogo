@@ -18,8 +18,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
@@ -67,7 +67,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 		},
 	}
 
-	vm := newCaminoVM(caminoGenesisConf, genesisUTXOs)
+	vm := newCaminoVM(caminoGenesisConf, genesisUTXOs, nil)
 	vm.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(vm.Shutdown(context.Background()))
@@ -265,7 +265,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		},
 	}
 
-	vm := newCaminoVM(caminoGenesisConf, genesisUTXOs)
+	vm := newCaminoVM(caminoGenesisConf, genesisUTXOs, nil)
 	vm.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(vm.Shutdown(context.Background()))
@@ -478,7 +478,7 @@ func TestDepositsAutoUnlock(t *testing.T) {
 	vm := newCaminoVM(caminoGenesisConf, []api.UTXO{{
 		Amount:  json.Uint64(depositOffer.MinAmount + defaultTxFee),
 		Address: depositOwnerAddrBech32,
-	}})
+	}}, nil)
 	vm.ctx.Lock.Lock()
 	defer func() { require.NoError(vm.Shutdown(context.Background())) }() //nolint:lint
 
@@ -542,10 +542,11 @@ func TestProposalsExpiration(t *testing.T) {
 	caminoPreFundedKey0AddrStr, err := address.FormatBech32(constants.NetworkIDToHRP[testNetworkID], caminoPreFundedKeys[0].Address().Bytes())
 	require.NoError(err)
 
-	proposalBondAmount := defaultCaminoConfig(true).CaminoConfig.DACProposalBondAmount
+	defaultConfig := defaultCaminoConfig(true)
+	proposalBondAmount := defaultConfig.CaminoConfig.DACProposalBondAmount
 	initialBaseFee := defaultTxFee
-	baseFee1 := defaultTxFee + 7
-	proposerInitialBalance := proposalBondAmount*3 + initialBaseFee*6
+	newBaseFee := defaultTxFee + 7
+	proposerInitialBalance := proposalBondAmount*3 + initialBaseFee*6 + newBaseFee*2
 
 	// Prepare vm
 	vm := newCaminoVM(api.Camino{
@@ -561,7 +562,7 @@ func TestProposalsExpiration(t *testing.T) {
 			Amount:  json.Uint64(defaultTxFee),
 			Address: caminoPreFundedKey0AddrStr,
 		},
-	})
+	}, &defaultConfig.BanffTime)
 	vm.ctx.Lock.Lock()
 	defer func() { require.NoError(vm.Shutdown(context.Background())) }() //nolint:lint
 	checkBalance(t, vm.state, proposerAddr,
@@ -578,7 +579,9 @@ func TestProposalsExpiration(t *testing.T) {
 		nil,
 	)
 	require.NoError(err)
-	buildAndAcceptBlock(t, vm, addrStateTx)
+	blk := buildAndAcceptBlock(t, vm, addrStateTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), addrStateTx.ID())
 
 	// Add proposal1
 	currentChainTime := vm.state.GetTimestamp()
@@ -594,7 +597,7 @@ func TestProposalsExpiration(t *testing.T) {
 	proposal1 := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 		Start:   uint64(currentChainTime.Add(100 * time.Second).Unix()),
 		End:     uint64(currentChainTime.Add(200 * time.Second).Unix()),
-		Options: []uint64{baseFee1 + 10, baseFee1, baseFee1 + 20},
+		Options: []uint64{newBaseFee + 10, newBaseFee, newBaseFee + 20},
 	}}
 	proposalBytes1, err := txs.Codec.Marshal(txs.Version, proposal1)
 	require.NoError(err)
@@ -610,13 +613,18 @@ func TestProposalsExpiration(t *testing.T) {
 		ProposerAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
 	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{proposerKey}))
 	require.NoError(err)
-	buildAndAcceptBlock(t, vm, proposalTx1)
+	blk = buildAndAcceptBlock(t, vm, proposalTx1)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), proposalTx1.ID())
 	proposalState1, err := vm.state.GetProposal(proposalTx1.ID())
 	require.NoError(err)
 	nextProposalIDsToExpire, nexExpirationTime, err := vm.state.GetNextToExpireProposalIDsAndTime(nil)
 	require.NoError(err)
 	require.Equal([]ids.ID{proposalTx1.ID()}, nextProposalIDsToExpire)
 	require.Equal(proposalState1.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err := vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee,                          // total
 		proposalBondAmount,                                             // bonded
@@ -636,7 +644,7 @@ func TestProposalsExpiration(t *testing.T) {
 	proposal2 := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 		Start:   uint64(proposal1.StartTime().Unix()),         // starts when proposal1 starts
 		End:     uint64(proposalState1.EndTime().Unix()) + 50, // ends after proposal1
-		Options: []uint64{baseFee1 + 100, baseFee1 + 200},
+		Options: []uint64{newBaseFee + 100, newBaseFee + 200},
 	}}
 	proposalBytes2, err := txs.Codec.Marshal(txs.Version, proposal2)
 	require.NoError(err)
@@ -652,13 +660,18 @@ func TestProposalsExpiration(t *testing.T) {
 		ProposerAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
 	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{proposerKey}))
 	require.NoError(err)
-	buildAndAcceptBlock(t, vm, proposalTx2)
+	blk = buildAndAcceptBlock(t, vm, proposalTx2)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), proposalTx2.ID())
 	proposalState2, err := vm.state.GetProposal(proposalTx2.ID())
 	require.NoError(err)
 	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
 	require.NoError(err)
 	require.Equal([]ids.ID{proposalTx1.ID()}, nextProposalIDsToExpire)
 	require.Equal(proposalState1.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*2,                            // total
 		proposalBondAmount*2,                                               // bonded
@@ -678,7 +691,7 @@ func TestProposalsExpiration(t *testing.T) {
 	proposal3 := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 		Start:   uint64(proposal2.StartTime().Unix()),    // starts when proposal1 and proposal2 start
 		End:     uint64(proposalState2.EndTime().Unix()), // ends after proposal1, when proposal2 ends
-		Options: []uint64{baseFee1 + 150, baseFee1 + 250},
+		Options: []uint64{newBaseFee + 150, newBaseFee + 250},
 	}}
 	proposalBytes3, err := txs.Codec.Marshal(txs.Version, proposal3)
 	require.NoError(err)
@@ -694,13 +707,18 @@ func TestProposalsExpiration(t *testing.T) {
 		ProposerAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
 	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{proposerKey}))
 	require.NoError(err)
-	buildAndAcceptBlock(t, vm, proposalTx3)
+	blk = buildAndAcceptBlock(t, vm, proposalTx3)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), proposalTx3.ID())
 	_, err = vm.state.GetProposal(proposalTx3.ID())
 	require.NoError(err)
 	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
 	require.NoError(err)
 	require.Equal([]ids.ID{proposalTx1.ID()}, nextProposalIDsToExpire)
 	require.Equal(proposalState1.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*3,                            // total
 		proposalBondAmount*3,                                               // bonded
@@ -739,16 +757,20 @@ func TestProposalsExpiration(t *testing.T) {
 
 	// Fast-forward clock to time when proposals start
 	// Vote on proposal1
-	vm.clock.Set(proposal1.StartTime()) // TODO@ fastforward chaintime somehow
-	blk := buildAndAcceptBlock(t, vm, addVoteTx1)
+	vm.clock.Set(proposal1.StartTime())
+	blk = buildAndAcceptBlock(t, vm, addVoteTx1)
+	require.Len(blk.Txs(), 1)
 	checkTx(t, vm, blk.ID(), addVoteTx1.ID())
 	proposalState1, err = vm.state.GetProposal(proposalTx1.ID())
-	require.Error(err)
+	require.NoError(err)
 	baseFeeProposal, ok := proposalState1.(*dac.BaseFeeProposalState)
 	require.True(ok)
-	require.Equal(0, baseFeeProposal.Options[0].Weight)
-	require.Equal(1, baseFeeProposal.Options[1].Weight) // voted option
-	require.Equal(0, baseFeeProposal.Options[2].Weight)
+	require.EqualValues(0, baseFeeProposal.Options[0].Weight)
+	require.EqualValues(1, baseFeeProposal.Options[1].Weight) // voted option
+	require.EqualValues(0, baseFeeProposal.Options[2].Weight)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*4,                            // total
 		proposalBondAmount*3,                                               // bonded
@@ -774,17 +796,24 @@ func TestProposalsExpiration(t *testing.T) {
 			Ins:          ins,
 			Outs:         outs,
 		}},
-		ProposalID:   proposalTx1.ID(),
+		ProposalID:   proposalTx2.ID(),
 		VotePayload:  voteBytes21,
 		VoterAddress: caminoPreFundedKeys[0].Address(),
 		VoterAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
 	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[0]}))
 	require.NoError(err)
 	blk = buildAndAcceptBlock(t, vm, addVoteTx21)
+	require.Len(blk.Txs(), 1)
 	checkTx(t, vm, blk.ID(), addVoteTx21.ID())
-	require.Equal(1, baseFeeProposal.Options[0].Weight) // voted option
-	require.Equal(0, baseFeeProposal.Options[1].Weight)
-	require.Equal(0, baseFeeProposal.Options[2].Weight)
+	proposalState2, err = vm.state.GetProposal(proposalTx2.ID())
+	require.NoError(err)
+	baseFeeProposal, ok = proposalState2.(*dac.BaseFeeProposalState)
+	require.True(ok)
+	require.EqualValues(1, baseFeeProposal.Options[0].Weight) // voted option
+	require.EqualValues(0, baseFeeProposal.Options[1].Weight)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*5,                            // total
 		proposalBondAmount*3,                                               // bonded
@@ -810,17 +839,24 @@ func TestProposalsExpiration(t *testing.T) {
 			Ins:          ins,
 			Outs:         outs,
 		}},
-		ProposalID:   proposalTx1.ID(),
+		ProposalID:   proposalTx2.ID(),
 		VotePayload:  voteBytes22,
 		VoterAddress: caminoPreFundedKeys[1].Address(),
 		VoterAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
 	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[1]}))
 	require.NoError(err)
 	blk = buildAndAcceptBlock(t, vm, addVoteTx22)
+	require.Len(blk.Txs(), 1)
 	checkTx(t, vm, blk.ID(), addVoteTx22.ID())
-	require.Equal(1, baseFeeProposal.Options[0].Weight) // voted option
-	require.Equal(1, baseFeeProposal.Options[1].Weight) // voted option
-	require.Equal(0, baseFeeProposal.Options[2].Weight)
+	proposalState2, err = vm.state.GetProposal(proposalTx2.ID())
+	require.NoError(err)
+	baseFeeProposal, ok = proposalState2.(*dac.BaseFeeProposalState)
+	require.True(ok)
+	require.EqualValues(1, baseFeeProposal.Options[0].Weight) // voted option
+	require.EqualValues(1, baseFeeProposal.Options[1].Weight) // voted option
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*6,                            // total
 		proposalBondAmount*3,                                               // bonded
@@ -844,18 +880,54 @@ func TestProposalsExpiration(t *testing.T) {
 	require.ErrorIs(err, database.ErrNotFound)
 	baseFee, err := vm.state.GetBaseFee()
 	require.NoError(err)
-	require.Equal(baseFee1, baseFee)
+	require.Equal(newBaseFee, baseFee)
 	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
 	require.NoError(err)
 	require.Equal([]ids.ID{proposalTx2.ID(), proposalTx3.ID()}, nextProposalIDsToExpire)
 	require.Equal(proposalState2.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
 		proposerInitialBalance-initialBaseFee*6,                            // total
 		proposalBondAmount*2,                                               // bonded
 		0, 0, proposerInitialBalance-proposalBondAmount*2-initialBaseFee*6, // unlocked
 	)
 
-	// TODO@ do some tx with new base fee
+	// Create arbitrary tx to verify that it will use new base fee
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		newBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	feeTestingTx, err := txs.NewSigned(&txs.MultisigAliasTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		MultisigAlias: multisig.Alias{
+			Owners: &secp256k1fx.OutputOwners{
+				Threshold: 1,
+				Addrs:     []ids.ShortID{proposerAddr},
+			},
+		},
+		Auth: &secp256k1fx.Input{},
+	}, txs.Codec, signers)
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, feeTestingTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), feeTestingTx.ID())
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*6-newBaseFee,                            // total
+		proposalBondAmount*2,                                                          // bonded
+		0, 0, proposerInitialBalance-proposalBondAmount*2-initialBaseFee*6-newBaseFee, // unlocked
+	)
 
 	// Fast-forward clock to time when proposal2-3 are expired
 	vm.clock.Set(proposalState2.EndTime())
@@ -865,14 +937,340 @@ func TestProposalsExpiration(t *testing.T) {
 	// proposals 2 and 3 are ambiguous and should be removed from state without execution
 	baseFee, err = vm.state.GetBaseFee()
 	require.NoError(err)
-	require.Equal(baseFee1, baseFee)
+	require.Equal(newBaseFee, baseFee)
+	_, _, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
+	require.ErrorIs(err, database.ErrNotFound)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*6-newBaseFee, // total
+		0, 0, 0, proposerInitialBalance-initialBaseFee*6-newBaseFee, // unlocked
+	)
+
+	// Create arbitrary tx to verify that it still uses base fee from proposalTx1
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		newBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	feeTestingTx, err = txs.NewSigned(&txs.MultisigAliasTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		MultisigAlias: multisig.Alias{
+			Owners: &secp256k1fx.OutputOwners{
+				Threshold: 1,
+				Addrs:     []ids.ShortID{proposerAddr},
+			},
+		},
+		Auth: &secp256k1fx.Input{},
+	}, txs.Codec, signers)
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, feeTestingTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), feeTestingTx.ID())
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*6-newBaseFee*2, // total
+		0, 0, 0, proposerInitialBalance-initialBaseFee*6-newBaseFee*2, // unlocked
+	)
+}
+
+func TestProposalsThresholdExecution(t *testing.T) {
+	require := require.New(t)
+
+	proposerKey, proposerAddr, _ := generateKeyAndOwner(t)
+	proposerAddrStr, err := address.FormatBech32(constants.NetworkIDToHRP[testNetworkID], proposerAddr.Bytes())
+	require.NoError(err)
+	caminoPreFundedKey0AddrStr, err := address.FormatBech32(constants.NetworkIDToHRP[testNetworkID], caminoPreFundedKeys[0].Address().Bytes())
+	require.NoError(err)
+
+	defaultConfig := defaultCaminoConfig(true)
+	proposalBondAmount := defaultConfig.CaminoConfig.DACProposalBondAmount
+	initialBaseFee := defaultTxFee
+	newBaseFee := defaultTxFee + 7
+	proposerInitialBalance := proposalBondAmount + initialBaseFee*4 + newBaseFee
+
+	// Prepare vm
+	vm := newCaminoVM(api.Camino{
+		VerifyNodeSignature: true,
+		LockModeBondDeposit: true,
+		InitialAdmin:        caminoPreFundedKeys[0].Address(),
+	}, []api.UTXO{
+		{
+			Amount:  json.Uint64(proposerInitialBalance),
+			Address: proposerAddrStr,
+		},
+		{
+			Amount:  json.Uint64(defaultTxFee),
+			Address: caminoPreFundedKey0AddrStr,
+		},
+	}, &defaultConfig.BanffTime)
+	vm.ctx.Lock.Lock()
+	defer func() { require.NoError(vm.Shutdown(context.Background())) }() //nolint:lint
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance,          // total
+		0, 0, 0, proposerInitialBalance, // unlocked
+	)
+
+	// Give proposer address role to make proposals
+	addrStateTx, err := vm.txBuilder.NewAddressStateTx(
+		proposerAddr,
+		false,
+		txs.AddressStateBitCaminoProposer,
+		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+		nil,
+	)
+	require.NoError(err)
+	blk := buildAndAcceptBlock(t, vm, addrStateTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), addrStateTx.ID())
+
+	// Add proposal
+	currentChainTime := vm.state.GetTimestamp()
+	ins, outs, signers, _, err := vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		proposalBondAmount,
+		initialBaseFee,
+		locked.StateBonded,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	proposal := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
+		Start:   uint64(currentChainTime.Add(100 * time.Second).Unix()),
+		End:     uint64(currentChainTime.Add(200 * time.Second).Unix()),
+		Options: []uint64{newBaseFee},
+	}}
+	proposalBytes1, err := txs.Codec.Marshal(txs.Version, proposal)
+	require.NoError(err)
+	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		ProposalPayload: proposalBytes1,
+		ProposerAddress: proposerAddr,
+		ProposerAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
+	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{proposerKey}))
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, proposalTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), proposalTx.ID())
+	proposalState, err := vm.state.GetProposal(proposalTx.ID())
+	require.NoError(err)
+	nextProposalIDsToExpire, nexExpirationTime, err := vm.state.GetNextToExpireProposalIDsAndTime(nil)
+	require.NoError(err)
+	require.Equal([]ids.ID{proposalTx.ID()}, nextProposalIDsToExpire)
+	require.Equal(proposalState.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err := vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee,                          // total
+		proposalBondAmount,                                             // bonded
+		0, 0, proposerInitialBalance-proposalBondAmount-initialBaseFee, // unlocked
+	)
+
+	// Fast-forward clock to time when proposals start, so we can vote
+	vm.clock.Set(proposal.StartTime())
+	voteBytes, err := txs.Codec.Marshal(txs.Version, &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}})
+	require.NoError(err)
+
+	// Vote on proposal by validator0
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		initialBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	addVoteTx0, err := txs.NewSigned(&txs.AddVoteTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		ProposalID:   proposalTx.ID(),
+		VotePayload:  voteBytes,
+		VoterAddress: caminoPreFundedKeys[0].Address(),
+		VoterAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
+	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[0]}))
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, addVoteTx0)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), addVoteTx0.ID())
+	proposalState, err = vm.state.GetProposal(proposalTx.ID())
+	require.NoError(err)
+	baseFeeProposal, ok := proposalState.(*dac.BaseFeeProposalState)
+	require.True(ok)
+	require.EqualValues(1, baseFeeProposal.Options[0].Weight)
 	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
 	require.NoError(err)
-	require.Empty(nextProposalIDsToExpire)
-	require.Equal(mockable.MaxTime, nexExpirationTime)
+	require.Equal([]ids.ID{proposalTx.ID()}, nextProposalIDsToExpire)
+	require.Equal(proposalState.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
 	checkBalance(t, vm.state, proposerAddr,
-		proposerInitialBalance-initialBaseFee*6, // total
-		0, 0, 0, proposerInitialBalance-initialBaseFee*6, // unlocked
+		proposerInitialBalance-initialBaseFee*2,                          // total
+		proposalBondAmount,                                               // bonded
+		0, 0, proposerInitialBalance-proposalBondAmount-initialBaseFee*2, // unlocked
+	)
+
+	// Vote on proposal by validator1
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		initialBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	addVoteTx1, err := txs.NewSigned(&txs.AddVoteTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		ProposalID:   proposalTx.ID(),
+		VotePayload:  voteBytes,
+		VoterAddress: caminoPreFundedKeys[1].Address(),
+		VoterAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
+	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[1]}))
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, addVoteTx1)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), addVoteTx1.ID())
+	proposalState, err = vm.state.GetProposal(proposalTx.ID())
+	require.NoError(err)
+	baseFeeProposal, ok = proposalState.(*dac.BaseFeeProposalState)
+	require.True(ok)
+	require.EqualValues(2, baseFeeProposal.Options[0].Weight)
+	require.EqualValues(2, baseFeeProposal.SuccessThreshold)
+	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
+	require.NoError(err)
+	require.Equal([]ids.ID{proposalTx.ID()}, nextProposalIDsToExpire)
+	require.Equal(proposalState.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*3,                          // total
+		proposalBondAmount,                                               // bonded
+		0, 0, proposerInitialBalance-proposalBondAmount-initialBaseFee*3, // unlocked
+	)
+
+	// Vote on proposal by validator2
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		initialBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	addVoteTx2, err := txs.NewSigned(&txs.AddVoteTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		ProposalID:   proposalTx.ID(),
+		VotePayload:  voteBytes,
+		VoterAddress: caminoPreFundedKeys[2].Address(),
+		VoterAuth:    &secp256k1fx.Input{SigIndices: []uint32{0}},
+	}, txs.Codec, append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[2]}))
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, addVoteTx2)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), addVoteTx2.ID())
+	proposalState, err = vm.state.GetProposal(proposalTx.ID())
+	require.NoError(err)
+	baseFeeProposal, ok = proposalState.(*dac.BaseFeeProposalState)
+	require.True(ok)
+	require.EqualValues(3, baseFeeProposal.Options[0].Weight)
+	nextProposalIDsToExpire, nexExpirationTime, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
+	require.NoError(err)
+	require.Equal([]ids.ID{proposalTx.ID()}, nextProposalIDsToExpire)
+	require.Equal(proposalState.EndTime(), nexExpirationTime)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Equal([]ids.ID{proposalTx.ID()}, proposalIDsToFinish)
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*4,                          // total
+		proposalBondAmount,                                               // bonded
+		0, 0, proposerInitialBalance-proposalBondAmount-initialBaseFee*4, // unlocked
+	)
+
+	// Proposal votes threshold is reached, so its automatically executed
+	blk = buildAndAcceptBlock(t, vm, nil)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), blk.Txs()[0].ID())
+	// proposals 1 is unambiguous and should be removed from state with execution
+	_, err = vm.state.GetProposal(proposalTx.ID())
+	require.ErrorIs(err, database.ErrNotFound)
+	baseFee, err := vm.state.GetBaseFee()
+	require.NoError(err)
+	require.Equal(newBaseFee, baseFee)
+	_, _, err = vm.state.GetNextToExpireProposalIDsAndTime(nil)
+	require.ErrorIs(err, database.ErrNotFound)
+	proposalIDsToFinish, err = vm.state.GetProposalIDsToFinish()
+	require.NoError(err)
+	require.Empty(proposalIDsToFinish)
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*4, // total
+		0, 0, 0, proposerInitialBalance-initialBaseFee*4, // unlocked
+	)
+
+	// Create arbitrary tx to verify that it will use new base fee
+	ins, outs, signers, _, err = vm.txBuilder.Lock(
+		vm.state,
+		[]*secp256k1.PrivateKey{proposerKey},
+		0,
+		newBaseFee,
+		locked.StateUnlocked,
+		nil, nil, 0,
+	)
+	require.NoError(err)
+	feeTestingTx, err := txs.NewSigned(&txs.MultisigAliasTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    vm.ctx.NetworkID,
+			BlockchainID: vm.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+		MultisigAlias: multisig.Alias{
+			Owners: &secp256k1fx.OutputOwners{
+				Threshold: 1,
+				Addrs:     []ids.ShortID{proposerAddr},
+			},
+		},
+		Auth: &secp256k1fx.Input{},
+	}, txs.Codec, signers)
+	require.NoError(err)
+	blk = buildAndAcceptBlock(t, vm, feeTestingTx)
+	require.Len(blk.Txs(), 1)
+	checkTx(t, vm, blk.ID(), feeTestingTx.ID())
+	checkBalance(t, vm.state, proposerAddr,
+		proposerInitialBalance-initialBaseFee*4-newBaseFee, // total
+		0, 0, 0, proposerInitialBalance-initialBaseFee*4-newBaseFee, // unlocked
 	)
 }
 

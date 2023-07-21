@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	errEndNotAfterStart = errors.New("proposal end-time is not after start-time")
-	ErrWrongVote        = errors.New("this proposal can't be voted with this vote")
+	errEndNotAfterStart           = errors.New("proposal end-time is not after start-time")
+	ErrWrongVote                  = errors.New("this proposal can't be voted with this vote")
+	ErrNotAllowedToVoteOnProposal = errors.New("this address has already voted or not allowed to vote on this proposal")
 )
 
 type VerifierVisitor interface {
@@ -37,7 +38,6 @@ type ProposalState interface {
 
 	EndTime() time.Time
 	IsActiveAt(time time.Time) bool
-	CanBeVotedBy(voterAddr ids.ShortID) bool
 	CanBeFinished() bool
 	Visit(ExecutorVisitor) error
 	// Will return modified ProposalState with added vote, original ProposalState will not be modified!

@@ -6251,7 +6251,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey2},
 			},
-			expectedErr: errNotAllowedToVoteOnProposal,
+			expectedErr: dac.ErrNotAllowedToVoteOnProposal,
 		},
 		"Not allowed to vote for this proposal (wasn't active validator at proposal creation)": {
 			state: func(c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {
@@ -6273,7 +6273,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey4},
 			},
-			expectedErr: errNotAllowedToVoteOnProposal,
+			expectedErr: dac.ErrNotAllowedToVoteOnProposal,
 		},
 		"Voter isn't consortium member": {
 			state: func(c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {

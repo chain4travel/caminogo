@@ -66,6 +66,7 @@ func (p SimpleVoteOptions[T]) GetMostVoted() (
 		return p.mostVotedWeight, p.mostVotedOptionIndex, p.unambiguous
 	}
 
+	unambiguous = true
 	mostVotedIndexInt := 0
 	weights := make([]int, len(p.Options))
 	for optionIndex := range p.Options {
@@ -80,7 +81,7 @@ func (p SimpleVoteOptions[T]) GetMostVoted() (
 
 	p.mostVotedWeight = uint32(weights[mostVotedIndexInt])
 	p.mostVotedOptionIndex = uint32(mostVotedIndexInt)
-	p.unambiguous = unambiguous
+	p.unambiguous = unambiguous && p.mostVotedWeight > 0
 
 	return p.mostVotedWeight, p.mostVotedOptionIndex, p.unambiguous
 }
