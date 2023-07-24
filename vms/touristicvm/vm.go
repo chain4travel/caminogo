@@ -24,11 +24,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/api"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/config"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/metrics"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
@@ -177,7 +177,6 @@ func (vm *VM) Initialize(
 		Config:       &vm.Config,
 		Ctx:          vm.snowCtx,
 		Clk:          &vm.clock,
-		FlowChecker:  utxoHandler,
 		Bootstrapped: &vm.bootstrapped,
 	}
 
@@ -241,6 +240,7 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)
 	genesisBlkID := genesisBlock.ID()
 	vm.State.SetLastAccepted(genesisBlkID)
+	vm.snowCtx.Log.Debug("genesis block ID: %s", zap.Stringer("genesisBlkID", genesisBlkID))
 	//// Accept the genesis block
 	//// Sets [vm.lastAccepted] and [vm.preferred]
 	//if err := genesisBlock.Accept(context.TODO()); err != nil {
@@ -259,11 +259,14 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 // CreateHandlers returns a map where:
 // Keys: The path extension for this VM's API (empty in this case)
 // Values: The handler for the API
-func (vm *VM) CreateHandlers(_ context.Context) (map[string]*common.HTTPHandler, error) {
+func (vm *VM) CreateHandlers(context.Context) (map[string]*common.HTTPHandler, error) {
 	server := rpc.NewServer()
 	server.RegisterCodec(json.NewCodec(), "application/json")
 	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
-	if err := server.RegisterService(&Service{vm: vm}, Name); err != nil {
+	if err := server.RegisterService(&Service{
+		vm:          vm,
+		addrManager: avax.NewAddressManager(vm.snowCtx),
+	}, Name); err != nil {
 		return nil, err
 	}
 
@@ -423,36 +426,4 @@ func (*VM) Connected(_ context.Context, _ ids.NodeID, _ *version.Application) er
 
 func (*VM) Disconnected(_ context.Context, _ ids.NodeID) error {
 	return nil // noop
-}
-
-// This VM doesn't (currently) have any app-specific messages
-func (*VM) AppGossip(_ context.Context, _ ids.NodeID, _ []byte) error {
-	return nil
-}
-
-// This VM doesn't (currently) have any app-specific messages
-func (*VM) AppRequest(_ context.Context, _ ids.NodeID, _ uint32, _ time.Time, _ []byte) error {
-	return nil
-}
-
-// This VM doesn't (currently) have any app-specific messages
-func (*VM) AppResponse(_ context.Context, _ ids.NodeID, _ uint32, _ []byte) error {
-	return nil
-}
-
-// This VM doesn't (currently) have any app-specific messages
-func (*VM) AppRequestFailed(_ context.Context, _ ids.NodeID, _ uint32) error {
-	return nil
-}
-
-func (*VM) CrossChainAppRequest(_ context.Context, _ ids.ID, _ uint32, _ time.Time, _ []byte) error {
-	return nil
-}
-
-func (*VM) CrossChainAppRequestFailed(_ context.Context, _ ids.ID, _ uint32) error {
-	return nil
-}
-
-func (*VM) CrossChainAppResponse(_ context.Context, _ ids.ID, _ uint32, _ []byte) error {
-	return nil
 }

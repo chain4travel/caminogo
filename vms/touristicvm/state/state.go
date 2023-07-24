@@ -191,7 +191,7 @@ func (s *state) DeleteUTXO(utxoID ids.ID) {
 }
 
 func (s *state) AddBlock(block blocks.Block) {
-	//TODO implement me
+	//TODO nikos - implement me
 	panic("implement me")
 }
 

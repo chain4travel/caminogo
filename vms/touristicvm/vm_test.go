@@ -139,7 +139,7 @@ func TestService(t *testing.T) {
 	// Initialize the vm
 	vm, _, _, err := newTestVM()
 	require.NoError(err)
-	service := Service{vm}
+	service := Service{vm: vm}
 	require.NoError(service.GetBlock(nil, &GetBlockArgs{}, &GetBlockReply{}))
 }
 

@@ -1358,7 +1358,7 @@ func (m *manager) StartChainCreator(platformParams ChainParameters) error {
 	// create T-chain
 	// TODO clarify if there's a reason to create the chain synchronously like the P-chain, or no need...
 	timestampParams := ChainParameters{
-		ID:       constants.TimestampChainID,
+		ID:       constants.TouristicChainID,
 		SubnetID: constants.PrimaryNetworkID,
 		//GenesisData:   genesisBytes, // Specifies other chains to create
 		VMID:          constants.TouristicVMID,

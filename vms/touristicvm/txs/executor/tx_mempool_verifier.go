@@ -30,6 +30,10 @@ type MempoolTxVerifier struct {
 	Tx            *txs.Tx
 }
 
+func (v *MempoolTxVerifier) BaseTx(tx *txs.BaseTx) error {
+	return v.standardTx(tx)
+}
+
 func (v *MempoolTxVerifier) ImportTx(tx *txs.ImportTx) error {
 	return v.standardTx(tx)
 }

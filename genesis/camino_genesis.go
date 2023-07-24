@@ -491,6 +491,12 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 			VMID:        constants.EVMID,
 			Name:        "C-Chain",
 		},
+		{
+			GenesisData: "",
+			SubnetID:    constants.PrimaryNetworkID,
+			VMID:        constants.TouristicVMID,
+			Name:        "T-Chain",
+		},
 	}
 
 	// Building genesis

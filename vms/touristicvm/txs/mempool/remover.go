@@ -12,6 +12,10 @@ type remover struct {
 	tx *txs.Tx
 }
 
+func (r *remover) BaseTx(*txs.BaseTx) error {
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
+	return nil
+}
 func (r *remover) ImportTx(*txs.ImportTx) error {
 	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil

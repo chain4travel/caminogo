@@ -16,6 +16,11 @@ type issuer struct {
 	tx *txs.Tx
 }
 
+func (i *issuer) BaseTx(*txs.BaseTx) error {
+	i.m.addDecisionTx(i.tx)
+	return nil
+}
+
 func (i *issuer) ImportTx(*txs.ImportTx) error {
 	i.m.addDecisionTx(i.tx)
 	return nil

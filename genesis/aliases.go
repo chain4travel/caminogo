@@ -24,7 +24,7 @@ func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, err
 			path.Join(constants.ChainAliasPrefix, "P"),
 			path.Join(constants.ChainAliasPrefix, "platform"),
 		},
-		path.Join(constants.ChainAliasPrefix, constants.TimestampChainID.String()): {
+		path.Join(constants.ChainAliasPrefix, constants.TouristicChainID.String()): {
 			"T",
 			"touristic",
 			path.Join(constants.ChainAliasPrefix, "T"),
@@ -33,7 +33,7 @@ func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, err
 	}
 	chainAliases := map[ids.ID][]string{
 		constants.PlatformChainID:  {"P", "platform"},
-		constants.TimestampChainID: {"T", "touristic"},
+		constants.TouristicChainID: {"T", "touristic"},
 	}
 
 	genesis, err := genesis.Parse(genesisBytes) // TODO let's not re-create genesis to do aliasing

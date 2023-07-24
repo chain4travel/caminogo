@@ -6,15 +6,16 @@ package builder
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/config"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/utxo"

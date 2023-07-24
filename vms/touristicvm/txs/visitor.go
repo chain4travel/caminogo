@@ -5,5 +5,6 @@ package txs
 
 // Allow vm to execute custom logic against the underlying transaction types.
 type Visitor interface {
+	BaseTx(*BaseTx) error
 	ImportTx(*ImportTx) error
 }

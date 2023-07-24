@@ -14,6 +14,7 @@ import (
 var _ txs.Visitor = (*txMetrics)(nil)
 
 type txMetrics struct {
+	numBaseTxs   prometheus.Counter
 	numImportTxs prometheus.Counter
 }
 
@@ -41,6 +42,10 @@ func newTxMetric(
 	})
 	errs.Add(registerer.Register(txMetric))
 	return txMetric
+}
+func (m *txMetrics) BaseTx(*txs.BaseTx) error {
+	m.numImportTxs.Inc()
+	return nil
 }
 func (m *txMetrics) ImportTx(*txs.ImportTx) error {
 	m.numImportTxs.Inc()
