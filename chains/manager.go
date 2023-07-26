@@ -1355,17 +1355,6 @@ func (m *manager) StartChainCreator(platformParams ChainParameters) error {
 	// depends on.
 	m.createChain(platformParams)
 
-	// create T-chain
-	// TODO clarify if there's a reason to create the chain synchronously like the P-chain, or no need...
-	timestampParams := ChainParameters{
-		ID:       constants.TouristicChainID,
-		SubnetID: constants.PrimaryNetworkID,
-		//GenesisData:   genesisBytes, // Specifies other chains to create
-		VMID:          constants.TouristicVMID,
-		CustomBeacons: platformParams.CustomBeacons, //TODO: remove this
-	}
-	m.createChain(timestampParams)
-
 	m.Log.Info("starting chain creator")
 	go m.dispatchChainCreator()
 	return nil

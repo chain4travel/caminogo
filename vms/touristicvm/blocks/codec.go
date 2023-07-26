@@ -35,14 +35,15 @@ var (
 )
 
 func init() {
-	c := linearcodec.NewCaminoDefault()
+	c := linearcodec.NewDefault()
 	Codec = codec.NewDefaultManager()
-	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32)
+	gc := linearcodec.NewCustomMaxLength(math.MaxInt32)
 	GenesisCodec = codec.NewManager(math.MaxInt32)
 
 	errs := wrappers.Errs{}
-	for _, c := range []codec.CaminoRegistry{c, gc} {
+	for _, c := range []codec.Registry{c, gc} {
 		errs.Add(
+			RegisterBlockTypes(c),
 			txs.RegisterUnsignedTxsTypes(c),
 		)
 	}
@@ -53,4 +54,11 @@ func init() {
 	if errs.Errored() {
 		panic(errs.Err)
 	}
+}
+func RegisterBlockTypes(targetCodec codec.Registry) error {
+	errs := wrappers.Errs{}
+	errs.Add(
+		targetCodec.RegisterType(&StandardBlock{}),
+	)
+	return errs.Err
 }

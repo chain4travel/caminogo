@@ -48,7 +48,6 @@ type Chain interface {
 	avax.UTXODeleter
 
 	AddTx(tx *txs.Tx, status status.Status)
-	AddBlock(block blocks.Block)
 	SetTimestamp(t time.Time)
 
 	GetCurrentSupply() (uint64, error)
@@ -190,11 +189,6 @@ func (s *state) DeleteUTXO(utxoID ids.ID) {
 	s.modifiedUTXOs[utxoID] = nil
 }
 
-func (s *state) AddBlock(block blocks.Block) {
-	//TODO nikos - implement me
-	panic("implement me")
-}
-
 func (s *state) SetLastAccepted(lastAccepted ids.ID) {
 	s.lastAccepted = lastAccepted
 }
@@ -217,7 +211,9 @@ func NewState(db database.Database, metricsReg prometheus.Registerer) (State, er
 		metricsReg,
 		&cache.LRU[ids.ID, *txAndStatus]{Size: txCacheSize},
 	)
-
+	if err != nil {
+		return nil, err
+	}
 	utxoDB := prefixdb.New(utxoPrefix, baseDB)
 	utxoState, err := avax.NewMeteredUTXOState(utxoDB, txs.GenesisCodec, metricsReg)
 	if err != nil {

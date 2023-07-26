@@ -41,24 +41,6 @@ type Service struct {
 }
 
 // ProposeBlockArgs are the arguments to function ProposeValue
-type ProposeBlockArgs struct {
-	// Data in the block. Must be hex encoding of 32 bytes.
-	Data string `json:"data"`
-}
-
-// ProposeBlockReply is the reply from function ProposeBlock
-type ProposeBlockReply struct{ Success bool }
-
-// ProposeBlock is an API method to propose a new block whose data is [args].Data.
-// [args].Data must be a string repr. of a 32 byte array
-func (s *Service) ProposeBlock(_ *http.Request, args *ProposeBlockArgs, reply *ProposeBlockReply) error {
-	bytes, err := formatting.Decode(formatting.Hex, args.Data)
-	if err != nil || len(bytes) != DataLen {
-		return errBadData
-	}
-	reply.Success = s.vm.proposeBlock(BytesToData(bytes))
-	return nil
-}
 
 // GetBlockArgs are the arguments to GetBlock
 type GetBlockArgs struct {
@@ -166,7 +148,7 @@ func (s *Service) GetTx(_ *http.Request, args *api.GetTxArgs, response *api.GetT
 // GetUTXOs gets all utxos for passed in addresses
 func (s *Service) GetUTXOs(_ *http.Request, args *api.GetUTXOsArgs, response *api.GetUTXOsReply) error {
 	s.vm.snowCtx.Log.Debug("API called",
-		zap.String("service", "platform"),
+		zap.String("service", "touristicVM"),
 		zap.String("method", "getUTXOs"),
 	)
 

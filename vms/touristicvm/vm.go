@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -43,17 +44,16 @@ import (
 )
 
 const (
-	DataLen        = 32
-	Name           = "touristicvm"
-	MaxMempoolSize = 4096
+	DataLen = 32
+	Name    = "touristicvm"
 )
 
 var (
 	errBadGenesisBytes = errors.New("genesis data should be bytes (max length 32)")
 	Version            = &version.Semantic{
-		Major: 1,
-		Minor: 3,
-		Patch: 3,
+		Major: 0,
+		Minor: 1,
+		Patch: 0,
 	}
 
 	_ block.ChainVM = &VM{}
@@ -76,9 +76,7 @@ type VM struct {
 	// State of this VM
 	State state.State // TODO nikos refactor to private?
 
-	fx fx.Fx //TODO nikos check what we need
-	// ID of the preferred block
-	preferred ids.ID
+	fx fx.Fx
 
 	// channel to send messages to the consensus engine
 	toEngine chan<- common.Message
@@ -112,8 +110,6 @@ func (vm *VM) Initialize(
 	_ []*common.Fx,
 	appSender common.AppSender,
 ) error {
-	snowCtx.Log.Verbo("initializing t chain")
-
 	registerer := prometheus.NewRegistry()
 	if err := snowCtx.Metrics.Register(registerer); err != nil {
 		return err
@@ -124,7 +120,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Error("error initializing Timestamp VM: %v", zap.Error(err))
 		return err
 	}
-	snowCtx.Log.Info("Initializing Timestamp VM", zap.String("Version", version))
+	snowCtx.Log.Info("Initializing Touristic VM", zap.String("Version", version))
 
 	vm.fx = &secp256k1fx.Fx{}
 
@@ -228,13 +224,43 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	//genesisDataArr := BytesToData(genesisData) TODO add genesis logic back in later if necessary with appropriate parsing/validating logic
 	// TODO fix vm.snowCtx.Log.Debug("genesis",  zap.ByteStrings("data", genesisDataArr)
 
+	startTime := 1690290000 // TODO nikos -refactor
 	// Create the genesis block
 	// Timestamp of genesis block is 0. It has no parent.
-	genesisBlock, err := vm.NewBlock(ids.Empty, 0, time.Unix(0, 0))
+
+	time.Sleep(10 * time.Second)
+	genesisBlock, err := vm.NewBlock(ids.Empty, 0, time.Unix(int64(startTime), 0), []*txs.Tx{})
 	if err != nil {
 		vm.snowCtx.Log.Error("error while creating genesis block: %v", zap.Error(err))
 		return err
 	}
+	vm.snowCtx.Log.Debug("genesis block: %v", zap.ByteString("genesis bytes ", genesisBlock.Bytes()))
+
+	//TODO nikos - replace with proper genesis logic
+	assetID, err := ids.FromString("gbs1MNJvvs493dvRb6M8E2k3BjJ9FXSYmcc6QWu9PZTeFMatb")
+	if err != nil {
+		return err
+	}
+
+	_, addrBytes, err := address.ParseBech32("kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3")
+	if err != nil {
+		return err
+	}
+	addrSID, err := ids.ToShortID(addrBytes)
+	if err != nil {
+		return err
+	}
+	vm.State.AddUTXO(&avax.UTXO{
+		UTXOID: avax.UTXOID{},
+		Asset:  avax.Asset{ID: assetID},
+		Out: &secp256k1fx.TransferOutput{
+			Amt: 1000000000000000,
+			OutputOwners: secp256k1fx.OutputOwners{
+				Threshold: 1,
+				Addrs:     []ids.ShortID{addrSID},
+			},
+		},
+	})
 
 	// TODO check if accept is necessary anymore
 	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)
@@ -247,11 +273,20 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	//	return fmt.Errorf("error accepting genesis block: %w", err)
 	//}
 
+	//pb, err := vm.ParseBlock(context.Background(), genesisBlock.Bytes())
+	//if err != nil {
+	//	return fmt.Errorf("error parsing genesis block: %w", err)
+	//}
+	//vm.snowCtx.Log.Debug("parsed genesis block: %v", zap.ByteString("genesis bytes ", pb.Bytes()))
 	// Mark this vm's state as initialized, so we can skip initGenesis in further restarts
 	if err := vm.State.SetInitialized(); err != nil {
 		return fmt.Errorf("error while setting db to initialized: %w", err)
 	}
 
+	lastAcceptedID := vm.State.GetLastAccepted()
+	vm.snowCtx.Log.Info("initializing last accepted",
+		zap.Stringer("blkID", lastAcceptedID),
+	)
 	// Flush VM's database to underlying db
 	return vm.State.Commit()
 }
@@ -300,18 +335,6 @@ func (*VM) CreateStaticHandlers(_ context.Context) (map[string]*common.HTTPHandl
 // Health implements the common.VM interface
 func (*VM) HealthCheck(_ context.Context) (interface{}, error) { return nil, nil }
 
-// BuildBlock returns a block that this vm wants to add to consensus
-
-// NotifyBlockReady tells the consensus engine that a new block
-// is ready to be created
-func (vm *VM) NotifyBlockReady() {
-	select {
-	case vm.toEngine <- common.PendingTxs:
-	default:
-		vm.snowCtx.Log.Debug("dropping message to consensus engine")
-	}
-}
-
 // GetBlock implements the snowman.ChainVM interface
 func (vm *VM) GetBlock(_ context.Context, blkID ids.ID) (snowman.Block, error) {
 	return vm.manager.GetBlock(blkID)
@@ -319,19 +342,6 @@ func (vm *VM) GetBlock(_ context.Context, blkID ids.ID) (snowman.Block, error) {
 
 // LastAccepted returns the block most recently accepted
 func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) { return vm.State.GetLastAccepted(), nil }
-
-// proposeBlock appends [data] to [p.mempool].
-// Then it notifies the consensus engine
-// that a new block is ready to be added to consensus
-// (namely, a block with data [data])
-func (vm *VM) proposeBlock(data [DataLen]byte) bool {
-	if len(vm.mempool) > MaxMempoolSize {
-		return false
-	}
-	vm.mempool = append(vm.mempool, data)
-	vm.NotifyBlockReady()
-	return true
-}
 
 // ParseBlock parses [bytes] to a snowman.Block
 // This function is used by the vm's state to unmarshal blocks saved in state
@@ -351,23 +361,9 @@ func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (snowman.Block, erro
 // - the block's parent is [parentID]
 // - the block's data is [data]
 // - the block's timestamp is [timestamp]
-func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time) (*blocks.StandardBlock, error) {
-	block := &blocks.StandardBlock{
-		PrntID: parentID,
-		Hght:   height,
-		Tmstmp: uint64(timestamp.Unix()),
-	}
-
-	// Get the byte representation of the block
-	blockBytes, err := txs.Codec.Marshal(txs.Version, block)
-	if err != nil {
-		return nil, err
-	}
-
-	// Initialize the block by providing it with its byte representation
-	// and a reference to this VM
-	block.Initialize(blockBytes, choices.Processing)
-	return block, nil
+func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time,
+	transactions []*txs.Tx) (*blocks.StandardBlock, error) {
+	return blocks.NewStandardBlock(parentID, height, timestamp, transactions, blocks.Codec)
 }
 
 // Shutdown this vm
@@ -381,7 +377,7 @@ func (vm *VM) Shutdown(_ context.Context) error {
 
 // SetPreference sets the block with ID [ID] as the preferred block
 func (vm *VM) SetPreference(_ context.Context, id ids.ID) error {
-	vm.preferred = id
+	vm.Builder.SetPreference(id)
 	return nil
 }
 

@@ -13,7 +13,7 @@
 
 package config
 
-// Struct collecting all foundational parameters of PlatformVM
+// Struct collecting all foundational parameters of TouristicVM
 type Config struct {
 	// Fee that is burned by every non-state creating transaction
 	TxFee uint64

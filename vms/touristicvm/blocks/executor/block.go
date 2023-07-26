@@ -44,7 +44,7 @@ var (
 	_             snowman.Block = (*Block)(nil)
 )
 
-// Exported for testing in platformvm package.
+// Exported for testing in touristicVM package.
 type Block struct {
 	blocks.Block
 	manager *manager

@@ -46,8 +46,30 @@ type StandardBlock struct {
 	Transactions []*txs.Tx `serialize:"true" json:"txs"`
 }
 
-func (b *StandardBlock) Txs() []*txs.Tx {
-	return b.Transactions
+func NewStandardBlock(
+	parentID ids.ID,
+	height uint64,
+	timestamp time.Time,
+	txs []*txs.Tx,
+	cm codec.Manager,
+) (*StandardBlock, error) {
+	blk := &StandardBlock{
+		PrntID:       parentID,
+		Hght:         height,
+		Tmstmp:       uint64(timestamp.Unix()),
+		Transactions: txs,
+	}
+	return blk, initialize(blk, cm)
+}
+
+func initialize(blk Block, cm codec.Manager) error {
+	// We serialize this block as a pointer so that it can be deserialized into
+	// a Block
+	bytes, err := cm.Marshal(Version, &blk)
+	if err != nil {
+		return fmt.Errorf("couldn't marshal block: %w", err)
+	}
+	return blk.initialize(bytes, cm)
 }
 
 func (b *StandardBlock) initialize(bytes []byte, cm codec.Manager) error {
@@ -61,12 +83,8 @@ func (b *StandardBlock) initialize(bytes []byte, cm codec.Manager) error {
 	return nil
 }
 
-// Initialize sets [b.bytes] to [bytes], [b.id] to hash([b.bytes]),
-// [b.status] to [status] and [b.vm] to [vm]
-func (b *StandardBlock) Initialize(bytes []byte, status choices.Status) {
-	b.bytes = bytes
-	b.id = hashing.ComputeHash256Array(b.bytes)
-	b.status = status
+func (b *StandardBlock) Txs() []*txs.Tx {
+	return b.Transactions
 }
 
 // ID returns the ID of this block
