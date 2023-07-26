@@ -86,11 +86,14 @@ type mempool struct {
 	droppedTxIDs *cache.LRU[ids.ID, error]
 
 	consumedUTXOs set.Set[ids.ID]
+
+	blkTimer BlockTimer
 }
 
 func NewMempool(
 	namespace string,
 	registerer prometheus.Registerer,
+	blkTimer BlockTimer,
 ) (Mempool, error) {
 	bytesAvailableMetric := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -118,6 +121,7 @@ func NewMempool(
 		droppedTxIDs:         &cache.LRU[ids.ID, error]{Size: droppedTxIDsCacheSize},
 		consumedUTXOs:        set.NewSet[ids.ID](initialConsumedUTXOsSize),
 		dropIncoming:         false, // enable tx adding by default
+		blkTimer:             blkTimer,
 	}, nil
 }
 
@@ -171,6 +175,7 @@ func (m *mempool) Add(tx *txs.Tx) error {
 	// An explicitly added tx must not be marked as dropped.
 	m.droppedTxIDs.Evict(txID)
 
+	m.blkTimer.ResetBlockTimer()
 	return nil
 }
 

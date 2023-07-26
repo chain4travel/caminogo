@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -35,7 +37,10 @@ import (
 
 // targetBlockSize is maximum number of transaction bytes to place into a
 // StandardBlock
-const targetBlockSize = 128 * units.KiB
+const (
+	batchTimeout    = time.Second
+	targetBlockSize = 128 * units.KiB
+)
 
 var (
 	_ Builder = (*builder)(nil)
@@ -47,6 +52,7 @@ var (
 
 type Builder interface {
 	mempool.Mempool
+	mempool.BlockTimer
 	Network
 
 	// set preferred block on top of which we'll build next
@@ -61,6 +67,9 @@ type Builder interface {
 	// BuildBlock is called on timer clock to attempt to create
 	// next block
 	BuildBlock(context.Context) (snowman.Block, error)
+
+	// Shutdown cleanly shuts Builder down
+	Shutdown()
 }
 
 // builder implements a simple builder to convert txs into valid blocks
@@ -77,6 +86,9 @@ type builder struct {
 
 	// channel to send messages to the consensus engine
 	toEngine chan<- common.Message
+
+	// This timer allows via ResetBlockTimer the consensus engine know that a new block is ready to be build
+	timer *timer.Timer
 }
 
 func New(
@@ -95,12 +107,20 @@ func New(
 		toEngine:          toEngine,
 	}
 
+	builder.timer = timer.NewTimer(func() {
+		ctx := txExecutorBackend.Ctx
+		ctx.Lock.Lock()
+		defer ctx.Lock.Unlock()
+
+		builder.AttemptBuildBlock()
+	})
 	builder.Network = NewNetwork(
 		txExecutorBackend.Ctx,
 		builder,
 		appSender,
 	)
 
+	go txExecutorBackend.Ctx.Log.RecoverAndPanic(builder.timer.Dispatch)
 	return builder
 }
 
@@ -202,7 +222,39 @@ func (b *builder) notifyBlockReady() {
 	case b.toEngine <- common.PendingTxs:
 	default:
 		b.txExecutorBackend.Ctx.Log.Debug("dropping message to consensus engine")
+		b.timer.SetTimeoutIn(batchTimeout)
 	}
+}
+
+func (b *builder) AttemptBuildBlock() {
+	b.timer.Cancel()
+	if !b.txExecutorBackend.Bootstrapped.Get() {
+		b.txExecutorBackend.Ctx.Log.Verbo("skipping block timer reset",
+			zap.String("reason", "not bootstrapped"),
+		)
+		return
+	}
+
+	if _, err := b.buildBlock(); err == nil {
+		// We can build a block now
+		b.notifyBlockReady()
+		return
+	}
+}
+
+func (b *builder) ResetBlockTimer() {
+	// Next time the context lock is released, we can attempt to reset the block
+	// timer.
+	b.timer.SetTimeoutIn(0)
+}
+
+func (b *builder) Shutdown() {
+	// There is a potential deadlock if the timer is about to execute a timeout.
+	// So, the lock must be released before stopping the timer.
+	ctx := b.txExecutorBackend.Ctx
+	ctx.Lock.Unlock()
+	b.timer.Stop()
+	ctx.Lock.Lock()
 }
 
 // [timestamp] is min(max(now, parent timestamp), next staker change time)

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"time"
 
 	"github.com/gorilla/rpc/v2"
@@ -149,7 +150,7 @@ func (vm *VM) Initialize(
 
 	// Note: There is a circular dependency between the mempool and block
 	//       builder which is broken by passing in the vm.
-	mempool, err := mempool.NewMempool("mempool", registerer)
+	mempool, err := mempool.NewMempool("mempool", registerer, vm)
 	if err != nil {
 		return fmt.Errorf("failed to create mempool: %w", err)
 	}
@@ -228,7 +229,6 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	// Create the genesis block
 	// Timestamp of genesis block is 0. It has no parent.
 
-	time.Sleep(10 * time.Second)
 	genesisBlock, err := vm.NewBlock(ids.Empty, 0, time.Unix(int64(startTime), 0), []*txs.Tx{})
 	if err != nil {
 		vm.snowCtx.Log.Error("error while creating genesis block: %v", zap.Error(err))
@@ -368,11 +368,21 @@ func (vm *VM) NewBlock(parentID ids.ID, height uint64, timestamp time.Time,
 
 // Shutdown this vm
 func (vm *VM) Shutdown(_ context.Context) error {
+	if vm.dbManager == nil {
+		return nil
+	}
+
 	if vm.State == nil {
 		return nil
 	}
 
-	return vm.State.Close() // close versionDB
+	vm.Builder.Shutdown()
+	errs := wrappers.Errs{}
+	errs.Add(
+		vm.State.Close(),
+		vm.dbManager.Close(),
+	)
+	return errs.Err
 }
 
 // SetPreference sets the block with ID [ID] as the preferred block
