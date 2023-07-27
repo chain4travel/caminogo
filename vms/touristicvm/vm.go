@@ -263,9 +263,10 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	})
 
 	// TODO check if accept is necessary anymore
-	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)
 	genesisBlkID := genesisBlock.ID()
 	vm.State.SetLastAccepted(genesisBlkID)
+	vm.State.SetTimestamp(genesisBlock.Timestamp())
+	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)
 	vm.snowCtx.Log.Debug("genesis block ID: %s", zap.Stringer("genesisBlkID", genesisBlkID))
 	//// Accept the genesis block
 	//// Sets [vm.lastAccepted] and [vm.preferred]

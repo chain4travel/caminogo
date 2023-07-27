@@ -16,7 +16,6 @@ package builder
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
 	"time"
@@ -26,7 +25,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
-	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs/mempool"
 
@@ -196,11 +194,6 @@ func (b *builder) buildBlock() (blocks.Block, error) {
 	}
 	preferredID := preferred.ID()
 	nextHeight := preferred.Height() + 1
-	preferredState, ok := b.blkManager.GetState(preferredID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", state.ErrMissingParentState, preferredID)
-	}
-
 	timestamp := b.txExecutorBackend.Clk.Time()
 	if parentTime := preferred.Timestamp(); parentTime.After(timestamp) {
 		timestamp = parentTime
@@ -211,7 +204,6 @@ func (b *builder) buildBlock() (blocks.Block, error) {
 		preferredID,
 		nextHeight,
 		timestamp,
-		preferredState,
 	)
 }
 
@@ -263,7 +255,6 @@ func buildBlock(
 	parentID ids.ID,
 	height uint64,
 	timestamp time.Time,
-	parentState state.Chain,
 ) (blocks.Block, error) {
 
 	// If there is no reason to build a block, don't.
@@ -273,10 +264,5 @@ func buildBlock(
 	}
 
 	// Issue a block with as many transactions as possible.
-	return &blocks.StandardBlock{
-		PrntID:       parentID,
-		Hght:         height,
-		Tmstmp:       uint64(timestamp.Unix()),
-		Transactions: builder.Mempool.PeekTxs(targetBlockSize),
-	}, nil
+	return blocks.NewStandardBlock(parentID, height, timestamp, builder.Mempool.PeekTxs(targetBlockSize), blocks.Codec)
 }
