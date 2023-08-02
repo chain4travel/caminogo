@@ -41,7 +41,7 @@ func init() {
 	GenesisCodec = codec.NewManager(math.MaxInt32)
 
 	errs := wrappers.Errs{}
-	for _, c := range []codec.Registry{c, gc} {
+	for _, c := range []linearcodec.Codec{c, gc} {
 		errs.Add(
 			RegisterBlockTypes(c),
 			txs.RegisterUnsignedTxsTypes(c),
@@ -55,10 +55,12 @@ func init() {
 		panic(errs.Err)
 	}
 }
-func RegisterBlockTypes(targetCodec codec.Registry) error {
+
+func RegisterBlockTypes(targetCodec linearcodec.Codec) error {
 	errs := wrappers.Errs{}
 	errs.Add(
 		targetCodec.RegisterType(&StandardBlock{}),
 	)
+	targetCodec.SkipRegistrations(txs.NoPositionsToSkipToMatchAVMCodecOrdering - 1) // -1 because we already registered StandardBlock
 	return errs.Err
 }

@@ -67,7 +67,7 @@ func (tx *Tx) SetBytes(unsignedBytes, signedBytes []byte) {
 
 // Parse signed tx starting from its byte representation.
 // Note: We explicitly pass the codec in Parse since we may need to parse
-// P-Chain genesis txs whose length exceed the max length of txs.Codec.
+// T-Chain genesis txs whose length exceed the max length of txs.Codec.
 func Parse(c codec.Manager, signedBytes []byte) (*Tx, error) {
 	tx := &Tx{}
 	if _, err := c.Unmarshal(signedBytes, tx); err != nil {

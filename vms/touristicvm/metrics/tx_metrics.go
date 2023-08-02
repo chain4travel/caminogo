@@ -24,6 +24,7 @@ func newTxMetrics(
 ) (*txMetrics, error) {
 	errs := wrappers.Errs{}
 	m := &txMetrics{
+		numBaseTxs:   newTxMetric(namespace, "base", registerer, &errs),
 		numImportTxs: newTxMetric(namespace, "import", registerer, &errs),
 	}
 	return m, errs.Err
@@ -44,7 +45,7 @@ func newTxMetric(
 	return txMetric
 }
 func (m *txMetrics) BaseTx(*txs.BaseTx) error {
-	m.numImportTxs.Inc()
+	m.numBaseTxs.Inc()
 	return nil
 }
 func (m *txMetrics) ImportTx(*txs.ImportTx) error {

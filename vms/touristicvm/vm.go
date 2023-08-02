@@ -7,7 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"time"
 
@@ -57,7 +60,8 @@ var (
 		Patch: 0,
 	}
 
-	_ block.ChainVM = &VM{}
+	_ block.ChainVM  = &VM{}
+	_ secp256k1fx.VM = (*VM)(nil)
 )
 
 // VM implements the snowman.VM interface
@@ -77,7 +81,8 @@ type VM struct {
 	// State of this VM
 	State state.State // TODO nikos refactor to private?
 
-	fx fx.Fx
+	fx            fx.Fx
+	codecRegistry codec.Registry
 
 	// channel to send messages to the consensus engine
 	toEngine chan<- common.Message
@@ -90,6 +95,18 @@ type VM struct {
 
 	txBuilder txbuilder.Builder
 	manager   blockexecutor.Manager
+}
+
+func (vm *VM) CodecRegistry() codec.Registry {
+	return vm.codecRegistry
+}
+
+func (vm *VM) Clock() *mockable.Clock {
+	return &vm.clock
+}
+
+func (vm *VM) Logger() logging.Logger {
+	return vm.snowCtx.Log
 }
 
 // Initialize this vm
@@ -105,10 +122,10 @@ func (vm *VM) Initialize(
 	snowCtx *snow.Context,
 	dbManager manager.Manager,
 	genesisData []byte,
-	_ []byte,
-	_ []byte,
+	_ []byte, // upgradebytes
+	_ []byte, // configbytes
 	toEngine chan<- common.Message,
-	_ []*common.Fx,
+	_ []*common.Fx, //TODO rework
 	appSender common.AppSender,
 ) error {
 	registerer := prometheus.NewRegistry()
@@ -123,8 +140,6 @@ func (vm *VM) Initialize(
 	}
 	snowCtx.Log.Info("Initializing Touristic VM", zap.String("Version", version))
 
-	vm.fx = &secp256k1fx.Fx{}
-
 	// Initialize metrics as soon as possible
 	vm.metrics, err = metrics.New("", registerer)
 	if err != nil {
@@ -134,6 +149,12 @@ func (vm *VM) Initialize(
 	vm.dbManager = dbManager
 	vm.snowCtx = snowCtx
 	vm.toEngine = toEngine
+
+	vm.codecRegistry = linearcodec.NewDefault()
+	vm.fx = &secp256k1fx.Fx{}
+	if err := vm.fx.Initialize(vm); err != nil {
+		return err
+	}
 
 	// Create new state
 	vm.State, err = state.NewState(vm.dbManager.Current().Database, registerer)
@@ -409,7 +430,7 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 // onBootstrapStarted marks this VM as bootstrapping
 func (vm *VM) onBootstrapStarted() error {
 	vm.bootstrapped.Set(false)
-	return nil
+	return vm.fx.Bootstrapping()
 }
 
 // onNormalOperationsStarted marks this VM as bootstrapped
@@ -419,6 +440,10 @@ func (vm *VM) onNormalOperationsStarted() error {
 		return nil
 	}
 	vm.bootstrapped.Set(true)
+
+	if err := vm.fx.Bootstrapped(); err != nil {
+		return err
+	}
 	return nil
 }
 

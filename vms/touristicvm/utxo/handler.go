@@ -14,7 +14,6 @@
 package utxo
 
 import (
-	"errors"
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -30,9 +29,6 @@ import (
 
 var (
 	_ Handler = (*handler)(nil)
-
-	errCantSign                     = errors.New("can't sign")
-	errLockedFundsNotMarkedAsLocked = errors.New("locked funds not marked as locked")
 )
 
 // TODO: Stake and Authorize should be replaced by similar methods in the

@@ -107,7 +107,7 @@ func UnmarshalUTXO(codec codec.Manager, utxoBytes []byte) (*UTXO, []verify.State
 	var err error
 
 	utxo := &UTXO{}
-	if _, err := codec.Unmarshal(utxoBytes, utxo); err == nil {
+	if _, err = codec.Unmarshal(utxoBytes, utxo); err == nil {
 		return utxo, []verify.State{}, nil
 	}
 

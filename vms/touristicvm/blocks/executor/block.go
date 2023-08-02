@@ -140,7 +140,7 @@ func (b *Block) Verify(context.Context) error {
 func (b *Block) Accept(context.Context) error {
 	b.manager.ctx.Log.Debug(
 		"accepting block",
-		zap.String("blockType", "apricot standard"),
+		zap.String("blockType", "standard atomic"),
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Height()),
 		zap.Stringer("parentID", b.Parent()),

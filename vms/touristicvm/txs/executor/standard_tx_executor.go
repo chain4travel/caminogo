@@ -46,6 +46,10 @@ func (e *StandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 }
 
 func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
+	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
+		return err
+	}
+
 	if err := e.BaseTx(&tx.BaseTx); err != nil {
 		return err
 	}

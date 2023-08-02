@@ -15,18 +15,14 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type blockMetrics struct {
 	txMetrics *txMetrics
 
-	numAbortBlocks,
-	numAtomicBlocks,
-	numCommitBlocks,
-	numProposalBlocks,
 	numStandardBlocks prometheus.Counter
 }
 
@@ -38,10 +34,6 @@ func newBlockMetrics(
 	errs := wrappers.Errs{Err: err}
 	m := &blockMetrics{
 		txMetrics:         txMetrics,
-		numAbortBlocks:    newBlockMetric(namespace, "abort", registerer, &errs),
-		numAtomicBlocks:   newBlockMetric(namespace, "atomic", registerer, &errs),
-		numCommitBlocks:   newBlockMetric(namespace, "commit", registerer, &errs),
-		numProposalBlocks: newBlockMetric(namespace, "proposal", registerer, &errs),
 		numStandardBlocks: newBlockMetric(namespace, "standard", registerer, &errs),
 	}
 	return m, errs.Err
@@ -60,4 +52,15 @@ func newBlockMetric(
 	})
 	errs.Add(registerer.Register(blockMetric))
 	return blockMetric
+}
+
+// TODO add visitor
+func (m *blockMetrics) StandardBlock(b *blocks.StandardBlock) error {
+	m.numStandardBlocks.Inc()
+	for _, tx := range b.Transactions {
+		if err := tx.Unsigned.Visit(m.txMetrics); err != nil {
+			return err
+		}
+	}
+	return nil
 }
