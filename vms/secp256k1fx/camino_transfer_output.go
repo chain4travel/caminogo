@@ -55,3 +55,8 @@ func (out *CrossTransferOutput) Verify() error {
 
 	return nil
 }
+
+func (out *TransferOutput) Equal(to any) bool {
+	toOut, ok := to.(*TransferOutput)
+	return ok && out.Amt == toOut.Amt && out.OutputOwners.Equals(&toOut.OutputOwners)
+}

@@ -167,6 +167,12 @@ func (out *Out) Verify() error {
 	return out.TransferableOut.Verify()
 }
 
+func (out *Out) Equal(to any) bool {
+	toOut, typeAreEq := to.(*Out)
+	outEq, innerIsEq := out.TransferableOut.(interface{ Equal(any) bool })
+	return typeAreEq && innerIsEq && out.IDs == toOut.IDs && outEq.Equal(toOut.TransferableOut)
+}
+
 type In struct {
 	IDs                 `serialize:"true" json:"lockIDs"`
 	avax.TransferableIn `serialize:"true" json:"input"`
@@ -177,4 +183,10 @@ func (in *In) Verify() error {
 		return errNestedLocks
 	}
 	return in.TransferableIn.Verify()
+}
+
+func (in *In) Equal(to any) bool {
+	toIn, typeAreEq := to.(*In)
+	inEq, innerIsEq := in.TransferableIn.(interface{ Equal(any) bool })
+	return typeAreEq && innerIsEq && in.IDs == toIn.IDs && inEq.Equal(toIn.TransferableIn)
 }
