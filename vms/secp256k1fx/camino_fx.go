@@ -5,7 +5,7 @@ package secp256k1fx
 
 import (
 	"errors"
-
+	"fmt"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -37,6 +37,45 @@ type (
 
 type CaminoFx struct {
 	Fx
+}
+
+func (fx *CaminoFx) VerifyTransferForSignedMsg(msgIntf, inIntf, credIntf, utxoIntf interface{}) error {
+	msg, ok := msgIntf.([]byte)
+	if !ok {
+		return fmt.Errorf("expected []byte, got %T", msgIntf)
+	}
+	in, ok := inIntf.(*TransferInput)
+	if !ok {
+		return ErrWrongInputType
+	}
+	cred, ok := credIntf.(*Credential)
+	if !ok {
+		return ErrWrongCredentialType
+	}
+	out, ok := utxoIntf.(*TransferOutput)
+	if !ok {
+		return ErrWrongUTXOType
+	}
+	pk, err := fx.SECPFactory.RecoverHashPublicKey(msg, cred.Signatures()[0][:]) // TODO nikos: for now one signature - one output addr
+	if err != nil {
+		return err
+	}
+
+	if err := verify.All(out, in, cred); err != nil {
+		return err
+	} else if out.Amt != in.Amt {
+		return fmt.Errorf("%w: %d != %d", ErrMismatchedAmounts, out.Amt, in.Amt)
+	}
+
+	// TODO nikos: for now one signature - one output addr
+	if expectedAddress := out.Addrs[0]; expectedAddress != pk.Address() {
+		return fmt.Errorf("%w: expected signature from %s but got from %s",
+			ErrWrongSig,
+			expectedAddress,
+			pk.Address())
+	}
+
+	return nil
 }
 
 func (fx *CaminoFx) Initialize(vmIntf interface{}) error {
@@ -98,6 +137,24 @@ func (fx *Fx) RecoverAddresses(utx UnsignedTx, verifies []verify.Verifiable) (Re
 		}
 	}
 	return ret, nil
+}
+
+func (fx *Fx) RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error) {
+	signatureArgsHash := hashing.ComputeHash256([]byte(signatureArgs))
+
+	cred, ok := verifiable.(CredentialIntf)
+	if !ok {
+		return ids.ShortEmpty, errNotSecp256Cred
+	}
+	if len(cred.Signatures()) != 1 {
+		return ids.ShortEmpty, fmt.Errorf("expected exactly one signature, got %d", len(cred.Signatures()))
+	}
+	sig := cred.Signatures()[0]
+	pk, err := fx.SECPFactory.RecoverHashPublicKey(signatureArgsHash, sig[:])
+	if err != nil {
+		return ids.ShortEmpty, err
+	}
+	return pk.Address(), nil
 }
 
 func (*Fx) VerifyMultisigOwner(outIntf, msigIntf interface{}) error {

@@ -7,4 +7,6 @@ package txs
 type Visitor interface {
 	BaseTx(*BaseTx) error
 	ImportTx(*ImportTx) error
+	LockMessengerFundsTx(*LockMessengerFundsTx) error
+	CashoutChequeTx(*CashoutChequeTx) error
 }

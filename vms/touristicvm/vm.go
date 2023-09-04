@@ -151,7 +151,7 @@ func (vm *VM) Initialize(
 	vm.toEngine = toEngine
 
 	vm.codecRegistry = linearcodec.NewDefault()
-	vm.fx = &secp256k1fx.Fx{}
+	vm.fx = &secp256k1fx.CaminoFx{}
 	if err := vm.fx.Initialize(vm); err != nil {
 		return err
 	}
@@ -196,6 +196,8 @@ func (vm *VM) Initialize(
 		Ctx:          vm.snowCtx,
 		Clk:          &vm.clock,
 		Bootstrapped: &vm.bootstrapped,
+		Fx:           vm.fx,
+		FlowChecker:  utxoHandler,
 	}
 
 	vm.manager = blockexecutor.NewManager(

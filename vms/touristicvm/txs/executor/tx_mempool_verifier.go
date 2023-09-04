@@ -38,6 +38,13 @@ func (v *MempoolTxVerifier) ImportTx(tx *txs.ImportTx) error {
 	return v.standardTx(tx)
 }
 
+func (v *MempoolTxVerifier) LockMessengerFundsTx(tx *txs.LockMessengerFundsTx) error {
+	return v.standardTx(tx)
+}
+func (v *MempoolTxVerifier) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
+	return v.standardTx(tx)
+}
+
 func (v *MempoolTxVerifier) standardTx(tx txs.UnsignedTx) error {
 	baseState, err := v.standardBaseState()
 	if err != nil {

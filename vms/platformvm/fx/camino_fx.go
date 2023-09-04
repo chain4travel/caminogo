@@ -4,6 +4,7 @@
 package fx
 
 import (
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
@@ -11,6 +12,8 @@ import (
 type CaminoFx interface {
 	// Recovers signers addresses from [verifies] credentials for [utx] transaction
 	RecoverAddresses(utx secp256k1fx.UnsignedTx, verifies []verify.Verifiable) (secp256k1fx.RecoverMap, error)
+
+	RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error)
 
 	// Verifies that Multisig aliases are on inputs are only used in supported hierarchy
 	VerifyMultisigOwner(outIntf, msigIntf interface{}) error

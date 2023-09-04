@@ -8,6 +8,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/config"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/fx"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/utxo"
 )
 
 type Backend struct {
@@ -15,4 +17,6 @@ type Backend struct {
 	Ctx          *snow.Context
 	Clk          *mockable.Clock
 	Bootstrapped *utils.Atomic[bool]
+	Fx           fx.Fx
+	FlowChecker  utxo.Handler
 }

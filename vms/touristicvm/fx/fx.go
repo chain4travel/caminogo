@@ -14,12 +14,13 @@
 package fx
 
 import (
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
-var _ Fx = (*secp256k1fx.Fx)(nil)
+var _ Fx = (*secp256k1fx.CaminoFx)(nil)
 
 // Fx is the interface a feature extension must implement to support the
 // Touristic Chain.
@@ -40,6 +41,8 @@ type Fx interface {
 	// should be returned.
 	VerifyTransfer(tx, in, cred, utxo interface{}) error
 
+	VerifyTransferForSignedMsg(msg, in, cred, utxo interface{}) error
+
 	// VerifyPermission returns nil iff [cred] proves that [controlGroup]
 	// assents to [tx]
 	VerifyPermission(tx, in, cred, controlGroup interface{}) error
@@ -47,6 +50,11 @@ type Fx interface {
 	// CreateOutput creates a new output with the provided control group worth
 	// the specified amount
 	CreateOutput(amount uint64, controlGroup interface{}) (interface{}, error)
+
+	// Verifies that Multisig aliases are on inputs are only used in supported hierarchy
+	VerifyMultisigOwner(outIntf, msigIntf interface{}) error
+
+	RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error)
 }
 
 type Owner interface {

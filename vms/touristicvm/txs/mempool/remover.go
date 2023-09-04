@@ -20,3 +20,13 @@ func (r *remover) ImportTx(*txs.ImportTx) error {
 	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil
 }
+
+func (r *remover) LockMessengerFundsTx(*txs.LockMessengerFundsTx) error {
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
+	return nil
+}
+
+func (r *remover) CashoutChequeTx(*txs.CashoutChequeTx) error {
+	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
+	return nil
+}

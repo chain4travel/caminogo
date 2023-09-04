@@ -25,3 +25,13 @@ func (i *issuer) ImportTx(*txs.ImportTx) error {
 	i.m.addDecisionTx(i.tx)
 	return nil
 }
+
+func (i *issuer) LockMessengerFundsTx(*txs.LockMessengerFundsTx) error {
+	i.m.addDecisionTx(i.tx)
+	return nil
+}
+
+func (i *issuer) CashoutChequeTx(*txs.CashoutChequeTx) error {
+	i.m.addDecisionTx(i.tx)
+	return nil
+}

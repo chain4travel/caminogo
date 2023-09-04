@@ -5,6 +5,8 @@ package state
 
 import (
 	"fmt"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
+	"math"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -46,12 +48,15 @@ type Chain interface {
 	ReadOnlyChain
 	avax.UTXOAdder
 	avax.UTXODeleter
+	Chequebook
 
 	AddTx(tx *txs.Tx, status status.Status)
 	SetTimestamp(t time.Time)
 
 	GetCurrentSupply() (uint64, error)
 	SetCurrentSupply(cs uint64)
+
+	LockedUTXOs(ids.ShortID) ([]*avax.UTXO, error)
 }
 
 // State is a wrapper around avax.SingleTonState and BlockState
@@ -75,6 +80,7 @@ type State interface {
 type state struct {
 	SingletonState
 	blockState
+	chequebookState
 	baseDB *versiondb.Database
 
 	// cache of blockID -> Block
@@ -196,6 +202,26 @@ func (s *state) SetLastAccepted(lastAccepted ids.ID) {
 func (s *state) SetTimestamp(t time.Time) {
 	s.timestamp = t
 }
+func (s *state) LockedUTXOs(address ids.ShortID) ([]*avax.UTXO, error) {
+	retUtxos := []*avax.UTXO{}
+	utxoIDs, err := s.UTXOIDs(address.Bytes(), ids.ID{}, math.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	for _, utxoID := range utxoIDs {
+		utxo, err := s.GetUTXO(utxoID)
+		if err != nil {
+			return nil, err
+		}
+		if utxo == nil {
+			continue
+		}
+		if _, ok := utxo.Out.(*locked.Out); ok {
+			retUtxos = append(retUtxos, utxo)
+		}
+	}
+	return retUtxos, nil
+}
 
 func NewState(db database.Database, metricsReg prometheus.Registerer) (State, error) {
 	// create a new baseDB
@@ -237,6 +263,9 @@ func NewState(db database.Database, metricsReg prometheus.Registerer) (State, er
 		modifiedUTXOs: make(map[ids.ID]*avax.UTXO),
 		utxoDB:        utxoDB,
 		utxoState:     utxoState,
+		chequebookState: chequebookState{
+			paidOut: make(map[ids.ShortID]map[ids.ShortID]uint64),
+		},
 	}, nil
 }
 

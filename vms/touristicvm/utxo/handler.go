@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/fx"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 )
 
@@ -59,10 +60,14 @@ type Spender interface {
 		[][]*secp256k1.PrivateKey, // signers
 		error,
 	)
+	CaminoSpender
 }
 
 type Handler interface {
 	Spender
+	Verifier
+
+	SumUpUtxos(utxos []*avax.UTXO) uint64
 }
 
 func NewHandler(
@@ -81,6 +86,19 @@ type handler struct {
 	ctx *snow.Context
 	clk *mockable.Clock
 	fx  fx.Fx
+}
+
+func (h *handler) SumUpUtxos(utxos []*avax.UTXO) uint64 {
+	sum := uint64(0)
+	for _, utxo := range utxos {
+
+		if out, ok := utxo.Out.(avax.TransferableOut); ok {
+			sum += out.Amount()
+		} else if lockedOut, ok := utxo.Out.(*locked.Out); ok {
+			sum += lockedOut.Amount()
+		}
+	}
+	return sum
 }
 
 func (h *handler) Spend(

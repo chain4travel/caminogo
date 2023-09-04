@@ -16,8 +16,10 @@ package state
 import (
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -49,7 +51,66 @@ type diff struct {
 	addedTxs map[ids.ID]*txAndStatus
 
 	// map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
-	modifiedUTXOs map[ids.ID]*avax.UTXO
+	modifiedUTXOs   map[ids.ID]*avax.UTXO
+	modifiedPaidOut map[ids.ShortID]map[ids.ShortID]uint64
+}
+
+func (d *diff) GetPaidOut(issuer, beneficiary ids.ShortID) (uint64, error) {
+	if amount, ok := d.modifiedPaidOut[issuer][beneficiary]; ok {
+		return amount, nil
+	}
+
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	return parentState.GetPaidOut(issuer, beneficiary)
+}
+
+func (d *diff) SetPaidOut(issuer, beneficiary ids.ShortID, amount uint64) {
+	d.modifiedPaidOut[issuer][beneficiary] = amount
+}
+
+func (d *diff) LockedUTXOs(address ids.ShortID) ([]*avax.UTXO, error) {
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+
+	retUtxos, err := parentState.LockedUTXOs(address)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply modifiedUTXO's
+	// Step 1: remove / update existing UTXOs
+	remaining := set.NewSet[ids.ID](len(d.modifiedUTXOs))
+	for k := range d.modifiedUTXOs {
+		remaining.Add(k)
+	}
+	for i := len(retUtxos) - 1; i >= 0; i-- {
+		utxoID := retUtxos[i].InputID()
+		if utxo, exists := d.modifiedUTXOs[utxoID]; exists {
+			if utxo == nil {
+				retUtxos = append(retUtxos[:i], retUtxos[i+1:]...)
+			} else {
+				retUtxos[i] = utxo
+			}
+			delete(remaining, utxoID)
+		}
+	}
+
+	// Step 2: Append new UTXOs
+	for utxoID := range remaining {
+		if utxo := d.modifiedUTXOs[utxoID]; utxo != nil {
+			if _, ok := utxo.Out.(*locked.Out); ok {
+				retUtxos = append(retUtxos, utxo)
+			}
+		}
+	}
+
+	return retUtxos, nil
 }
 
 func (d *diff) DeleteUTXO(utxoID ids.ID) {
@@ -109,6 +170,8 @@ func NewDiff(
 		parentID:      parentID,
 		stateVersions: stateVersions,
 		timestamp:     parentState.GetTimestamp(),
+
+		modifiedPaidOut: make(map[ids.ShortID]map[ids.ShortID]uint64),
 	}, nil
 }
 
@@ -172,6 +235,11 @@ func (d *diff) Apply(baseState State) {
 			baseState.AddUTXO(utxo)
 		} else {
 			baseState.DeleteUTXO(utxoID)
+		}
+	}
+	for issuer, beneficiaryToAmount := range d.modifiedPaidOut {
+		for beneficiary, amount := range beneficiaryToAmount {
+			baseState.SetPaidOut(issuer, beneficiary, amount)
 		}
 	}
 }

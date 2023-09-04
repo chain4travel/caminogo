@@ -6,6 +6,8 @@ package builder
 import (
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -174,4 +176,80 @@ func (b *builder) NewImportTx(
 		return nil, err
 	}
 	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *builder) NewLockMessengerFundsTx(
+	amount uint64,
+	keys []*secp256k1.PrivateKey,
+	change *secp256k1fx.OutputOwners,
+) (*txs.Tx, error) {
+
+	ins, outs, signers, _, err := b.Lock(b.state, keys, amount, b.cfg.TxFee, locked.StateLocked, nil, change, 0)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+
+	utx := &txs.LockMessengerFundsTx{
+		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+			NetworkID:    b.ctx.NetworkID,
+			BlockchainID: b.ctx.ChainID,
+			Ins:          ins,
+			Outs:         outs,
+		}},
+	}
+
+	tx, err := txs.NewSigned(utx, txs.Codec, signers)
+	if err != nil {
+		return nil, err
+	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+func (b *builder) NewCashoutChequeTx(
+	amount uint64,
+	beneficiary ids.ShortID,
+	issuer ids.ShortID,
+	issuerAuth verify.Verifiable,
+	keys []*secp256k1.PrivateKey,
+	change *secp256k1fx.OutputOwners) (*txs.Tx, error) {
+
+	//TODO nikos implement
+
+	//// unlocking
+	//ins, outs, signers, err := b.Unlock(b.state, issuer)
+	//if err != nil {
+	//	return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	//}
+	//
+	//// burning fee
+	//feeIns, feeOuts, feeSigners, _, err := b.Lock(b.state, keys, 0, b.cfg.TxFee, locked.StateUnlocked, nil, change, 0)
+	//if err != nil {
+	//	return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	//}
+	//
+	//ins = append(ins, feeIns...)
+	//outs = append(outs, feeOuts...)
+	//signers = append(signers, feeSigners...)
+	//
+	//avax.SortTransferableInputs(ins)
+	//avax.SortTransferableOutputs(outs, txs.Codec)
+	//
+	//utx := &txs.CashoutChequeTx{
+	//	BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+	//		NetworkID:    b.ctx.NetworkID,
+	//		BlockchainID: b.ctx.ChainID,
+	//		Ins:          ins,
+	//		Outs:         outs,
+	//	}},
+	//	Amount:      amount,
+	//	Beneficiary: beneficiary,
+	//	Issuer:      issuer,
+	//	IssuerAuth:  issuerAuth,
+	//}
+	//
+	//tx, err := txs.NewSigned(utx, txs.Codec, signers)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return tx, tx.SyntacticVerify(b.ctx)
+	return nil, nil
 }
