@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 )
@@ -40,6 +39,17 @@ type Verifier interface {
 		assetID ids.ID,
 		appliedLockState locked.State,
 	) error
+
+	VerifyLockUTXOs(
+		tx txs.UnsignedTx,
+		utxos []*avax.UTXO,
+		ins []*avax.TransferableInput,
+		outs []*avax.TransferableOutput,
+		creds []verify.Verifiable,
+		mintedAmount uint64,
+		burnedAmount uint64,
+		assetID ids.ID,
+		appliedLockState locked.State) error
 
 	VerifyUnlock(
 		signedMsg []byte,
@@ -83,11 +93,10 @@ func (h *handler) VerifyLock(
 		utxos[index] = utxo
 	}
 
-	return h.VerifyLockUTXOs(nil, tx, utxos, ins, outs, creds, mintedAmount, burnedAmount, assetID, appliedLockState)
+	return h.VerifyLockUTXOs(tx, utxos, ins, outs, creds, mintedAmount, burnedAmount, assetID, appliedLockState)
 }
 
 func (h *handler) VerifyLockUTXOs(
-	msigState secp256k1fx.AliasGetter,
 	tx txs.UnsignedTx,
 	utxos []*avax.UTXO,
 	ins []*avax.TransferableInput,

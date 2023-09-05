@@ -73,15 +73,17 @@ func (e *StandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 }
 
 func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
+	if err := locked.VerifyNoLocks(tx.Ins, tx.Outs); err != nil {
+		return err
+	}
+	if err := locked.VerifyNoLocks(tx.ImportedInputs, nil); err != nil {
+		return err
+	}
 	if err := e.Tx.SyntacticVerify(e.Ctx); err != nil {
 		return err
 	}
 
-	if err := e.BaseTx(&tx.BaseTx); err != nil {
-		return err
-	}
-
-	// TODO nikos - check if
+	e.Inputs = set.NewSet[ids.ID](len(tx.ImportedInputs))
 	utxoIDs := make([][]byte, len(tx.ImportedInputs))
 	for i, in := range tx.ImportedInputs {
 		utxoID := in.UTXOID.InputID()
@@ -89,6 +91,56 @@ func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 		e.Inputs.Add(utxoID)
 		utxoIDs[i] = utxoID[:]
 	}
+
+	if e.Bootstrapped.Get() {
+
+		allUTXOBytes, err := e.Ctx.SharedMemory.Get(tx.SourceChain, utxoIDs)
+		if err != nil {
+			return fmt.Errorf("failed to get shared memory: %w", err)
+		}
+
+		utxos := make([]*avax.UTXO, len(tx.Ins)+len(tx.ImportedInputs))
+		for index, input := range tx.Ins {
+			utxo, err := e.State.GetUTXO(input.InputID())
+			if err != nil {
+				return fmt.Errorf("failed to get UTXO %s: %w", &input.UTXOID, err)
+			}
+			utxos[index] = utxo
+		}
+		for i, utxoBytes := range allUTXOBytes {
+			utxo := &avax.UTXO{}
+			if _, err := txs.Codec.Unmarshal(utxoBytes, utxo); err != nil {
+				return fmt.Errorf("failed to unmarshal UTXO: %w", err)
+			}
+			utxos[i+len(tx.Ins)] = utxo
+		}
+
+		ins := make([]*avax.TransferableInput, len(tx.Ins)+len(tx.ImportedInputs))
+		copy(ins, tx.Ins)
+		copy(ins[len(tx.Ins):], tx.ImportedInputs)
+
+		if err := e.FlowChecker.VerifyLockUTXOs(
+			tx,
+			utxos,
+			ins,
+			tx.Outs,
+			e.Tx.Creds,
+			0,
+			e.Backend.Config.TxFee,
+			e.Backend.Ctx.AVAXAssetID,
+			locked.StateUnlocked,
+		); err != nil {
+			return err
+		}
+	}
+
+	txID := e.Tx.ID()
+
+	// Consume the UTXOS
+	avax.Consume(e.State, tx.Ins)
+	// Produce the UTXOS
+	avax.Produce(e.State, txID, tx.Outs)
+
 	e.AtomicRequests = map[ids.ID]*atomic.Requests{
 		tx.SourceChain: {
 			RemoveRequests: utxoIDs,
