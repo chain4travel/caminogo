@@ -34,7 +34,7 @@ func (tx *CashoutChequeTx) SyntacticVerify(ctx *snow.Context) error {
 	}
 
 	if err := tx.BaseTx.SyntacticVerify(ctx); err != nil {
-		return fmt.Errorf("failed to verify BaseTx: %w", err)
+		return fmt.Errorf("failed to verify CashoutChequeTx: %w", err)
 	}
 
 	// cache that this is valid

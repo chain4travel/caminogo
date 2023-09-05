@@ -52,7 +52,7 @@ func (ls State) IsLocked() bool {
 /**********************  IDs *********************/
 
 type IDs struct {
-	LockTxID ids.ID `serialize:"true" json:"depositTxID"`
+	LockTxID ids.ID `serialize:"true" json:"lockTxID"`
 }
 
 var IDsEmpty = IDs{ids.Empty}

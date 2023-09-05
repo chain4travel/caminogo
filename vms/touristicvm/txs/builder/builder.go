@@ -34,6 +34,7 @@ var (
 
 type Builder interface {
 	AtomicTxBuilder
+	utxo.Spender
 }
 
 type AtomicTxBuilder interface {

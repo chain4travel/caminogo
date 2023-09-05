@@ -14,8 +14,10 @@ import (
 var _ txs.Visitor = (*txMetrics)(nil)
 
 type txMetrics struct {
-	numBaseTxs   prometheus.Counter
-	numImportTxs prometheus.Counter
+	numBaseTxs               prometheus.Counter
+	numImportTxs             prometheus.Counter
+	numLockMessengerFundsTxs prometheus.Counter
+	numCashoutChequeTxs      prometheus.Counter
 }
 
 func newTxMetrics(
@@ -24,8 +26,10 @@ func newTxMetrics(
 ) (*txMetrics, error) {
 	errs := wrappers.Errs{}
 	m := &txMetrics{
-		numBaseTxs:   newTxMetric(namespace, "base", registerer, &errs),
-		numImportTxs: newTxMetric(namespace, "import", registerer, &errs),
+		numBaseTxs:               newTxMetric(namespace, "base", registerer, &errs),
+		numImportTxs:             newTxMetric(namespace, "import", registerer, &errs),
+		numLockMessengerFundsTxs: newTxMetric(namespace, "lock_messenger_funds", registerer, &errs),
+		numCashoutChequeTxs:      newTxMetric(namespace, "cash_out", registerer, &errs),
 	}
 	return m, errs.Err
 }
@@ -50,5 +54,15 @@ func (m *txMetrics) BaseTx(*txs.BaseTx) error {
 }
 func (m *txMetrics) ImportTx(*txs.ImportTx) error {
 	m.numImportTxs.Inc()
+	return nil
+}
+
+func (m *txMetrics) LockMessengerFundsTx(*txs.LockMessengerFundsTx) error {
+	m.numLockMessengerFundsTxs.Inc()
+	return nil
+}
+
+func (m *txMetrics) CashoutChequeTx(*txs.CashoutChequeTx) error {
+	m.numCashoutChequeTxs.Inc()
 	return nil
 }

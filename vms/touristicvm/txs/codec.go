@@ -14,6 +14,7 @@
 package txs
 
 import (
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"math"
 
 	"github.com/ava-labs/avalanchego/codec"
@@ -73,6 +74,11 @@ func RegisterUnsignedTxsTypes(targetCodec codec.Registry) error {
 		targetCodec.RegisterType(&secp256k1fx.OutputOwners{}),
 
 		targetCodec.RegisterType(&BaseTx{}),
-		targetCodec.RegisterType(&ImportTx{}))
+		targetCodec.RegisterType(&ImportTx{}),
+
+		targetCodec.RegisterType(&locked.In{}),
+		targetCodec.RegisterType(&locked.Out{}),
+		targetCodec.RegisterType(&LockMessengerFundsTx{}),
+		targetCodec.RegisterType(&CashoutChequeTx{}))
 	return errs.Err
 }

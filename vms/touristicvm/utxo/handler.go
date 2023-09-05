@@ -14,18 +14,14 @@
 package utxo
 
 import (
-	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
-	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
-	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 )
 
 var (
@@ -113,98 +109,111 @@ func (h *handler) Spend(
 	[][]*secp256k1.PrivateKey, // signers
 	error,
 ) {
-	// TODO: nikos check from the beginning how spend should look like
-	addrs := set.NewSet[ids.ShortID](len(keys)) // The addresses controlled by [keys]
-	for _, key := range keys {
-		addrs.Add(key.PublicKey().Address())
+	//// TODO: nikos check from the beginning how spend should look like
+	//addrs := set.NewSet[ids.ShortID](len(keys)) // The addresses controlled by [keys]
+	//for _, key := range keys {
+	//	addrs.Add(key.PublicKey().Address())
+	//}
+	//utxos, err := avax.GetAllUTXOs(utxoReader, addrs) // The UTXOs controlled by [keys]
+	//if err != nil {
+	//	return nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
+	//}
+	//
+	//kc := secp256k1fx.NewKeychain(keys...) // Keychain consumes UTXOs and creates new ones
+	//
+	//// Minimum time this transaction will be issued at
+	//now := uint64(h.clk.Time().Unix())
+	//
+	//ins := []*avax.TransferableInput{}
+	//returnedOuts := []*avax.TransferableOutput{}
+	//signers := [][]*secp256k1.PrivateKey{}
+	//
+	//// Amount of AVAX that has been burned
+	//amountBurned := uint64(0)
+	//
+	//for _, utxo := range utxos {
+	//	// If we have burned more AVAX than we need to,
+	//	// then we have no need to consume more AVAX
+	//	if amountBurned >= fee {
+	//		break
+	//	}
+	//
+	//	if assetID := utxo.AssetID(); assetID != h.ctx.AVAXAssetID {
+	//		continue // We only care about burning AVAX, so ignore other assets
+	//	}
+	//
+	//	out := utxo.Out
+	//
+	//	inIntf, inSigners, err := kc.Spend(out, now)
+	//	if err != nil {
+	//		// We couldn't spend this UTXO, so we skip to the next one
+	//		continue
+	//	}
+	//	in, ok := inIntf.(avax.TransferableIn)
+	//	if !ok {
+	//		// Because we only use the secp Fx right now, this should never
+	//		// happen
+	//		continue
+	//	}
+	//
+	//	// The remaining value is initially the full value of the input
+	//	remainingValue := in.Amount()
+	//
+	//	// Burn any value that should be burned
+	//	amountToBurn := math.Min(
+	//		fee-amountBurned, // Amount we still need to burn
+	//		remainingValue,   // Amount available to burn
+	//	)
+	//	amountBurned += amountToBurn
+	//	remainingValue -= amountToBurn
+	//
+	//	// Add the input to the consumed inputs
+	//	ins = append(ins, &avax.TransferableInput{
+	//		UTXOID: utxo.UTXOID,
+	//		Asset:  avax.Asset{ID: h.ctx.AVAXAssetID},
+	//		In:     in,
+	//	})
+	//
+	//	if remainingValue > 0 {
+	//		// This input had extra value, so some of it must be returned
+	//		returnedOuts = append(returnedOuts, &avax.TransferableOutput{
+	//			Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
+	//			Out: &secp256k1fx.TransferOutput{
+	//				Amt: remainingValue,
+	//				OutputOwners: secp256k1fx.OutputOwners{
+	//					Locktime:  0,
+	//					Threshold: 1,
+	//					Addrs:     []ids.ShortID{changeAddr},
+	//				},
+	//			},
+	//		})
+	//	}
+	//
+	//	// Add the signers needed for this input to the set of signers
+	//	signers = append(signers, inSigners)
+	//}
+	//
+	//if amountBurned < fee {
+	//	return nil, nil, nil, fmt.Errorf(
+	//		"provided keys have balance %d but need (%d, %d)",
+	//		amountBurned, fee, amount)
+	//}
+	//
+	//avax.SortTransferableInputsWithSigners(ins, signers)  // sort inputs and keys
+	//avax.SortTransferableOutputs(returnedOuts, txs.Codec) // sort outputs
+	//
+	//return ins, returnedOuts, signers, nil
+	var change *secp256k1fx.OutputOwners
+	if changeAddr != ids.ShortEmpty {
+		change = &secp256k1fx.OutputOwners{
+			Locktime:  0,
+			Threshold: 1,
+			Addrs:     []ids.ShortID{changeAddr},
+		}
 	}
-	utxos, err := avax.GetAllUTXOs(utxoReader, addrs) // The UTXOs controlled by [keys]
+	inputs, outputs, signers, _, err := h.Lock(utxoReader, keys, amount, fee, locked.StateUnlocked, nil, change, 0)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
+		return nil, nil, nil, err
 	}
-
-	kc := secp256k1fx.NewKeychain(keys...) // Keychain consumes UTXOs and creates new ones
-
-	// Minimum time this transaction will be issued at
-	now := uint64(h.clk.Time().Unix())
-
-	ins := []*avax.TransferableInput{}
-	returnedOuts := []*avax.TransferableOutput{}
-	signers := [][]*secp256k1.PrivateKey{}
-
-	// Amount of AVAX that has been burned
-	amountBurned := uint64(0)
-
-	for _, utxo := range utxos {
-		// If we have burned more AVAX than we need to,
-		// then we have no need to consume more AVAX
-		if amountBurned >= fee {
-			break
-		}
-
-		if assetID := utxo.AssetID(); assetID != h.ctx.AVAXAssetID {
-			continue // We only care about burning AVAX, so ignore other assets
-		}
-
-		out := utxo.Out
-
-		inIntf, inSigners, err := kc.Spend(out, now)
-		if err != nil {
-			// We couldn't spend this UTXO, so we skip to the next one
-			continue
-		}
-		in, ok := inIntf.(avax.TransferableIn)
-		if !ok {
-			// Because we only use the secp Fx right now, this should never
-			// happen
-			continue
-		}
-
-		// The remaining value is initially the full value of the input
-		remainingValue := in.Amount()
-
-		// Burn any value that should be burned
-		amountToBurn := math.Min(
-			fee-amountBurned, // Amount we still need to burn
-			remainingValue,   // Amount available to burn
-		)
-		amountBurned += amountToBurn
-		remainingValue -= amountToBurn
-
-		// Add the input to the consumed inputs
-		ins = append(ins, &avax.TransferableInput{
-			UTXOID: utxo.UTXOID,
-			Asset:  avax.Asset{ID: h.ctx.AVAXAssetID},
-			In:     in,
-		})
-
-		if remainingValue > 0 {
-			// This input had extra value, so some of it must be returned
-			returnedOuts = append(returnedOuts, &avax.TransferableOutput{
-				Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: remainingValue,
-					OutputOwners: secp256k1fx.OutputOwners{
-						Locktime:  0,
-						Threshold: 1,
-						Addrs:     []ids.ShortID{changeAddr},
-					},
-				},
-			})
-		}
-
-		// Add the signers needed for this input to the set of signers
-		signers = append(signers, inSigners)
-	}
-
-	if amountBurned < fee {
-		return nil, nil, nil, fmt.Errorf(
-			"provided keys have balance %d but need (%d, %d)",
-			amountBurned, fee, amount)
-	}
-
-	avax.SortTransferableInputsWithSigners(ins, signers)  // sort inputs and keys
-	avax.SortTransferableOutputs(returnedOuts, txs.Codec) // sort outputs
-
-	return ins, returnedOuts, signers, nil
+	return inputs, outputs, signers, nil
 }

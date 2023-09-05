@@ -65,10 +65,10 @@ func (h *handler) VerifyLock(
 	assetID ids.ID,
 	appliedLockState locked.State,
 ) error {
-	msigState, ok := utxoDB.(secp256k1fx.AliasGetter)
-	if !ok {
-		return secp256k1fx.ErrNotAliasGetter
-	}
+	//msigState, ok := utxoDB.(secp256k1fx.AliasGetter)
+	//if !ok {
+	//	return secp256k1fx.ErrNotAliasGetter
+	//}
 
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
@@ -83,7 +83,7 @@ func (h *handler) VerifyLock(
 		utxos[index] = utxo
 	}
 
-	return h.VerifyLockUTXOs(msigState, tx, utxos, ins, outs, creds, mintedAmount, burnedAmount, assetID, appliedLockState)
+	return h.VerifyLockUTXOs(nil, tx, utxos, ins, outs, creds, mintedAmount, burnedAmount, assetID, appliedLockState)
 }
 
 func (h *handler) VerifyLockUTXOs(
@@ -130,8 +130,8 @@ func (h *handler) VerifyLockUTXOs(
 	// Track the amount of transfers and their owners
 	// if appliedLockState == bond, then otherLockTxID is depositTxID and vice versa
 	// ownerID -> otherLockTxID -> amount
-	consumed := make(map[ids.ID]map[ids.ID]uint64)
-	consumed[ids.Empty] = map[ids.ID]uint64{ids.Empty: mintedAmount} // TODO @evlekth simplify with dedicated var
+	consumed := uint64(0)
+	produced := uint64(0)
 
 	for index, input := range ins {
 		utxo := utxos[index] // The UTXO consumed by [input]
@@ -179,8 +179,8 @@ func (h *handler) VerifyLockUTXOs(
 			return errWrongInType
 		}
 
-		if lockedIn, ok := in.(*locked.In); ok {
-			in = lockedIn.TransferableIn
+		if _, ok := in.(*locked.In); ok {
+			return fmt.Errorf("cannot consumed locked inputs")
 		} else if lockIDs.IsLocked() {
 			// The UTXO says it's locked, but this input, which consumes it,
 			// is not locked - this is invalid.
@@ -191,27 +191,12 @@ func (h *handler) VerifyLockUTXOs(
 			return fmt.Errorf("failed to verify transfer: %w", err)
 		}
 
-		ownerID := &ids.Empty
-		if lockIDs.LockTxID != ids.Empty {
-			id, err := txs.GetOutputOwnerID(out)
-			if err != nil {
-				return err
-			}
-			ownerID = &id
-		}
-
 		amount := in.Amount()
-		consumedOwnerAmounts, ok := consumed[*ownerID]
-		if !ok {
-			consumedOwnerAmounts = make(map[ids.ID]uint64)
-			consumed[*ownerID] = consumedOwnerAmounts
-		}
-
-		newAmount, err := math.Add64(consumedOwnerAmounts[lockIDs.LockTxID], amount)
+		newAmount, err := math.Add64(consumed, amount)
 		if err != nil {
 			return err
 		}
-		consumedOwnerAmounts[lockIDs.LockTxID] = newAmount
+		consumed = newAmount
 	}
 
 	for index, output := range outs {
@@ -230,61 +215,32 @@ func (h *handler) VerifyLockUTXOs(
 			return errWrongOutType
 		}
 
-		lockIDs := &locked.IDsEmpty
 		if lockedOut, ok := out.(*locked.Out); ok {
-			lockIDs = &lockedOut.IDs
 			out = lockedOut.TransferableOut
 		}
 
-		if err := h.fx.VerifyMultisigOwner(out, msigState); err != nil {
+		producedAmount := out.Amount()
+		newAmount, err := math.Add64(produced, producedAmount)
+		if err != nil {
 			return err
 		}
-
-		ownerID := &ids.Empty
-		if lockIDs.LockTxID != ids.Empty {
-			id, err := txs.GetOutputOwnerID(out)
-			if err != nil {
-				return err
-			}
-			ownerID = &id
-		}
-
-		producedAmount := out.Amount()
-		consumedAmount := uint64(0)
-		consumedOwnerAmounts, ok := consumed[*ownerID]
-		if ok {
-			consumedAmount = consumedOwnerAmounts[lockIDs.LockTxID]
-		}
-
-		if consumedAmount < producedAmount {
-			return fmt.Errorf(
-				"address %s produces %d and consumes %d for lockIDs %+v with lock '%s': %w",
-				ownerID,
-				producedAmount,
-				consumedAmount,
-				lockIDs.LockTxID,
-				appliedLockState,
-				errWrongProducedAmount,
-			)
-		}
-
-		consumedOwnerAmounts[lockIDs.LockTxID] = consumedAmount - producedAmount
+		produced = newAmount
+	}
+	if consumed < produced {
+		return fmt.Errorf(
+			"produces %d and consumes %d with lock '%s': %w",
+			produced,
+			consumed,
+			appliedLockState,
+			errWrongProducedAmount,
+		)
 	}
 
-	amountToBurn := burnedAmount
-	for _, consumedOwnerAmounts := range consumed {
-		consumedUnlockedAmount := consumedOwnerAmounts[ids.Empty]
-		if consumedUnlockedAmount >= amountToBurn {
-			return nil
-		}
-		amountToBurn -= consumedUnlockedAmount
-	}
-
-	if amountToBurn > 0 {
+	if consumed < burnedAmount {
 		return fmt.Errorf(
 			"asset %s burned %d unlocked, but needed to burn %d: %w",
 			assetID,
-			burnedAmount-amountToBurn,
+			consumed,
 			burnedAmount,
 			errNotBurnedEnough,
 		)
