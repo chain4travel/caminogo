@@ -5,13 +5,17 @@ package utxo
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
+
+	"golang.org/x/exp/slices"
+
+	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var (
@@ -52,7 +56,7 @@ type Verifier interface {
 		appliedLockState locked.State) error
 
 	VerifyUnlock(
-		signedMsg []byte,
+		eligibleUTXOs []*avax.UTXO,
 		utxoDB avax.UTXOGetter,
 		tx txs.UnsignedTx,
 		ins []*avax.TransferableInput,
@@ -201,7 +205,7 @@ func (h *handler) VerifyLockUTXOs(
 		}
 
 		amount := in.Amount()
-		newAmount, err := math.Add64(consumed, amount)
+		newAmount, err := safemath.Add64(consumed, amount)
 		if err != nil {
 			return err
 		}
@@ -229,7 +233,7 @@ func (h *handler) VerifyLockUTXOs(
 		}
 
 		producedAmount := out.Amount()
-		newAmount, err := math.Add64(produced, producedAmount)
+		newAmount, err := safemath.Add64(produced, producedAmount)
 		if err != nil {
 			return err
 		}
@@ -258,7 +262,7 @@ func (h *handler) VerifyLockUTXOs(
 	return nil
 }
 
-func (h *handler) VerifyUnlock(msg []byte, utxoDB avax.UTXOGetter, tx txs.UnsignedTx, ins []*avax.TransferableInput, outs []*avax.TransferableOutput, creds []verify.Verifiable, burnedAmount uint64, amountToUnlock uint64, assetID ids.ID) error {
+func (h *handler) VerifyUnlock(eligibleUTXOs []*avax.UTXO, utxoDB avax.UTXOGetter, tx txs.UnsignedTx, ins []*avax.TransferableInput, outs []*avax.TransferableOutput, creds []verify.Verifiable, burnedAmount uint64, amountToUnlock uint64, assetID ids.ID) error {
 	utxos := make([]*avax.UTXO, len(ins))
 	for index, input := range ins {
 		utxo, err := utxoDB.GetUTXO(input.InputID())
@@ -272,11 +276,11 @@ func (h *handler) VerifyUnlock(msg []byte, utxoDB avax.UTXOGetter, tx txs.Unsign
 		utxos[index] = utxo
 	}
 
-	return h.VerifyUnlockUTXOs(msg, tx, utxos, ins, outs, creds, burnedAmount, amountToUnlock, assetID)
+	return h.VerifyUnlockUTXOs(eligibleUTXOs, tx, utxos, ins, outs, creds, burnedAmount, amountToUnlock, assetID)
 }
 
 func (h *handler) VerifyUnlockUTXOs(
-	msg []byte,
+	eligibleUTXOs []*avax.UTXO,
 	tx txs.UnsignedTx,
 	utxos []*avax.UTXO,
 	ins []*avax.TransferableInput,
@@ -296,7 +300,7 @@ func (h *handler) VerifyUnlockUTXOs(
 	}
 
 	var err error
-	consumedLockedOwnerID := ids.Empty
+	//consumedLockedOwnerID := ids.Empty
 	consumedLocked := uint64(0)
 	consumedUnlocked := uint64(0)
 
@@ -334,21 +338,21 @@ func (h *handler) VerifyUnlockUTXOs(
 
 		in, ok := input.In.(*locked.In)
 		if ok {
-			consumedLocked, err = math.Add64(consumedLocked, in.Amount())
+			consumedLocked, err = safemath.Add64(consumedLocked, in.Amount())
 			if err != nil {
 				return err
 			}
 			// if it's a locked input, then we need to verify the signature of the signed message
-			if err := h.fx.VerifyTransferForSignedMsg(msg, in, creds[index], out); err != nil {
-				return fmt.Errorf("failed to verify transfer: %w: %s", errCantSpend, err)
+			if !slices.Contains(eligibleUTXOs, utxo) {
+				return fmt.Errorf("this utxo is not locked and thus cannot be used to unlock funds")
 			}
 
-			consumedLockedOwnerID, err = txs.GetOutputOwnerID(out)
+			//consumedLockedOwnerID, err = txs.GetOutputOwnerID(out)
 			if err != nil {
 				return err
 			}
 		} else {
-			consumedUnlocked, err = math.Add64(consumedUnlocked, input.In.Amount())
+			consumedUnlocked, err = safemath.Add64(consumedUnlocked, input.In.Amount())
 			if err != nil {
 				return err
 			}
@@ -374,20 +378,21 @@ func (h *handler) VerifyUnlockUTXOs(
 		}
 		out := output.Out
 		if lockedOut, ok := out.(*locked.Out); ok && lockedOut.LockTxID != ids.Empty {
-			producedLocked, err = math.Add64(producedLocked, lockedOut.Amount())
+			producedLocked, err = safemath.Add64(producedLocked, lockedOut.Amount())
 			if err != nil {
 				return err
 			}
 
-			ownerID, err := txs.GetOwnerID(out)
-			if err != nil {
-				return err
-			}
-			if ownerID != consumedLockedOwnerID {
-				return fmt.Errorf("ownerID of locked output %s doesn't match ownerID of consumed locked input %s", ownerID, consumedLockedOwnerID)
-			}
+			//ownerID, err := txs.GetOwnerID(out)
+			//if err != nil {
+			//	return err
+			//}
+			//if ownerID != consumedLockedOwnerID {
+			//	return fmt.Errorf("ownerID of locked output %s doesn't match ownerID of consumed locked input %s", ownerID, consumedLockedOwnerID)
+			//}
+			// TODO replace with check that does indeed what we want. This check is not correct
 		} else {
-			producedUnlocked, err = math.Add64(producedUnlocked, out.Amount())
+			producedUnlocked, err = safemath.Add64(producedUnlocked, out.Amount())
 			if err != nil {
 				return err
 			}
@@ -412,6 +417,11 @@ func (h *handler) VerifyUnlockUTXOs(
 			burnedAmount,
 			errNotBurnedEnough,
 		)
+	}
+
+	// produced unlocked must be equal to amountToUnlock
+	if producedUnlocked != amountToUnlock {
+		return fmt.Errorf("produced unlocked must be equal to amountToUnlock: %w", errWrongAmounts)
 	}
 
 	return nil

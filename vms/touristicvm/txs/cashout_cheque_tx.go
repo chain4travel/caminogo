@@ -18,9 +18,9 @@ type CashoutChequeTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 
-	Amount      uint64            `serialize:"true" json:"amount"`
-	Beneficiary ids.ShortID       `serialize:"true" json:"beneficiary"`
 	Issuer      ids.ShortID       `serialize:"true" json:"issuer"`
+	Beneficiary ids.ShortID       `serialize:"true" json:"beneficiary"`
+	Amount      uint64            `serialize:"true" json:"amount"`
 	IssuerAuth  verify.Verifiable `serialize:"true" json:"issuerAuth"`
 }
 

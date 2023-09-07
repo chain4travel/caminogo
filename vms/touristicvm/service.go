@@ -266,13 +266,14 @@ func (s *Service) GetUTXOs(_ *http.Request, args *api.GetUTXOsArgs, response *ap
 type SpendArgs struct {
 	api.JSONFromAddrs
 
-	To           platformapi.Owner   `json:"to"`
-	Change       platformapi.Owner   `json:"change"`
-	LockMode     byte                `json:"lockMode"`
-	AmountToLock utilsjson.Uint64    `json:"amountToLock"`
-	AmountToBurn utilsjson.Uint64    `json:"amountToBurn"`
-	AsOf         utilsjson.Uint64    `json:"asOf"`
-	Encoding     formatting.Encoding `json:"encoding"`
+	To             platformapi.Owner   `json:"to"`
+	Change         platformapi.Owner   `json:"change"`
+	LockMode       byte                `json:"lockMode"`
+	AmountToLock   utilsjson.Uint64    `json:"amountToLock"`
+	AmountToUnlock utilsjson.Uint64    `json:"amountToUnlock"`
+	AmountToBurn   utilsjson.Uint64    `json:"amountToBurn"`
+	AsOf           utilsjson.Uint64    `json:"asOf"`
+	Encoding       formatting.Encoding `json:"encoding"`
 }
 
 type SpendReply struct {
@@ -303,16 +304,43 @@ func (s *Service) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) 
 		return fmt.Errorf(errInvalidChangeAddr, err)
 	}
 
-	ins, outs, signers, owners, err := s.vm.txBuilder.Lock(
-		s.vm.State,
-		privKeys,
-		uint64(args.AmountToLock),
-		uint64(args.AmountToBurn),
-		locked.State(args.LockMode),
-		to,
-		change,
-		uint64(args.AsOf),
+	if args.AmountToUnlock > 0 && args.AmountToLock > 0 {
+		return fmt.Errorf("can't both lock and unlock")
+	}
+	if args.AmountToUnlock > 0 && locked.State(args.LockMode) != locked.StateUnlocked {
+		return fmt.Errorf("can't unlock with lock mode %d", args.LockMode)
+	}
+	if args.AmountToUnlock > 0 && args.AmountToBurn > 0 {
+		return fmt.Errorf("unlocking funds in T-chain is fee-less")
+	}
+
+	var (
+		ins     []*avax.TransferableInput   // inputs
+		outs    []*avax.TransferableOutput  // outputs
+		signers [][]*secp256k1.PrivateKey   // signers
+		owners  []*secp256k1fx.OutputOwners // owners
 	)
+	signers = [][]*secp256k1.PrivateKey{privKeys}
+	owners = []*secp256k1fx.OutputOwners{to}
+	if args.AmountToUnlock > 0 {
+		ins, outs, err = s.vm.txBuilder.Unlock(
+			s.vm.State,
+			change,
+			to,
+			uint64(args.AmountToUnlock),
+		)
+	} else {
+		ins, outs, signers, owners, err = s.vm.txBuilder.Lock(
+			s.vm.State,
+			privKeys,
+			uint64(args.AmountToLock),
+			uint64(args.AmountToBurn),
+			locked.State(args.LockMode),
+			to,
+			change,
+			uint64(args.AsOf),
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("%w: %s", errCreateTransferables, err)
 	}

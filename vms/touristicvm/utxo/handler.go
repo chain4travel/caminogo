@@ -87,7 +87,6 @@ type handler struct {
 func (h *handler) SumUpUtxos(utxos []*avax.UTXO) uint64 {
 	sum := uint64(0)
 	for _, utxo := range utxos {
-
 		if out, ok := utxo.Out.(avax.TransferableOut); ok {
 			sum += out.Amount()
 		} else if lockedOut, ok := utxo.Out.(*locked.Out); ok {

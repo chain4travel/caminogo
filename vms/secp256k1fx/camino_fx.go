@@ -67,7 +67,7 @@ func (fx *CaminoFx) VerifyTransferForSignedMsg(msgIntf, inIntf, credIntf, utxoIn
 		return fmt.Errorf("%w: %d != %d", ErrMismatchedAmounts, out.Amt, in.Amt)
 	}
 
-	// TODO nikos: for now one signature - one output addr
+	// TODO nikos: for now one signature - one output addr (no msig support)
 	if expectedAddress := out.Addrs[0]; expectedAddress != pk.Address() {
 		return fmt.Errorf("%w: expected signature from %s but got from %s",
 			ErrWrongSig,

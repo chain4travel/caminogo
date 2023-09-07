@@ -69,6 +69,9 @@ func (d *diff) GetPaidOut(issuer, beneficiary ids.ShortID) (uint64, error) {
 }
 
 func (d *diff) SetPaidOut(issuer, beneficiary ids.ShortID, amount uint64) {
+	if d.modifiedPaidOut[issuer] == nil {
+		d.modifiedPaidOut[issuer] = make(map[ids.ShortID]uint64)
+	}
 	d.modifiedPaidOut[issuer][beneficiary] = amount
 }
 

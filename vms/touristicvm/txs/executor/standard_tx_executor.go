@@ -154,15 +154,6 @@ func (e *StandardTxExecutor) LockMessengerFundsTx(tx *txs.LockMessengerFundsTx) 
 		return err
 	}
 
-	//TODO nikos
-	//if err := e.Fx.VerifyMultisigOwner(
-	//	&secp256k1fx.TransferOutput{
-	//		OutputOwners: *rewardOwner,
-	//	}, e.State,
-	//); err != nil {
-	//	return err
-	//}
-
 	if err := e.FlowChecker.VerifyLock(
 		tx,
 		e.State,
@@ -196,22 +187,16 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	unsignedMsg := tx.Issuer.String() + tx.Beneficiary.String() + strconv.FormatUint(tx.Amount, 10)
 
 	// verify that the cheque is valid
-	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, tx.IssuerAuth); err != nil || signer != tx.Issuer {
+	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, e.Tx.Creds[len(e.Tx.Creds)-1]); err != nil || signer != tx.Issuer {
 		return fmt.Errorf("invalid signature")
 	}
-	// check that the cheque is backed by enough funds
-	lockedUtxos, err := e.State.LockedUTXOs(tx.Issuer)
-	if err != nil {
-		return err
-	}
-	lockedBalance := e.FlowChecker.SumUpUtxos(lockedUtxos)
-	if lockedBalance < tx.Amount {
-		return fmt.Errorf("the issuer has not enough locked funds")
-	}
 
+	var (
+		paidOut uint64
+		err     error
+	)
 	// check that the cheque is not already cashed out
-	var paidOut uint64
-	if paidOut, err = e.State.GetPaidOut(tx.Issuer, tx.Beneficiary); err != nil {
+	if paidOut, err = e.State.GetPaidOut(tx.Issuer, tx.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
 		if err != database.ErrNotFound {
 			return err
 		}
@@ -220,11 +205,21 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 		return fmt.Errorf("amount already paid out")
 	}
 
-	amountToBurn := e.Config.TxFee
+	amountToBurn := uint64(0) // TODO nikos for now CashoutTx does not incur a e.Config.TxFee
 	amountToUnlock := tx.Amount - paidOut
 
+	// check that the cheque is backed by enough funds
+	lockedUtxos, err := e.State.LockedUTXOs(tx.Issuer)
+	if err != nil {
+		return err
+	}
+	lockedBalance := e.FlowChecker.SumUpUtxos(lockedUtxos)
+	if lockedBalance < amountToUnlock {
+		return fmt.Errorf("the issuer has not enough locked funds")
+	}
+
 	if err := e.FlowChecker.VerifyUnlock(
-		[]byte(unsignedMsg),
+		lockedUtxos,
 		e.State,
 		tx,
 		tx.Ins,

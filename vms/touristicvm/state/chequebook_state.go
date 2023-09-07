@@ -26,5 +26,8 @@ func (s *chequebookState) GetPaidOut(issuer, beneficiary ids.ShortID) (uint64, e
 }
 
 func (s *chequebookState) SetPaidOut(issuer, beneficiary ids.ShortID, amount uint64) {
+	if _, ok := s.paidOut[issuer]; !ok {
+		s.paidOut[issuer] = make(map[ids.ShortID]uint64)
+	}
 	s.paidOut[issuer][beneficiary] = amount
 }
