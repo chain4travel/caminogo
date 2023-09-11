@@ -134,7 +134,7 @@ func (h *handler) Lock(
 		changeOwnerID = &id
 	}
 
-	for _, utxo := range utxos {
+	for i, utxo := range utxos {
 		// If we have consumed more AVAX than we are trying to lock,
 		// and we have burned more AVAX than we need to,
 		// then we have no need to consume more AVAX
@@ -216,6 +216,7 @@ func (h *handler) Lock(
 		)
 		totalAmountLocked += amountToLock
 		remainingValue -= amountToLock
+		h.ctx.Log.Debug("for utxo ", zap.Int("index", i), zap.Uint64("amountToLock", amountToLock), zap.Uint64("remainingValue", remainingValue), zap.Uint64("totalAmountLocked", totalAmountLocked), zap.Uint64("totalAmountToBurn", totalAmountToBurn))
 
 		if amountToLock > 0 || totalAmountToBurn > 0 {
 			if lockIDs.IsLocked() {
@@ -284,6 +285,7 @@ func (h *handler) Lock(
 				return 0
 			}
 			if lockIDs.IsLocked() {
+				h.ctx.Log.Debug("creating locked output: ", zap.Uint64("amt", amt), zap.String("owner", ownerAmounts.owners.Addrs[0].String()))
 				outs = append(outs, &avax.TransferableOutput{
 					Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
 					Out: &locked.Out{
@@ -298,6 +300,7 @@ func (h *handler) Lock(
 				if collect {
 					return amt
 				}
+				h.ctx.Log.Debug("creating unlocked output: ", zap.Uint64("amt", amt), zap.String("owner", ownerAmounts.owners.Addrs[0].String()))
 				outs = append(outs, &avax.TransferableOutput{
 					Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
 					Out: &secp256k1fx.TransferOutput{
@@ -327,6 +330,7 @@ func (h *handler) Lock(
 	}
 
 	if totalAmountBurned < totalAmountToBurn || totalAmountLocked < totalAmountToLock {
+		h.ctx.Log.Debug("insufficient balance: ", zap.Uint64("totalAmountBurned", totalAmountBurned), zap.Uint64("totalAmountToBurn", totalAmountToBurn), zap.Uint64("totalAmountLocked", totalAmountLocked), zap.Uint64("totalAmountToLock", totalAmountToLock))
 		return nil, nil, nil, nil, errInsufficientBalance
 	}
 

@@ -6,6 +6,7 @@ package utxo
 import (
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -134,6 +135,7 @@ func (h *handler) unlockUTXOs(
 					},
 				},
 			})
+			h.ctx.Log.Debug("adding input ", zap.Uint64("amount", out.Amount()))
 
 			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
@@ -145,6 +147,7 @@ func (h *handler) unlockUTXOs(
 					},
 				},
 			})
+			h.ctx.Log.Debug("adding input ", zap.Uint64("amount", innerOut.Amount()-(amountToUnlock-amountUnlocked)), zap.String("outputOwners", from.Addrs[0].String()))
 			outs = append(outs, &avax.TransferableOutput{
 				Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
 				Out: &secp256k1fx.TransferOutput{
@@ -152,8 +155,10 @@ func (h *handler) unlockUTXOs(
 					OutputOwners: *to,
 				},
 			})
+			h.ctx.Log.Debug("adding output ", zap.Uint64("amount", amountToUnlock-amountUnlocked), zap.String("outputOwners", to.Addrs[0].String()))
 			amountUnlocked += amountToUnlock - amountUnlocked // increment amount unlocked so far
 
+			h.ctx.Log.Debug("amountUnlocked ", zap.Uint64("amountUnlocked", amountUnlocked))
 		} else { // if utxo amount is less than the amountToUnlock then the whole utxo can be unlocked
 			innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
 			if !ok {
