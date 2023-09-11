@@ -215,8 +215,8 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 		} // first attempt to cash out
 	} else if cheque.Amount >= tx.Amount {
 		return utxo.ErrAmountAlreadyPaidOut
-	} else if tx.SerialID != cheque.SerialID+1 {
-		return fmt.Errorf("serial ID should be %d", cheque.SerialID+1)
+	} else if tx.SerialID > cheque.SerialID {
+		return fmt.Errorf("new serial ID should be higher than  %d", cheque.SerialID+1)
 	}
 
 	amountToBurn := uint64(0) // TODO nikos for now CashoutTx does not incur a e.Config.TxFee

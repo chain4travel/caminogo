@@ -145,6 +145,7 @@ func (h *handler) Lock(
 		// We only care about locking AVAX,
 		// and because utxos are sorted we can skip other utxos
 		if assetID := utxo.AssetID(); assetID != h.ctx.AVAXAssetID {
+			h.ctx.Log.Debug("wrong asset id")
 			break
 		}
 
@@ -155,6 +156,7 @@ func (h *handler) Lock(
 			if lockedOut.IsLockedWith(appliedLockState) {
 				// This output can't be locked with target lockState,
 				// and because utxos are sorted we can skip other utxos
+				h.ctx.Log.Debug("This output can't be locked with target lockState and because utxos are sorted we can skip other utxos")
 				break
 			}
 			out = lockedOut.TransferableOut
@@ -164,18 +166,21 @@ func (h *handler) Lock(
 		innerOut, ok := out.(*secp256k1fx.TransferOutput)
 		if !ok {
 			// We only know how to clone secp256k1 outputs for now
+			h.ctx.Log.Debug("wrong output type")
 			continue
 		}
 
 		outOwnerID, err := txs.GetOutputOwnerID(out)
 		if err != nil {
 			// We couldn't get owner of this output, so move on to the next one
+			h.ctx.Log.Debug("couldn't get owner of this output, so move on to the next one", zap.Error(err))
 			continue
 		}
 
 		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, now, utxoDB)
 		if err != nil {
 			// We couldn't spend the output, so move on to the next one
+			h.ctx.Log.Debug("couldn't spend the output, so move on to the next one", zap.Error(err))
 			continue
 		}
 		in, ok := inIntf.(avax.TransferableIn)
@@ -191,8 +196,10 @@ func (h *handler) Lock(
 
 		lockedOwnerID := OwnerID{&innerOut.OutputOwners, &outOwnerID}
 		remainingOwnerID := lockedOwnerID
-
+		h.ctx.Log.Debug("remainingOwnerID: ", zap.String("remainingOwnerID", remainingOwnerID.ownersID.String()))
 		if !lockIDs.IsLocked() {
+
+			h.ctx.Log.Debug("utxo is not locked")
 			// Burn any value that should be burned
 			amountToBurn := math.Min(
 				totalAmountToBurn-totalAmountBurned, // Amount we still need to burn
@@ -208,7 +215,6 @@ func (h *handler) Lock(
 				remainingOwnerID = OwnerID{change, changeOwnerID}
 			}
 		}
-
 		// Lock any value that should be locked
 		amountToLock := math.Min(
 			totalAmountToLock-totalAmountLocked, // Amount we still need to lock
@@ -252,6 +258,7 @@ func (h *handler) Lock(
 			}
 
 			amounts.locked = newAmount
+			h.ctx.Log.Debug("amounts locked", zap.Uint64("newAmount", newAmount))
 			ownerAmounts.amounts[lockIDs.LockTxID] = amounts
 			if !ok {
 				insAmounts[*lockedOwnerID.ownersID] = ownerAmounts
@@ -272,6 +279,7 @@ func (h *handler) Lock(
 			}
 			amounts.remained = newAmount
 
+			h.ctx.Log.Debug("amounts remained", zap.Uint64("newAmount", newAmount))
 			ownerAmounts.amounts[lockIDs.LockTxID] = amounts
 			if !ok {
 				insAmounts[*remainingOwnerID.ownersID] = ownerAmounts
@@ -281,6 +289,7 @@ func (h *handler) Lock(
 
 	for _, ownerAmounts := range insAmounts {
 		addOut := func(amt uint64, lockIDs locked.IDs, collect bool) uint64 {
+			h.ctx.Log.Debug("addOut: ", zap.Uint64("amt", amt), zap.Bool("collect", collect))
 			if amt == 0 {
 				return 0
 			}
@@ -314,8 +323,7 @@ func (h *handler) Lock(
 
 		for otherLockTxID, amounts := range ownerAmounts.amounts {
 			lockIDs := locked.IDs{}
-			switch appliedLockState {
-			case locked.StateLocked:
+			if appliedLockState == locked.StateLocked {
 				lockIDs.LockTxID = otherLockTxID
 			}
 
