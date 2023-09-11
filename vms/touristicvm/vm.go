@@ -260,11 +260,12 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	vm.snowCtx.Log.Debug("genesis block: %v", zap.ByteString("genesis bytes ", genesisBlock.Bytes()))
 
 	//TODO nikos - replace with proper genesis logic
-	assetID, err := ids.FromString("gbs1MNJvvs493dvRb6M8E2k3BjJ9FXSYmcc6QWu9PZTeFMatb")
-	if err != nil {
-		return err
-	}
+	//assetID, err := ids.FromString(vm.snowCtx.AVAXAssetID"gbs1MNJvvs493dvRb6M8E2k3BjJ9FXSYmcc6QWu9PZTeFMatb")
+	//if err != nil {
+	//	return err
+	//}
 
+	vm.snowCtx.Log.Debug("utxo genesis assetID ", zap.String("assetID", vm.snowCtx.AVAXAssetID.String()))
 	_, addrBytes, err := address.ParseBech32("kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3")
 	if err != nil {
 		return err
@@ -275,7 +276,7 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 	}
 	vm.State.AddUTXO(&avax.UTXO{
 		UTXOID: avax.UTXOID{},
-		Asset:  avax.Asset{ID: assetID},
+		Asset:  avax.Asset{ID: vm.snowCtx.AVAXAssetID},
 		Out: &secp256k1fx.TransferOutput{
 			Amt: 1000000000000000,
 			OutputOwners: secp256k1fx.OutputOwners{
