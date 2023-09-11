@@ -184,29 +184,43 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	}
 
 	// signature is based on the concatenation of issuer, beneficiary and amount
-	unsignedMsg := tx.Issuer.String() + tx.Beneficiary.String() + strconv.FormatUint(tx.Amount, 10)
+	unsignedMsg := tx.Issuer.String() + tx.Beneficiary.String() + strconv.FormatUint(tx.Amount, 10) + strconv.FormatUint(tx.SerialID, 10)
+
+	// verify that the tx carries one and only one signature
+	if len(e.Tx.Creds) != 1 {
+		return fmt.Errorf("expected one signature, got %d", len(e.Tx.Creds))
+	}
 
 	// verify that the cheque is valid
-	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, e.Tx.Creds[len(e.Tx.Creds)-1]); err != nil || signer != tx.Issuer {
+	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, e.Tx.Creds[0]); err != nil || signer != tx.Issuer {
 		return fmt.Errorf("invalid signature")
 	}
 
 	var (
-		paidOut uint64
-		err     error
+		cheque state.Cheque
+		err    error
 	)
 	// check that the cheque is not already cashed out
-	if paidOut, err = e.State.GetPaidOut(tx.Issuer, tx.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
+	if cheque, err = e.State.GetLastCheque(tx.Issuer, tx.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
 		if err != database.ErrNotFound {
 			return err
 		}
-		paidOut = 0 // first attempt to cash out
-	} else if paidOut >= tx.Amount {
-		return fmt.Errorf("amount already paid out")
+
+		if tx.SerialID != 1 {
+			return fmt.Errorf("this is the first recorded cheque and thus the  serial ID should be 1")
+		}
+		cheque = state.Cheque{
+			Amount:   0,
+			SerialID: 1,
+		} // first attempt to cash out
+	} else if cheque.Amount >= tx.Amount {
+		return utxo.ErrAmountAlreadyPaidOut
+	} else if tx.SerialID != cheque.SerialID+1 {
+		return fmt.Errorf("serial ID should be %d", cheque.SerialID+1)
 	}
 
 	amountToBurn := uint64(0) // TODO nikos for now CashoutTx does not incur a e.Config.TxFee
-	amountToUnlock := tx.Amount - paidOut
+	amountToUnlock := tx.Amount - cheque.Amount
 
 	// check that the cheque is backed by enough funds
 	lockedUtxos, err := e.State.LockedUTXOs(tx.Issuer)
@@ -215,7 +229,7 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	}
 	lockedBalance := e.FlowChecker.SumUpUtxos(lockedUtxos)
 	if lockedBalance < amountToUnlock {
-		return fmt.Errorf("the issuer has not enough locked funds")
+		return utxo.ErrNotEnoughLockedFunds
 	}
 
 	if err := e.FlowChecker.VerifyUnlock(
@@ -235,7 +249,10 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	txID := e.Tx.ID()
 	avax.Consume(e.State, tx.Ins)
 	avax.Produce(e.State, txID, tx.Outs)
-	e.State.SetPaidOut(tx.Issuer, tx.Beneficiary, tx.Amount)
+	e.State.SetLastCheque(tx.Issuer, tx.Beneficiary, state.Cheque{
+		Amount:   tx.Amount,
+		SerialID: tx.SerialID,
+	})
 
 	return nil
 }

@@ -13,10 +13,13 @@ import (
 	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
+
+	cheque_state "github.com/ava-labs/avalanchego/vms/touristicvm/state"
 )
 
 var (
-	errNotEnoughLockedFunds = errors.New("not enough locked funds")
+	ErrNotEnoughLockedFunds = errors.New("the issuer has not enough locked funds")
+	ErrAmountAlreadyPaidOut = errors.New("amount already paid out")
 )
 
 type Unlocker interface {
@@ -59,18 +62,21 @@ func (h *handler) Unlock(
 		lockedAmount += utxo.Out.(*locked.Out).TransferableOut.Amount()
 	}
 	if lockedAmount < amount {
-		return nil, nil, errNotEnoughLockedFunds
+		return nil, nil, ErrNotEnoughLockedFunds
 	}
-	var paidOut uint64
-	if paidOut, err = state.GetPaidOut(from.Addrs[0], to.Addrs[0]); err != nil { //TODO nikos refactor
+	var cheque cheque_state.Cheque
+	if cheque, err = state.GetLastCheque(from.Addrs[0], to.Addrs[0]); err != nil { //TODO nikos refactor
 		if err != database.ErrNotFound {
 			return nil, nil, err
 		}
-		paidOut = 0 // first attempt to cash out
-	} else if paidOut >= amount {
-		return nil, nil, fmt.Errorf("amount already paid out")
+		cheque = cheque_state.Cheque{
+			Amount:   0,
+			SerialID: 1,
+		} // first attempt to cash out
+	} else if cheque.Amount >= amount {
+		return nil, nil, ErrAmountAlreadyPaidOut
 	}
-	amountToUnlock := amount - paidOut
+	amountToUnlock := amount - cheque.Amount
 
 	return h.unlockUTXOs(utxos, from, to, amountToUnlock)
 }

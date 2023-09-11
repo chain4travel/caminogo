@@ -51,28 +51,28 @@ type diff struct {
 	addedTxs map[ids.ID]*txAndStatus
 
 	// map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
-	modifiedUTXOs   map[ids.ID]*avax.UTXO
-	modifiedPaidOut map[ids.ShortID]map[ids.ShortID]uint64
+	modifiedUTXOs      map[ids.ID]*avax.UTXO
+	modifiedLastCheque map[ids.ShortID]map[ids.ShortID]Cheque
 }
 
-func (d *diff) GetPaidOut(issuer, beneficiary ids.ShortID) (uint64, error) {
-	if amount, ok := d.modifiedPaidOut[issuer][beneficiary]; ok {
-		return amount, nil
+func (d *diff) GetLastCheque(issuer, beneficiary ids.ShortID) (Cheque, error) {
+	if cheque, ok := d.modifiedLastCheque[issuer][beneficiary]; ok {
+		return cheque, nil
 	}
 
 	parentState, ok := d.stateVersions.GetState(d.parentID)
 	if !ok {
-		return 0, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+		return Cheque{}, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
 	}
 
-	return parentState.GetPaidOut(issuer, beneficiary)
+	return parentState.GetLastCheque(issuer, beneficiary)
 }
 
-func (d *diff) SetPaidOut(issuer, beneficiary ids.ShortID, amount uint64) {
-	if d.modifiedPaidOut[issuer] == nil {
-		d.modifiedPaidOut[issuer] = make(map[ids.ShortID]uint64)
+func (d *diff) SetLastCheque(issuer, beneficiary ids.ShortID, cheque Cheque) {
+	if d.modifiedLastCheque[issuer] == nil {
+		d.modifiedLastCheque[issuer] = make(map[ids.ShortID]Cheque)
 	}
-	d.modifiedPaidOut[issuer][beneficiary] = amount
+	d.modifiedLastCheque[issuer][beneficiary] = cheque
 }
 
 func (d *diff) LockedUTXOs(address ids.ShortID) ([]*avax.UTXO, error) {
@@ -174,7 +174,7 @@ func NewDiff(
 		stateVersions: stateVersions,
 		timestamp:     parentState.GetTimestamp(),
 
-		modifiedPaidOut: make(map[ids.ShortID]map[ids.ShortID]uint64),
+		modifiedLastCheque: make(map[ids.ShortID]map[ids.ShortID]Cheque),
 	}, nil
 }
 
@@ -240,9 +240,9 @@ func (d *diff) Apply(baseState State) {
 			baseState.DeleteUTXO(utxoID)
 		}
 	}
-	for issuer, beneficiaryToAmount := range d.modifiedPaidOut {
+	for issuer, beneficiaryToAmount := range d.modifiedLastCheque {
 		for beneficiary, amount := range beneficiaryToAmount {
-			baseState.SetPaidOut(issuer, beneficiary, amount)
+			baseState.SetLastCheque(issuer, beneficiary, amount)
 		}
 	}
 }

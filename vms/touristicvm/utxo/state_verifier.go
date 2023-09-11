@@ -391,6 +391,8 @@ func (h *handler) VerifyUnlockUTXOs(
 			//	return fmt.Errorf("ownerID of locked output %s doesn't match ownerID of consumed locked input %s", ownerID, consumedLockedOwnerID)
 			//}
 			// TODO replace with check that does indeed what we want. This check is not correct
+
+			// TODO nikos: add check for remaining locked utxos to ensure that they also belong to the same owner as the inputs consumed
 		} else {
 			producedUnlocked, err = safemath.Add64(producedUnlocked, out.Amount())
 			if err != nil {

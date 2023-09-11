@@ -6,8 +6,6 @@ package txs
 import (
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
-
 	"github.com/ava-labs/avalanchego/snow"
 )
 
@@ -18,10 +16,10 @@ type CashoutChequeTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 
-	Issuer      ids.ShortID       `serialize:"true" json:"issuer"`
-	Beneficiary ids.ShortID       `serialize:"true" json:"beneficiary"`
-	Amount      uint64            `serialize:"true" json:"amount"`
-	IssuerAuth  verify.Verifiable `serialize:"true" json:"issuerAuth"`
+	Issuer      ids.ShortID `serialize:"true" json:"issuer"`
+	Beneficiary ids.ShortID `serialize:"true" json:"beneficiary"`
+	Amount      uint64      `serialize:"true" json:"amount"`
+	SerialID    uint64      `serialize:"true" json:"serialID"`
 }
 
 // SyntacticVerify returns nil if [tx] is valid
