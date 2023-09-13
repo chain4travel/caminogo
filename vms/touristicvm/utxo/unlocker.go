@@ -6,6 +6,7 @@ package utxo
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
