@@ -264,7 +264,7 @@ func NewState(db database.Database, metricsReg prometheus.Registerer) (State, er
 		utxoDB:        utxoDB,
 		utxoState:     utxoState,
 		chequebookState: chequebookState{
-			lastCheque: make(map[ids.ShortID]map[ids.ShortID]Cheque),
+			lastCheque: make(map[IssuerAgent]map[ids.ShortID]Cheque),
 		},
 	}, nil
 }

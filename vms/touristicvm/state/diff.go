@@ -52,11 +52,11 @@ type diff struct {
 
 	// map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
 	modifiedUTXOs      map[ids.ID]*avax.UTXO
-	modifiedLastCheque map[ids.ShortID]map[ids.ShortID]Cheque
+	modifiedLastCheque map[IssuerAgent]map[ids.ShortID]Cheque
 }
 
-func (d *diff) GetLastCheque(issuer, beneficiary ids.ShortID) (Cheque, error) {
-	if cheque, ok := d.modifiedLastCheque[issuer][beneficiary]; ok {
+func (d *diff) GetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID) (Cheque, error) {
+	if cheque, ok := d.modifiedLastCheque[issuerAgent][beneficiary]; ok {
 		return cheque, nil
 	}
 
@@ -65,14 +65,14 @@ func (d *diff) GetLastCheque(issuer, beneficiary ids.ShortID) (Cheque, error) {
 		return Cheque{}, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
 	}
 
-	return parentState.GetLastCheque(issuer, beneficiary)
+	return parentState.GetLastCheque(issuerAgent, beneficiary)
 }
 
-func (d *diff) SetLastCheque(issuer, beneficiary ids.ShortID, cheque Cheque) {
-	if d.modifiedLastCheque[issuer] == nil {
-		d.modifiedLastCheque[issuer] = make(map[ids.ShortID]Cheque)
+func (d *diff) SetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID, cheque Cheque) {
+	if d.modifiedLastCheque[issuerAgent] == nil {
+		d.modifiedLastCheque[issuerAgent] = make(map[ids.ShortID]Cheque)
 	}
-	d.modifiedLastCheque[issuer][beneficiary] = cheque
+	d.modifiedLastCheque[issuerAgent][beneficiary] = cheque
 }
 
 func (d *diff) LockedUTXOs(address ids.ShortID) ([]*avax.UTXO, error) {
@@ -174,7 +174,7 @@ func NewDiff(
 		stateVersions: stateVersions,
 		timestamp:     parentState.GetTimestamp(),
 
-		modifiedLastCheque: make(map[ids.ShortID]map[ids.ShortID]Cheque),
+		modifiedLastCheque: make(map[IssuerAgent]map[ids.ShortID]Cheque),
 	}, nil
 }
 

@@ -7,19 +7,30 @@ import (
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 )
 
 var _ UnsignedTx = (*CashoutChequeTx)(nil)
+
+type Cheque struct {
+	Issuer      ids.ShortID `serialize:"true" json:"issuer"`
+	Beneficiary ids.ShortID `serialize:"true" json:"beneficiary"`
+	Amount      uint64      `serialize:"true" json:"amount"`
+	SerialID    uint64      `serialize:"true" json:"serialID"`
+	Agent       ids.ShortID `serialize:"true" json:"agent"` // Agent is the node that issued the cheque
+}
+
+type SignedCheque struct {
+	Cheque `serialize:"true"`
+	Auth   verify.Verifiable `serialize:"true" json:"auth"`
+}
 
 // CashoutChequeTx is an unsigned cashoutChequeTx
 type CashoutChequeTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
-
-	Issuer      ids.ShortID `serialize:"true" json:"issuer"`
-	Beneficiary ids.ShortID `serialize:"true" json:"beneficiary"`
-	Amount      uint64      `serialize:"true" json:"amount"`
-	SerialID    uint64      `serialize:"true" json:"serialID"`
+	// Cheque to cashout
+	Cheque SignedCheque `serialize:"true" json:"cheque"`
 }
 
 // SyntacticVerify returns nil if [tx] is valid

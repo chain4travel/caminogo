@@ -8,31 +8,36 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
+var _ Chequebook = (*chequebookState)(nil)
+
 type Cheque struct {
 	Amount   uint64
 	SerialID uint64
 }
-
+type IssuerAgent struct {
+	Issuer ids.ShortID
+	Agent  ids.ShortID
+}
 type Chequebook interface {
-	GetLastCheque(issuer, beneficiary ids.ShortID) (Cheque, error)
-	SetLastCheque(issuer, beneficiary ids.ShortID, cheque Cheque)
+	GetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID) (Cheque, error)
+	SetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID, cheque Cheque)
 }
 
 type chequebookState struct {
-	lastCheque map[ids.ShortID]map[ids.ShortID]Cheque
+	lastCheque map[IssuerAgent]map[ids.ShortID]Cheque
 }
 
-func (s *chequebookState) GetLastCheque(issuer, beneficiary ids.ShortID) (Cheque, error) {
-	if _, ok := s.lastCheque[issuer][beneficiary]; !ok {
+func (s *chequebookState) GetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID) (Cheque, error) {
+	if _, ok := s.lastCheque[issuerAgent][beneficiary]; !ok {
 		return Cheque{}, database.ErrNotFound
 	}
-	return s.lastCheque[issuer][beneficiary], nil
+	return s.lastCheque[issuerAgent][beneficiary], nil
 
 }
 
-func (s *chequebookState) SetLastCheque(issuer, beneficiary ids.ShortID, cheque Cheque) {
-	if _, ok := s.lastCheque[issuer]; !ok {
-		s.lastCheque[issuer] = make(map[ids.ShortID]Cheque)
+func (s *chequebookState) SetLastCheque(issuerAgent IssuerAgent, beneficiary ids.ShortID, cheque Cheque) {
+	if _, ok := s.lastCheque[issuerAgent]; !ok {
+		s.lastCheque[issuerAgent] = make(map[ids.ShortID]Cheque)
 	}
-	s.lastCheque[issuer][beneficiary] = cheque
+	s.lastCheque[issuerAgent][beneficiary] = cheque
 }

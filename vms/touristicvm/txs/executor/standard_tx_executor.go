@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
@@ -184,15 +185,20 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	}
 
 	// signature is based on the concatenation of issuer, beneficiary and amount
-	unsignedMsg := tx.Issuer.String() + tx.Beneficiary.String() + strconv.FormatUint(tx.Amount, 10) + strconv.FormatUint(tx.SerialID, 10)
+	unsignedMsg := tx.Cheque.Issuer.String() + tx.Cheque.Beneficiary.String() + strconv.FormatUint(tx.Cheque.Amount, 10) + strconv.FormatUint(tx.Cheque.SerialID, 10)
 
 	// verify that the tx carries one and only one signature
-	if len(e.Tx.Creds) != 1 {
+	if tx.Cheque.Auth == nil || len(tx.Cheque.Auth.(*secp256k1fx.Credential).Sigs) != 1 {
 		return fmt.Errorf("expected one signature, got %d", len(e.Tx.Creds))
 	}
 
+	// verify that the issuer and the beneficiary are different
+	if tx.Cheque.Issuer == tx.Cheque.Beneficiary {
+		return fmt.Errorf("the issuer and the beneficiary should be different")
+	}
+
 	// verify that the cheque is valid
-	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, e.Tx.Creds[0]); err != nil || signer != tx.Issuer {
+	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, tx.Cheque.Auth); err != nil || signer != tx.Cheque.Issuer {
 		return fmt.Errorf("invalid signature")
 	}
 
@@ -200,30 +206,34 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 		cheque state.Cheque
 		err    error
 	)
+	issuerAgent := state.IssuerAgent{
+		Issuer: tx.Cheque.Issuer,
+		Agent:  tx.Cheque.Agent,
+	}
 	// check that the cheque is not already cashed out
-	if cheque, err = e.State.GetLastCheque(tx.Issuer, tx.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
+	if cheque, err = e.State.GetLastCheque(issuerAgent, tx.Cheque.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
 		if err != database.ErrNotFound {
 			return err
 		}
 
-		if tx.SerialID != 1 {
+		if tx.Cheque.SerialID != 1 {
 			return fmt.Errorf("this is the first recorded cheque and thus the  serial ID should be 1")
 		}
 		cheque = state.Cheque{
 			Amount:   0,
 			SerialID: 1,
 		} // first attempt to cash out
-	} else if cheque.Amount >= tx.Amount {
+	} else if cheque.Amount >= tx.Cheque.Amount {
 		return utxo.ErrAmountAlreadyPaidOut
-	} else if tx.SerialID > cheque.SerialID {
-		return fmt.Errorf("new serial ID should be higher than  %d", cheque.SerialID+1)
+	} else if tx.Cheque.SerialID <= cheque.SerialID {
+		return fmt.Errorf("new serial ID should be higher than  %d", cheque.SerialID)
 	}
 
 	amountToBurn := uint64(0) // TODO nikos for now CashoutTx does not incur a e.Config.TxFee
-	amountToUnlock := tx.Amount - cheque.Amount
+	amountToUnlock := tx.Cheque.Amount - cheque.Amount
 
 	// check that the cheque is backed by enough funds
-	lockedUtxos, err := e.State.LockedUTXOs(tx.Issuer)
+	lockedUtxos, err := e.State.LockedUTXOs(tx.Cheque.Issuer)
 	if err != nil {
 		return err
 	}
@@ -249,9 +259,9 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	txID := e.Tx.ID()
 	avax.Consume(e.State, tx.Ins)
 	avax.Produce(e.State, txID, tx.Outs)
-	e.State.SetLastCheque(tx.Issuer, tx.Beneficiary, state.Cheque{
-		Amount:   tx.Amount,
-		SerialID: tx.SerialID,
+	e.State.SetLastCheque(issuerAgent, tx.Cheque.Beneficiary, state.Cheque{
+		Amount:   tx.Cheque.Amount,
+		SerialID: tx.Cheque.SerialID,
 	})
 
 	return nil

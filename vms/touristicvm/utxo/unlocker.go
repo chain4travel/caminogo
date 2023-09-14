@@ -6,6 +6,7 @@ package utxo
 import (
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -29,6 +30,7 @@ type Unlocker interface {
 		from *secp256k1fx.OutputOwners,
 		to *secp256k1fx.OutputOwners,
 		amount uint64,
+		agent ids.ShortID,
 	) (
 		[]*avax.TransferableInput, // inputs
 		[]*avax.TransferableOutput, // outputs
@@ -36,11 +38,13 @@ type Unlocker interface {
 	)
 }
 
+// Note: Unlock implementation facilitates specifically the case of Cashout TX (see param agent)
 func (h *handler) Unlock(
 	state state.Chain,
 	from *secp256k1fx.OutputOwners,
 	to *secp256k1fx.OutputOwners,
 	amount uint64,
+	agent ids.ShortID,
 ) (
 	[]*avax.TransferableInput, // inputs
 	[]*avax.TransferableOutput, // outputs
@@ -66,7 +70,10 @@ func (h *handler) Unlock(
 		return nil, nil, ErrNotEnoughLockedFunds
 	}
 	var cheque cheque_state.Cheque
-	if cheque, err = state.GetLastCheque(from.Addrs[0], to.Addrs[0]); err != nil { //TODO nikos refactor
+	if cheque, err = state.GetLastCheque(cheque_state.IssuerAgent{
+		Issuer: from.Addrs[0],
+		Agent:  agent,
+	}, to.Addrs[0]); err != nil { //TODO nikos refactor
 		if err != database.ErrNotFound {
 			return nil, nil, err
 		}

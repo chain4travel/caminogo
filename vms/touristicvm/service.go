@@ -274,6 +274,7 @@ type SpendArgs struct {
 	AmountToBurn   utilsjson.Uint64    `json:"amountToBurn"`
 	AsOf           utilsjson.Uint64    `json:"asOf"`
 	Encoding       formatting.Encoding `json:"encoding"`
+	Agent          string              `json:"agent"`
 }
 
 type SpendReply struct {
@@ -314,6 +315,16 @@ func (s *Service) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) 
 		return fmt.Errorf("unlocking funds in T-chain is fee-less")
 	}
 
+	var agent ids.ShortID
+	if args.AmountToUnlock > 0 {
+		agent, err = ids.ShortFromString(args.Agent)
+		if err != nil {
+			return fmt.Errorf("couldn't parse agent ID %q: %w", args.Agent, err)
+		}
+		if agent == ids.ShortEmpty {
+			return fmt.Errorf("can't unlock without providing an agent")
+		}
+	}
 	var (
 		ins     []*avax.TransferableInput   // inputs
 		outs    []*avax.TransferableOutput  // outputs
@@ -328,6 +339,7 @@ func (s *Service) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) 
 			change,
 			to,
 			uint64(args.AmountToUnlock),
+			agent,
 		)
 	} else {
 		ins, outs, signers, owners, err = s.vm.txBuilder.Lock(
@@ -378,6 +390,7 @@ func (s *Service) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) 
 	if response.Owners, err = formatting.Encode(args.Encoding, bytes); err != nil {
 		return fmt.Errorf("%w: %s", errSerializeOwners, err)
 	}
+
 	return nil
 }
 
@@ -395,7 +408,8 @@ type GetBalanceResponse struct {
 }
 
 // GetBalance gets the balance of an address
-func (s *Service) GetBalance(_ *http.Request, args *GetBalanceRequest, response *GetBalanceResponse) error {
+func (s *Service) GetBalance(_ *http.Request,
+	args *GetBalanceRequest, response *GetBalanceResponse) error {
 	s.vm.snowCtx.Log.Debug("Touristic: GetBalance called",
 		logging.UserStrings("addresses", args.Addresses),
 	)
