@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
@@ -19,6 +20,7 @@ var (
 )
 
 type Block interface {
+	snow.ContextInitializable
 	ID() ids.ID
 	Parent() ids.ID
 	Height() uint64
@@ -108,3 +110,9 @@ func (b *StandardBlock) Bytes() []byte { return b.bytes }
 // Data returns the data of this block
 // SetStatus sets the status of this block
 func (b *StandardBlock) SetStatus(status choices.Status) { b.status = status }
+
+func (b *StandardBlock) InitCtx(ctx *snow.Context) {
+	for _, tx := range b.Transactions {
+		tx.Unsigned.InitCtx(ctx)
+	}
+}

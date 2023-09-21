@@ -5,26 +5,30 @@ package touristicvm
 
 import (
 	"encoding/hex"
-	json_encoder "encoding/json"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/components/avax"
-	platformapi "github.com/ava-labs/avalanchego/vms/platformvm/api"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
-	"github.com/ava-labs/avalanchego/vms/touristicvm/txs/builder"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/avalanchego/api"
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/formatting"
-	"github.com/ava-labs/avalanchego/utils/json"
-	utilsjson "github.com/ava-labs/avalanchego/utils/json"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/blocks/executor"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/locked"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/status"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
+	"github.com/ava-labs/avalanchego/vms/touristicvm/txs/builder"
+
+	utilsjson "github.com/ava-labs/avalanchego/utils/json"
+	platformapi "github.com/ava-labs/avalanchego/vms/platformvm/api"
 )
 
 const (
@@ -38,6 +42,7 @@ const (
 var (
 	errBadData                = errors.New("data must be hex representation of 32 bytes")
 	errNoSuchBlock            = errors.New("couldn't get block from database. Does it exist?")
+	errUnexpectedBlockType    = errors.New("unexpected block type")
 	errCannotGetLastAccepted  = errors.New("problem getting last accepted")
 	errNoAddresses            = errors.New("no addresses provided")
 	errNoKeys                 = errors.New("user has no keys or funds")
@@ -46,6 +51,8 @@ var (
 	errSerializeTransferables = errors.New("can't serialize transferables")
 	errEncodeTransferables    = errors.New("can't encode transferables as string")
 	errSerializeOwners        = errors.New("can't serialize owners")
+	errInvalidKeysNumber      = errors.New("expected different number of keys")
+	errUnknownLockState       = errors.New("unknown lockState")
 )
 
 // Service is the API service for this VM
@@ -60,21 +67,24 @@ type Service struct {
 type GetBlockArgs struct {
 	// ID of the block we're getting.
 	// If left blank, gets the latest block
-	ID *ids.ID `json:"id"`
+	BlockID  *ids.ID             `json:"blockID"` // to be consistent across vms
+	Encoding formatting.Encoding `json:"encoding"`
 }
 
 // GetBlockReply is the reply from GetBlock
 type GetBlockReply struct {
-	Timestamp json.Uint64 `json:"timestamp"` // Timestamp of block
-	Data      string      `json:"data"`      // Data (hex-encoded) in block
-	Height    json.Uint64 `json:"height"`    // Height of block
-	ID        ids.ID      `json:"id"`        // String repr. of ID of block
-	ParentID  ids.ID      `json:"parentID"`  // String repr. of ID of block's parent
+	ID    ids.ID      `json:"id"` // String repr. of ID of block
+	Block interface{} `json:"block"`
 }
 
 // GetBlock gets the block whose ID is [args.ID]
 // If [args.ID] is empty, get the latest block
 func (s *Service) GetBlock(r *http.Request, args *GetBlockArgs, reply *GetBlockReply) error {
+	s.vm.snowCtx.Log.Debug("API called",
+		zap.String("service", "touristic"),
+		zap.String("method", "getBlock"),
+	)
+
 	// If an ID is given, parse its string representation to an ids.ID
 	// If no ID is given, ID becomes the ID of last accepted block
 	var (
@@ -82,14 +92,14 @@ func (s *Service) GetBlock(r *http.Request, args *GetBlockArgs, reply *GetBlockR
 		err error
 	)
 
-	if args.ID == nil {
+	if args.BlockID == nil {
 		id = s.vm.State.GetLastAccepted()
 		// TODO nikos check change here
 		//if err != nil {
 		//	return errCannotGetLastAccepted
 		//}
 	} else {
-		id = *args.ID
+		id = *args.BlockID
 	}
 	ctx := r.Context()
 	// Get the block from the database
@@ -98,13 +108,21 @@ func (s *Service) GetBlock(r *http.Request, args *GetBlockArgs, reply *GetBlockR
 		return errNoSuchBlock
 	}
 
-	// Fill out the response with the block's data
-	reply.Timestamp = json.Uint64(block.Timestamp().Unix())
-	//data := b.Data()
-	//reply.Data, err = formatting.Encode(formatting.Hex, data[:])
-	reply.Height = json.Uint64(block.Height())
+	if args.Encoding == formatting.JSON {
+		blk, ok := block.(*executor.Block)
+		if !ok {
+			return errUnexpectedBlockType
+		}
+		blk.Block.InitCtx(s.vm.snowCtx)
+		reply.Block = blk.Block
+	} else {
+		reply.Block, err = formatting.Encode(args.Encoding, block.Bytes())
+		if err != nil {
+			return fmt.Errorf("couldn't encode block %s as string: %w", args.BlockID, err)
+		}
+	}
+
 	reply.ID = block.ID()
-	reply.ParentID = block.Parent()
 
 	return err
 }
@@ -156,6 +174,73 @@ func (s *Service) GetTx(_ *http.Request, args *api.GetTxArgs, response *api.GetT
 	if err != nil {
 		return fmt.Errorf("couldn't encode tx as a string: %w", err)
 	}
+	return nil
+}
+
+type GetTxStatusResponse struct {
+	Status status.Status `json:"status"`
+	// Reason this tx was dropped.
+	// Only non-empty if Status is dropped
+	Reason string `json:"reason,omitempty"`
+}
+
+// GetTxStatus gets a tx's status
+func (s *Service) GetTxStatus(_ *http.Request, args *api.JSONTxID, response *GetTxStatusResponse) error {
+	s.vm.snowCtx.Log.Debug("API called",
+		zap.String("service", "touristic"),
+		zap.String("method", "getTxStatus"),
+	)
+
+	_, txStatus, err := s.vm.State.GetTx(args.TxID)
+	if err == nil { // Found the status. Report it.
+		response.Status = txStatus
+		return nil
+	}
+	if err != database.ErrNotFound {
+		return err
+	}
+
+	// The status of this transaction is not in the database - check if the tx
+	// is in the preferred block's db. If so, return that it's processing.
+	prefBlk, err := s.vm.Preferred()
+	if err != nil {
+		return err
+	}
+
+	preferredID := prefBlk.ID()
+	onAccept, ok := s.vm.manager.GetState(preferredID)
+	if !ok {
+		return fmt.Errorf("could not retrieve state for block %s", preferredID)
+	}
+
+	_, _, err = onAccept.GetTx(args.TxID)
+	if err == nil {
+		// Found the status in the preferred block's db. Report tx is processing.
+		response.Status = status.Processing
+		return nil
+	}
+	if err != database.ErrNotFound {
+		return err
+	}
+
+	if s.vm.Builder.Has(args.TxID) {
+		// Found the tx in the mempool. Report tx is processing.
+		response.Status = status.Processing
+		return nil
+	}
+
+	// Note: we check if tx is dropped only after having looked for it
+	// in the database and the mempool, because dropped txs may be re-issued.
+	reason := s.vm.Builder.GetDropReason(args.TxID)
+	if reason == nil {
+		// The tx isn't being tracked by the node.
+		response.Status = status.Unknown
+		return nil
+	}
+
+	// The tx was recently dropped because it was invalid.
+	response.Status = status.Dropped
+	response.Reason = reason.Error()
 	return nil
 }
 
@@ -236,7 +321,7 @@ func (s *Service) GetUTXOs(_ *http.Request, args *api.GetUTXOsArgs, response *ap
 	for i, utxo := range utxos {
 		if args.Encoding == formatting.JSON {
 			utxo.Out.InitCtx(s.vm.snowCtx)
-			bytes, err := json_encoder.Marshal(utxo)
+			bytes, err := json.Marshal(utxo)
 			if err != nil {
 				return fmt.Errorf("couldn't marshal UTXO %q: %w", utxo.InputID(), err)
 			}
@@ -260,7 +345,7 @@ func (s *Service) GetUTXOs(_ *http.Request, args *api.GetUTXOsArgs, response *ap
 
 	response.EndIndex.Address = endAddress
 	response.EndIndex.UTXO = endUTXOID.String()
-	response.NumFetched = json.Uint64(len(utxos))
+	response.NumFetched = utilsjson.Uint64(len(utxos))
 	response.Encoding = args.Encoding
 	return nil
 }
@@ -313,9 +398,13 @@ func (s *Service) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) 
 	if args.AmountToUnlock > 0 && locked.State(args.LockMode) != locked.StateUnlocked {
 		return fmt.Errorf("can't unlock with lock mode %d", args.LockMode)
 	}
-	if args.AmountToUnlock > 0 && args.AmountToBurn > 0 {
-		return fmt.Errorf("unlocking funds in T-chain is fee-less")
-	}
+
+	// ! @evlekht its just a spend method, it creates ins and outs
+	// ! we don't care how this ins and outs will be used
+	// ! and shouldn't forbid stuff in that regard here, imo
+	// if args.AmountToUnlock > 0 && args.AmountToBurn > 0 {
+	// return fmt.Errorf("unlocking funds in T-chain is fee-less")
+	// }
 
 	var agent ids.ShortID
 	if args.AmountToUnlock > 0 {
@@ -510,6 +599,122 @@ func (s *Service) secpOwnerFromAPI(apiOwner *platformapi.Owner) (*secp256k1fx.Ou
 		return secpOwner, nil
 	}
 	return nil, nil
+}
+
+type SpendWithWrapperArgs struct {
+	api.JSONFromAddrs
+	Agent                string              `json:"agent"`
+	To                   platformapi.Owner   `json:"to"`
+	Change               platformapi.Owner   `json:"change"`
+	LockMode             byte                `json:"lockMode"`
+	AmountToTransitState utilsjson.Uint64    `json:"amountToTransitState"`
+	AmountToBurn         utilsjson.Uint64    `json:"amountToBurn"`
+	AsOf                 utilsjson.Uint64    `json:"asOf"`
+	Encoding             formatting.Encoding `json:"encoding"`
+}
+
+type SpendWithWrapperReply struct {
+	EncodedData string          `json:"encodedData"`
+	Signers     [][]ids.ShortID `json:"signers"`
+}
+
+type SpendWrapper struct {
+	Ins    []*avax.TransferableInput   `serialize:"true"`
+	Outs   []*avax.TransferableOutput  `serialize:"true"`
+	Owners []*secp256k1fx.OutputOwners `serialize:"true"`
+}
+
+func (s *Service) SpendWithWrapper(_ *http.Request, args *SpendWithWrapperArgs, response *SpendWithWrapperReply) error {
+	s.vm.snowCtx.Log.Debug("Touristic: SpendWithWrapper called")
+
+	privKeys, err := s.getFakeKeys(&args.JSONFromAddrs)
+	if err != nil {
+		return err
+	}
+	if len(privKeys) == 0 {
+		return errNoKeys
+	}
+
+	to, err := s.secpOwnerFromAPI(&args.To)
+	if err != nil {
+		return err
+	}
+
+	var change *secp256k1fx.OutputOwners
+	if args.Change.Threshold != 0 || len(args.Change.Addresses) != 0 {
+		change, err = s.secpOwnerFromAPI(&args.Change)
+		if err != nil {
+			return fmt.Errorf(errInvalidChangeAddr, err)
+		}
+	}
+
+	var (
+		ins     []*avax.TransferableInput
+		outs    []*avax.TransferableOutput
+		signers [][]*secp256k1.PrivateKey
+		owners  []*secp256k1fx.OutputOwners
+	)
+	switch targetLockMode := locked.State(args.LockMode); targetLockMode {
+	case locked.StateLocked:
+		ins, outs, signers, owners, err = s.vm.txBuilder.Lock(
+			s.vm.State,
+			privKeys,
+			uint64(args.AmountToTransitState),
+			uint64(args.AmountToBurn),
+			targetLockMode,
+			to,
+			change,
+			uint64(args.AsOf),
+		)
+	case locked.StateUnlocked:
+		if len(privKeys) != 1 {
+			return errInvalidKeysNumber
+		}
+		var agent ids.ShortID
+		agent, err = ids.ShortFromString(args.Agent)
+		if err != nil {
+			return fmt.Errorf("couldn't parse agent ID %q: %w", args.Agent, err)
+		}
+		ins, outs, err = s.vm.txBuilder.Unlock(
+			s.vm.State,
+			// * @evlekht we don't currently intend to support avax multi-assets with api
+			&secp256k1fx.OutputOwners{
+				Threshold: 1,
+				Addrs:     []ids.ShortID{privKeys[0].Address()},
+			},
+			to,
+			uint64(args.AmountToTransitState),
+			agent,
+		)
+		signers = [][]*secp256k1.PrivateKey{privKeys}
+		owners = []*secp256k1fx.OutputOwners{to}
+	default:
+		return errUnknownLockState
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %s", errCreateTransferables, err)
+	}
+
+	response.Signers = make([][]ids.ShortID, len(signers))
+	for i, cred := range signers {
+		response.Signers[i] = make([]ids.ShortID, len(cred))
+		for j, sig := range cred {
+			response.Signers[i][j] = sig.Address()
+		}
+	}
+
+	wrapperBytes, err := txs.Codec.Marshal(txs.Version, &SpendWrapper{
+		Ins:    ins,
+		Outs:   outs,
+		Owners: owners,
+	})
+	if err != nil {
+		return err
+	}
+	if response.EncodedData, err = formatting.Encode(args.Encoding, wrapperBytes); err != nil {
+		return fmt.Errorf("%w: %s", errEncodeTransferables, err)
+	}
+	return nil
 }
 
 type IssueChequeRequest struct {
