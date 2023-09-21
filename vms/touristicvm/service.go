@@ -4,6 +4,7 @@
 package touristicvm
 
 import (
+	"encoding/hex"
 	json_encoder "encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs/builder"
 	"go.uber.org/zap"
 	"net/http"
+	"strings"
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
@@ -508,4 +510,118 @@ func (s *Service) secpOwnerFromAPI(apiOwner *platformapi.Owner) (*secp256k1fx.Ou
 		return secpOwner, nil
 	}
 	return nil, nil
+}
+
+type IssueChequeRequest struct {
+	Issuer            ids.ShortID      `serialize:"true" json:"issuer"`
+	Beneficiary       ids.ShortID      `serialize:"true" json:"beneficiary"`
+	Amount            utilsjson.Uint64 `serialize:"true" json:"amount"`
+	SerialID          utilsjson.Uint64 `serialize:"true" json:"serialID"`
+	Agent             ids.ShortID      `serialize:"true" json:"agent"`             // Agent is the node that issued the cheque
+	UnnormalizedAgent string           `serialize:"true" json:"unnormalizedAgent"` // unnormalized agent id
+}
+type IssueChequeResponse struct {
+	txs.Cheque
+	MsgToSign []byte `serialize:"true" json:"msgToSign"`
+}
+
+var errMissingChequeAgent = errors.New("can't issue cheque without providing an agent")
+
+func (s *Service) IssueCheque(_ *http.Request, args *IssueChequeRequest, response *IssueChequeResponse) error {
+	s.vm.snowCtx.Log.Debug("Touristic: IssueCheque called")
+
+	cheque := txs.Cheque{
+		Issuer:      args.Issuer,
+		Beneficiary: args.Beneficiary,
+		Amount:      uint64(args.Amount),
+		SerialID:    uint64(args.SerialID),
+		Agent:       args.Agent,
+	}
+
+	if args.Agent == ids.ShortEmpty && args.UnnormalizedAgent == "" { // if agent is not provided (either in normalized or unnormalized form), throw error
+		return errMissingChequeAgent
+	} else if args.Agent == ids.ShortEmpty { // agent provided in unnormalized form
+		// normalize agent id
+		agent, err := uuidToShortID(args)
+		if err != nil {
+			return fmt.Errorf("couldn't parse agent ID %q: %w", args.UnnormalizedAgent, err)
+		}
+		if agent == ids.ShortEmpty {
+			return errMissingChequeAgent
+		}
+		cheque.Agent = agent
+	}
+
+	response.Cheque = cheque
+	response.MsgToSign = cheque.BuildMsgToSign()
+	return nil
+}
+
+func uuidToShortID(args *IssueChequeRequest) (ids.ShortID, error) {
+	// remove all dashes
+	normalizedAgent := strings.ReplaceAll(args.UnnormalizedAgent, "-", "")
+
+	// Convert the agent UUID to bytes (16 bytes)
+	uuidBytes, err := hex.DecodeString(normalizedAgent)
+	if err != nil {
+		return ids.ShortID{}, fmt.Errorf("error decoding agent input: %w", err)
+	}
+
+	// Pad the UUID bytes to make it 20 bytes in length
+	paddedAgent := append(uuidBytes, make([]byte, 20-len(uuidBytes))...)
+	agent, err := ids.ToShortID(paddedAgent)
+	return agent, err
+}
+
+type ValidateChequeRequest struct {
+	Issuer      ids.ShortID      `serialize:"true" json:"issuer"`
+	Beneficiary ids.ShortID      `serialize:"true" json:"beneficiary"`
+	Amount      utilsjson.Uint64 `serialize:"true" json:"amount"`
+	SerialID    utilsjson.Uint64 `serialize:"true" json:"serialID"`
+	Agent       ids.ShortID      `serialize:"true" json:"agent"`
+	//Signature   secp256k1fx.Credential `serialize:"true" json:"signature"`
+	Signature string `serialize:"true" json:"signature"` // hexNC encoded
+}
+type ValidateChequeResponse struct {
+	Valid bool `json:"valid"`
+}
+
+func (s *Service) ValidateCheque(_ *http.Request, args *ValidateChequeRequest, response *ValidateChequeResponse) error {
+	s.vm.snowCtx.Log.Debug("Touristic: ValidateCheque called")
+
+	sig, e := formatting.Decode(formatting.HexNC, args.Signature)
+	// Create a new array of bytes with the desired size
+	var sigArray [65]byte
+
+	// Copy the contents of the slice into the array
+	copy(sigArray[:], sig)
+
+	if e != nil {
+		return fmt.Errorf("invalid signature")
+	}
+	cred := &secp256k1fx.Credential{
+		Sigs: [][secp256k1.SignatureLen]byte{
+			sigArray,
+		},
+	}
+	cheque := txs.SignedCheque{
+		Cheque: txs.Cheque{
+			Issuer:      args.Issuer,
+			Beneficiary: args.Beneficiary,
+			Amount:      uint64(args.Amount),
+			SerialID:    uint64(args.SerialID),
+			Agent:       args.Agent,
+		},
+		Auth: cred,
+	}
+	// verify that the cheque is valid
+	var (
+		signer ids.ShortID
+		err    error
+	)
+	if signer, err = s.vm.fx.RecoverAddressFromSignedMessage(cheque.BuildMsgToSign(), cred); err != nil {
+		return fmt.Errorf("invalid signature")
+	}
+	response.Valid = signer == args.Issuer
+	return nil
 }

@@ -26,12 +26,13 @@ import (
 	"github.com/ava-labs/avalanchego/vms/touristicvm/state"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/txs"
 	"github.com/ava-labs/avalanchego/vms/touristicvm/utxo"
-	"strconv"
 )
 
 var (
-	_                  txs.Visitor = (*StandardTxExecutor)(nil)
-	errFlowCheckFailed             = errors.New("flow check failed")
+	_                            txs.Visitor = (*StandardTxExecutor)(nil)
+	errFlowCheckFailed                       = errors.New("flow check failed")
+	errIssuerBeneficiaryMismatch             = errors.New("the issuer and the beneficiary should be different")
+	errInvalidSignature                      = errors.New("invalid signature")
 )
 
 type StandardTxExecutor struct {
@@ -184,9 +185,6 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 		return err
 	}
 
-	// signature is based on the concatenation of issuer, beneficiary and amount
-	unsignedMsg := tx.Cheque.Issuer.String() + tx.Cheque.Beneficiary.String() + strconv.FormatUint(tx.Cheque.Amount, 10) + strconv.FormatUint(tx.Cheque.SerialID, 10)
-
 	// verify that the tx carries one and only one signature
 	if tx.Cheque.Auth == nil || len(tx.Cheque.Auth.(*secp256k1fx.Credential).Sigs) != 1 {
 		return fmt.Errorf("expected one signature, got %d", len(e.Tx.Creds))
@@ -194,12 +192,12 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 
 	// verify that the issuer and the beneficiary are different
 	if tx.Cheque.Issuer == tx.Cheque.Beneficiary {
-		return fmt.Errorf("the issuer and the beneficiary should be different")
+		return errIssuerBeneficiaryMismatch
 	}
 
 	// verify that the cheque is valid
-	if signer, err := e.Fx.RecoverAddressFromSignature(unsignedMsg, tx.Cheque.Auth); err != nil || signer != tx.Cheque.Issuer {
-		return fmt.Errorf("invalid signature")
+	if signer, err := e.Fx.RecoverAddressFromSignedMessage(tx.Cheque.BuildMsgToSign(), tx.Cheque.Auth); err != nil || signer != tx.Cheque.Issuer {
+		return errInvalidSignature
 	}
 
 	var (

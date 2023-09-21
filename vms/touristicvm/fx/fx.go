@@ -54,7 +54,8 @@ type Fx interface {
 	// Verifies that Multisig aliases are on inputs are only used in supported hierarchy
 	VerifyMultisigOwner(outIntf, msigIntf interface{}) error
 
-	RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error)
+	// Recovers the address of the signer from the signed message
+	RecoverAddressFromSignedMessage(msg []byte, cred secp256k1fx.CredentialIntf) (ids.ShortID, error)
 }
 
 type Owner interface {

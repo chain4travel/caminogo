@@ -13,7 +13,8 @@ type CaminoFx interface {
 	// Recovers signers addresses from [verifies] credentials for [utx] transaction
 	RecoverAddresses(utx secp256k1fx.UnsignedTx, verifies []verify.Verifiable) (secp256k1fx.RecoverMap, error)
 
-	RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error)
+	// Recovers the address of the signer from the signed message
+	RecoverAddressFromSignedMessage(msg []byte, cred secp256k1fx.CredentialIntf) (ids.ShortID, error)
 
 	// Verifies that Multisig aliases are on inputs are only used in supported hierarchy
 	VerifyMultisigOwner(outIntf, msigIntf interface{}) error

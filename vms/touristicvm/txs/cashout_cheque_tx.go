@@ -4,10 +4,11 @@
 package txs
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 var _ UnsignedTx = (*CashoutChequeTx)(nil)
@@ -20,9 +21,29 @@ type Cheque struct {
 	Agent       ids.ShortID `serialize:"true" json:"agent"` // Agent is the node that issued the cheque
 }
 
+// A cheque's msg payload to be signed results from concatenating the following fields:
+// 1. Issuer
+// 2. Beneficiary
+// 3. Amount
+// 4. SerialID
+// 5. Agent
+func (c *Cheque) BuildMsgToSign() []byte {
+	amountBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(amountBytes, c.Amount)
+
+	serialIDBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(serialIDBytes, c.SerialID)
+
+	msgToSign := append(c.Issuer.Bytes(), c.Beneficiary.Bytes()...)
+	msgToSign = append(msgToSign, amountBytes...)
+	msgToSign = append(msgToSign, serialIDBytes...)
+	msgToSign = append(msgToSign, c.Agent.Bytes()...)
+	return msgToSign
+}
+
 type SignedCheque struct {
 	Cheque `serialize:"true"`
-	Auth   verify.Verifiable `serialize:"true" json:"auth"`
+	Auth   secp256k1fx.CredentialIntf `serialize:"true" json:"auth"`
 }
 
 // CashoutChequeTx is an unsigned cashoutChequeTx

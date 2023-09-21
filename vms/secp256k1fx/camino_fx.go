@@ -139,13 +139,9 @@ func (fx *Fx) RecoverAddresses(utx UnsignedTx, verifies []verify.Verifiable) (Re
 	return ret, nil
 }
 
-func (fx *Fx) RecoverAddressFromSignature(signatureArgs string, verifiable verify.Verifiable) (ids.ShortID, error) {
-	signatureArgsHash := hashing.ComputeHash256([]byte(signatureArgs))
+func (fx *Fx) RecoverAddressFromSignedMessage(signatureArgs []byte, cred CredentialIntf) (ids.ShortID, error) {
+	signatureArgsHash := hashing.ComputeHash256(signatureArgs)
 
-	cred, ok := verifiable.(CredentialIntf)
-	if !ok {
-		return ids.ShortEmpty, errNotSecp256Cred
-	}
 	if len(cred.Signatures()) != 1 {
 		return ids.ShortEmpty, fmt.Errorf("expected exactly one signature, got %d", len(cred.Signatures()))
 	}
