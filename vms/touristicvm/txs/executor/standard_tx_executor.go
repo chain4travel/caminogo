@@ -201,34 +201,30 @@ func (e *StandardTxExecutor) CashoutChequeTx(tx *txs.CashoutChequeTx) error {
 	}
 
 	var (
-		cheque state.Cheque
-		err    error
+		lastCashedOutCheque state.Cheque
+		err                 error
 	)
 	issuerAgent := state.IssuerAgent{
 		Issuer: tx.Cheque.Issuer,
 		Agent:  tx.Cheque.Agent,
 	}
 	// check that the cheque is not already cashed out
-	if cheque, err = e.State.GetLastCheque(issuerAgent, tx.Cheque.Beneficiary); err != nil { //TODO nikos check if this is the right way, instead of diff we probably need to get paidOut from state
+	if lastCashedOutCheque, err = e.State.GetLastCheque(issuerAgent, tx.Cheque.Beneficiary); err != nil {
 		if err != database.ErrNotFound {
 			return err
 		}
 
-		if tx.Cheque.SerialID != 1 {
-			return fmt.Errorf("this is the first recorded cheque and thus the  serial ID should be 1")
-		}
-		cheque = state.Cheque{
-			Amount:   0,
-			SerialID: 1,
+		lastCashedOutCheque = state.Cheque{
+			Amount: 0,
 		} // first attempt to cash out
-	} else if cheque.Amount >= tx.Cheque.Amount {
+	} else if lastCashedOutCheque.Amount >= tx.Cheque.Amount {
 		return utxo.ErrAmountAlreadyPaidOut
-	} else if tx.Cheque.SerialID <= cheque.SerialID {
-		return fmt.Errorf("new serial ID should be higher than  %d", cheque.SerialID)
+	} else if tx.Cheque.SerialID <= lastCashedOutCheque.SerialID {
+		return fmt.Errorf("new serial ID should be higher than  %d", lastCashedOutCheque.SerialID)
 	}
 
 	amountToBurn := uint64(0) // TODO nikos for now CashoutTx does not incur a e.Config.TxFee
-	amountToUnlock := tx.Cheque.Amount - cheque.Amount
+	amountToUnlock := tx.Cheque.Amount - lastCashedOutCheque.Amount
 
 	// check that the cheque is backed by enough funds
 	lockedUtxos, err := e.State.LockedUTXOs(tx.Cheque.Issuer)
