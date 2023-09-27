@@ -1477,17 +1477,12 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 
 	// verify that alias isn't nesting another alias
 
-	owners, ok := tx.MultisigAlias.Owners.(*secp256k1fx.OutputOwners)
-	if !ok {
-		return errWrongOwnerType
-	}
-	for i := range owners.Addrs {
-		_, err := e.State.GetMultisigAlias(owners.Addrs[i])
-		if err != nil && err != database.ErrNotFound {
-			return err
-		} else if err == nil {
-			return errNestedMsigAlias
-		}
+	isNestedMsig, err := e.Fx.IsNestedMultisig(tx.MultisigAlias.Owners, e.State)
+	switch {
+	case err != nil:
+		return err
+	case isNestedMsig:
+		return errNestedMsigAlias
 	}
 
 	// Update existing multisig definition
