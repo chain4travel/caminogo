@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"time"
 
@@ -162,12 +163,18 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	vm.atomicUtxosManager = avax.NewAtomicUTXOManager(snowCtx.SharedMemory, txs.Codec)
-
 	// Initialize genesis
 	if err := vm.initGenesis(genesisData); err != nil {
 		return err
 	}
+	if err := vm.State.Load(); err != nil {
+		return fmt.Errorf(
+			"failed to load the database state: %w",
+			err,
+		)
+	}
+
+	vm.atomicUtxosManager = avax.NewAtomicUTXOManager(snowCtx.SharedMemory, txs.Codec)
 
 	// Note: There is a circular dependency between the mempool and block
 	//       builder which is broken by passing in the vm.
@@ -288,6 +295,7 @@ func (vm *VM) initGenesis(genesisData []byte) error {
 
 	// TODO check if accept is necessary anymore
 	genesisBlkID := genesisBlock.ID()
+	vm.State.SetCurrentSupply(units.MegaAvax) //Todo Nikos move to genesis
 	vm.State.SetLastAccepted(genesisBlkID)
 	vm.State.SetTimestamp(genesisBlock.Timestamp())
 	vm.State.AddStatelessBlock(genesisBlock, choices.Accepted)

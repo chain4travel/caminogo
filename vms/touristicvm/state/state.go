@@ -28,13 +28,14 @@ const (
 )
 
 var (
+	_ State = &state{}
+
 	// These are prefixes for db keys.
 	// It's important to set different prefixes for each separate database objects.
-	singletonStatePrefix       = []byte("singleton")
-	blockStatePrefix           = []byte("block")
-	txPrefix                   = []byte("tx")
-	utxoPrefix                 = []byte("utxo")
-	_                    State = &state{}
+	singletonStatePrefix = []byte("singleton")
+	blockStatePrefix     = []byte("block")
+	txPrefix             = []byte("tx")
+	utxoPrefix           = []byte("utxo")
 )
 
 type ReadOnlyChain interface {
@@ -62,9 +63,8 @@ type Chain interface {
 // State is a wrapper around avax.SingleTonState and BlockState
 // State also exposes a few methods needed for managing database commits and close.
 type State interface {
-	// SingletonState is defined in avalanchego,
+	// MetadataState is defined in avalanchego,
 	// it is used to understand if db is initialized already.
-	SingletonState
 	BlockState
 	Chain
 	avax.UTXOReader
@@ -72,13 +72,16 @@ type State interface {
 	GetLastAccepted() ids.ID
 	SetLastAccepted(blkID ids.ID)
 
+	IsInitialized() (bool, error)
+	SetInitialized() error
+
 	Abort()
 	Commit() error
 	CommitBatch() (database.Batch, error)
 	Close() error
+	Load() error
 }
 type state struct {
-	SingletonState
 	blockState
 	chequebookState
 	baseDB *versiondb.Database
@@ -93,9 +96,14 @@ type state struct {
 	utxoDB    database.Database
 	utxoState avax.UTXOState
 
-	currentSupply uint64
-	modifiedUTXOs map[ids.ID]*avax.UTXO // map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
-	timestamp     time.Time
+	currentSupply, persistedCurrentSupply uint64
+	modifiedUTXOs                         map[ids.ID]*avax.UTXO // map of modified UTXOID -> *UTXO if the UTXO is nil, it has been removed
+	// The persisted fields represent the current database value
+	timestamp, persistedTimestamp time.Time
+	// [lastAccepted] is the most recently accepted block.
+	lastAccepted, persistedLastAccepted ids.ID
+
+	singletonDB MetadataState
 }
 
 func (s *state) GetBlock(blkID ids.ID) (blocks.Block, error) {
@@ -253,8 +261,8 @@ func NewState(db database.Database, metricsReg prometheus.Registerer) (State, er
 			blockCache:  &cache.LRU[ids.ID, *blkWrapper]{Size: blockCacheSize},
 			blockDB:     blockDB,
 		},
-		SingletonState: NewSingletonState(singletonDB),
-		baseDB:         baseDB,
+		singletonDB: MetadataState{singletonDB},
+		baseDB:      baseDB,
 
 		addedTxs: make(map[ids.ID]*txAndStatus),
 		txDB:     prefixdb.New(txPrefix, baseDB),
@@ -354,6 +362,7 @@ func (s *state) write() error {
 		s.writeBlocks(),
 		s.writeTXs(),
 		s.writeUTXOs(),
+		s.writeMetadata(),
 	)
 	return errs.Err
 }
@@ -368,6 +377,70 @@ func (s *state) Close() error {
 		s.baseDB.Close(),
 		s.txDB.Close(),
 		s.utxoDB.Close(),
+		s.singletonDB.Close(),
 	)
 	return errs.Err
+}
+
+// Load pulls data previously stored on disk that is expected to be in memory.
+func (s *state) Load() error {
+	errs := wrappers.Errs{}
+	errs.Add(
+		s.loadMetadata(),
+	)
+	return errs.Err
+}
+
+func (s *state) IsInitialized() (bool, error) {
+	return s.singletonDB.IsInitialized()
+}
+
+func (s *state) SetInitialized() error {
+	return s.singletonDB.SetInitialized()
+}
+
+func (s *state) loadMetadata() error {
+	timestamp, err := database.GetTimestamp(s.singletonDB, timestampKey)
+	if err != nil {
+		return err
+	}
+	s.persistedTimestamp = timestamp
+	s.SetTimestamp(timestamp)
+
+	currentSupply, err := database.GetUInt64(s.singletonDB, currentSupplyKey)
+	if err != nil {
+		return err
+	}
+	s.persistedCurrentSupply = currentSupply
+	s.SetCurrentSupply(currentSupply)
+
+	lastAccepted, err := database.GetID(s.singletonDB, lastAcceptedKey)
+	if err != nil {
+		return err
+	}
+	s.persistedLastAccepted = lastAccepted
+	s.lastAccepted = lastAccepted
+	return nil
+}
+
+func (s *state) writeMetadata() error {
+	if !s.persistedTimestamp.Equal(s.timestamp) {
+		if err := database.PutTimestamp(s.singletonDB, timestampKey, s.timestamp); err != nil {
+			return fmt.Errorf("failed to write timestamp: %w", err)
+		}
+		s.persistedTimestamp = s.timestamp
+	}
+	if s.persistedCurrentSupply != s.currentSupply {
+		if err := database.PutUInt64(s.singletonDB, currentSupplyKey, s.currentSupply); err != nil {
+			return fmt.Errorf("failed to write current supply: %w", err)
+		}
+		s.persistedCurrentSupply = s.currentSupply
+	}
+	if s.persistedLastAccepted != s.lastAccepted {
+		if err := database.PutID(s.singletonDB, lastAcceptedKey, s.lastAccepted); err != nil {
+			return fmt.Errorf("failed to write last accepted: %w", err)
+		}
+		s.persistedLastAccepted = s.lastAccepted
+	}
+	return nil
 }

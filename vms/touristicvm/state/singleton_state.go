@@ -10,31 +10,20 @@ const (
 )
 
 var (
-	isInitializedKey                = []byte{IsInitializedKey}
-	_                SingletonState = (*singletonState)(nil)
+	isInitializedKey = []byte{IsInitializedKey}
+	timestampKey     = []byte("timestamp")
+	currentSupplyKey = []byte("current supply")
+	lastAcceptedKey  = []byte("last accepted")
 )
 
-// SingletonState is a thin wrapper around a database to provide, caching,
-// serialization, and deserialization of singletons.
-type SingletonState interface {
-	IsInitialized() (bool, error)
-	SetInitialized() error
+type MetadataState struct {
+	database.Database
 }
 
-type singletonState struct {
-	singletonDB database.Database
+func (s *MetadataState) IsInitialized() (bool, error) {
+	return s.Has(isInitializedKey)
 }
 
-func NewSingletonState(db database.Database) SingletonState {
-	return &singletonState{
-		singletonDB: db,
-	}
-}
-
-func (s *singletonState) IsInitialized() (bool, error) {
-	return s.singletonDB.Has(isInitializedKey)
-}
-
-func (s *singletonState) SetInitialized() error {
-	return s.singletonDB.Put(isInitializedKey, nil)
+func (s *MetadataState) SetInitialized() error {
+	return s.Put(isInitializedKey, nil)
 }
