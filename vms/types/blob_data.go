@@ -19,6 +19,7 @@ func (b JSONByteSlice) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(hexData)
 }
+
 func (b *JSONByteSlice) UnmarshalJSON(data []byte) error {
 	var hexData string
 
