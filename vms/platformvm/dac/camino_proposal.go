@@ -33,7 +33,6 @@ type Proposal interface {
 
 	StartTime() time.Time
 	EndTime() time.Time
-	GetOptions() any
 	CreateProposalState(allowedVoters []ids.ShortID) ProposalState
 	Visit(VerifierVisitor) error
 }
@@ -53,5 +52,9 @@ type ProposalState interface {
 
 	// Will return modified proposal with added vote ignoring allowed voters, original proposal will not be modified!
 	// (used in magellan)
-	ForceAddVote(voterAddress ids.ShortID, voteIntf Vote) (ProposalState, error)
+	//
+	// We want to keep it in caminogo even if its used only in magellan,
+	// cause it contains "sensitive" proposal logic that affects success state.
+	// We don't want to care about that in magellan.
+	ForceAddVote(voteIntf Vote) (ProposalState, error)
 }
