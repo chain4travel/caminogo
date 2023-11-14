@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
@@ -696,21 +697,12 @@ func (b *caminoBuilder) FinishProposalsTx(
 	earlyFinishedProposalIDs []ids.ID,
 	expiredProposalIDs []ids.ID,
 ) (*txs.Tx, error) {
-	ins, outs, err := b.Unlock(
-		state,
-		append(earlyFinishedProposalIDs, expiredProposalIDs...),
-		locked.StateBonded,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
 	utx := &txs.FinishProposalsTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    b.ctx.NetworkID,
 		BlockchainID: b.ctx.ChainID,
-		Ins:          ins,
-		Outs:         outs,
 	}}}
+
+	lockTxIDs := append(earlyFinishedProposalIDs, expiredProposalIDs...) //nolint:gocritic
 
 	for _, proposalID := range earlyFinishedProposalIDs {
 		proposal, err := state.GetProposal(proposalID)
@@ -718,6 +710,11 @@ func (b *caminoBuilder) FinishProposalsTx(
 			return nil, fmt.Errorf("couldn't get proposal from state: %w", err)
 		}
 		if proposal.IsSuccessful() {
+			bondTxIDs, err := proposal.GetBondTxIDs(dac.ProposalBondTxIDsGetter(state))
+			if err != nil {
+				return nil, err
+			}
+			lockTxIDs = append(lockTxIDs, bondTxIDs...)
 			utx.EarlyFinishedSuccessfulProposalIDs = append(utx.EarlyFinishedSuccessfulProposalIDs, proposalID)
 		} else {
 			utx.EarlyFinishedFailedProposalIDs = append(utx.EarlyFinishedFailedProposalIDs, proposalID)
@@ -729,6 +726,11 @@ func (b *caminoBuilder) FinishProposalsTx(
 			return nil, fmt.Errorf("couldn't get proposal from state: %w", err)
 		}
 		if proposal.IsSuccessful() {
+			bondTxIDs, err := proposal.GetBondTxIDs(dac.ProposalBondTxIDsGetter(state))
+			if err != nil {
+				return nil, err
+			}
+			lockTxIDs = append(lockTxIDs, bondTxIDs...)
 			utx.ExpiredSuccessfulProposalIDs = append(utx.ExpiredSuccessfulProposalIDs, proposalID)
 		} else {
 			utx.ExpiredFailedProposalIDs = append(utx.ExpiredFailedProposalIDs, proposalID)
@@ -739,6 +741,17 @@ func (b *caminoBuilder) FinishProposalsTx(
 	utils.Sort(utx.EarlyFinishedFailedProposalIDs)
 	utils.Sort(utx.ExpiredSuccessfulProposalIDs)
 	utils.Sort(utx.ExpiredFailedProposalIDs)
+
+	ins, outs, err := b.Unlock(
+		state,
+		lockTxIDs,
+		locked.StateBonded,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+	utx.Ins = ins
+	utx.Outs = outs
 
 	tx, err := txs.NewSigned(utx, txs.Codec, nil)
 	if err != nil {
