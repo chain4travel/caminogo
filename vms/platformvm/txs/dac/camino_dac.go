@@ -51,7 +51,7 @@ type proposalBondTxIDsGetter struct {
 	state state.Chain
 }
 
-func ProposalVerifier(state state.Chain, fx fx.Fx, signedTx *txs.Tx, tx *txs.AddProposalTx) *proposalVerifier {
+func ProposalVerifier(state state.Chain, fx fx.Fx, signedTx *txs.Tx, tx *txs.AddProposalTx) dac.VerifierVisitor {
 	return &proposalVerifier{
 		state:               state,
 		fx:                  fx,
@@ -60,11 +60,11 @@ func ProposalVerifier(state state.Chain, fx fx.Fx, signedTx *txs.Tx, tx *txs.Add
 	}
 }
 
-func ProposalExecutor(state state.Chain, fx fx.Fx) *proposalExecutor {
+func NewProposalExecutor(state state.Chain, fx fx.Fx) dac.ExecutorVisitor {
 	return &proposalExecutor{state: state, fx: fx}
 }
 
-func ProposalBondTxIDsGetter(state state.Chain) *proposalBondTxIDsGetter {
+func NewProposalBondTxIDsGetter(state state.Chain) dac.BondTxIDsGetter {
 	return &proposalBondTxIDsGetter{state: state}
 }
 

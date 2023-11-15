@@ -169,7 +169,7 @@ func TestProposalExecutorBaseFeeProposal(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			fx := defaultFx(true)
-			err := tt.proposal.Visit(ProposalExecutor(tt.state(ctrl), fx))
+			err := tt.proposal.Visit(NewProposalExecutor(tt.state(ctrl), fx))
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
@@ -328,7 +328,7 @@ func TestProposalExecutorAddMemberProposal(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			fx := defaultFx(true)
-			err := tt.proposal.Visit(ProposalExecutor(tt.state(ctrl), fx))
+			err := tt.proposal.Visit(NewProposalExecutor(tt.state(ctrl), fx))
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
@@ -572,7 +572,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			fx := defaultFx(true)
-			err := tt.proposal.Visit(ProposalExecutor(tt.state(ctrl), fx))
+			err := tt.proposal.Visit(NewProposalExecutor(tt.state(ctrl), fx))
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
@@ -657,7 +657,7 @@ func TestProposalBondTxIDsGetterExcludeMemberProposal(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			bondTxIDs, err := tt.proposal.GetBondTxIDs(ProposalBondTxIDsGetter(tt.state(ctrl, tt.proposal)))
+			bondTxIDs, err := tt.proposal.GetBondTxIDs(NewProposalBondTxIDsGetter(tt.state(ctrl, tt.proposal)))
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedBondTxIDs, bondTxIDs)
 		})

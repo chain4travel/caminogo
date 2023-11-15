@@ -710,7 +710,7 @@ func (b *caminoBuilder) FinishProposalsTx(
 			return nil, fmt.Errorf("couldn't get proposal from state: %w", err)
 		}
 		if proposal.IsSuccessful() {
-			bondTxIDs, err := proposal.GetBondTxIDs(dac.ProposalBondTxIDsGetter(state))
+			bondTxIDs, err := proposal.GetBondTxIDs(dac.NewProposalBondTxIDsGetter(state))
 			if err != nil {
 				return nil, err
 			}
@@ -726,7 +726,7 @@ func (b *caminoBuilder) FinishProposalsTx(
 			return nil, fmt.Errorf("couldn't get proposal from state: %w", err)
 		}
 		if proposal.IsSuccessful() {
-			bondTxIDs, err := proposal.GetBondTxIDs(dac.ProposalBondTxIDsGetter(state))
+			bondTxIDs, err := proposal.GetBondTxIDs(dac.NewProposalBondTxIDsGetter(state))
 			if err != nil {
 				return nil, err
 			}

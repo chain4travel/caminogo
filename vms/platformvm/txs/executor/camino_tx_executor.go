@@ -1995,7 +1995,7 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 
 	// verify ins and outs
 
-	bondTxIDsGetter := dac.ProposalBondTxIDsGetter(e.State)
+	bondTxIDsGetter := dac.NewProposalBondTxIDsGetter(e.State)
 
 	proposalIDs := append(tx.EarlyFinishedSuccessfulProposalIDs, tx.ExpiredSuccessfulProposalIDs...) //nolint:gocritic
 	additionalLockTxIDs := []ids.ID{}
@@ -2067,7 +2067,7 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 		}
 
 		// try to execute proposal
-		if err := proposal.Visit(dac.ProposalExecutor(e.State, e.Fx)); err != nil {
+		if err := proposal.Visit(dac.NewProposalExecutor(e.State, e.Fx)); err != nil {
 			return err
 		}
 
@@ -2118,7 +2118,7 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 		}
 
 		// try to execute proposal
-		if err := proposal.Visit(dac.ProposalExecutor(e.State, e.Fx)); err != nil {
+		if err := proposal.Visit(dac.NewProposalExecutor(e.State, e.Fx)); err != nil {
 			return err
 		}
 
