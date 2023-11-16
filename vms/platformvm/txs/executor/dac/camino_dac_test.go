@@ -657,7 +657,7 @@ func TestProposalBondTxIDsGetterExcludeMemberProposal(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			bondTxIDs, err := tt.proposal.GetBondTxIDs(NewProposalBondTxIDsGetter(tt.state(ctrl, tt.proposal)))
+			bondTxIDs, err := tt.proposal.Invoke(NewProposalBondTxIDsGetter(tt.state(ctrl, tt.proposal)))
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedBondTxIDs, bondTxIDs)
 		})

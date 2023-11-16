@@ -205,6 +205,6 @@ func (p *BaseFeeProposalState) Visit(visitor ExecutorVisitor) error {
 	return visitor.BaseFeeProposal(p)
 }
 
-func (p *BaseFeeProposalState) GetBondTxIDs(visitor BondTxIDsGetter) ([]ids.ID, error) {
+func (p *BaseFeeProposalState) Invoke(visitor BondTxIDsGetter) ([]ids.ID, error) {
 	return visitor.BaseFeeProposal(p)
 }

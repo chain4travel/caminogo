@@ -1994,28 +1994,14 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 	}
 
 	// verify ins and outs
-
-	bondTxIDsGetter := dac.NewProposalBondTxIDsGetter(e.State)
-
-	proposalIDs := append(tx.EarlyFinishedSuccessfulProposalIDs, tx.ExpiredSuccessfulProposalIDs...) //nolint:gocritic
-	additionalLockTxIDs := []ids.ID{}
-	for _, proposalID := range proposalIDs {
-		proposal, err := e.State.GetProposal(proposalID)
-		if err != nil {
-			return err
-		}
-		lockTxIDs, err := proposal.GetBondTxIDs(bondTxIDsGetter)
-		if err != nil {
-			return err
-		}
-		additionalLockTxIDs = append(additionalLockTxIDs, lockTxIDs...)
+	bondTxIDsToUnlock, err := tx.GetBondTxIDsToUnlock(e.State)
+	if err != nil {
+		return err
 	}
 
-	proposalIDs = append(proposalIDs, tx.EarlyFinishedFailedProposalIDs...)
-	proposalIDs = append(proposalIDs, tx.ExpiredFailedProposalIDs...)
 	expectedIns, expectedOuts, err := e.FlowChecker.Unlock(
 		e.State,
-		append(proposalIDs, additionalLockTxIDs...),
+		bondTxIDsToUnlock,
 		locked.StateBonded,
 	)
 	if err != nil {

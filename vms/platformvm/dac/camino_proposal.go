@@ -71,7 +71,7 @@ type ProposalState interface {
 	Outcome() any       // should be called only for finished successful proposals
 	Visit(ExecutorVisitor) error
 	// Visits getter and returns additional lock tx ids, that should be unbonded when this proposal is successfully finished.
-	GetBondTxIDs(BondTxIDsGetter) ([]ids.ID, error)
+	Invoke(BondTxIDsGetter) ([]ids.ID, error)
 	// Will return modified ProposalState with added vote, original ProposalState will not be modified!
 	AddVote(voterAddress ids.ShortID, vote Vote) (ProposalState, error)
 

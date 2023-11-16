@@ -6,6 +6,8 @@ package txs
 import (
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/vms/platformvm/state"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs/executor/dac"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -102,4 +104,23 @@ func (tx *FinishProposalsTx) ProposalIDs() []ids.ID {
 	lockTxIDs = append(lockTxIDs, tx.EarlyFinishedFailedProposalIDs...)
 	lockTxIDs = append(lockTxIDs, tx.ExpiredSuccessfulProposalIDs...)
 	return append(lockTxIDs, tx.ExpiredFailedProposalIDs...)
+}
+
+func (tx *FinishProposalsTx) GetBondTxIDsToUnlock(state state.Chain) ([]ids.ID, error) {
+	bondTxIDsGetter := dac.NewProposalBondTxIDsGetter(state)
+
+	successfulProposals := append(tx.EarlyFinishedSuccessfulProposalIDs, tx.ExpiredSuccessfulProposalIDs...) //nolint:gocritic
+	bondTxIDsToUnlock := tx.ProposalIDs()
+	for _, proposalID := range successfulProposals {
+		proposal, err := state.GetProposal(proposalID)
+		if err != nil {
+			return nil, err
+		}
+		lockTxIDs, err := proposal.Invoke(bondTxIDsGetter)
+		if err != nil {
+			return nil, err
+		}
+		bondTxIDsToUnlock = append(bondTxIDsToUnlock, lockTxIDs...)
+	}
+	return bondTxIDsToUnlock, nil
 }

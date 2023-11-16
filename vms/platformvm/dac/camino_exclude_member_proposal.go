@@ -205,6 +205,6 @@ func (p *ExcludeMemberProposalState) Visit(visitor ExecutorVisitor) error {
 	return visitor.ExcludeMemberProposal(p)
 }
 
-func (p *ExcludeMemberProposalState) GetBondTxIDs(visitor BondTxIDsGetter) ([]ids.ID, error) {
+func (p *ExcludeMemberProposalState) Invoke(visitor BondTxIDsGetter) ([]ids.ID, error) {
 	return visitor.ExcludeMemberProposal(p)
 }

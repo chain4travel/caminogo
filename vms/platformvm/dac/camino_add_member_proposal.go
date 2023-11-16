@@ -196,6 +196,6 @@ func (p *AddMemberProposalState) Visit(visitor ExecutorVisitor) error {
 	return visitor.AddMemberProposal(p)
 }
 
-func (p *AddMemberProposalState) GetBondTxIDs(visitor BondTxIDsGetter) ([]ids.ID, error) {
+func (p *AddMemberProposalState) Invoke(visitor BondTxIDsGetter) ([]ids.ID, error) {
 	return visitor.AddMemberProposal(p)
 }
