@@ -435,8 +435,13 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		)
 	}
 
+	time.Sleep(10 * time.Second)
 	// Specify the chains that exist upon this network's creation
 	genesisStr, err := formatting.Encode(defaultEncoding, []byte(config.CChainGenesis))
+	if err != nil {
+		return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
+	}
+	tGenesisStr, err := formatting.Encode(defaultEncoding, []byte(config.TChainGenesis))
 	if err != nil {
 		return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 	}
@@ -457,6 +462,12 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 			SubnetID:    constants.PrimaryNetworkID,
 			VMID:        constants.EVMID,
 			Name:        "C-Chain",
+		},
+		{
+			GenesisData: tGenesisStr,
+			SubnetID:    constants.PrimaryNetworkID,
+			VMID:        constants.TouristicVMID,
+			Name:        "T-Chain",
 		},
 	}
 

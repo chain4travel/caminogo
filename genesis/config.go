@@ -94,8 +94,8 @@ type Config struct {
 	InitialStakers             []Staker      `json:"initialStakers"`
 
 	CChainGenesis string `json:"cChainGenesis"`
-
-	Message string `json:"message"`
+	TChainGenesis string `json:"tChainGenesis"`
+	Message       string `json:"message"`
 }
 
 func (c Config) Unparse() (UnparsedConfig, error) {
@@ -108,6 +108,7 @@ func (c Config) Unparse() (UnparsedConfig, error) {
 		InitialStakedFunds:         make([]string, len(c.InitialStakedFunds)),
 		InitialStakers:             make([]UnparsedStaker, len(c.InitialStakers)),
 		CChainGenesis:              c.CChainGenesis,
+		TChainGenesis:              c.TChainGenesis,
 		Message:                    c.Message,
 	}
 	for i, a := range c.Allocations {

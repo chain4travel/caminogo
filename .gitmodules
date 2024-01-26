@@ -1,0 +1,6 @@
+[submodule "dependencies/hypersdk"]
+	path = dependencies/hypersdk
+	url = https://github.com/ava-labs/hypersdk.git
+[submodule "dependencies/coreth"]
+	path = dependencies/coreth
+	url = https://github.com/ava-labs/coreth.git

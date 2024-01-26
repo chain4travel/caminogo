@@ -54,11 +54,21 @@ func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, err
 				path.Join(constants.ChainAliasPrefix, "evm"),
 			}
 			chainAliases[chainID] = GetCChainAliases()
+		case constants.TouristicVMID:
+			apiAliases[endpoint] = []string{
+				"T",
+				"tvm",
+				path.Join(constants.ChainAliasPrefix, "T"),
+				path.Join(constants.ChainAliasPrefix, "tvm"),
+			}
+			chainAliases[chainID] = GetTChainAliases()
 		}
 	}
 	return apiAliases, chainAliases, nil
 }
-
+func GetTChainAliases() []string {
+	return []string{"T", "tvm"}
+}
 func GetCChainAliases() []string {
 	return []string{"C", "evm"}
 }
@@ -69,11 +79,12 @@ func GetXChainAliases() []string {
 
 func GetVMAliases() map[ids.ID][]string {
 	return map[ids.ID][]string{
-		constants.PlatformVMID: {"platform"},
-		constants.AVMID:        {"avm"},
-		constants.EVMID:        {"evm"},
-		secp256k1fx.ID:         {"secp256k1fx"},
-		nftfx.ID:               {"nftfx"},
-		propertyfx.ID:          {"propertyfx"},
+		constants.PlatformVMID:  {"platform"},
+		constants.AVMID:         {"avm"},
+		constants.EVMID:         {"evm"},
+		secp256k1fx.ID:          {"secp256k1fx"},
+		nftfx.ID:                {"nftfx"},
+		propertyfx.ID:           {"propertyfx"},
+		constants.TouristicVMID: {"touristicvm"},
 	}
 }
