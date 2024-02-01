@@ -408,6 +408,7 @@ func (h *handler) dispatchAsync(ctx context.Context) {
 func (h *handler) dispatchChans(ctx context.Context) {
 	gossiper := time.NewTicker(h.gossipFrequency)
 	defer func() {
+		h.ctx.Log.Fatal("gossiper exiting")
 		gossiper.Stop()
 		h.closeDispatcher(ctx)
 	}()
@@ -438,6 +439,9 @@ func (h *handler) dispatchChans(ctx context.Context) {
 			return
 		}
 	}
+	h.ctx.Log.Fatal("gossiper exiting",
+		zap.String("reason", "received an unexpected error"),
+	)
 }
 
 // Any returned error is treated as fatal

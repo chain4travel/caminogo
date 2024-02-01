@@ -1073,11 +1073,18 @@ func (n *Node) initChainManager(avaxAssetID ids.ID) error {
 	}
 	cChainID := createEVMTx.ID()
 
+	createTVMTx, err := genesis.VMGenesis(n.Config.GenesisBytes, constants.TouristicVMID)
+	if err != nil {
+		return err
+	}
+	tChainID := createTVMTx.ID()
+
 	// If any of these chains die, the node shuts down
 	criticalChains := set.Of(
 		constants.PlatformChainID,
 		xChainID,
 		cChainID,
+		tChainID,
 	)
 
 	n.timeoutManager, err = timeout.NewManager(

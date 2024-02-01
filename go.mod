@@ -12,6 +12,7 @@ require (
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/coreth v0.12.10-rc.5
+	github.com/ava-labs/hypersdk/examples/touristicvm v0.0.0-00010101000000-000000000000
 	github.com/ava-labs/ledger-avalanche/go v0.0.0-20231102202641-ae2ebdaeac34
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/cockroachdb/pebble v0.0.0-20230209160836-829675f94811
@@ -153,3 +154,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ava-labs/hypersdk => ../hypersdk
+
+replace github.com/ava-labs/hypersdk/examples/touristicvm => ../hypersdk/examples/touristicvm
+
+replace github.com/ava-labs/coreth => ./dependencies/coreth

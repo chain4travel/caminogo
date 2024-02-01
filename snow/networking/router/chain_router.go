@@ -398,6 +398,9 @@ func (cr *ChainRouter) AddChain(ctx context.Context, chain handler.Handler) {
 		zap.Stringer("chainID", chainID),
 	)
 	chain.SetOnStopped(func() {
+		cr.log.Debug("removing chain",
+			zap.Stringer("chainID", chainID),
+		)
 		cr.removeChain(ctx, chainID)
 	})
 	cr.chainHandlers[chainID] = chain
@@ -527,7 +530,9 @@ func (cr *ChainRouter) Disconnected(nodeID ids.NodeID) {
 func (cr *ChainRouter) Benched(chainID ids.ID, nodeID ids.NodeID) {
 	cr.lock.Lock()
 	defer cr.lock.Unlock()
-
+	cr.log.Debug("benching chain",
+		zap.Stringer("chainID", chainID),
+	)
 	benchedChains, exists := cr.benched[nodeID]
 	benchedChains.Add(chainID)
 	cr.benched[nodeID] = benchedChains
@@ -647,6 +652,9 @@ func (cr *ChainRouter) removeChain(ctx context.Context, chainID ids.ID) {
 		cr.lock.Unlock()
 		return
 	}
+	cr.log.Debug("deleting chain",
+		zap.Stringer("chainID", chainID),
+	)
 	delete(cr.chainHandlers, chainID)
 	cr.lock.Unlock()
 
