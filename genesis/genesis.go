@@ -435,7 +435,6 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		)
 	}
 
-	time.Sleep(10 * time.Second)
 	// Specify the chains that exist upon this network's creation
 	genesisStr, err := formatting.Encode(defaultEncoding, []byte(config.CChainGenesis))
 	if err != nil {
