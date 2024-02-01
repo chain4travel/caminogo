@@ -229,7 +229,6 @@ func GetCompatibility(networkID uint32) Compatibility {
 		CurrentApp,
 		MinimumCompatibleVersion,
 		GetAthensPhaseTime(networkID).Add(-time.Minute),
-		GetCortinaTime(networkID),
 		PrevMinimumCompatibleVersion,
 	)
 }
