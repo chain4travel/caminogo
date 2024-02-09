@@ -68,7 +68,7 @@ const (
 	DefaultNetworkTCPProxyReadTimeout = 3 * time.Second
 
 	// Benchlist
-	DefaultBenchlistFailThreshold      = 10
+	DefaultBenchlistFailThreshold      = 100
 	DefaultBenchlistDuration           = 15 * time.Minute
 	DefaultBenchlistMinFailingDuration = 2*time.Minute + 30*time.Second
 

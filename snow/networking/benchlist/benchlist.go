@@ -254,6 +254,12 @@ func (b *benchlist) RegisterFailure(nodeID ids.NodeID) {
 	b.streaklock.Unlock()
 
 	if failureStreak.consecutive >= b.threshold && now.After(failureStreak.firstFailure.Add(b.minimumFailingDuration)) {
+		b.ctx.Log.Warn("benching validator after consecutive failed queries", zap.Stringer("nodeID", nodeID),
+			zap.Int("failureStreak.consecutive", failureStreak.consecutive),
+			zap.Int("b.threshold", b.threshold),
+			zap.Time("failureStreak.firstFailure", failureStreak.firstFailure),
+			zap.Duration("b.minimumFailingDuration", b.minimumFailingDuration),
+		)
 		b.bench(nodeID)
 	}
 }
@@ -315,7 +321,7 @@ func (b *benchlist) bench(nodeID ids.NodeID) {
 	diff := maxBenchedUntil.Sub(minBenchedUntil)
 	benchedUntil := minBenchedUntil.Add(time.Duration(rand.Float64() * float64(diff))) // #nosec G404
 
-	b.ctx.Log.Debug("benching validator after consecutive failed queries",
+	b.ctx.Log.Info("benching validator after consecutive failed queries",
 		zap.Stringer("nodeID", nodeID),
 		zap.Duration("benchDuration", benchedUntil.Sub(now)),
 		zap.Int("numFailedQueries", b.threshold),

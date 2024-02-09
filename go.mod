@@ -161,8 +161,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ava-labs/hypersdk => ../hypersdk
+replace github.com/ava-labs/hypersdk => ./dependencies/hypersdk
 
-replace github.com/ava-labs/hypersdk/examples/touristicvm => ../hypersdk/examples/touristicvm
+replace github.com/ava-labs/hypersdk/examples/touristicvm => ./dependencies/hypersdk/examples/touristicvm
 
 replace github.com/ava-labs/coreth => ./dependencies/coreth

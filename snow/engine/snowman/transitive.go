@@ -708,6 +708,10 @@ func (t *Transitive) buildBlocks(ctx context.Context) error {
 		} else {
 			t.Ctx.Log.Warn("built block with unissued ancestors")
 		}
+
+		t.Ctx.Log.Info("built block", zap.Int("pendingBuildBlocks", t.pendingBuildBlocks),
+			zap.Int("numProcessing", t.Consensus.NumProcessing()),
+			zap.Int("OptimalProcessing", t.Params.OptimalProcessing))
 	}
 	return nil
 }

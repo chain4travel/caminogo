@@ -398,7 +398,7 @@ func (cr *ChainRouter) AddChain(ctx context.Context, chain handler.Handler) {
 		zap.Stringer("chainID", chainID),
 	)
 	chain.SetOnStopped(func() {
-		cr.log.Debug("removing chain",
+		cr.log.Info("removing chain",
 			zap.Stringer("chainID", chainID),
 		)
 		cr.removeChain(ctx, chainID)

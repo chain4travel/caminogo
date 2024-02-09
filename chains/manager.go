@@ -1101,7 +1101,12 @@ func (m *manager) createSnowmanChain(
 		minBlockDelay = subnetCfg.ProposerMinBlockDelay
 		numHistoricalBlocks = subnetCfg.ProposerNumHistoricalBlocks
 	}
+	if ctx.ChainID.String() == "RLPbaeV2VaK2cey9kcihjfhbedTEDmovBpWvdYdvE5TUHa7cf" { //TODO nikos remove
+		minBlockDelay = 0
+		numHistoricalBlocks = 50000
+	}
 	m.Log.Info("creating proposervm wrapper",
+		zap.String("chainID", ctx.ChainID.String()),
 		zap.Time("activationTime", m.ApricotPhase4Time),
 		zap.Uint64("minPChainHeight", m.ApricotPhase4MinPChainHeight),
 		zap.Duration("minBlockDelay", minBlockDelay),

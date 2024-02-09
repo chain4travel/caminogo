@@ -1075,6 +1075,7 @@ func (s *sender) SendPullQuery(
 	// have them immediately fail.
 	for nodeID := range nodeIDs {
 		if s.timeouts.IsBenched(nodeID, s.ctx.ChainID) {
+			s.ctx.Log.Info("failedDueToBench", zap.String("nodeID", nodeID.String()))
 			s.failedDueToBench[message.PullQueryOp].Inc() // update metric
 			nodeIDs.Remove(nodeID)
 			s.timeouts.RegisterRequestToUnreachableValidator()
