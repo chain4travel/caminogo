@@ -71,7 +71,7 @@ func init() {
 //
 // RegisterUnsignedTxsTypes is made exportable so to guarantee that other codecs
 // are coherent with components one.
-func RegisterUnsignedTxsTypes(targetCodec codec.CaminoRegistry) error {
+func RegisterUnsignedTxsTypes(targetCodec linearcodec.CaminoCodec) error {
 	errs := wrappers.Errs{}
 
 	// The secp256k1fx is registered here because this is the same place it is

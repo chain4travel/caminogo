@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -652,7 +653,8 @@ func TestNewClaimTx(t *testing.T) {
 				// fee
 				expectLock(s, map[ids.ShortID][]*avax.UTXO{feeAddr: {feeUTXO}})
 				// deposits
-				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: &avax.TransferableOutput{}}, nil)
+
+				s.EXPECT().GetDeposit(depositTxID1).Return(&deposits.Deposit{RewardOwner: fx.NewMockOwner(ctrl)}, nil)
 				return s
 			},
 			args: args{

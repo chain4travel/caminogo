@@ -42,11 +42,11 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		aliases     []verify.State
+		aliases     []verify.Verifiable
 		expectedErr error
 	}{
 		"Successful": {
-			aliases: []verify.State{
+			aliases: []verify.Verifiable{
 				&multisig.Alias{
 					ID: address,
 					Owners: &secp256k1fx.OutputOwners{
@@ -57,7 +57,7 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 			},
 		},
 		"Threshold exceeds Addrs length": {
-			aliases: []verify.State{
+			aliases: []verify.Verifiable{
 				&multisig.Alias{
 					ID: address,
 					Owners: &secp256k1fx.OutputOwners{
@@ -130,7 +130,7 @@ func TestUTXOWithMSigSerialized(t *testing.T) {
 	}
 	utxoWithMSig := avax.UTXOWithMSig{
 		UTXO:    utxo,
-		Aliases: []verify.State{alias},
+		Aliases: []verify.Verifiable{alias},
 	}
 
 	// Marshal the UTXOWithMSig object into a byte array using the codec manager

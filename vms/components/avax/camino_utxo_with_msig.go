@@ -7,7 +7,7 @@ import "github.com/ava-labs/avalanchego/vms/components/verify"
 
 type UTXOWithMSig struct {
 	UTXO    `serialize:"true"`
-	Aliases []verify.State `serialize:"true" json:"aliases"`
+	Aliases []verify.Verifiable `serialize:"true" json:"aliases"`
 }
 
 func (utxo *UTXOWithMSig) Verify() error {

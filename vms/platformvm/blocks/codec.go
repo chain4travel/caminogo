@@ -41,7 +41,7 @@ func init() {
 	GenesisCodec = codec.NewManager(math.MaxInt32)
 
 	errs := wrappers.Errs{}
-	for _, c := range []codec.CaminoRegistry{c, gc} {
+	for _, c := range []linearcodec.CaminoCodec{c, gc} {
 		errs.Add(
 			RegisterApricotBlockTypes(c),
 			txs.RegisterUnsignedTxsTypes(c),

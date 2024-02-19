@@ -20,7 +20,7 @@ func TestVerify(t *testing.T) {
 	}{
 		"MemoSizeShouldBeLowerThanMaxMemoSize": {
 			alias: Alias{
-				Owners: &avax.TestVerifiable{},
+				Owners: &avax.TestState{},
 				Memo:   make([]byte, avax.MaxMemoSize+1),
 				ID:     hashing.ComputeHash160Array(ids.Empty[:]),
 			},

@@ -423,7 +423,7 @@ func (e *CaminoStandardTxExecutor) wrapAtomicElementsForMultisig(tx *txs.ExportT
 		}
 
 		// wrap utxo with alias
-		aliases := make([]verify.State, len(aliasInfs))
+		aliases := make([]verify.Verifiable, len(aliasInfs))
 		for i, inf := range aliasInfs {
 			ali, ok := inf.(*multisig.AliasWithNonce)
 			if !ok {

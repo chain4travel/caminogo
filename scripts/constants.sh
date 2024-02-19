@@ -26,8 +26,8 @@ current_branch=$(git symbolic-ref -q --short HEAD || git describe --tags || echo
 # caminogo and caminoethvm git tag and sha
 git_commit=${CAMINO_NODE_COMMIT:-$(git rev-parse --short HEAD)}
 git_tag=${CAMINO_NODE_TAG:-$(git describe --tags --abbrev=0 || echo unknown)}
-caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.0-rc4'}
-caminoethvm_commit=${CAMINOETHVM_COMMIT:-'07e50749e3c371001c92dff14dc91ef6109a368a'}
+caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.3-rc0'}
+caminoethvm_commit=${CAMINOETHVM_COMMIT:-'336abc62a60dfa2891344b122cd2e401473518df'}
 
 # Static compilation
 static_ld_flags=''

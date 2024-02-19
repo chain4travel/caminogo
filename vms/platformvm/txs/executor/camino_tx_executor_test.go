@@ -5208,7 +5208,7 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 
 			var (
 				utxo    avax.UTXO
-				aliases []verify.State
+				aliases []verify.Verifiable
 			)
 
 			isMultisig := len(tt.expectedMsigAddrs) > 0

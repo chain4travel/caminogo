@@ -19,10 +19,22 @@ const MaxMemoSize = 256
 
 var errMemoIsToBig = errors.New("msig alias memo is to big")
 
+var (
+	_ snow.ContextInitializable = (*Alias)(nil)
+	_ verify.Verifiable         = (*Alias)(nil)
+)
+
+type Owners interface {
+	snow.ContextInitializable
+	verify.Verifiable
+}
+
 type Alias struct {
+	verify.IsNotState `json:"-"`
+
 	ID     ids.ShortID         `serialize:"true" json:"id"`
 	Memo   types.JSONByteSlice `serialize:"true" json:"memo"`
-	Owners verify.State        `serialize:"true" json:"owners"`
+	Owners Owners              `serialize:"true" json:"owners"`
 }
 
 type AliasWithNonce struct {
@@ -42,10 +54,6 @@ func (ma *Alias) Verify() error {
 	}
 
 	return ma.Owners.Verify()
-}
-
-func (ma *Alias) VerifyState() error {
-	return ma.Verify()
 }
 
 func ComputeAliasID(txID ids.ID) ids.ShortID {
