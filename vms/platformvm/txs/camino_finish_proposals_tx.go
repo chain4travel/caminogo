@@ -48,10 +48,10 @@ func (tx *FinishProposalsTx) SyntacticVerify(ctx *snow.Context) error {
 		len(tx.ExpiredSuccessfulProposalIDs) == 0 &&
 		len(tx.ExpiredFailedProposalIDs) == 0:
 		return errNoFinishedProposals
-	case !utils.IsSortedAndUniqueSortable(tx.EarlyFinishedSuccessfulProposalIDs) ||
-		!utils.IsSortedAndUniqueSortable(tx.EarlyFinishedFailedProposalIDs) ||
-		!utils.IsSortedAndUniqueSortable(tx.ExpiredSuccessfulProposalIDs) ||
-		!utils.IsSortedAndUniqueSortable(tx.ExpiredFailedProposalIDs):
+	case !utils.IsSortedAndUnique(tx.EarlyFinishedSuccessfulProposalIDs) ||
+		!utils.IsSortedAndUnique(tx.EarlyFinishedFailedProposalIDs) ||
+		!utils.IsSortedAndUnique(tx.ExpiredSuccessfulProposalIDs) ||
+		!utils.IsSortedAndUnique(tx.ExpiredFailedProposalIDs):
 		return errNotSortedOrUniqueProposalIDs
 	}
 

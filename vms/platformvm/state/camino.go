@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/linkeddb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -522,7 +521,7 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 			return err
 		}
 
-		s.AddStatelessBlock(genesisBlock, choices.Accepted)
+		s.AddStatelessBlock(genesisBlock)
 		s.SetLastAccepted(genesisBlock.ID())
 		s.SetHeight(height)
 
