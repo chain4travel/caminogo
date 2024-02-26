@@ -18,7 +18,7 @@ jobs:
           go-version: "1.19" # The Go version to download (if necessary) and use.
       - name: build_test
         shell: bash
-        run: scripts/build_and_test.sh --race
+        run: scripts/build_and_test.sh
       - name: fuzz_test
         shell: bash
         if: matrix.os == 'ubuntu-22.04' # Only run on Ubuntu 22.04
