@@ -4,7 +4,7 @@
 package platformvm
 
 import (
-	"encoding/json"
+	stdjson "encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -30,7 +31,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/types"
 
-	utilsjson "github.com/ava-labs/avalanchego/utils/json"
 	platformapi "github.com/ava-labs/avalanchego/vms/platformvm/api"
 )
 
@@ -50,12 +50,12 @@ type CaminoService struct {
 }
 
 type GetBalanceResponseV2 struct {
-	Balances               map[ids.ID]utilsjson.Uint64 `json:"balances"`
-	UnlockedOutputs        map[ids.ID]utilsjson.Uint64 `json:"unlockedOutputs"`
-	BondedOutputs          map[ids.ID]utilsjson.Uint64 `json:"bondedOutputs"`
-	DepositedOutputs       map[ids.ID]utilsjson.Uint64 `json:"depositedOutputs"`
-	DepositedBondedOutputs map[ids.ID]utilsjson.Uint64 `json:"bondedDepositedOutputs"`
-	UTXOIDs                []*avax.UTXOID              `json:"utxoIDs"`
+	Balances               map[ids.ID]json.Uint64 `json:"balances"`
+	UnlockedOutputs        map[ids.ID]json.Uint64 `json:"unlockedOutputs"`
+	BondedOutputs          map[ids.ID]json.Uint64 `json:"bondedOutputs"`
+	DepositedOutputs       map[ids.ID]json.Uint64 `json:"depositedOutputs"`
+	DepositedBondedOutputs map[ids.ID]json.Uint64 `json:"bondedDepositedOutputs"`
+	UTXOIDs                []*avax.UTXOID         `json:"utxoIDs"`
 }
 type GetBalanceResponseWrapper struct {
 	LockModeBondDeposit bool
@@ -65,14 +65,17 @@ type GetBalanceResponseWrapper struct {
 
 func (response GetBalanceResponseWrapper) MarshalJSON() ([]byte, error) {
 	if !response.LockModeBondDeposit {
-		return json.Marshal(response.avax)
+		return stdjson.Marshal(response.avax)
 	}
-	return json.Marshal(response.camino)
+	return stdjson.Marshal(response.camino)
 }
 
 // GetBalance gets the balance of an address
 func (s *CaminoService) GetBalance(_ *http.Request, args *GetBalanceRequest, response *GetBalanceResponseWrapper) error {
 	s.vm.ctx.Log.Debug("Platform: GetBalance called")
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	caminoConfig, err := s.vm.state.CaminoConfig()
 	if err != nil {
@@ -98,11 +101,11 @@ func (s *CaminoService) GetBalance(_ *http.Request, args *GetBalanceRequest, res
 		return fmt.Errorf("couldn't get UTXO set of %v: %w", args.Addresses, err)
 	}
 
-	unlockedOutputs := map[ids.ID]utilsjson.Uint64{}
-	bondedOutputs := map[ids.ID]utilsjson.Uint64{}
-	depositedOutputs := map[ids.ID]utilsjson.Uint64{}
-	depositedBondedOutputs := map[ids.ID]utilsjson.Uint64{}
-	balances := map[ids.ID]utilsjson.Uint64{}
+	unlockedOutputs := map[ids.ID]json.Uint64{}
+	bondedOutputs := map[ids.ID]json.Uint64{}
+	depositedOutputs := map[ids.ID]json.Uint64{}
+	depositedBondedOutputs := map[ids.ID]json.Uint64{}
+	balances := map[ids.ID]json.Uint64{}
 	var utxoIDs []*avax.UTXOID
 
 utxoFor:
@@ -110,19 +113,19 @@ utxoFor:
 		assetID := utxo.AssetID()
 		switch out := utxo.Out.(type) {
 		case *secp256k1fx.TransferOutput:
-			unlockedOutputs[assetID] = utilsjson.SafeAdd(unlockedOutputs[assetID], utilsjson.Uint64(out.Amount()))
-			balances[assetID] = utilsjson.SafeAdd(balances[assetID], utilsjson.Uint64(out.Amount()))
+			unlockedOutputs[assetID] = json.SafeAdd(unlockedOutputs[assetID], json.Uint64(out.Amount()))
+			balances[assetID] = json.SafeAdd(balances[assetID], json.Uint64(out.Amount()))
 		case *locked.Out:
 			switch out.LockState() {
 			case locked.StateBonded:
-				bondedOutputs[assetID] = utilsjson.SafeAdd(bondedOutputs[assetID], utilsjson.Uint64(out.Amount()))
-				balances[assetID] = utilsjson.SafeAdd(balances[assetID], utilsjson.Uint64(out.Amount()))
+				bondedOutputs[assetID] = json.SafeAdd(bondedOutputs[assetID], json.Uint64(out.Amount()))
+				balances[assetID] = json.SafeAdd(balances[assetID], json.Uint64(out.Amount()))
 			case locked.StateDeposited:
-				depositedOutputs[assetID] = utilsjson.SafeAdd(depositedOutputs[assetID], utilsjson.Uint64(out.Amount()))
-				balances[assetID] = utilsjson.SafeAdd(balances[assetID], utilsjson.Uint64(out.Amount()))
+				depositedOutputs[assetID] = json.SafeAdd(depositedOutputs[assetID], json.Uint64(out.Amount()))
+				balances[assetID] = json.SafeAdd(balances[assetID], json.Uint64(out.Amount()))
 			case locked.StateDepositedBonded:
-				depositedBondedOutputs[assetID] = utilsjson.SafeAdd(depositedBondedOutputs[assetID], utilsjson.Uint64(out.Amount()))
-				balances[assetID] = utilsjson.SafeAdd(balances[assetID], utilsjson.Uint64(out.Amount()))
+				depositedBondedOutputs[assetID] = json.SafeAdd(depositedBondedOutputs[assetID], json.Uint64(out.Amount()))
+				balances[assetID] = json.SafeAdd(balances[assetID], json.Uint64(out.Amount()))
 			default:
 				s.vm.ctx.Log.Warn("Unexpected utxo lock state")
 				continue utxoFor
@@ -144,7 +147,7 @@ utxoFor:
 // GetConfigurationReply is the response from calling GetConfiguration.
 type GetConfigurationReply struct {
 	// The NetworkID
-	NetworkID utilsjson.Uint32 `json:"networkID"`
+	NetworkID json.Uint32 `json:"networkID"`
 	// The fee asset ID
 	AssetID ids.ID `json:"assetID"`
 	// The symbol of the fee asset ID
@@ -154,25 +157,25 @@ type GetConfigurationReply struct {
 	// Primary network blockchains
 	Blockchains []APIBlockchain `json:"blockchains"`
 	// The minimum duration a validator has to stake
-	MinStakeDuration utilsjson.Uint64 `json:"minStakeDuration"`
+	MinStakeDuration json.Uint64 `json:"minStakeDuration"`
 	// The maximum duration a validator can stake
-	MaxStakeDuration utilsjson.Uint64 `json:"maxStakeDuration"`
+	MaxStakeDuration json.Uint64 `json:"maxStakeDuration"`
 	// The minimum amount of tokens one must bond to be a validator
-	MinValidatorStake utilsjson.Uint64 `json:"minValidatorStake"`
+	MinValidatorStake json.Uint64 `json:"minValidatorStake"`
 	// The maximum amount of tokens bondable to a validator
-	MaxValidatorStake utilsjson.Uint64 `json:"maxValidatorStake"`
+	MaxValidatorStake json.Uint64 `json:"maxValidatorStake"`
 	// The minimum delegation fee
-	MinDelegationFee utilsjson.Uint32 `json:"minDelegationFee"`
+	MinDelegationFee json.Uint32 `json:"minDelegationFee"`
 	// Minimum stake, in nAVAX, that can be delegated on the primary network
-	MinDelegatorStake utilsjson.Uint64 `json:"minDelegatorStake"`
+	MinDelegatorStake json.Uint64 `json:"minDelegatorStake"`
 	// The minimum consumption rate
-	MinConsumptionRate utilsjson.Uint64 `json:"minConsumptionRate"`
+	MinConsumptionRate json.Uint64 `json:"minConsumptionRate"`
 	// The maximum consumption rate
-	MaxConsumptionRate utilsjson.Uint64 `json:"maxConsumptionRate"`
+	MaxConsumptionRate json.Uint64 `json:"maxConsumptionRate"`
 	// The supply cap for the native token (AVAX)
-	SupplyCap utilsjson.Uint64 `json:"supplyCap"`
+	SupplyCap json.Uint64 `json:"supplyCap"`
 	// The codec version used for serializing
-	CodecVersion utilsjson.Uint16 `json:"codecVersion"`
+	CodecVersion json.Uint16 `json:"codecVersion"`
 	// Camino VerifyNodeSignature
 	VerifyNodeSignature bool `json:"verifyNodeSignature"`
 	// Camino LockModeBondDeposit
@@ -209,8 +212,11 @@ func (s *CaminoService) appendBlockchains(subnetID ids.ID, response *GetBlockcha
 func (s *CaminoService) GetConfiguration(_ *http.Request, _ *struct{}, reply *GetConfigurationReply) error {
 	s.vm.ctx.Log.Debug("Platform: GetConfiguration called")
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	// Fee Asset ID, NetworkID and HRP
-	reply.NetworkID = utilsjson.Uint32(s.vm.ctx.NetworkID)
+	reply.NetworkID = json.Uint32(s.vm.ctx.NetworkID)
 	reply.AssetID = s.vm.GetFeeAssetID()
 	reply.AssetSymbol = constants.TokenSymbol(s.vm.ctx.NetworkID)
 	reply.Hrp = constants.GetHRP(s.vm.ctx.NetworkID)
@@ -223,22 +229,22 @@ func (s *CaminoService) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	reply.Blockchains = blockchains.Blockchains
 
 	// Staking information
-	reply.MinStakeDuration = utilsjson.Uint64(s.vm.MinStakeDuration)
-	reply.MaxStakeDuration = utilsjson.Uint64(s.vm.MaxStakeDuration)
+	reply.MinStakeDuration = json.Uint64(s.vm.MinStakeDuration)
+	reply.MaxStakeDuration = json.Uint64(s.vm.MaxStakeDuration)
 
-	reply.MaxValidatorStake = utilsjson.Uint64(s.vm.MaxValidatorStake)
-	reply.MinValidatorStake = utilsjson.Uint64(s.vm.MinValidatorStake)
+	reply.MaxValidatorStake = json.Uint64(s.vm.MaxValidatorStake)
+	reply.MinValidatorStake = json.Uint64(s.vm.MinValidatorStake)
 
-	reply.MinDelegationFee = utilsjson.Uint32(s.vm.MinDelegationFee)
-	reply.MinDelegatorStake = utilsjson.Uint64(s.vm.MinDelegatorStake)
+	reply.MinDelegationFee = json.Uint32(s.vm.MinDelegationFee)
+	reply.MinDelegatorStake = json.Uint64(s.vm.MinDelegatorStake)
 
-	reply.MinConsumptionRate = utilsjson.Uint64(s.vm.RewardConfig.MinConsumptionRate)
-	reply.MaxConsumptionRate = utilsjson.Uint64(s.vm.RewardConfig.MaxConsumptionRate)
+	reply.MinConsumptionRate = json.Uint64(s.vm.RewardConfig.MinConsumptionRate)
+	reply.MaxConsumptionRate = json.Uint64(s.vm.RewardConfig.MaxConsumptionRate)
 
-	reply.SupplyCap = utilsjson.Uint64(s.vm.RewardConfig.SupplyCap)
+	reply.SupplyCap = json.Uint64(s.vm.RewardConfig.SupplyCap)
 
 	// Codec information
-	reply.CodecVersion = utilsjson.Uint16(txs.Version)
+	reply.CodecVersion = json.Uint16(txs.Version)
 
 	caminoConfig, err := s.vm.state.CaminoConfig()
 	if err != nil {
@@ -263,6 +269,9 @@ type SetAddressStateArgs struct {
 // AddAdressState issues an AddAdressStateTx
 func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
@@ -300,7 +309,7 @@ func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateAr
 }
 
 // GetAdressStates retrieves the state applied to an address (see setAddressState)
-func (s *CaminoService) GetAddressStates(_ *http.Request, args *api.JSONAddress, response *utilsjson.Uint64) error {
+func (s *CaminoService) GetAddressStates(_ *http.Request, args *api.JSONAddress, response *json.Uint64) error {
 	s.vm.ctx.Log.Debug("Platform: GetAddressStates called")
 
 	addr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
@@ -308,12 +317,15 @@ func (s *CaminoService) GetAddressStates(_ *http.Request, args *api.JSONAddress,
 		return err
 	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	state, err := s.vm.state.GetAddressStates(addr)
 	if err != nil {
 		return err
 	}
 
-	*response = utilsjson.Uint64(state)
+	*response = json.Uint64(state)
 
 	return nil
 }
@@ -332,6 +344,9 @@ func (s *CaminoService) GetMultisigAlias(_ *http.Request, args *api.JSONAddress,
 		return err
 	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	alias, err := s.vm.state.GetMultisigAlias(addr)
 	if err != nil {
 		return err
@@ -342,8 +357,8 @@ func (s *CaminoService) GetMultisigAlias(_ *http.Request, args *api.JSONAddress,
 	}
 
 	response.Memo = alias.Memo
-	response.Locktime = utilsjson.Uint64(owners.Locktime)
-	response.Threshold = utilsjson.Uint32(owners.Threshold)
+	response.Locktime = json.Uint64(owners.Locktime)
+	response.Threshold = json.Uint32(owners.Threshold)
 	response.Addresses = make([]string, len(owners.Addrs))
 
 	for index, addr := range owners.Addrs {
@@ -363,9 +378,9 @@ type SpendArgs struct {
 	To           platformapi.Owner   `json:"to"`
 	Change       platformapi.Owner   `json:"change"`
 	LockMode     byte                `json:"lockMode"`
-	AmountToLock utilsjson.Uint64    `json:"amountToLock"`
-	AmountToBurn utilsjson.Uint64    `json:"amountToBurn"`
-	AsOf         utilsjson.Uint64    `json:"asOf"`
+	AmountToLock json.Uint64         `json:"amountToLock"`
+	AmountToBurn json.Uint64         `json:"amountToBurn"`
+	AsOf         json.Uint64         `json:"asOf"`
 	Encoding     formatting.Encoding `json:"encoding"`
 }
 
@@ -396,6 +411,9 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 	if err != nil {
 		return fmt.Errorf(errInvalidChangeAddr, err)
 	}
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	ins, outs, signers, owners, err := s.vm.txBuilder.Lock(
 		s.vm.state,
@@ -461,6 +479,9 @@ type RegisterNodeArgs struct {
 func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: RegisterNode called")
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
 		return err
@@ -500,7 +521,7 @@ func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, re
 type ClaimedAmount struct {
 	DepositTxID    ids.ID            `json:"depositTxID"`
 	ClaimableOwner platformapi.Owner `json:"claimableOwner"`
-	Amount         utilsjson.Uint64  `json:"amount"`
+	Amount         json.Uint64       `json:"amount"`
 	ClaimType      txs.ClaimType     `json:"claimType"`
 }
 
@@ -516,6 +537,9 @@ type ClaimArgs struct {
 // Claim issues an ClaimTx
 func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Claim called")
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
@@ -579,12 +603,15 @@ type TransferArgs struct {
 	api.JSONFromAddrs
 	Change     platformapi.Owner `json:"change"`
 	TransferTo platformapi.Owner `json:"transferTo"`
-	Amount     utilsjson.Uint64  `json:"amount"`
+	Amount     json.Uint64       `json:"amount"`
 }
 
 // Transfer issues an BaseTx
 func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Transfer called")
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
@@ -636,6 +663,9 @@ func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSON
 		}
 	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	link, err := s.vm.state.GetShortIDLink(id, state.ShortLinkKeyRegisterNode)
 	if err != nil {
 		return err
@@ -654,8 +684,8 @@ func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSON
 
 type APIClaimable struct {
 	RewardOwner           platformapi.Owner `json:"rewardOwner"`
-	ValidatorRewards      utilsjson.Uint64  `json:"validatorRewards"`
-	ExpiredDepositRewards utilsjson.Uint64  `json:"expiredDepositRewards"`
+	ValidatorRewards      json.Uint64       `json:"validatorRewards"`
+	ExpiredDepositRewards json.Uint64       `json:"expiredDepositRewards"`
 }
 
 type GetClaimablesArgs struct {
@@ -669,6 +699,9 @@ type GetClaimablesReply struct {
 // GetClaimables returns the amount of claimable tokens for given owner
 func (s *CaminoService) GetClaimables(_ *http.Request, args *GetClaimablesArgs, response *GetClaimablesReply) error {
 	s.vm.ctx.Log.Debug("Platform: GetClaimables called")
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	response.Claimables = make([]APIClaimable, 0, len(args.Owners))
 	for i := range args.Owners {
@@ -691,8 +724,8 @@ func (s *CaminoService) GetClaimables(_ *http.Request, args *GetClaimablesArgs, 
 
 		response.Claimables = append(response.Claimables, APIClaimable{
 			RewardOwner:           args.Owners[i],
-			ValidatorRewards:      utilsjson.Uint64(claimable.ValidatorReward),
-			ExpiredDepositRewards: utilsjson.Uint64(claimable.ExpiredDepositReward),
+			ValidatorRewards:      json.Uint64(claimable.ValidatorReward),
+			ExpiredDepositRewards: json.Uint64(claimable.ExpiredDepositReward),
 		})
 	}
 
@@ -702,12 +735,12 @@ func (s *CaminoService) GetClaimables(_ *http.Request, args *GetClaimablesArgs, 
 type APIDeposit struct {
 	DepositTxID         ids.ID            `json:"depositTxID"`
 	DepositOfferID      ids.ID            `json:"depositOfferID"`
-	UnlockedAmount      utilsjson.Uint64  `json:"unlockedAmount"`
-	UnlockableAmount    utilsjson.Uint64  `json:"unlockableAmount"`
-	ClaimedRewardAmount utilsjson.Uint64  `json:"claimedRewardAmount"`
-	Start               utilsjson.Uint64  `json:"start"`
+	UnlockedAmount      json.Uint64       `json:"unlockedAmount"`
+	UnlockableAmount    json.Uint64       `json:"unlockableAmount"`
+	ClaimedRewardAmount json.Uint64       `json:"claimedRewardAmount"`
+	Start               json.Uint64       `json:"start"`
 	Duration            uint32            `json:"duration"`
-	Amount              utilsjson.Uint64  `json:"amount"`
+	Amount              json.Uint64       `json:"amount"`
 	RewardOwner         platformapi.Owner `json:"rewardOwner"`
 }
 
@@ -723,11 +756,11 @@ func (s *CaminoService) apiDepositFromDeposit(depositTxID ids.ID, deposit *depos
 	return &APIDeposit{
 		DepositTxID:         depositTxID,
 		DepositOfferID:      deposit.DepositOfferID,
-		UnlockedAmount:      utilsjson.Uint64(deposit.UnlockedAmount),
-		ClaimedRewardAmount: utilsjson.Uint64(deposit.ClaimedRewardAmount),
-		Start:               utilsjson.Uint64(deposit.Start),
+		UnlockedAmount:      json.Uint64(deposit.UnlockedAmount),
+		ClaimedRewardAmount: json.Uint64(deposit.ClaimedRewardAmount),
+		Start:               json.Uint64(deposit.Start),
 		Duration:            deposit.Duration,
-		Amount:              utilsjson.Uint64(deposit.Amount),
+		Amount:              json.Uint64(deposit.Amount),
 		RewardOwner:         *apiOwner,
 	}, nil
 }
@@ -737,9 +770,9 @@ type GetDepositsArgs struct {
 }
 
 type GetDepositsReply struct {
-	Deposits         []*APIDeposit      `json:"deposits"`
-	AvailableRewards []utilsjson.Uint64 `json:"availableRewards"`
-	Timestamp        utilsjson.Uint64   `json:"timestamp"`
+	Deposits         []*APIDeposit `json:"deposits"`
+	AvailableRewards []json.Uint64 `json:"availableRewards"`
+	Timestamp        json.Uint64   `json:"timestamp"`
 }
 
 // GetDeposits returns deposits by IDs
@@ -747,8 +780,12 @@ func (s *CaminoService) GetDeposits(_ *http.Request, args *GetDepositsArgs, repl
 	s.vm.ctx.Log.Debug("Platform: GetDeposits called")
 	timestamp := s.vm.clock.Unix()
 	reply.Deposits = make([]*APIDeposit, len(args.DepositTxIDs))
-	reply.AvailableRewards = make([]utilsjson.Uint64, len(args.DepositTxIDs))
-	reply.Timestamp = utilsjson.Uint64(timestamp)
+	reply.AvailableRewards = make([]json.Uint64, len(args.DepositTxIDs))
+	reply.Timestamp = json.Uint64(timestamp)
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
 	for i := range args.DepositTxIDs {
 		deposit, err := s.vm.state.GetDeposit(args.DepositTxIDs[i])
 		if err != nil {
@@ -762,61 +799,52 @@ func (s *CaminoService) GetDeposits(_ *http.Request, args *GetDepositsArgs, repl
 		if err != nil {
 			return err
 		}
-		reply.Deposits[i].UnlockableAmount = utilsjson.Uint64(deposit.UnlockableAmount(offer, timestamp))
-		reply.AvailableRewards[i] = utilsjson.Uint64(deposit.ClaimableReward(offer, timestamp))
+		reply.Deposits[i].UnlockableAmount = json.Uint64(deposit.UnlockableAmount(offer, timestamp))
+		reply.AvailableRewards[i] = json.Uint64(deposit.ClaimableReward(offer, timestamp))
 	}
 	return nil
 }
 
 // GetLastAcceptedBlock returns the last accepted block
-func (s *CaminoService) GetLastAcceptedBlock(r *http.Request, _ *struct{}, reply *api.GetBlockResponse) error {
-	s.vm.ctx.Log.Debug("Platform: GetLastAcceptedBlock called")
+func (s *CaminoService) GetLastAcceptedBlock(r *http.Request, args *api.JSONEncoding, reply *api.GetBlockResponse) error {
+	s.vm.ctx.Log.Debug("API called",
+		zap.String("service", "platform"),
+		zap.String("method", "getLastAcceptedBlock"),
+		zap.Stringer("encoding", args.Encoding),
+	)
 
-	ctx := r.Context()
-	lastAcceptedID, err := s.vm.LastAccepted(ctx)
-	if err != nil {
-		return fmt.Errorf("couldn't get last accepted block ID: %w", err)
-	}
-	block, err := s.vm.manager.GetStatelessBlock(lastAcceptedID)
-	if err != nil {
-		return fmt.Errorf("couldn't get block with id %s: %w", lastAcceptedID, err)
-	}
-
-	block.InitCtx(s.vm.ctx)
-	reply.Encoding = formatting.JSON
-	reply.Block = block
-	return nil
-}
-
-type GetBlockAtHeight struct {
-	Height uint32 `json:"height"`
-}
-
-// GetBlockAtHeight returns block at given height
-func (s *CaminoService) GetBlockAtHeight(r *http.Request, args *GetBlockAtHeight, reply *api.GetBlockResponse) error {
-	s.vm.ctx.Log.Debug("Platform: GetBlockAtHeight called")
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 
 	ctx := r.Context()
 	blockID, err := s.vm.LastAccepted(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get last accepted block ID: %w", err)
 	}
-
-	for {
-		block, err := s.vm.manager.GetStatelessBlock(blockID)
-		if err != nil {
-			return fmt.Errorf("couldn't get block with id %s: %w", blockID, err)
-		}
-		if block.Height() == uint64(args.Height) {
-			block.InitCtx(s.vm.ctx)
-			reply.Encoding = formatting.JSON
-			reply.Block = block
-			break
-		}
-		blockID = block.Parent()
+	block, err := s.vm.manager.GetStatelessBlock(blockID)
+	if err != nil {
+		s.vm.ctx.Log.Error("couldn't get accepted block",
+			zap.Stringer("blkID", blockID),
+			zap.Error(err),
+		)
+		return fmt.Errorf("couldn't get block with id %s: %w", blockID, err)
 	}
 
-	return nil
+	reply.Encoding = args.Encoding
+
+	var result any
+	if args.Encoding == formatting.JSON {
+		block.InitCtx(s.vm.ctx)
+		result = block
+	} else {
+		result, err = formatting.Encode(args.Encoding, block.Bytes())
+		if err != nil {
+			return fmt.Errorf("couldn't encode block %s as %s: %w", blockID, args.Encoding, err)
+		}
+	}
+
+	reply.Block, err = stdjson.Marshal(result)
+	return err
 }
 
 func (s *Service) getKeystoreKeys(creds *api.UserPass, from *api.JSONFromAddrs) ([]*secp256k1.PrivateKey, error) {
@@ -933,8 +961,8 @@ func (s *CaminoService) secpOwnerFromAPI(apiOwner *platformapi.Owner) (*secp256k
 
 func (s *CaminoService) apiOwnerFromSECP(secpOwner *secp256k1fx.OutputOwners) (*platformapi.Owner, error) {
 	apiOwner := &platformapi.Owner{
-		Locktime:  utilsjson.Uint64(secpOwner.Locktime),
-		Threshold: utilsjson.Uint32(secpOwner.Threshold),
+		Locktime:  json.Uint64(secpOwner.Locktime),
+		Threshold: json.Uint32(secpOwner.Threshold),
 		Addresses: make([]string, len(secpOwner.Addrs)),
 	}
 	for i := range secpOwner.Addrs {
@@ -950,25 +978,25 @@ func (s *CaminoService) apiOwnerFromSECP(secpOwner *secp256k1fx.OutputOwners) (*
 type APIDepositOffer struct {
 	UpgradeVersion          uint16              `json:"upgradeVersion"`          // codec upgrade version
 	ID                      ids.ID              `json:"id"`                      // offer id
-	InterestRateNominator   utilsjson.Uint64    `json:"interestRateNominator"`   // deposit.Amount * (interestRateNominator / interestRateDenominator) == reward for deposit with 1 year duration
-	Start                   utilsjson.Uint64    `json:"start"`                   // Unix time in seconds, when this offer becomes active (can be used to create new deposits)
-	End                     utilsjson.Uint64    `json:"end"`                     // Unix time in seconds, when this offer becomes inactive (can't be used to create new deposits)
-	MinAmount               utilsjson.Uint64    `json:"minAmount"`               // Minimum amount that can be deposited with this offer
-	TotalMaxAmount          utilsjson.Uint64    `json:"totalMaxAmount"`          // Maximum amount that can be deposited with this offer in total (across all deposits)
-	DepositedAmount         utilsjson.Uint64    `json:"depositedAmount"`         // Amount that was already deposited with this offer
+	InterestRateNominator   json.Uint64         `json:"interestRateNominator"`   // deposit.Amount * (interestRateNominator / interestRateDenominator) == reward for deposit with 1 year duration
+	Start                   json.Uint64         `json:"start"`                   // Unix time in seconds, when this offer becomes active (can be used to create new deposits)
+	End                     json.Uint64         `json:"end"`                     // Unix time in seconds, when this offer becomes inactive (can't be used to create new deposits)
+	MinAmount               json.Uint64         `json:"minAmount"`               // Minimum amount that can be deposited with this offer
+	TotalMaxAmount          json.Uint64         `json:"totalMaxAmount"`          // Maximum amount that can be deposited with this offer in total (across all deposits)
+	DepositedAmount         json.Uint64         `json:"depositedAmount"`         // Amount that was already deposited with this offer
 	MinDuration             uint32              `json:"minDuration"`             // Minimum duration of deposit created with this offer
 	MaxDuration             uint32              `json:"maxDuration"`             // Maximum duration of deposit created with this offer
 	UnlockPeriodDuration    uint32              `json:"unlockPeriodDuration"`    // Duration of period during which tokens deposited with this offer will be unlocked. The unlock period starts at the end of deposit minus unlockPeriodDuration
 	NoRewardsPeriodDuration uint32              `json:"noRewardsPeriodDuration"` // Duration of period during which rewards won't be accumulated. No rewards period starts at the end of deposit minus unlockPeriodDuration
 	Memo                    types.JSONByteSlice `json:"memo"`                    // Arbitrary offer memo
-	Flags                   utilsjson.Uint64    `json:"flags"`                   // Bitfield with flags
-	TotalMaxRewardAmount    utilsjson.Uint64    `json:"totalMaxRewardAmount"`    // Maximum amount that can be rewarded for all deposits created with this offer in total
-	RewardedAmount          utilsjson.Uint64    `json:"rewardedAmount"`          // Amount that was already rewarded (including potential rewards) for deposits created with this offer
+	Flags                   json.Uint64         `json:"flags"`                   // Bitfield with flags
+	TotalMaxRewardAmount    json.Uint64         `json:"totalMaxRewardAmount"`    // Maximum amount that can be rewarded for all deposits created with this offer in total
+	RewardedAmount          json.Uint64         `json:"rewardedAmount"`          // Amount that was already rewarded (including potential rewards) for deposits created with this offer
 	OwnerAddress            ids.ShortID         `json:"ownerAddress"`            // Address that can sign deposit-creator permission
 }
 
 type GetAllDepositOffersArgs struct {
-	Timestamp utilsjson.Uint64 `json:"timestamp"`
+	Timestamp json.Uint64 `json:"timestamp"`
 }
 
 type GetAllDepositOffersReply struct {
@@ -998,27 +1026,27 @@ func apiOfferFromOffer(offer *deposit.Offer) *APIDepositOffer {
 	return &APIDepositOffer{
 		UpgradeVersion:          offer.UpgradeVersionID.Version(),
 		ID:                      offer.ID,
-		InterestRateNominator:   utilsjson.Uint64(offer.InterestRateNominator),
-		Start:                   utilsjson.Uint64(offer.Start),
-		End:                     utilsjson.Uint64(offer.End),
-		MinAmount:               utilsjson.Uint64(offer.MinAmount),
-		TotalMaxAmount:          utilsjson.Uint64(offer.TotalMaxAmount),
-		DepositedAmount:         utilsjson.Uint64(offer.DepositedAmount),
+		InterestRateNominator:   json.Uint64(offer.InterestRateNominator),
+		Start:                   json.Uint64(offer.Start),
+		End:                     json.Uint64(offer.End),
+		MinAmount:               json.Uint64(offer.MinAmount),
+		TotalMaxAmount:          json.Uint64(offer.TotalMaxAmount),
+		DepositedAmount:         json.Uint64(offer.DepositedAmount),
 		MinDuration:             offer.MinDuration,
 		MaxDuration:             offer.MaxDuration,
 		UnlockPeriodDuration:    offer.UnlockPeriodDuration,
 		NoRewardsPeriodDuration: offer.NoRewardsPeriodDuration,
 		Memo:                    offer.Memo,
-		Flags:                   utilsjson.Uint64(offer.Flags),
-		TotalMaxRewardAmount:    utilsjson.Uint64(offer.TotalMaxRewardAmount),
-		RewardedAmount:          utilsjson.Uint64(offer.RewardedAmount),
+		Flags:                   json.Uint64(offer.Flags),
+		TotalMaxRewardAmount:    json.Uint64(offer.TotalMaxRewardAmount),
+		RewardedAmount:          json.Uint64(offer.RewardedAmount),
 		OwnerAddress:            offer.OwnerAddress,
 	}
 }
 
 type GetUpgradePhasesReply struct {
-	AthensPhase utilsjson.Uint32 `json:"athensPhase"`
-	BerlinPhase utilsjson.Uint32 `json:"berlinPhase"`
+	AthensPhase json.Uint32 `json:"athensPhase"`
+	BerlinPhase json.Uint32 `json:"berlinPhase"`
 }
 
 func (s *CaminoService) GetUpgradePhases(_ *http.Request, _ *struct{}, response *GetUpgradePhasesReply) error {
@@ -1034,8 +1062,8 @@ func (s *CaminoService) GetUpgradePhases(_ *http.Request, _ *struct{}, response 
 }
 
 type ConsortiumMemberValidator struct {
-	ValidatorWeight         utilsjson.Uint64 `json:"validatorWeight"`
-	ConsortiumMemberAddress string           `json:"consortiumMemberAddress"`
+	ValidatorWeight         json.Uint64 `json:"validatorWeight"`
+	ConsortiumMemberAddress string      `json:"consortiumMemberAddress"`
 }
 
 type GetValidatorsAtReply2 struct {
@@ -1071,7 +1099,7 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 		}
 
 		reply.Validators[vdr.NodeID] = ConsortiumMemberValidator{
-			ValidatorWeight:         utilsjson.Uint64(vdr.Weight),
+			ValidatorWeight:         json.Uint64(vdr.Weight),
 			ConsortiumMemberAddress: addrStr,
 		}
 	}
@@ -1113,6 +1141,6 @@ func (s *CaminoService) GetCurrentSupply(_ *http.Request, args *GetCurrentSupply
 			}
 		}
 	}
-	reply.Supply = utilsjson.Uint64(supply)
+	reply.Supply = json.Uint64(supply)
 	return err
 }
