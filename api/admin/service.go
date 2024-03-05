@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/http"
 	"path"
+	"sync"
 
 	"github.com/gorilla/rpc/v2"
 	"go.uber.org/zap"
@@ -27,7 +28,6 @@ import (
 	"github.com/ava-labs/avalanchego/api/server"
 	"github.com/ava-labs/avalanchego/chains"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/cb58"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -70,6 +70,7 @@ type Config struct {
 // Admin is the API service for node admin management
 type Admin struct {
 	Config
+	lock     sync.Mutex
 	profiler profiler.Profiler
 }
 
@@ -87,7 +88,7 @@ type ISecret interface {
 
 // NewService returns a new admin API service.
 // All of the fields in [config] must be set.
-func NewService(config Config) (*common.HTTPHandler, error) {
+func NewService(config Config) (http.Handler, error) {
 	newServer := rpc.NewServer()
 	codec := json.NewCodec()
 	newServer.RegisterCodec(codec, "application/json")
@@ -99,8 +100,7 @@ func NewService(config Config) (*common.HTTPHandler, error) {
 	if err := newServer.RegisterService(admin, "admin"); err != nil {
 		return nil, err
 	}
-	newServer.RegisterValidateRequestFunc(admin.ValidateRequest)
-	return &common.HTTPHandler{Handler: newServer}, nil
+	return newServer, nil
 }
 
 func (a *Admin) ValidateRequest(_ *rpc.RequestInfo, i interface{}) error {
@@ -111,7 +111,10 @@ func (a *Admin) ValidateRequest(_ *rpc.RequestInfo, i interface{}) error {
 }
 
 // StartCPUProfiler starts a cpu profile writing to the specified file
-func (a *Admin) StartCPUProfiler(_ *http.Request, args *Secret, _ *api.EmptyReply) error { //nolint:revive
+func (a *Admin) StartCPUProfiler(_ *http.Request, args *Secret, _ *api.EmptyReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "startCPUProfiler"),
@@ -122,6 +125,9 @@ func (a *Admin) StartCPUProfiler(_ *http.Request, args *Secret, _ *api.EmptyRepl
 
 // StopCPUProfiler stops the cpu profile
 func (a *Admin) StopCPUProfiler(_ *http.Request, args *Secret, _ *api.EmptyReply) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "stopCPUProfiler"),
@@ -132,6 +138,9 @@ func (a *Admin) StopCPUProfiler(_ *http.Request, args *Secret, _ *api.EmptyReply
 
 // MemoryProfile runs a memory profile writing to the specified file
 func (a *Admin) MemoryProfile(_ *http.Request, args *Secret, _ *api.EmptyReply) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "memoryProfile"),
@@ -142,6 +151,9 @@ func (a *Admin) MemoryProfile(_ *http.Request, args *Secret, _ *api.EmptyReply) 
 
 // LockProfile runs a mutex profile writing to the specified file
 func (a *Admin) LockProfile(_ *http.Request, args *Secret, _ *api.EmptyReply) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "lockProfile"),
@@ -159,6 +171,9 @@ type AliasArgs struct {
 
 // Alias attempts to alias an HTTP endpoint to a new name
 func (a *Admin) Alias(_ *http.Request, args *AliasArgs, _ *api.EmptyReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "alias"),
@@ -182,6 +197,9 @@ type AliasChainArgs struct {
 
 // AliasChain attempts to alias a chain to a new name
 func (a *Admin) AliasChain(_ *http.Request, args *AliasChainArgs, _ *api.EmptyReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "aliasChain"),
@@ -219,6 +237,9 @@ type GetChainAliasesReply struct {
 
 // GetChainAliases returns the aliases of the chain
 func (a *Admin) GetChainAliases(_ *http.Request, args *GetChainAliasesArgs, reply *GetChainAliasesReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "getChainAliases"),
@@ -236,6 +257,9 @@ func (a *Admin) GetChainAliases(_ *http.Request, args *GetChainAliasesArgs, repl
 
 // Stacktrace returns the current global stacktrace
 func (a *Admin) Stacktrace(_ *http.Request, args *Secret, _ *api.EmptyReply) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "stacktrace"),
@@ -263,6 +287,9 @@ type SetLoggerLevelArgs struct {
 // If args.DisplayLevel == nil, doesn't set the display level of these loggers.
 // If args.DisplayLevel != nil, must be a valid string representation of a log level.
 func (a *Admin) SetLoggerLevel(_ *http.Request, args *SetLoggerLevelArgs, _ *api.EmptyReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "setLoggerLevel"),
@@ -316,6 +343,9 @@ type GetLoggerLevelReply struct {
 
 // GetLogLevel returns the log level and display level of all loggers.
 func (a *Admin) GetLoggerLevel(_ *http.Request, args *GetLoggerLevelArgs, reply *GetLoggerLevelReply) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "getLoggerLevels"),
@@ -349,6 +379,9 @@ func (a *Admin) GetLoggerLevel(_ *http.Request, args *GetLoggerLevelArgs, reply 
 
 // GetConfig returns the config that the node was started with.
 func (a *Admin) GetConfig(_ *http.Request, args *Secret, reply *interface{}) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "getConfig"),
@@ -367,6 +400,9 @@ type LoadVMsReply struct {
 
 // LoadVMs loads any new VMs available to the node and returns the added VMs.
 func (a *Admin) LoadVMs(r *http.Request, args *Secret, reply *LoadVMsReply) error { //nolint:revive
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	a.Log.Debug("API called",
 		zap.String("service", "admin"),
 		zap.String("method", "loadVMs"),
