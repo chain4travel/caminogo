@@ -1491,25 +1491,32 @@ func (e *CaminoStandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 		return err
 	}
 
-	if e.Bootstrapped.Get() {
-		baseFee, err := e.State.GetBaseFee()
-		if err != nil {
-			return err
-		}
+	caminoConfig, err := e.State.CaminoConfig()
+	if err != nil {
+		return err
+	}
 
-		if err := e.FlowChecker.VerifyLock(
-			tx,
-			e.State,
-			tx.Ins,
-			tx.Outs,
-			e.Tx.Creds,
-			0,
-			baseFee,
-			e.Ctx.AVAXAssetID,
-			locked.StateUnlocked,
-		); err != nil {
-			return fmt.Errorf("%w: %w", ErrFlowCheckFailed, err)
-		}
+	if !caminoConfig.LockModeBondDeposit {
+		return e.StandardTxExecutor.BaseTx(tx)
+	}
+
+	baseFee, err := e.State.GetBaseFee()
+	if err != nil {
+		return err
+	}
+
+	if err := e.FlowChecker.VerifyLock(
+		tx,
+		e.State,
+		tx.Ins,
+		tx.Outs,
+		e.Tx.Creds,
+		0,
+		baseFee,
+		e.Ctx.AVAXAssetID,
+		locked.StateUnlocked,
+	); err != nil {
+		return fmt.Errorf("%w: %w", ErrFlowCheckFailed, err)
 	}
 
 	avax.Consume(e.State, tx.Ins)

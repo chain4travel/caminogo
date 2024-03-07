@@ -48,7 +48,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 
 	rootAdminKey := caminoPreFundedKeys[0]
 	adminProposerKey := caminoPreFundedKeys[0]
-	consortiumMemberKey, err := testKeyFactory.NewPrivateKey()
+	consortiumMemberKey, err := secp256k1.NewPrivateKey()
 	require.NoError(err)
 
 	outputOwners := &secp256k1fx.OutputOwners{
@@ -227,7 +227,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 
 	rootAdminKey := caminoPreFundedKeys[0]
 	adminProposerKey := caminoPreFundedKeys[0]
-	consortiumMemberKey, err := testKeyFactory.NewPrivateKey()
+	consortiumMemberKey, err := secp256k1.NewPrivateKey()
 	require.NoError(err)
 
 	outputOwners := &secp256k1fx.OutputOwners{

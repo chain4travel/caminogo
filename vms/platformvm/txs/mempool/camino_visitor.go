@@ -43,11 +43,6 @@ func (i *issuer) RewardsImportTx(*txs.RewardsImportTx) error {
 	return nil
 }
 
-func (i *issuer) BaseTx(*txs.BaseTx) error {
-	i.m.addDecisionTx(i.tx)
-	return nil
-}
-
 func (i *issuer) MultisigAliasTx(*txs.MultisigAliasTx) error {
 	i.m.addDecisionTx(i.tx)
 	return nil
@@ -100,11 +95,6 @@ func (r *remover) RegisterNodeTx(*txs.RegisterNodeTx) error {
 }
 
 func (r *remover) RewardsImportTx(*txs.RewardsImportTx) error {
-	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
-	return nil
-}
-
-func (r *remover) BaseTx(*txs.BaseTx) error {
 	r.m.removeDecisionTxs([]*txs.Tx{r.tx})
 	return nil
 }

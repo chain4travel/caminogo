@@ -340,8 +340,7 @@ func generateTestStakeableOut(assetID ids.ID, amount, locktime uint64, outputOwn
 func generateOwnersAndSig(tx txs.UnsignedTx) (secp256k1fx.OutputOwners, *secp256k1fx.Credential) {
 	txHash := hashing.ComputeHash256(tx.Bytes())
 
-	cryptFactory := secp256k1.Factory{}
-	key, err := cryptFactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	if err != nil {
 		panic(err)
 	}

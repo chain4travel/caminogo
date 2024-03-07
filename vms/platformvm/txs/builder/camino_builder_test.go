@@ -180,7 +180,7 @@ func TestUnlockDepositTx(t *testing.T) {
 			MaxDuration:           60,
 		}},
 	}
-	testKey, err := testKeyfactory.NewPrivateKey()
+	testKey, err := secp256k1.NewPrivateKey()
 	require.NoError(t, err)
 
 	outputOwners := secp256k1fx.OutputOwners{

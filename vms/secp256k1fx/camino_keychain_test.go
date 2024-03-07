@@ -44,7 +44,7 @@ func TestSpendMultiSigNoMSig(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
 		addresses = append(addresses, sk.PublicKey().Address())
@@ -78,7 +78,7 @@ func TestSpendMultiSigMSig(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
 		addresses = append(addresses, sk.PublicKey().Address())
@@ -146,7 +146,7 @@ func TestSpendMultiSigCycle(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
 		addresses = append(addresses, sk.PublicKey().Address())
@@ -185,7 +185,7 @@ func TestUnverifiedNestedOwner(t *testing.T) {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
 
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		// Only one signer for this test
 		if i == 1 {

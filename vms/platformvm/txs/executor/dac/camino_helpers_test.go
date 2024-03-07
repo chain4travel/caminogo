@@ -39,8 +39,6 @@ var (
 	cChainID                  = ids.Empty.Prefix(1)
 	avaxAssetID               = ids.ID{'y', 'e', 'e', 't'}
 
-	testKeyfactory secp256k1.Factory
-
 	errMissing = errors.New("missing")
 )
 
@@ -210,7 +208,7 @@ func generateTestInFromUTXO(utxo *avax.UTXO, sigIndices []uint32) *avax.Transfer
 }
 
 func generateKeyAndOwner(t *testing.T) (*secp256k1.PrivateKey, ids.ShortID, secp256k1fx.OutputOwners) {
-	key, err := testKeyfactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	require.NoError(t, err)
 	addr := key.Address()
 	return key, addr, secp256k1fx.OutputOwners{

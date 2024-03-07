@@ -34,10 +34,6 @@ func (*backendVisitor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return errUnsupportedTxType
 }
 
-func (b *backendVisitor) BaseTx(tx *txs.BaseTx) error {
-	return b.baseTx(tx)
-}
-
 func (b *backendVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {
 	return b.baseTx(&tx.BaseTx)
 }
@@ -102,14 +98,6 @@ func (s *signerVisitor) RegisterNodeTx(tx *txs.RegisterNodeTx) error {
 
 func (*signerVisitor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return errUnsupportedTxType
-}
-
-func (s *signerVisitor) BaseTx(tx *txs.BaseTx) error {
-	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
-	if err != nil {
-		return err
-	}
-	return sign(s.tx, false, txSigners)
 }
 
 func (s *signerVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {

@@ -327,8 +327,7 @@ func defaultFx(t *testing.T) *Fx {
 
 func generateKey(t *testing.T) (*secp256k1.PrivateKey, ids.ShortID) {
 	require := require.New(t)
-	secpFactory := secp256k1.Factory{}
-	key, err := secpFactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	require.NoError(err)
 	return key, key.Address()
 }

@@ -19,7 +19,6 @@ func LoadLocalCaminoNodeKeysAndIDs(localStakingPath string) ([]*secp256k1.Privat
 	nodeIDs := make([]ids.NodeID, localNodesCount)
 
 	for index := 0; index < localNodesCount; index++ {
-		secp256Factory := secp256k1.Factory{}
 		var nodePrivateKey *secp256k1.PrivateKey
 
 		cert, err := staking.LoadTLSCertFromFiles(
@@ -34,7 +33,7 @@ func LoadLocalCaminoNodeKeysAndIDs(localStakingPath string) ([]*secp256k1.Privat
 			panic("Wrong private key type")
 		}
 		secpPrivateKey := secp256k1.RsaPrivateKeyToSecp256PrivateKey(rsaKey)
-		nodePrivateKey, err = secp256Factory.ToPrivateKey(secpPrivateKey.Serialize())
+		nodePrivateKey, err = secp256k1.ToPrivateKey(secpPrivateKey.Serialize())
 		if err != nil {
 			panic(err)
 		}
@@ -46,8 +45,7 @@ func LoadLocalCaminoNodeKeysAndIDs(localStakingPath string) ([]*secp256k1.Privat
 }
 
 func GenerateCaminoNodeKeyAndID() (*secp256k1.PrivateKey, ids.NodeID) {
-	secp256Factory := secp256k1.Factory{}
-	nodePrivateKey, err := secp256Factory.NewPrivateKey()
+	nodePrivateKey, err := secp256k1.NewPrivateKey()
 	if err != nil {
 		panic("Couldn't generate private key")
 	}

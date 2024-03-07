@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
@@ -35,7 +35,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/caminoconfig"
@@ -75,7 +74,6 @@ var (
 	testCaminoSubnet1ControlKeys = caminoPreFundedKeys[0:3]
 	lastAcceptedID               = ids.GenerateTestID()
 	testSubnet1                  *txs.Tx
-	testKeyfactory               secp256k1.Factory
 	errMissing                   = errors.New("missing")
 )
 
@@ -119,8 +117,7 @@ func newCaminoEnvironment(postBanff bool, caminoGenesisConf api.Camino) *caminoE
 	config := defaultCaminoConfig(postBanff)
 	clk := defaultClock(postBanff)
 
-	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
+	baseDB := versiondb.New(memdb.New())
 	ctx, msm := defaultCtx(baseDB)
 
 	fx := defaultFx(clk, ctx.Log, isBootstrapped.Get())
@@ -182,8 +179,7 @@ func newCaminoBuilder(postBanff bool, state state.State) (*caminoBuilder, *versi
 	config := defaultCaminoConfig(postBanff)
 	clk := defaultClock(postBanff)
 
-	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
+	baseDB := versiondb.New(memdb.New())
 	ctx, _ := defaultCtx(baseDB)
 
 	fx := defaultFx(clk, ctx.Log, isBootstrapped.Get())
@@ -515,7 +511,7 @@ func generateTestUTXO(txID ids.ID, assetID ids.ID, amount uint64, outputOwners s
 }
 
 func generateKeyAndOwner() (*secp256k1.PrivateKey, ids.ShortID, secp256k1fx.OutputOwners) {
-	key, err := testKeyfactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	if err != nil {
 		panic(err)
 	}
@@ -568,8 +564,7 @@ func newCaminoBuilderWithMocks(postBanff bool, state state.State, sharedMemory a
 	config := defaultCaminoConfig(postBanff)
 	clk := defaultClock(postBanff)
 
-	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
+	baseDB := versiondb.New(memdb.New())
 	ctx, _ := defaultCtx(baseDB)
 
 	if sharedMemory != nil {

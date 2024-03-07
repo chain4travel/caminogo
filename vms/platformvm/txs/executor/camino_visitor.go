@@ -33,10 +33,6 @@ func (*StandardTxExecutor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return ErrWrongTxType
 }
 
-func (*StandardTxExecutor) BaseTx(*txs.BaseTx) error {
-	return ErrWrongTxType
-}
-
 func (*StandardTxExecutor) MultisigAliasTx(*txs.MultisigAliasTx) error {
 	return ErrWrongTxType
 }
@@ -80,10 +76,6 @@ func (*ProposalTxExecutor) RegisterNodeTx(*txs.RegisterNodeTx) error {
 }
 
 func (*ProposalTxExecutor) RewardsImportTx(*txs.RewardsImportTx) error {
-	return ErrWrongTxType
-}
-
-func (*ProposalTxExecutor) BaseTx(*txs.BaseTx) error {
 	return ErrWrongTxType
 }
 
@@ -133,10 +125,6 @@ func (*AtomicTxExecutor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return ErrWrongTxType
 }
 
-func (*AtomicTxExecutor) BaseTx(*txs.BaseTx) error {
-	return ErrWrongTxType
-}
-
 func (*AtomicTxExecutor) MultisigAliasTx(*txs.MultisigAliasTx) error {
 	return ErrWrongTxType
 }
@@ -180,10 +168,6 @@ func (v *MempoolTxVerifier) RegisterNodeTx(tx *txs.RegisterNodeTx) error {
 }
 
 func (v *MempoolTxVerifier) RewardsImportTx(tx *txs.RewardsImportTx) error {
-	return v.standardTx(tx)
-}
-
-func (v *MempoolTxVerifier) BaseTx(tx *txs.BaseTx) error {
 	return v.standardTx(tx)
 }
 

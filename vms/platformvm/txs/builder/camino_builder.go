@@ -97,13 +97,6 @@ type CaminoTxBuilder interface {
 		change *secp256k1fx.OutputOwners,
 	) (*txs.Tx, error)
 
-	NewBaseTx(
-		amount uint64,
-		transferTo *secp256k1fx.OutputOwners,
-		keys []*secp256k1.PrivateKey,
-		change *secp256k1fx.OutputOwners,
-	) (*txs.Tx, error)
-
 	NewRewardsImportTx() (*txs.Tx, error)
 
 	NewSystemUnlockDepositTx(
@@ -562,31 +555,6 @@ func (b *caminoBuilder) NewRegisterNodeTx(
 		NodeOwnerAuth:    &in.(*secp256k1fx.TransferInput).Input,
 		NodeOwnerAddress: nodeOwnerAddress,
 	}
-
-	tx, err := txs.NewSigned(utx, txs.Codec, signers)
-	if err != nil {
-		return nil, err
-	}
-	return tx, tx.SyntacticVerify(b.ctx)
-}
-
-func (b *caminoBuilder) NewBaseTx(
-	amount uint64,
-	transferTo *secp256k1fx.OutputOwners,
-	keys []*secp256k1.PrivateKey,
-	change *secp256k1fx.OutputOwners,
-) (*txs.Tx, error) {
-	ins, outs, signers, _, err := b.Lock(b.state, keys, amount, b.cfg.TxFee, locked.StateUnlocked, transferTo, change, 0)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
-	utx := &txs.BaseTx{BaseTx: avax.BaseTx{
-		NetworkID:    b.ctx.NetworkID,
-		BlockchainID: b.ctx.ChainID,
-		Ins:          ins,
-		Outs:         outs,
-	}}
 
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {

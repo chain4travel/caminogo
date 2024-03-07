@@ -66,13 +66,12 @@ func newCertAndKeyBytesWithNoExt() ([]byte, []byte, error) {
 }
 
 func getPublicKey(t *testing.T, tlsCert *tls.Certificate) []byte {
-	secp256Factory := Factory{}
 	var nodePrivateKey *PrivateKey
 
 	rsaPrivateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok)
 	secpPrivateKey := RsaPrivateKeyToSecp256PrivateKey(rsaPrivateKey)
-	nodePrivateKey, err := secp256Factory.ToPrivateKey(secpPrivateKey.Serialize())
+	nodePrivateKey, err := ToPrivateKey(secpPrivateKey.Serialize())
 	require.NoError(t, err)
 	return nodePrivateKey.PublicKey().Address().Bytes()
 }

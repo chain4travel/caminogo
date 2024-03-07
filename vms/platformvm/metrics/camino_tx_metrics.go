@@ -20,7 +20,6 @@ type caminoTxMetrics struct {
 	numClaimTxs,
 	numRegisterNodeTxs,
 	numRewardsImportTxs,
-	numBaseTxs,
 	numMultisigAliasTxs,
 	numAddDepositOfferTxs,
 	numAddProposalTxs,
@@ -47,7 +46,6 @@ func newCaminoTxMetrics(
 		numClaimTxs:           newTxMetric(namespace, "claim", registerer, &errs),
 		numRegisterNodeTxs:    newTxMetric(namespace, "register_node", registerer, &errs),
 		numRewardsImportTxs:   newTxMetric(namespace, "rewards_import", registerer, &errs),
-		numBaseTxs:            newTxMetric(namespace, "base", registerer, &errs),
 		numMultisigAliasTxs:   newTxMetric(namespace, "multisig_alias", registerer, &errs),
 		numAddDepositOfferTxs: newTxMetric(namespace, "add_deposit_offer", registerer, &errs),
 		numAddProposalTxs:     newTxMetric(namespace, "add_proposal", registerer, &errs),
@@ -80,10 +78,6 @@ func (*txMetrics) RegisterNodeTx(*txs.RegisterNodeTx) error {
 }
 
 func (*txMetrics) RewardsImportTx(*txs.RewardsImportTx) error {
-	return nil
-}
-
-func (*txMetrics) BaseTx(*txs.BaseTx) error {
 	return nil
 }
 
@@ -136,11 +130,6 @@ func (m *caminoTxMetrics) RegisterNodeTx(*txs.RegisterNodeTx) error {
 
 func (m *caminoTxMetrics) RewardsImportTx(*txs.RewardsImportTx) error {
 	m.numRewardsImportTxs.Inc()
-	return nil
-}
-
-func (m *caminoTxMetrics) BaseTx(*txs.BaseTx) error {
-	m.numBaseTxs.Inc()
 	return nil
 }
 

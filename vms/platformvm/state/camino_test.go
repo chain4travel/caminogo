@@ -11,13 +11,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
-	"github.com/ava-labs/avalanchego/database/versiondb"
 	root_genesis "github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
@@ -25,8 +24,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-
-	db_manager "github.com/ava-labs/avalanchego/database/manager"
 )
 
 const (
@@ -167,9 +164,8 @@ func getExpectedSupply(
 func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
 	s, _ := newInitializedState(require)
-	baseDBManager := db_manager.NewMemDB(version.Semantic1_0_0)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
-	validatorsDB := prefixdb.New(validatorsPrefix, baseDB)
+	db := memdb.New()
+	validatorsDB := prefixdb.New(validatorsPrefix, db)
 
 	var (
 		id           = ids.GenerateTestID()
@@ -255,7 +251,7 @@ func TestSyncGenesis(t *testing.T) {
 					},
 				}, depositTxs, initialAdmin),
 			},
-			cs: *wrappers.IgnoreError(newCaminoState(baseDB, validatorsDB, prometheus.NewRegistry())).(*caminoState),
+			cs: *wrappers.IgnoreError(newCaminoState(db, validatorsDB, prometheus.NewRegistry())).(*caminoState),
 			want: caminoDiff{
 				modifiedAddressStates: map[ids.ShortID]as.AddressState{initialAdmin: as.AddressStateRoleAdmin, shortID: as.AddressStateRoleKYC},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{

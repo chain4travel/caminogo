@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/chains"
 	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -34,7 +34,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
@@ -101,8 +100,7 @@ func newCaminoEnvironment(postBanff, addSubnet bool, caminoGenesisConf api.Camin
 	config := defaultCaminoConfig(postBanff)
 	clk := defaultClock(postBanff)
 
-	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
+	baseDB := versiondb.New(memdb.New())
 	ctx, msm := defaultCtx(baseDB)
 
 	fx := defaultFx(clk, ctx.Log, isBootstrapped.Get())
@@ -529,7 +527,7 @@ func generateInsFromUTXOsWithSigIndices(utxos []*avax.UTXO, sigIndices []uint32)
 }
 
 func generateKeyAndOwner(t *testing.T) (*secp256k1.PrivateKey, ids.ShortID, secp256k1fx.OutputOwners) {
-	key, err := testKeyfactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	require.NoError(t, err)
 	addr := key.Address()
 	return key, addr, secp256k1fx.OutputOwners{
@@ -568,7 +566,7 @@ func generateMsigAliasAndKeys(t *testing.T, threshold, addrsCount uint32, sorted
 	}
 
 	for i := uint32(0); i < addrsCount; i++ {
-		key, err := testKeyfactory.NewPrivateKey()
+		key, err := secp256k1.NewPrivateKey()
 		require.NoError(t, err)
 		msgOwners.Owners.Addrs[i] = key.Address()
 		msgOwners.Keys[i] = key
@@ -623,8 +621,7 @@ func newCaminoEnvironmentWithMocks(
 
 	clk := defaultClock(true)
 
-	baseDBManager := manager.NewMemDB(version.CurrentDatabase)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
+	baseDB := versiondb.New(memdb.New())
 	ctx, msm := defaultCtx(baseDB)
 
 	fx := defaultFx(clk, ctx.Log, isBootstrapped.Get())

@@ -112,7 +112,7 @@ func (fx *Fx) RecoverAddresses(msg []byte, verifies []verify.Verifiable) (Recove
 			if visited[sig] {
 				continue
 			}
-			pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, sig[:])
+			pk, err := fx.RecoverPublicKeyFromHash(txHash, sig[:])
 			if err != nil {
 				return nil, err
 			}
