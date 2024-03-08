@@ -30,13 +30,12 @@ type caminoBuilder struct {
 	caminoTxBuilder txBuilder.CaminoBuilder
 }
 
-func CaminoNew(
+func NewCamino(
 	mempool mempool.Mempool,
 	txBuilder txBuilder.CaminoBuilder,
 	txExecutorBackend *txexecutor.Backend,
 	blkManager blockexecutor.Manager,
 	toEngine chan<- common.Message,
-	appSender common.AppSender,
 ) Builder {
 	builder := &caminoBuilder{
 		builder: builder{
@@ -50,13 +49,6 @@ func CaminoNew(
 	}
 
 	builder.timer = timer.NewTimer(builder.setNextBuildBlockTime)
-
-	builder.Network = NewCaminoNetwork(
-		txExecutorBackend.Ctx,
-		builder,
-		appSender,
-		builder.caminoTxBuilder,
-	)
 
 	go txExecutorBackend.Ctx.Log.RecoverAndPanic(builder.timer.Dispatch)
 	return builder

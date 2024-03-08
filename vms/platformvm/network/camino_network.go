@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package builder
+package network
 
 import (
 	"context"
@@ -15,7 +15,9 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/vms/components/message"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block/executor"
 	txBuilder "github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
 
 var errUnknownCrossChainMessage = errors.New("unknown cross-chain message")
@@ -25,18 +27,24 @@ type caminoNetwork struct {
 	txBuilder txBuilder.CaminoBuilder
 }
 
-func NewCaminoNetwork(
+func NewCamino(
 	ctx *snow.Context,
-	blkBuilder *caminoBuilder,
+	manager executor.Manager,
+	mempool mempool.Mempool,
+	partialSyncPrimaryNetwork bool,
 	appSender common.AppSender,
 	txBuilder txBuilder.CaminoBuilder,
 ) Network {
 	return &caminoNetwork{
 		network: network{
-			ctx:        ctx,
-			blkBuilder: &blkBuilder.builder,
-			appSender:  appSender,
-			recentTxs:  &cache.LRU[ids.ID, struct{}]{Size: recentCacheSize},
+			AppHandler: common.NewNoOpAppHandler(ctx.Log),
+
+			ctx:                       ctx,
+			manager:                   manager,
+			mempool:                   mempool,
+			partialSyncPrimaryNetwork: partialSyncPrimaryNetwork,
+			appSender:                 appSender,
+			recentTxs:                 &cache.LRU[ids.ID, struct{}]{Size: recentCacheSize},
 		},
 		txBuilder: txBuilder,
 	}
@@ -53,17 +61,17 @@ func (n *caminoNetwork) CrossChainAppRequest(_ context.Context, chainID ids.ID, 
 		return errUnknownCrossChainMessage // this would be fatal
 	}
 
+	n.ctx.Lock.Lock()
+	defer n.ctx.Lock.Unlock() // TODO@ need to include issueTx() ? or we can do it only for tx builder?
+
 	tx, err := n.txBuilder.NewRewardsImportTx()
 	if err != nil {
 		n.ctx.Log.Error("caminoCrossChainAppRequest couldn't create rewardsImportTx", zap.Error(err))
 		return nil // we don't want fatal here
 	}
 
-	n.ctx.Lock.Lock()
-	defer n.ctx.Lock.Unlock()
-
-	if err := n.blkBuilder.AddUnverifiedTx(tx); err != nil {
-		n.ctx.Log.Error("caminoCrossChainAppRequest couldn't add rewardsImportTx to mempool", zap.Error(err))
+	if err := n.issueTx(tx); err != nil {
+		n.ctx.Log.Error("caminoCrossChainAppRequest couldn't issue rewardsImportTx", zap.Error(err))
 		// we don't want fatal here: its better to have network running
 		// and try to repair stalled reward imports, than crash the whole network
 	}

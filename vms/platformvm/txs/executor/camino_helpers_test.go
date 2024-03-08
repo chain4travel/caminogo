@@ -215,12 +215,11 @@ func defaultCaminoState(
 		db,
 		genesisBytes,
 		prometheus.NewRegistry(),
-		cfg,
+		cfg.Validators,
 		execCfg,
 		ctx,
 		metrics.Noop,
 		rewards,
-		&utils.Atomic[bool]{},
 	)
 	if err != nil {
 		panic(err)
@@ -289,14 +288,14 @@ func buildCaminoGenesisTest(ctx *snow.Context, caminoGenesisConf api.Camino) []b
 	caminoGenesisConf.ValidatorDeposits = make([][]api.UTXODeposit, len(caminoPreFundedKeys))
 	caminoGenesisConf.ValidatorConsortiumMembers = make([]ids.ShortID, len(caminoPreFundedKeys))
 
-	genesisValidators := make([]api.PermissionlessValidator, len(caminoPreFundedKeys))
+	genesisValidators := make([]api.GenesisPermissionlessValidator, len(caminoPreFundedKeys))
 	for i, key := range caminoPreFundedKeys {
 		addr, err := address.FormatBech32(constants.UnitTestHRP, key.PublicKey().Address().Bytes())
 		if err != nil {
 			panic(err)
 		}
-		genesisValidators[i] = api.PermissionlessValidator{
-			Staker: api.Staker{
+		genesisValidators[i] = api.GenesisPermissionlessValidator{
+			GenesisValidator: api.GenesisValidator{
 				StartTime: json.Uint64(defaultValidateStartTime.Unix()),
 				EndTime:   json.Uint64(defaultValidateEndTime.Unix()),
 				NodeID:    caminoPreFundedNodeIDs[i],

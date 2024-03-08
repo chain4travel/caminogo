@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -40,10 +39,6 @@ func (s *state) LockedUTXOs(txIDs set.Set[ids.ID], addresses set.Set[ids.ShortID
 		}
 	}
 	return retUtxos, nil
-}
-
-func (s *state) Config() (*config.Config, error) {
-	return s.cfg, nil
 }
 
 func (s *state) CaminoConfig() (*CaminoConfig, error) {

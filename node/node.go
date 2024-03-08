@@ -122,11 +122,11 @@ func New(
 	if err := staking.ValidateCertificate(stakingCert); err != nil {
 		return nil, fmt.Errorf("invalid staking certificate: %w", err)
 	}
-	
+
 	// Get the nodeID from certificate (secp256k1 public key)
 	nodeID, err := peer.CertToID(tlsCert)
 	if err != nil {
-		return fmt.Errorf("cannot extract nodeID from certificate: %w", err)
+		return nil, fmt.Errorf("cannot extract nodeID from certificate: %w", err)
 	}
 
 	n := &Node{

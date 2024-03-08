@@ -138,7 +138,7 @@ func newCaminoVM(t *testing.T, genesisConfig api.Camino, genesisUTXOs []api.UTXO
 		caminoPreFundedKeys[0].PublicKey().Address(),
 	)
 	require.NoError(err)
-	require.NoError(vm.Builder.AddUnverifiedTx(testSubnet1))
+	require.NoError(vm.Network.IssueTx(context.Background(), testSubnet1))
 	blk, err := vm.Builder.BuildBlock(context.Background())
 	require.NoError(err)
 	require.NoError(blk.Verify(context.Background()))
@@ -187,12 +187,12 @@ func newCaminoGenesisWithUTXOs(t *testing.T, caminoGenesisConfig api.Camino, gen
 	caminoGenesisConfig.ValidatorDeposits = make([][]api.UTXODeposit, len(caminoPreFundedKeys))
 	caminoGenesisConfig.ValidatorConsortiumMembers = make([]ids.ShortID, len(caminoPreFundedKeys))
 
-	genesisValidators := make([]api.PermissionlessValidator, len(caminoPreFundedKeys))
+	genesisValidators := make([]api.GenesisPermissionlessValidator, len(caminoPreFundedKeys))
 	for i, key := range caminoPreFundedKeys {
 		addr, err := address.FormatBech32(constants.UnitTestHRP, key.PublicKey().Address().Bytes())
 		require.NoError(err)
-		genesisValidators[i] = api.PermissionlessValidator{
-			Staker: api.Staker{
+		genesisValidators[i] = api.GenesisPermissionlessValidator{
+			GenesisValidator: api.GenesisValidator{
 				StartTime: json.Uint64(starttime.Unix()),
 				EndTime:   json.Uint64(starttime.Add(10 * defaultMinStakingDuration).Unix()),
 				NodeID:    caminoPreFundedNodeIDs[i],

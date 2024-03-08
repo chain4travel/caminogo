@@ -170,8 +170,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	require.NoError(err)
 
 	// Assert preferences are correct
-	oracleBlk := blk.(snowman.OracleBlock)
-	options, err := oracleBlk.Options(context.Background())
+	options, err := blk.(snowman.OracleBlock).Options(context.Background())
 	require.NoError(err)
 
 	commit := options[1].(*blockexecutor.Block)
@@ -182,7 +181,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	_, ok = abort.Block.(*block.BanffAbortBlock)
 	require.True(ok)
 
-	require.NoError(oracleBlk.Accept(context.Background()))
+	require.NoError(blk.Accept(context.Background()))
 	require.NoError(commit.Verify(context.Background()))
 	require.NoError(abort.Verify(context.Background()))
 
@@ -363,8 +362,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	require.NoError(err)
 
 	// Assert preferences are correct
-	oracleBlk := blk.(snowman.OracleBlock)
-	options, err := oracleBlk.Options(context.Background())
+	options, err := blk.(snowman.OracleBlock).Options(context.Background())
 	require.NoError(err)
 
 	commit := options[1].(*blockexecutor.Block)
@@ -375,7 +373,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	_, ok = abort.Block.(*block.BanffAbortBlock)
 	require.True(ok)
 
-	require.NoError(oracleBlk.Accept(context.Background()))
+	require.NoError(blk.Accept(context.Background()))
 	require.NoError(commit.Verify(context.Background()))
 	require.NoError(abort.Verify(context.Background()))
 
@@ -616,7 +614,7 @@ func TestProposals(t *testing.T) {
 			// Try to vote on proposal, expect to fail
 			vm.clock.Set(baseFeeProposalState.StartTime().Add(-time.Second))
 			addVoteTx := buildSimpleVoteTx(t, vm, proposerKey, fee, proposalTx.ID(), caminoPreFundedKeys[0], 0)
-			err = vm.Builder.AddUnverifiedTx(addVoteTx)
+			err = vm.Network.IssueTx(context.Background(), addVoteTx)
 			require.ErrorIs(err, txexecutor.ErrProposalInactive)
 			vm.clock.Set(baseFeeProposalState.StartTime())
 
@@ -1134,7 +1132,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 			if tt.moreExlcude {
 				excludeMemberProposalTx := buildExcludeMemberProposalTx(t, vm, fundsKey, proposalBondAmount, fee,
 					consortiumAdminKey, memberToExcludeAddr, proposalStartTime, proposalStartTime.Add(time.Duration(dac.ExcludeMemberProposalMinDuration)*time.Second), true)
-				err = vm.Builder.AddUnverifiedTx(excludeMemberProposalTx)
+				err = vm.Network.IssueTx(context.Background(), excludeMemberProposalTx)
 				require.ErrorIs(err, txexecutor.ErrInvalidProposal)
 				height, err = vm.GetCurrentHeight(context.Background())
 				require.NoError(err)
@@ -1245,7 +1243,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 func buildAndAcceptBlock(t *testing.T, vm *VM, tx *txs.Tx) block.Block {
 	t.Helper()
 	if tx != nil {
-		require.NoError(t, vm.Builder.AddUnverifiedTx(tx))
+		require.NoError(t, vm.Network.IssueTx(context.Background(), tx))
 	}
 	blk, err := vm.Builder.BuildBlock(context.Background())
 	require.NoError(t, err)

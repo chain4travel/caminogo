@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -1890,62 +1889,6 @@ func TestDiffLockedUTXOs(t *testing.T) {
 			utxos, err := actualDiff.LockedUTXOs(lockTxIDs, addresses, locked.StateBonded)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.ElementsMatch(t, tt.expectedUTXOs, utxos)
-			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
-		})
-	}
-}
-
-func TestDiffConfig(t *testing.T) {
-	parentStateID := ids.GenerateTestID()
-	testErr := errors.New("test err")
-
-	tests := map[string]struct {
-		diff           func(*gomock.Controller) *diff
-		expectedDiff   func(*diff) *diff
-		expectedConfig *config.Config
-		expectedErr    error
-	}{
-		"OK": {
-			diff: func(c *gomock.Controller) *diff {
-				parentState := NewMockChain(c)
-				parentState.EXPECT().Config().Return(&config.Config{TxFee: 111}, nil)
-				return &diff{
-					stateVersions: newMockStateVersions(c, parentStateID, parentState),
-					parentID:      parentStateID,
-				}
-			},
-			expectedDiff: func(actualDiff *diff) *diff {
-				return &diff{
-					stateVersions: actualDiff.stateVersions,
-					parentID:      actualDiff.parentID,
-				}
-			},
-			expectedConfig: &config.Config{TxFee: 111},
-		},
-		"Fail: parent errored": {
-			diff: func(c *gomock.Controller) *diff {
-				parentState := NewMockChain(c)
-				parentState.EXPECT().Config().Return(nil, testErr)
-				return &diff{
-					stateVersions: newMockStateVersions(c, parentStateID, parentState),
-					parentID:      parentStateID,
-				}
-			},
-			expectedDiff: func(actualDiff *diff) *diff {
-				return &diff{
-					stateVersions: actualDiff.stateVersions,
-					parentID:      actualDiff.parentID,
-				}
-			},
-			expectedErr: testErr,
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			actualDiff := tt.diff(gomock.NewController(t))
-			config, err := actualDiff.Config()
-			require.ErrorIs(t, err, tt.expectedErr)
-			require.Equal(t, tt.expectedConfig, config)
 			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
 		})
 	}

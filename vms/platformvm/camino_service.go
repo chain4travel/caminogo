@@ -267,7 +267,7 @@ type SetAddressStateArgs struct {
 }
 
 // AddAdressState issues an AddAdressStateTx
-func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
+func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
 
 	s.vm.ctx.Lock.Lock()
@@ -302,10 +302,7 @@ func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateAr
 
 	response.TxID = tx.ID()
 
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 // GetAdressStates retrieves the state applied to an address (see setAddressState)
@@ -476,7 +473,7 @@ type RegisterNodeArgs struct {
 }
 
 // RegisterNode issues an RegisterNodeTx
-func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: RegisterNode called")
 
 	s.vm.ctx.Lock.Lock()
@@ -512,10 +509,7 @@ func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, re
 
 	reply.TxID = tx.ID()
 
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 type ClaimedAmount struct {
@@ -535,7 +529,7 @@ type ClaimArgs struct {
 }
 
 // Claim issues an ClaimTx
-func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Claim called")
 
 	s.vm.ctx.Lock.Lock()
@@ -591,11 +585,7 @@ func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONT
 
 	reply.TxID = tx.ID()
 
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 type TransferArgs struct {
@@ -607,7 +597,7 @@ type TransferArgs struct {
 }
 
 // Transfer issues an BaseTx
-func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Transfer called")
 
 	s.vm.ctx.Lock.Lock()
@@ -641,11 +631,7 @@ func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api
 
 	reply.TxID = tx.ID()
 
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSONAddress, response *api.JSONAddress) error {

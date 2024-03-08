@@ -202,14 +202,15 @@ func (vm *VM) Initialize(
 		txExecutorBackend,
 		validatorManager,
 	)
-	vm.Network = network.New(
+	vm.Network = network.NewCamino(
 		txExecutorBackend.Ctx,
 		vm.manager,
 		mempool,
 		txExecutorBackend.Config.PartialSyncPrimaryNetwork,
 		appSender,
+		vm.txBuilder,
 	)
-	vm.Builder = blockbuilder.CaminoNew(
+	vm.Builder = blockbuilder.NewCamino(
 		mempool,
 		vm.txBuilder,
 		txExecutorBackend,

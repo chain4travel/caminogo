@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	dacProposals "github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
@@ -755,7 +756,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		return err
 	}
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -886,7 +887,7 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 
 	amountToBurn := uint64(0)
 	if !hasExpiredDeposits {
-		baseFee, err := e.State.GetBaseFee()
+		baseFee, err := getBaseFee(e.State, e.Backend.Config)
 		if err != nil {
 			return err
 		}
@@ -1135,7 +1136,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 	}
 
 	// BaseTx check (fee, reward outs)
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1242,7 +1243,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1500,7 +1501,7 @@ func (e *CaminoStandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 		return err
 	}
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1578,7 +1579,7 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1632,7 +1633,7 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1790,7 +1791,7 @@ func (e *CaminoStandardTxExecutor) AddProposalTx(tx *txs.AddProposalTx) error {
 	// verify the flowcheck
 
 	lockState := locked.StateBonded
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1926,7 +1927,7 @@ func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
 
 	// verify the flowcheck
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -2263,7 +2264,7 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	}
 
 	// Verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -2363,4 +2364,26 @@ func outputsAreEqual(outs1, outs2 []*avax.TransferableOutput) bool {
 		outEq1, ok := out1.Out.(interface{ Equal(any) bool })
 		return ok && out1.Asset == out2.Asset && outEq1.Equal(out2.Out)
 	})
+}
+
+func getBaseFee(s state.Chain, cfg *config.Config) (uint64, error) {
+	fee, err := s.GetBaseFee()
+	switch err {
+	case database.ErrNotFound:
+		return cfg.TxFee, nil
+	case nil:
+		return fee, nil
+	}
+	return 0, err
+}
+
+func getFeeDistribution(s state.Chain, cfg *config.Config) ([dacProposals.FeeDistributionFractionsCount]uint64, error) { //nolint:unused
+	feeDistribution, err := s.GetFeeDistribution()
+	switch err {
+	case database.ErrNotFound:
+		return cfg.CaminoConfig.FeeDistribution, nil
+	case nil:
+		return feeDistribution, nil
+	}
+	return [3]uint64{}, err
 }

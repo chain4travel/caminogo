@@ -434,8 +434,8 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 				stakingOffset += time.Duration(config.InitialStakeDurationOffset) * time.Second
 
 				platformvmArgs.Validators = append(platformvmArgs.Validators,
-					api.PermissionlessValidator{
-						Staker: api.Staker{
+					api.GenesisPermissionlessValidator{
+						GenesisValidator: api.GenesisValidator{
 							StartTime: json.Uint64(startStakingTime.Unix()),
 							EndTime:   json.Uint64(endStakingTime.Unix()),
 							NodeID:    platformAllocation.NodeID,
