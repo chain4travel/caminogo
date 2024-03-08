@@ -210,7 +210,7 @@ func (vm *VM) Initialize(
 		appSender,
 		vm.txBuilder,
 	)
-	vm.Builder = blockbuilder.NewCamino(
+	vm.Builder = blockbuilder.New(
 		mempool,
 		vm.txBuilder,
 		txExecutorBackend,

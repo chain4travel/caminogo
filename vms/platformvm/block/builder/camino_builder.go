@@ -9,50 +9,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/block"
-	blockexecutor "github.com/ava-labs/avalanchego/vms/platformvm/block/executor"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	txBuilder "github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
-	txexecutor "github.com/ava-labs/avalanchego/vms/platformvm/txs/executor"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
-
-// Overriding axax block builder methods with caminoBuilder methods
-// must be done with consideration, that network uses reference to avax builder,
-// not to camino builder. So it will actually call avax builder methods.
-
-type caminoBuilder struct {
-	builder
-	caminoTxBuilder txBuilder.CaminoBuilder
-}
-
-func NewCamino(
-	mempool mempool.Mempool,
-	txBuilder txBuilder.CaminoBuilder,
-	txExecutorBackend *txexecutor.Backend,
-	blkManager blockexecutor.Manager,
-	toEngine chan<- common.Message,
-) Builder {
-	builder := &caminoBuilder{
-		builder: builder{
-			Mempool:           mempool,
-			txExecutorBackend: txExecutorBackend,
-			blkManager:        blkManager,
-			toEngine:          toEngine,
-			txBuilder:         txBuilder,
-		},
-		caminoTxBuilder: txBuilder,
-	}
-
-	builder.timer = timer.NewTimer(builder.setNextBuildBlockTime)
-
-	go txExecutorBackend.Ctx.Log.RecoverAndPanic(builder.timer.Dispatch)
-	return builder
-}
 
 func caminoBuildBlock(
 	builder *builder,
