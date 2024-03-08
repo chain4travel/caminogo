@@ -151,10 +151,10 @@ func Genesis(t *testing.T, avaxAssetID ids.ID, caminoGenesisConfig api.Camino, a
 	caminoGenesisConfig.ValidatorDeposits = make([][]api.UTXODeposit, len(FundedKeys))
 	caminoGenesisConfig.ValidatorConsortiumMembers = make([]ids.ShortID, len(FundedKeys))
 
-	genesisValidators := make([]api.PermissionlessValidator, len(FundedKeys))
+	genesisValidators := make([]api.GenesisPermissionlessValidator, len(FundedKeys))
 	for i, key := range FundedKeys {
-		genesisValidators[i] = api.PermissionlessValidator{
-			Staker: api.Staker{
+		genesisValidators[i] = api.GenesisPermissionlessValidator{
+			GenesisValidator: api.GenesisValidator{
 				StartTime: json.Uint64(ValidatorStartTime.Unix()),
 				EndTime:   json.Uint64(ValidatorEndTime.Unix()),
 				NodeID:    FundedNodeIDs[i],

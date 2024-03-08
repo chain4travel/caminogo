@@ -49,6 +49,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
 	github.com/thepudds/fzgen v0.4.2
 	github.com/tyler-smith/go-bip32 v1.0.0
+	github.com/xuri/excelize/v2 v2.8.0
 	go.opentelemetry.io/otel v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.0
@@ -161,4 +162,4 @@ require (
 
 replace github.com/ava-labs/avalanche-ledger-go => github.com/chain4travel/camino-ledger-go v0.0.13-c4t
 
-replace github.com/ava-labs/coreth => github.com/chain4travel/caminoethvm v1.1.15-rc1.0.20240721114647-ffc063541f3f
+replace github.com/ava-labs/coreth => github.com/chain4travel/caminoethvm v1.1.16-rc0

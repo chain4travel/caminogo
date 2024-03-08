@@ -193,16 +193,16 @@ type Chain struct {
 // [Camino] are the camino specific genesis args.
 // [Time] is the Platform Chain's time at network genesis.
 type BuildGenesisArgs struct {
-	AvaxAssetID   ids.ID                    `json:"avaxAssetID"`
-	NetworkID     json.Uint32               `json:"networkID"`
-	UTXOs         []UTXO                    `json:"utxos"`
+	AvaxAssetID   ids.ID                           `json:"avaxAssetID"`
+	NetworkID     json.Uint32                      `json:"networkID"`
+	UTXOs         []UTXO                           `json:"utxos"`
 	Validators    []GenesisPermissionlessValidator `json:"validators"`
-	Chains        []Chain                   `json:"chains"`
-	Camino        *Camino                   `json:"camino"`
-	Time          json.Uint64               `json:"time"`
-	InitialSupply json.Uint64               `json:"initialSupply"`
-	Message       string                    `json:"message"`
-	Encoding      formatting.Encoding       `json:"encoding"`
+	Chains        []Chain                          `json:"chains"`
+	Camino        *Camino                          `json:"camino"`
+	Time          json.Uint64                      `json:"time"`
+	InitialSupply json.Uint64                      `json:"initialSupply"`
+	Message       string                           `json:"message"`
+	Encoding      formatting.Encoding              `json:"encoding"`
 }
 
 // BuildGenesisReply is the reply from BuildGenesis

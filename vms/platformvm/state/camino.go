@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/block"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
@@ -152,7 +151,6 @@ type Camino interface {
 
 	LockedUTXOs(set.Set[ids.ID], set.Set[ids.ShortID], locked.State) ([]*avax.UTXO, error)
 	CaminoConfig() (*CaminoConfig, error)
-	Config() (*config.Config, error)
 }
 
 // For state only
@@ -194,8 +192,8 @@ type caminoState struct {
 	genesisSynced       bool
 	verifyNodeSignature bool
 	lockModeBondDeposit bool
-	baseFee             uint64
-	feeDistribution     [dac.FeeDistributionFractionsCount]uint64
+	baseFee             *uint64
+	feeDistribution     *[dac.FeeDistributionFractionsCount]uint64
 
 	// Deferred Stakers
 	deferredStakers       *baseStakers
@@ -549,28 +547,20 @@ func (cs *caminoState) Load(s *state) error {
 	cs.lockModeBondDeposit = mode
 
 	baseFee, err := database.GetUInt64(cs.caminoDB, baseFeeKey)
-	if err == database.ErrNotFound {
-		// if baseFee is not in db yet, than its first time when we access it
-		// and it should be equal to config base fee
-		config, err := s.Config()
-		if err != nil {
-			return err
-		}
-		baseFee = config.TxFee
-	} else if err != nil {
+	switch {
+	case err == nil:
+		cs.baseFee = &baseFee
+	case err != database.ErrNotFound:
 		return err
 	}
-	cs.baseFee = baseFee
 
 	feeDistribution, err := database.GetUInt64Slice(cs.caminoDB, feeDistributionKey)
-	if err == database.ErrNotFound {
-		// if fee distribution is not in db yet, than its first time when we access it
-		// and it should be equal to hardcoded fee distribution
-		feeDistribution = s.cfg.CaminoConfig.FeeDistribution[:]
-	} else if err != nil {
+	switch {
+	case err == nil:
+		cs.feeDistribution = (*[3]uint64)(feeDistribution)
+	case err != database.ErrNotFound:
 		return err
 	}
-	cs.feeDistribution = *(*[dac.FeeDistributionFractionsCount]uint64)(feeDistribution) // TODO @evlekht change when mod go is >= 1.20
 
 	errs := wrappers.Errs{}
 	errs.Add(
@@ -592,9 +582,13 @@ func (cs *caminoState) Write() error {
 			database.PutBool(cs.caminoDB, depositBondModeKey, cs.lockModeBondDeposit),
 		)
 	}
+	if cs.baseFee != nil {
+		errs.Add(database.PutUInt64(cs.caminoDB, baseFeeKey, *cs.baseFee))
+	}
+	if cs.feeDistribution != nil {
+		errs.Add(database.PutUInt64Slice(cs.caminoDB, feeDistributionKey, cs.feeDistribution[:]))
+	}
 	errs.Add(
-		database.PutUInt64(cs.caminoDB, baseFeeKey, cs.baseFee),
-		database.PutUInt64Slice(cs.caminoDB, feeDistributionKey, cs.feeDistribution[:]),
 		cs.writeAddressStates(),
 		cs.writeDepositOffers(),
 		cs.writeDeposits(),
@@ -627,17 +621,23 @@ func (cs *caminoState) Close() error {
 }
 
 func (cs *caminoState) GetBaseFee() (uint64, error) {
-	return cs.baseFee, nil
+	if cs.baseFee == nil {
+		return 0, database.ErrNotFound
+	}
+	return *cs.baseFee, nil
 }
 
 func (cs *caminoState) SetBaseFee(baseFee uint64) {
-	cs.baseFee = baseFee
+	cs.baseFee = &baseFee
 }
 
 func (cs *caminoState) GetFeeDistribution() ([dac.FeeDistributionFractionsCount]uint64, error) {
-	return cs.feeDistribution, nil
+	if cs.feeDistribution == nil {
+		return [3]uint64{}, database.ErrNotFound
+	}
+	return *cs.feeDistribution, nil
 }
 
 func (cs *caminoState) SetFeeDistribution(feeDistribution [dac.FeeDistributionFractionsCount]uint64) {
-	cs.feeDistribution = feeDistribution
+	cs.feeDistribution = &feeDistribution
 }

@@ -287,7 +287,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 }
 
 func makeValidator(
-	vdr *PermissionlessValidator,
+	vdr *GenesisPermissionlessValidator,
 	avaxAssetID ids.ID,
 	networkID uint32,
 ) (*txs.Tx, error) {
