@@ -71,7 +71,7 @@ var (
 )
 
 type CaminoApply interface {
-	ApplyCaminoState(State) error
+	ApplyCaminoState(Chain) error
 }
 
 type CaminoDiff interface {

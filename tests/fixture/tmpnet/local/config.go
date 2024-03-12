@@ -13,7 +13,7 @@ import (
 const (
 	// Constants defining the names of shell variables whose value can
 	// configure local network orchestration.
-	AvalancheGoPathEnvName = "AVALANCHEGO_PATH"
+	AvalancheGoPathEnvName = "CAMINOGO_BIN_PATH"
 	NetworkDirEnvName      = "TMPNET_NETWORK_DIR"
 	RootDirEnvName         = "TMPNET_ROOT_DIR"
 
@@ -32,7 +32,7 @@ func LocalFlags() tmpnet.FlagsMap {
 		config.HTTPHostKey:                  "127.0.0.1",
 		config.StakingHostKey:               "127.0.0.1",
 		config.HealthCheckFreqKey:           "2s",
-		config.AdminAPIEnabledKey:           true,
+		config.AdminAPIEnabledKey:           "e2e",
 		config.IpcAPIEnabledKey:             true,
 		config.IndexEnabledKey:              true,
 		config.LogDisplayLevelKey:           "INFO",
