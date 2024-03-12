@@ -199,7 +199,6 @@ func TestBanffProposalBlockTimeVerification(t *testing.T) {
 			}
 			return nil, database.ErrNotFound
 		}).AnyTimes()
-	onParentAccept.EXPECT().Config().Return(env.config, nil).AnyTimes()
 
 	// setup state to validate proposal block transaction
 	nextStakerTime := chainTime.Add(executor.SyncBound).Add(-1 * time.Second)

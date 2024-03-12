@@ -14,7 +14,7 @@ set -euo pipefail
 # ./scripts/build.sh
 # ./scripts/tests.e2e.existing.sh --ginkgo.label-filter=x               # All arguments are supplied to ginkgo
 # E2E_SERIAL=1 ./scripts/tests.e2e.sh                                   # Run tests serially
-# AVALANCHEGO_PATH=./build/avalanchego ./scripts/tests.e2e.existing.sh  # Customization of avalanchego path
+# CAMINOGO_BIN_PATH=./build/caminogo ./scripts/tests.e2e.existing.sh    # Customization of caminogo path
 if ! [[ "$0" =~ scripts/tests.e2e.existing.sh ]]; then
   echo "must be run from repository root"
   exit 255
@@ -22,7 +22,8 @@ fi
 
 # Ensure an absolute path to avoid dependency on the working directory
 # of script execution.
-export AVALANCHEGO_PATH="$(realpath ${AVALANCHEGO_PATH:-./build/avalanchego})"
+CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
+export CAMINOGO_BIN_PATH
 
 # Provide visual separation between testing and setup/teardown
 function print_separator {
@@ -47,7 +48,8 @@ print_separator
 # Determine the network configuration path from the latest symlink
 LATEST_SYMLINK_PATH="${HOME}/.tmpnet/networks/latest"
 if [[ -h "${LATEST_SYMLINK_PATH}" ]]; then
-  export TMPNET_NETWORK_DIR="$(realpath ${LATEST_SYMLINK_PATH})"
+  TMPNET_NETWORK_DIR="$(realpath "${LATEST_SYMLINK_PATH}")"
+  export TMPNET_NETWORK_DIR
 else
   echo "failed to find configuration path: ${LATEST_SYMLINK_PATH} symlink not found"
   exit 255

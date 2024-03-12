@@ -15,5 +15,5 @@ LDFLAGS="$LDFLAGS $static_ld_flags"
 
 echo "Building tmpnetctl..."
 go build -ldflags "$LDFLAGS"\
-   -o "$CAMINOGO_PATH/build/testnetctl"\
-   "$CAMINOGO_PATH/tests/fixture/testnet/cmd/"*.go
+   -o "$CAMINOGO_PATH/build/tmpnetctl"\
+   "$CAMINOGO_PATH/tests/fixture/tmpnet/cmd/"*.go

@@ -84,7 +84,7 @@ jobs:
         run: ./scripts/build.sh -r
       - name: Run e2e tests with existing network
         shell: bash
-        run: E2E_SERIAL=1 ./scripts/tests.e2e.persistent.sh
+        run: E2E_SERIAL=1 ./scripts/tests.e2e.existing.sh
   Upgrade:
     runs-on: ubuntu-latest
     steps:
