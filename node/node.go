@@ -128,21 +128,19 @@ func New(
 	logger logging.Logger,
 ) (*Node, error) {
 	tlsCert := config.StakingTLSCert.Leaf
-	stakingCert := staking.CertificateFromX509(tlsCert)
-	if err := staking.ValidateCertificate(stakingCert); err != nil {
-		return nil, fmt.Errorf("invalid staking certificate: %w", err)
+	stakingCert, err := staking.CertificateFromX509(tlsCert)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create staking certificate out of x509 cert: %w", err)
 	}
 
-	// Get the nodeID from certificate (secp256k1 public key)
-	nodeID, err := peer.CertToID(tlsCert)
-	if err != nil {
-		return nil, fmt.Errorf("cannot extract nodeID from certificate: %w", err)
+	if err := staking.ValidateCertificate(stakingCert); err != nil {
+		return nil, fmt.Errorf("invalid staking certificate: %w", err)
 	}
 
 	n := &Node{
 		Log:        logger,
 		LogFactory: logFactory,
-		ID:         nodeID,
+		ID:         stakingCert.NodeID,
 		Config:     config,
 	}
 
@@ -1123,7 +1121,7 @@ func (n *Node) initChainManager(avaxAssetID ids.ID) error {
 		return fmt.Errorf("couldn't initialize chain router: %w", err)
 	}
 
-	n.chainManager = chains.New(&chains.ManagerConfig{
+	n.chainManager, err = chains.New(&chains.ManagerConfig{
 		SybilProtectionEnabled:                  n.Config.SybilProtectionEnabled,
 		StakingTLSCert:                          n.Config.StakingTLSCert,
 		StakingBLSKey:                           n.Config.StakingSigningKey,
@@ -1168,6 +1166,9 @@ func (n *Node) initChainManager(avaxAssetID ids.ID) error {
 		Tracer:                                  n.tracer,
 		ChainDataDir:                            n.Config.ChainDataDir,
 	})
+	if err != nil {
+		return fmt.Errorf("couldn't initialize chain router: %w", err)
+	}
 
 	// Notify the API server when new chains are created
 	n.chainManager.AddRegistrant(n.APIServer)

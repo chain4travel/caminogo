@@ -13,7 +13,6 @@ import (
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 
-	"github.com/ava-labs/avalanchego/network/peer"
 	"github.com/ava-labs/avalanchego/staking"
 	"github.com/ava-labs/avalanchego/utils/cb58"
 	utilsSecp256k1 "github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
@@ -72,7 +71,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		id, err := peer.CertToID(cert.Leaf)
+		id, err := staking.TLSCertToID(cert.Leaf)
 		if err != nil {
 			fmt.Printf("cannot extract nodeID from certificate: %s\n", err)
 			os.Exit(1)

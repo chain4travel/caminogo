@@ -330,8 +330,11 @@ func (n *Node) EnsureNodeID() error {
 	if err != nil {
 		return fmt.Errorf("failed to ensure node ID: failed to load tls cert: %w", err)
 	}
-	stakingCert := staking.CertificateFromX509(tlsCert.Leaf)
-	n.NodeID = ids.NodeIDFromCert(stakingCert)
+	stakingCert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	if err != nil {
+		return fmt.Errorf("failed to ensure node ID: failed to load tls cert: %w", err)
+	}
+	n.NodeID = stakingCert.NodeID
 
 	return nil
 }

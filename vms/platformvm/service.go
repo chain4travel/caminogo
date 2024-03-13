@@ -1624,7 +1624,7 @@ func (s *Service) buildExportAVAX(args *ExportAVAXArgs) (*txs.Tx, ids.ShortID, e
 		}
 		to, err = ids.ShortFromString(args.To)
 		if err != nil {
-			return err
+			return nil, ids.ShortEmpty, err
 		}
 	}
 

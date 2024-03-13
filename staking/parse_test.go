@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	//go:embed large_rsa_key.cert
+	//go:embed camino_large_rsa_key.cert
 	largeRSAKeyCert []byte
 
 	parsers = []struct {

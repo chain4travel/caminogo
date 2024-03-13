@@ -19,8 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/codec"
@@ -40,20 +38,14 @@ func TestParse(t *testing.T) {
 	tlsCert, err := staking.NewTLSCert()
 	require.NoError(err)
 
-	cert := staking.CertificateFromX509(tlsCert.Leaf)
+	cert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	require.NoError(err)
 	key := tlsCert.PrivateKey.(crypto.Signer)
-
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert.Leaf)
-	require.NoError(err)
-
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
-	require.NoError(err)
 
 	builtBlock, err := Build(
 		parentID,
 		timestamp,
 		pChainHeight,
-		nodeID,
 		cert,
 		innerBlockBytes,
 		chainID,

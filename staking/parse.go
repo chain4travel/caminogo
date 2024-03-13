@@ -61,7 +61,10 @@ func ParseCertificate(der []byte) (*Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	stakingCert := CertificateFromX509(x509Cert)
+	stakingCert, err := CertificateFromX509(x509Cert)
+	if err != nil {
+		return nil, err
+	}
 	return stakingCert, ValidateCertificate(stakingCert)
 }
 
@@ -126,11 +129,23 @@ func ParseCertificatePermissive(bytes []byte) (*Certificate, error) {
 	if !input.ReadASN1BitString(&spk) {
 		return nil, ErrMalformedSubjectPublicKey
 	}
+
+	x509Cert, err := x509.ParseCertificate(bytes)
+	if err != nil {
+		return nil, err
+	}
+	nodeID, err := TLSCertToID(x509Cert)
+	if err != nil {
+		return nil, err
+	}
+
 	publicKey, signatureAlgorithm, err := parsePublicKey(pkAI, spk)
+
 	return &Certificate{
 		Raw:                bytes,
 		SignatureAlgorithm: signatureAlgorithm,
 		PublicKey:          publicKey,
+		NodeID:             nodeID,
 	}, err
 }
 

@@ -15,7 +15,6 @@ package peer
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"net"
 	"time"
@@ -24,7 +23,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/staking"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 )
 
 var (
@@ -105,22 +103,5 @@ func connToIDAndCert(conn *tls.Conn, invalidCerts prometheus.Counter, durangoTim
 		return ids.EmptyNodeID, nil, nil, err
 	}
 
-	nodeID, err := CertToID(tlsCert)
-	return nodeID, conn, peerCert, err
-}
-
-func CertToID(cert *x509.Certificate) (ids.NodeID, error) {
-	pubKeyBytes, err := secp256k1.RecoverSecp256PublicKey(cert)
-	if err != nil {
-		return ids.EmptyNodeID, err
-	}
-	return ids.ToNodeID(pubKeyBytes)
-}
-
-func StakingCertToID(cert *staking.Certificate) (ids.NodeID, error) {
-	tlsCert, err := x509.ParseCertificate(cert.Raw)
-	if err != nil {
-		return ids.EmptyNodeID, err
-	}
-	return CertToID(tlsCert)
+	return peerCert.NodeID, conn, peerCert, err
 }
