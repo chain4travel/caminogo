@@ -68,7 +68,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 		},
 	}
 
-	vm := newCaminoVM(t, caminoGenesisConf, genesisUTXOs, nil)
+	vm := newCaminoVM(t, latestFork, caminoGenesisConf, genesisUTXOs, nil)
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
@@ -247,7 +247,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		},
 	}
 
-	vm := newCaminoVM(t, caminoGenesisConf, genesisUTXOs, nil)
+	vm := newCaminoVM(t, latestFork, caminoGenesisConf, genesisUTXOs, nil)
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
@@ -428,7 +428,7 @@ func TestDepositsAutoUnlock(t *testing.T) {
 	}
 	require.NoError(genesis.SetDepositOfferID(caminoGenesisConf.DepositOffers[0]))
 
-	vm := newCaminoVM(t, caminoGenesisConf, []api.UTXO{{
+	vm := newCaminoVM(t, latestFork, caminoGenesisConf, []api.UTXO{{
 		Amount:  json.Uint64(depositOffer.MinAmount + defaultTxFee),
 		Address: depositOwnerAddrBech32,
 	}}, nil)
@@ -491,7 +491,7 @@ func TestProposals(t *testing.T) {
 	caminoPreFundedKey0AddrStr, err := address.FormatBech32(constants.UnitTestHRP, caminoPreFundedKeys[0].Address().Bytes())
 	require.NoError(t, err)
 
-	defaultConfig := defaultCaminoConfig()
+	defaultConfig := defaultCaminoConfig(t, latestFork)
 	proposalBondAmount := defaultConfig.CaminoConfig.DACProposalBondAmount
 	newFee := (defaultTxFee + 7) * 10
 
@@ -557,7 +557,7 @@ func TestProposals(t *testing.T) {
 			balance := proposalBondAmount + defaultTxFee*(uint64(len(tt.votes))+1) + newFee
 
 			// Prepare vm
-			vm := newCaminoVM(t, api.Camino{
+			vm := newCaminoVM(t, latestFork, api.Camino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
 				InitialAdmin:        caminoPreFundedKeys[0].Address(),
@@ -694,12 +694,12 @@ func TestAdminProposals(t *testing.T) {
 
 	applicantAddr := proposerAddr
 
-	defaultConfig := defaultCaminoConfig()
+	defaultConfig := defaultCaminoConfig(t, latestFork)
 	proposalBondAmount := defaultConfig.CaminoConfig.DACProposalBondAmount
 	balance := proposalBondAmount + defaultTxFee
 
 	// Prepare vm
-	vm := newCaminoVM(t, api.Camino{
+	vm := newCaminoVM(t, latestFork, api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 		InitialAdmin:        caminoPreFundedKeys[0].Address(),
@@ -810,7 +810,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 	fundsKeyAddrStr, err := address.FormatBech32(constants.UnitTestHRP, fundsKey.Address().Bytes())
 	require.NoError(t, err)
 
-	defaultConfig := defaultCaminoConfig()
+	defaultConfig := defaultCaminoConfig(t, latestFork)
 	fee := defaultConfig.TxFee
 	addValidatorFee := defaultConfig.AddPrimaryNetworkValidatorFee
 	proposalBondAmount := defaultConfig.CaminoConfig.DACProposalBondAmount
@@ -899,7 +899,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 			expectedHeight := initialHeight
 
 			// Prepare vm
-			vm := newCaminoVM(t, api.Camino{
+			vm := newCaminoVM(t, latestFork, api.Camino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
 				InitialAdmin:        rootAdminKey.Address(),

@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
@@ -44,7 +45,7 @@ func TestCaminoEnv(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ false, true, caminoGenesisConf)
+	env := newCaminoEnvironment(t, false, true, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -57,7 +58,7 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -343,7 +344,7 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, true, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, true, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -617,7 +618,7 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -644,68 +645,68 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 	}{
 		"Happy path bonding": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, env.ctx.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Happy path bonding deposited": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, existingTxID, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Happy path bonding deposited and unlocked": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, locked.ThisTxID),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight/2-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Bonding bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
 		"Fee burning bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, existingTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, existingTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
 		"Fee burning deposited UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, existingTxID, ids.Empty),
+				generateTestOut(env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
@@ -789,7 +790,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 	}{
 		"Locked out - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -801,7 +802,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Locked in - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
+				generateTestIn(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -811,7 +812,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Locked out - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -823,7 +824,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Locked in - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
+				generateTestIn(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -833,7 +834,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Stakeable out - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generateTestStakeableOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -845,7 +846,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Stakeable in - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
+				generateTestStakeableIn(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -855,7 +856,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Stakeable out - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generateTestStakeableOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -867,7 +868,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Stakeable in - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
+				generateTestStakeableIn(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -897,7 +898,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run("ExportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -924,7 +925,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("ImportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -951,7 +952,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("AddressStateTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -977,7 +978,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("CreateChainTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1002,7 +1003,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("CreateSubnetTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1026,7 +1027,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("TransformSubnetTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1052,7 +1053,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("AddSubnetValidatorTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1085,7 +1086,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("RemoveSubnetValidatorTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, false, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1141,13 +1142,13 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, snowtest.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generateTestStakeableOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
 			},
 			expectedErr: nil,
 		},
@@ -1159,13 +1160,13 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, snowtest.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generateTestStakeableOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
 			},
 			expectedErr: errNodeSignatureMissing,
 		},
@@ -1177,10 +1178,10 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, snowtest.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: errNodeSignatureMissing,
 		},
@@ -1192,10 +1193,10 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, snowtest.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: errUnauthorizedSubnetModification,
 		},
@@ -1207,20 +1208,20 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, snowtest.AVAXAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generateTestStakeableOut(snowtest.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
 			},
 			expectedErr: errUnauthorizedSubnetModification,
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, true, tt.caminoConfig)
+			env := newCaminoEnvironment(t, true, true, tt.caminoConfig)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1288,7 +1289,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		LockModeBondDeposit: true,
 	}
 
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	env.config.BanffTime = env.state.GetTimestamp()
 
@@ -1533,7 +1534,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 	})
 
 	// We need to start again the environment because the staker is already removed from the previous test
-	env = newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env = newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	env.config.BanffTime = env.state.GetTimestamp()
 
@@ -1569,7 +1570,7 @@ func TestAddAddressStateTxExecutor(t *testing.T) {
 		LockModeBondDeposit: true,
 	}
 
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -1851,7 +1852,7 @@ func TestAddAddressStateTxExecutor(t *testing.T) {
 			generateTestInFromUTXO(unlockedUTXO, sigIndices),
 		},
 		Outs: []*avax.TransferableOutput{
-			generateTestOut(avaxAssetID, unlockedUTXOAmount-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+			generateTestOut(env.ctx.AVAXAssetID, unlockedUTXOAmount-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 		},
 	}}
 
@@ -1926,7 +1927,7 @@ func TestAddAddressStateTxExecutor(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 
 	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
 	utxoOwnerKey, utxoOwnerAddr, utxoOwner := generateKeyAndOwner(t)
@@ -2035,7 +2036,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestStakeableIn(avaxAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), []uint32{0}),
+							generateTestStakeableIn(ctx.AVAXAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), []uint32{0}),
 						},
 					}},
 					RewardsOwner: &secp256k1fx.OutputOwners{},
@@ -2055,7 +2056,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Outs: []*avax.TransferableOutput{
-							generateTestStakeableOut(avaxAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), utxoOwner),
+							generateTestStakeableOut(ctx.AVAXAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), utxoOwner),
 						},
 					}},
 					RewardsOwner: &secp256k1fx.OutputOwners{},
@@ -3038,7 +3039,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 	for name, tt := range tests {
 		for phaseIndex, phase := range phases {
 			t.Run(fmt.Sprintf("%s, %s", phase.name, name), func(t *testing.T) {
-				env := newCaminoEnvironmentWithMocks(tt.caminoGenesisConf, nil)
+				env := newCaminoEnvironmentWithMocks(t, tt.caminoGenesisConf, nil)
 				defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 				phase.prepare(env, tt.chaintime)
@@ -3075,7 +3076,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -3403,7 +3404,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
 
 			tt.utx.BlockchainID = env.ctx.ChainID
@@ -3424,7 +3425,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 
 	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
 	depositRewardOwnerKey, _, depositRewardOwner := generateKeyAndOwner(t)
@@ -4264,7 +4265,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
 
 			// ensuring that ins and outs from test case are sorted, signing tx
@@ -4289,7 +4290,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -4579,7 +4580,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 			utx := tt.utx()
@@ -4601,7 +4602,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -4865,7 +4866,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 			require := require.New(t)
 			ctrl := gomock.NewController(t)
 
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, tt.sharedMemory(t, ctrl, tt.utxos))
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, tt.sharedMemory(t, ctrl, tt.utxos))
 			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
 
 			utx := tt.utx(tt.utxos)
@@ -4903,7 +4904,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 
 func TestCaminoStandardTxExecutorAddressStateTxSuspendValidator(t *testing.T) {
 	// finding first staker to remove
-	env := newCaminoEnvironment( /*postBanff*/ true, false, api.Camino{LockModeBondDeposit: true})
+	env := newCaminoEnvironment(t, true, false, api.Camino{LockModeBondDeposit: true})
 	env.ctx.Lock.Lock()
 	stakerIterator, err := env.state.GetCurrentStakerIterator()
 	require.NoError(t, err)
@@ -5020,7 +5021,7 @@ func TestCaminoStandardTxExecutorAddressStateTxSuspendValidator(t *testing.T) {
 				LockModeBondDeposit: true,
 				InitialAdmin:        initAdmin.Address(),
 			}
-			env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+			env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 			env.ctx.Lock.Lock()
 			defer func() {
 				require.NoError(t, shutdownCaminoEnvironment(env))
@@ -5102,7 +5103,7 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 		MultisigAliases:     []*multisig.Alias{&aliasDefinition.Alias, &nestedAliasDefinition.Alias},
 	}
 
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
+	env := newCaminoEnvironment(t, true, false, caminoGenesisConf)
 	env.ctx.Lock.Lock()
 	defer func() {
 		require.NoError(t, shutdownCaminoEnvironment(env))
@@ -5117,13 +5118,13 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 
 	tests := map[string]test{
 		"P->C export from msig wallet": {
-			destinationChainID: cChainID,
+			destinationChainID: env.ctx.CChainID,
 			to:                 fakeMSigAlias,
 			expectedErr:        nil,
 			expectedMsigAddrs:  []ids.ShortID{fakeMSigAlias},
 		},
 		"P->C export simple account not multisig": {
-			destinationChainID: cChainID,
+			destinationChainID: env.ctx.CChainID,
 			to:                 sourceKey.Address(),
 			expectedErr:        nil,
 			expectedMsigAddrs:  []ids.ShortID{},
@@ -5209,6 +5210,8 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 }
 
 func TestCaminoCrossExport(t *testing.T) {
+	ctx := snowtest.Context(t, snowtest.PChainID)
+
 	addr0 := caminoPreFundedKeys[0].Address()
 	addr1 := caminoPreFundedKeys[1].Address()
 
@@ -5229,24 +5232,24 @@ func TestCaminoCrossExport(t *testing.T) {
 	}{
 		"CrossTransferOutput OK": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{0}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{0}, ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
 			},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
+				generateTestIn(ctx.AVAXAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
 			},
 			exportedOuts: []*avax.TransferableOutput{
-				generateCrossOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, addr1),
+				generateCrossOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, addr1),
 			},
 		},
 		"CrossTransferOutput Invalid Recipient": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{0}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{0}, ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
 			},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
+				generateTestIn(ctx.AVAXAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
 			},
 			exportedOuts: []*avax.TransferableOutput{
-				generateCrossOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.ShortEmpty),
+				generateCrossOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.ShortEmpty),
 			},
 			expectedErr: secp256k1fx.ErrEmptyRecipient,
 		},
@@ -5272,7 +5275,7 @@ func TestCaminoCrossExport(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run("ExportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, api.Camino{LockModeBondDeposit: true, VerifyNodeSignature: true})
+			env := newCaminoEnvironment(t, true, false, api.Camino{LockModeBondDeposit: true, VerifyNodeSignature: true})
 			for _, utxo := range tt.utxos {
 				env.state.AddUTXO(utxo)
 			}
@@ -5302,7 +5305,7 @@ func TestCaminoCrossExport(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 
 	ownerKey, ownerAddr, owner := generateKeyAndOwner(t)
 	msigKeys, msigAlias, msigAliasOwners, msigOwner := generateMsigAliasAndKeys(t, 2, 2, true)
@@ -5516,7 +5519,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 
 			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
 
@@ -5538,7 +5541,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -5786,7 +5789,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 			utx := tt.utx()
@@ -5808,7 +5811,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -6206,7 +6209,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 			env.config.CaminoConfig.DACProposalBondAmount = proposalBondAmt
@@ -6231,7 +6234,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -6619,7 +6622,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 			env.config.BerlinPhaseTime = proposal.StartTime().Add(-1 * time.Second)
@@ -6643,7 +6646,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -7657,7 +7660,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
+			env := newCaminoEnvironmentWithMocks(t, caminoGenesisConf, nil)
 			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
 
 			env.config.BerlinPhaseTime = earlySuccessfulProposal.StartTime().Add(-1 * time.Second)

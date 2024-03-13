@@ -5,6 +5,7 @@ package platformvm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
+	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
@@ -47,7 +49,7 @@ var (
 	localStakingPath          = "../../staking/local/"
 	caminoPreFundedKeys       = secp256k1.TestKeys()
 	_, caminoPreFundedNodeIDs = nodeid.LoadLocalCaminoNodeKeysAndIDs(localStakingPath)
-	defaultStartTime          = banffForkTime.Add(time.Second)
+	defaultStartTime          = latestForkTime.Add(time.Second)
 
 	testAddressID ids.ShortID
 )
@@ -64,7 +66,7 @@ func init() {
 }
 
 func defaultCaminoService(t *testing.T, camino api.Camino, utxos []api.UTXO) *CaminoService {
-	vm := newCaminoVM(t, camino, utxos, nil)
+	vm := newCaminoVM(t, latestFork, camino, utxos, nil)
 
 	vm.ctx.Lock.Lock()
 	defer vm.ctx.Lock.Unlock()
@@ -79,19 +81,16 @@ func defaultCaminoService(t *testing.T, camino api.Camino, utxos []api.UTXO) *Ca
 	}
 }
 
-func newCaminoVM(t *testing.T, genesisConfig api.Camino, genesisUTXOs []api.UTXO, startTime *time.Time) *VM {
+func newCaminoVM(t *testing.T, fork activeFork, genesisConfig api.Camino, genesisUTXOs []api.UTXO, startTime *time.Time) *VM {
 	require := require.New(t)
 
-	vm := &VM{Config: defaultCaminoConfig()}
+	vm := &VM{Config: defaultCaminoConfig(t, fork)}
 
 	db := memdb.New()
 	chainDB := prefixdb.New([]byte{0}, db)
 	atomicDB := prefixdb.New([]byte{1}, db)
 
-	if startTime == nil {
-		startTime = &defaultStartTime
-	}
-	vm.clock.Set(*startTime)
+	vm.clock.Set(latestForkTime)
 	msgChan := make(chan common.Message, 1)
 	ctx := snowtest.Context(t, snowtest.PChainID)
 
@@ -150,7 +149,39 @@ func newCaminoVM(t *testing.T, genesisConfig api.Camino, genesisUTXOs []api.UTXO
 	// return vm, baseDBManager.Current().Database, msm
 }
 
-func defaultCaminoConfig() config.Config {
+func defaultCaminoConfig(t *testing.T, fork activeFork) config.Config {
+	t.Helper()
+
+	var (
+		apricotPhase3Time = mockable.MaxTime
+		apricotPhase5Time = mockable.MaxTime
+		banffTime         = mockable.MaxTime
+		cortinaTime       = mockable.MaxTime
+		durangoTime       = mockable.MaxTime
+	)
+
+	// always reset latestForkTime (a package level variable)
+	// to ensure test independence
+	latestForkTime = defaultGenesisTime.Add(time.Second)
+	switch fork {
+	case durangoFork:
+		durangoTime = latestForkTime
+		fallthrough
+	case cortinaFork:
+		cortinaTime = latestForkTime
+		fallthrough
+	case banffFork:
+		banffTime = latestForkTime
+		fallthrough
+	case apricotPhase5:
+		apricotPhase5Time = latestForkTime
+		fallthrough
+	case apricotPhase3:
+		apricotPhase3Time = latestForkTime
+	default:
+		require.NoError(t, fmt.Errorf("unhandled fork %d", fork))
+	}
+
 	return config.Config{
 		Chains:                 chains.TestManager,
 		UptimeLockedCalculator: uptime.NewLockedCalculator(),
@@ -166,9 +197,11 @@ func defaultCaminoConfig() config.Config {
 		MinStakeDuration:       defaultMinStakingDuration,
 		MaxStakeDuration:       defaultMaxStakingDuration,
 		RewardConfig:           defaultRewardConfig,
-		ApricotPhase3Time:      defaultValidateEndTime,
-		ApricotPhase5Time:      defaultValidateEndTime,
-		BanffTime:              banffForkTime,
+		ApricotPhase3Time:      apricotPhase3Time,
+		ApricotPhase5Time:      apricotPhase5Time,
+		BanffTime:              banffTime,
+		CortinaTime:            cortinaTime,
+		DurangoTime:            durangoTime,
 		CaminoConfig: caminoconfig.Config{
 			DACProposalBondAmount: 100 * units.Avax,
 		},
