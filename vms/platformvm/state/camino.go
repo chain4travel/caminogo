@@ -445,12 +445,12 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.Genesis) error {
 			}
 			txIDs.Add(tx.ID())
 
-			validatorTx, ok := tx.Unsigned.(txs.ValidatorTx)
+			validatorTx, ok := tx.Unsigned.(txs.ScheduledStaker)
 			if !ok {
-				return fmt.Errorf("expected tx type txs.ValidatorTx but got %T", tx.Unsigned)
+				return fmt.Errorf("expected a scheduled staker but got %T", tx.Unsigned)
 			}
 
-			staker, err := NewCurrentStaker(tx.ID(), validatorTx, 0)
+			staker, err := NewCurrentStaker(tx.ID(), validatorTx, validatorTx.StartTime(), 0)
 			if err != nil {
 				return err
 			}

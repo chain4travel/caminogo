@@ -186,6 +186,7 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 				staker, err := state.NewCurrentStaker(
 					tx.ID(),
 					tx.Unsigned.(*txs.CaminoAddValidatorTx),
+					tx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 					0,
 				)
 				require.NoError(t, err)
@@ -216,6 +217,7 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 				staker, err := state.NewCurrentStaker(
 					tx.ID(),
 					tx.Unsigned.(*txs.CaminoAddValidatorTx),
+					tx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 					0,
 				)
 				require.NoError(t, err)
@@ -370,6 +372,7 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	staker, err := state.NewCurrentStaker(
 		addDSTx.ID(),
 		addDSTx.Unsigned.(*txs.CaminoAddValidatorTx),
+		addDSTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(t, err)
@@ -393,6 +396,7 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	staker, err = state.NewCurrentStaker(
 		subnetTx.ID(),
 		subnetTx.Unsigned.(*txs.AddSubnetValidatorTx),
+		subnetTx.Unsigned.(*txs.AddSubnetValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(t, err)

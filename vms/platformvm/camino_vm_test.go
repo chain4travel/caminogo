@@ -130,6 +130,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	staker, err := state.NewCurrentStaker(
 		addValidatorTx.ID(),
 		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx),
+		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(err)
@@ -309,6 +310,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	staker, err := state.NewCurrentStaker(
 		addValidatorTx.ID(),
 		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx),
+		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(err)
