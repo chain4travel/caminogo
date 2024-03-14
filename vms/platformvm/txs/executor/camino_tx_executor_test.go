@@ -1513,7 +1513,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		generateUTXOsAfterReward: func(txID ids.ID) []*avax.UTXO {
 			return []*avax.UTXO{
 				generateTestUTXO(txID, env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, stakeOwners, ids.Empty, ids.Empty),
-				generateTestUTXOWithIndex(unlockedUTXOTxID, 1, env.ctx.AVAXAssetID, defaultCaminoBalance, stakeOwners, ids.Empty, ids.Empty, true),
+				generateTestUTXOWithIndex(unlockedUTXOTxID, 4, env.ctx.AVAXAssetID, defaultCaminoBalance, stakeOwners, ids.Empty, ids.Empty, true),
 			}
 		},
 		expectedErr: nil,
@@ -3048,7 +3048,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				// creating offer permission cred
 				if tt.offerPermissionCred != nil {
 					tx.Creds = append(tx.Creds, tt.offerPermissionCred(t))
-					signedBytes, err := txs.Codec.Marshal(txs.Version, tx)
+					signedBytes, err := txs.Codec.Marshal(txs.CodecVersion, tx)
 					require.NoError(t, err)
 					tx.SetBytes(tx.Unsigned.Bytes(), signedBytes)
 				}
@@ -4623,7 +4623,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 			}
 			utxoID := utxo.InputID()
 			utxoIDs[i] = utxoID[:]
-			utxoBytes, err := txs.Codec.Marshal(txs.Version, toMarshal)
+			utxoBytes, err := txs.Codec.Marshal(txs.CodecVersion, toMarshal)
 			require.NoError(t, err)
 			utxosBytes[i] = utxoBytes
 		}
@@ -5827,7 +5827,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 	proposalWrapper := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 		Start: 100, End: 101, Options: []uint64{1},
 	}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 	require.NoError(t, err)
 
 	baseTxWithBondAmt := func(bondAmt uint64) *txs.BaseTx {
@@ -5937,7 +5937,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 					Start:   uint64(cfg.BerlinPhaseTime.Unix()) - 1,
 					End:     uint64(cfg.BerlinPhaseTime.Unix()) + 1,
 					Options: []uint64{1},
@@ -5964,7 +5964,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
 				startTime := uint64(cfg.BerlinPhaseTime.Add(MaxFutureStartTime).Unix() + 1)
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 					Start:   startTime,
 					End:     startTime + 1,
 					Options: []uint64{1},
@@ -5995,7 +5995,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, Options: []uint64{1},
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6023,7 +6023,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, ApplicantAddress: applicantAddress,
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6186,7 +6186,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, ApplicantAddress: applicantAddress,
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6246,7 +6246,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 	feeUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
 
 	simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}}
-	voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+	voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -6444,7 +6444,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				vote := &txs.VoteWrapper{Vote: &dac.DummyVote{}} // not SimpleVote
-				voteBytes, err := txs.Codec.Marshal(txs.Version, vote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, vote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,
@@ -6473,7 +6473,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 5}} // just 3 options in proposal
-				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,
@@ -6598,7 +6598,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
-				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,

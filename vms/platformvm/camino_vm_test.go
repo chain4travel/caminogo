@@ -72,7 +72,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
-	utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
+	utxo := generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
 	vm.state.AddUTXO(utxo)
 	require.NoError(vm.state.Commit())
 
@@ -137,7 +137,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	vm.state.AddTx(addValidatorTx, status.Committed)
 	require.NoError(vm.state.Commit())
 
-	utxo = generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
+	utxo = generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
 	vm.state.AddUTXO(utxo)
 	require.NoError(vm.state.Commit())
 
@@ -250,7 +250,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
-	utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
+	utxo := generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
 	vm.state.AddUTXO(utxo)
 	require.NoError(vm.state.Commit())
 
@@ -316,7 +316,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	vm.state.AddTx(addValidatorTx, status.Committed)
 	require.NoError(vm.state.Commit())
 
-	utxo = generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
+	utxo = generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
 	vm.state.AddUTXO(utxo)
 	require.NoError(vm.state.Commit())
 
@@ -1345,7 +1345,7 @@ func buildBaseFeeProposalTx(
 		End:     uint64(endTime.Unix()),
 		Options: options,
 	}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1392,7 +1392,7 @@ func buildAddMemberProposalTx(
 		proposal = &dac.AdminProposal{Proposal: proposal}
 	}
 	wrapper := &txs.ProposalWrapper{Proposal: proposal}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, wrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, wrapper)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1440,7 +1440,7 @@ func buildExcludeMemberProposalTx(
 		proposal = &dac.AdminProposal{Proposal: proposal}
 	}
 	wrapper := &txs.ProposalWrapper{Proposal: proposal}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, wrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, wrapper)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1499,7 +1499,7 @@ func buildSimpleVoteTx(
 		nil, nil, 0,
 	)
 	require.NoError(t, err)
-	voteBytes, err := txs.Codec.Marshal(txs.Version, &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: votedOption}})
+	voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: votedOption}})
 	require.NoError(t, err)
 	addVoteTx, err := txs.NewSigned(&txs.AddVoteTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{

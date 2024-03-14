@@ -204,9 +204,15 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 		return fmt.Errorf("%w: %w", errSignatureMissing, err)
 	}
 
+	currentTimestamp := e.State.GetTimestamp()
+
 	// verify validator
 
-	duration := tx.Validator.Duration()
+	startTime := currentTimestamp
+	if !e.Backend.Config.IsDurangoActivated(currentTimestamp) {
+		startTime = tx.StartTime()
+	}
+	duration := tx.EndTime().Sub(startTime)
 
 	switch {
 	case tx.Validator.Wght < e.Backend.Config.MinValidatorStake:
@@ -224,7 +230,6 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 	}
 
 	if e.Backend.Bootstrapped.Get() {
-		currentTimestamp := e.State.GetTimestamp()
 		// Ensure the proposed validator starts after the current time
 		startTime := tx.StartTime()
 		if !currentTimestamp.Before(startTime) {
@@ -448,7 +453,7 @@ func (e *CaminoStandardTxExecutor) wrapAtomicElementsForMultisig(tx *txs.ExportT
 			UTXO:    utxo,
 			Aliases: aliases,
 		}
-		bytes, err := txs.Codec.Marshal(txs.Version, wrappedUtxo)
+		bytes, err := txs.Codec.Marshal(txs.CodecVersion, wrappedUtxo)
 		if err != nil {
 			return err
 		}

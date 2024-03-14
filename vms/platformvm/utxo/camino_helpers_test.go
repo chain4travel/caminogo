@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -159,7 +160,7 @@ func defaultState(
 		db,
 		genesisBytes,
 		prometheus.NewRegistry(),
-		cfg.Validators,
+		cfg,
 		execCfg,
 		ctx,
 		metrics.Noop,
@@ -366,7 +367,7 @@ func defaultCaminoHandler(t *testing.T) *caminoHandler {
 
 	return &caminoHandler{
 		handler: handler{
-			ctx: snow.DefaultContextTest(),
+			ctx: snowtest.Context(t, snowtest.PChainID),
 			clk: &mockable.Clock{},
 			fx:  fx,
 		},

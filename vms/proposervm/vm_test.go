@@ -30,7 +30,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/network/peer"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
@@ -40,7 +39,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/staking"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/avalanchego/vms/proposervm/state"
@@ -1003,7 +1001,7 @@ func TestExpiredBuildBlock(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 	ctx.ValidatorState = valState
 
 	toEngine := make(chan common.Message, 1)
@@ -1298,7 +1296,7 @@ func TestInnerVMRollback(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 	ctx.ValidatorState = valState
 
 	coreVM.InitializeF = func(
@@ -1967,7 +1965,7 @@ func TestRejectedHeightNotIndexed(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 	ctx.ValidatorState = valState
 
 	require.NoError(proVM.Initialize(
@@ -2177,7 +2175,7 @@ func TestRejectedOptionHeightNotIndexed(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 	ctx.ValidatorState = valState
 
 	require.NoError(proVM.Initialize(
@@ -2328,7 +2326,7 @@ func TestVMInnerBlkCache(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 
 	require.NoError(vm.Initialize(
 		context.Background(),
@@ -2570,7 +2568,7 @@ func TestVM_VerifyBlockWithContext(t *testing.T) {
 	}
 
 	snowCtx := snowtest.Context(t, snowtest.CChainID)
-	snowCtx.NodeID = NodeIDFromCert(pTestCert)
+	snowCtx.NodeID = pTestNodeID
 
 	require.NoError(vm.Initialize(
 		context.Background(),
@@ -2729,7 +2727,7 @@ func TestHistoricalBlockDeletion(t *testing.T) {
 	}
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestNodeID
 	ctx.ValidatorState = &validators.TestState{
 		T: t,
 		GetMinimumHeightF: func(context.Context) (uint64, error) {
@@ -2940,10 +2938,4 @@ func TestHistoricalBlockDeletion(t *testing.T) {
 
 	issueBlock()
 	requireNumHeights(newNumHistoricalBlocks)
-}
-
-func NodeIDFromCert(cert *staking.Certificate) ids.NodeID {
-	return hashing.ComputeHash160Array(
-		hashing.ComputeHash256(cert.Raw),
-	)
 }

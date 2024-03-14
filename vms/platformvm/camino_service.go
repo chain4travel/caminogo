@@ -244,7 +244,7 @@ func (s *CaminoService) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	reply.SupplyCap = json.Uint64(s.vm.RewardConfig.SupplyCap)
 
 	// Codec information
-	reply.CodecVersion = json.Uint16(txs.Version)
+	reply.CodecVersion = json.Uint16(txs.CodecVersion)
 
 	caminoConfig, err := s.vm.state.CaminoConfig()
 	if err != nil {
@@ -426,7 +426,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errCreateTransferables, err)
 	}
 
-	bytes, err := txs.Codec.Marshal(txs.Version, ins)
+	bytes, err := txs.Codec.Marshal(txs.CodecVersion, ins)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -435,7 +435,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errEncodeTransferables, err)
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, outs)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, outs)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -452,7 +452,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		}
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, owners)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, owners)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeOwners, err)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 	depositTxID := ids.ID{0, 1}
 	creatorAddress := ids.ShortID{1}

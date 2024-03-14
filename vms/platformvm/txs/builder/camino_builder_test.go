@@ -167,6 +167,8 @@ func TestCaminoBuilderNewAddSubnetValidatorTxNodeSig(t *testing.T) {
 }
 
 func TestUnlockDepositTx(t *testing.T) {
+	ctx := snowtest.Context(t, snowtest.PChainID)
+
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -204,17 +206,17 @@ func TestUnlockDepositTx(t *testing.T) {
 	}{
 		"Happy path, ins and feeIns consumed different UTXOs": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, depositTxID, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, depositTxID, ids.Empty),
+				generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, defaultTxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: nil,
 		},
 		"Happy path, multiple ins and multiple feeIns consumed different UTXOs": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, depositTxID, ids.Empty),
-				generateTestUTXO(ids.ID{2}, avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, depositTxID, ids.Empty),
-				generateTestUTXO(ids.ID{3}, avaxAssetID, defaultTxFee/2, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.ID{4}, avaxAssetID, defaultTxFee/2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultCaminoValidatorWeight/2, outputOwners, depositTxID, ids.Empty),
+				generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, defaultCaminoValidatorWeight/2, outputOwners, depositTxID, ids.Empty),
+				generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, defaultTxFee/2, outputOwners, ids.Empty, ids.Empty),
+				generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, defaultTxFee/2, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: nil,
 		},
@@ -770,7 +772,7 @@ func TestNewRewardsImportTx(t *testing.T) {
 					}
 					utxoID := utxo.InputID()
 					utxoIDs[i] = utxoID[:]
-					utxoBytes, err := txs.Codec.Marshal(txs.Version, toMarshal)
+					utxoBytes, err := txs.Codec.Marshal(txs.CodecVersion, toMarshal)
 					require.NoError(t, err)
 					utxosBytes[i] = utxoBytes
 				}

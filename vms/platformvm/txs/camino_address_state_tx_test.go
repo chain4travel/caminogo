@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
@@ -20,7 +21,7 @@ import (
 
 func TestAddressStateTxSyntacticVerify(t *testing.T) {
 	require := require.New(t)
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	signers := [][]*secp256k1.PrivateKey{preFundedKeys}
 
 	var (

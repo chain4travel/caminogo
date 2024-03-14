@@ -210,7 +210,7 @@ func (vm *VM) Initialize(
 		txExecutorBackend,
 		validatorManager,
 	)
-	
+
 	txVerifier := network.NewLockedTxVerifier(&txExecutorBackend.Ctx.Lock, vm.manager)
 	vm.Network, err = network.NewCamino(
 		chainCtx.Log,

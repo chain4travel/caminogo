@@ -5,6 +5,7 @@ package avax
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +17,7 @@ import (
 )
 
 func TestRewardUTXOSerializeC(t *testing.T) {
-	c := linearcodec.NewDefault()
+	c := linearcodec.NewDefault(time.Time{})
 	manager := codec.NewDefaultManager()
 
 	errs := wrappers.Errs{}

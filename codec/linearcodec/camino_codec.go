@@ -6,6 +6,7 @@ package linearcodec
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/reflectcodec"
@@ -36,7 +37,7 @@ type caminoLinearCodec struct {
 	nextCustomTypeID uint32
 }
 
-func NewCamino(tagNames []string, maxSliceLen uint32) CaminoCodec {
+func NewCamino(durangoTime time.Time, tagNames []string, maxSliceLen uint32) CaminoCodec {
 	hCodec := &caminoLinearCodec{
 		linearCodec: linearCodec{
 			nextTypeID:      0,
@@ -44,18 +45,18 @@ func NewCamino(tagNames []string, maxSliceLen uint32) CaminoCodec {
 		},
 		nextCustomTypeID: firstCustomTypeID,
 	}
-	hCodec.Codec = reflectcodec.New(hCodec, tagNames, maxSliceLen)
+	hCodec.Codec = reflectcodec.New(hCodec, tagNames, durangoTime, maxSliceLen)
 	return hCodec
 }
 
 // NewDefault is a convenience constructor; it returns a new codec with reasonable default values
-func NewCaminoDefault() CaminoCodec {
-	return NewCamino([]string{reflectcodec.DefaultTagName}, DefaultMaxSliceLength)
+func NewCaminoDefault(durangoTime time.Time) CaminoCodec {
+	return NewCamino(durangoTime, []string{reflectcodec.DefaultTagName}, DefaultMaxSliceLength)
 }
 
 // NewCustomMaxLength is a convenience constructor; it returns a new codec with custom max length and default tags
-func NewCaminoCustomMaxLength(maxSliceLen uint32) CaminoCodec {
-	return NewCamino([]string{reflectcodec.DefaultTagName}, maxSliceLen)
+func NewCaminoCustomMaxLength(durangoTime time.Time, maxSliceLen uint32) CaminoCodec {
+	return NewCamino(durangoTime, []string{reflectcodec.DefaultTagName}, maxSliceLen)
 }
 
 // RegisterCustomType is used to register custom types that may be

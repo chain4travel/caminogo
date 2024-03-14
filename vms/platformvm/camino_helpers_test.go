@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -92,7 +93,7 @@ func newCaminoVM(t *testing.T, genesisConfig api.Camino, genesisUTXOs []api.UTXO
 	}
 	vm.clock.Set(*startTime)
 	msgChan := make(chan common.Message, 1)
-	ctx := defaultContext(t)
+	ctx := snowtest.Context(t, snowtest.PChainID)
 
 	m := atomic.NewMemory(atomicDB)
 	msm := &mutableSharedMemory{
@@ -102,7 +103,7 @@ func newCaminoVM(t *testing.T, genesisConfig api.Camino, genesisUTXOs []api.UTXO
 
 	ctx.Lock.Lock()
 	defer ctx.Lock.Unlock()
-	_, genesisBytes := newCaminoGenesisWithUTXOs(t, genesisConfig, genesisUTXOs, startTime)
+	_, genesisBytes := newCaminoGenesisWithUTXOs(t, ctx.AVAXAssetID, genesisConfig, genesisUTXOs, startTime)
 	// _, genesisBytes := defaultGenesis(t)
 	appSender := &common.SenderTest{}
 	appSender.CantSendAppGossip = true
@@ -177,7 +178,7 @@ func defaultCaminoConfig() config.Config {
 // Returns:
 // 1) The genesis state
 // 2) The byte representation of the default genesis for tests
-func newCaminoGenesisWithUTXOs(t *testing.T, caminoGenesisConfig api.Camino, genesisUTXOs []api.UTXO, starttime *time.Time) (*api.BuildGenesisArgs, []byte) {
+func newCaminoGenesisWithUTXOs(t *testing.T, avaxAssetID ids.ID, caminoGenesisConfig api.Camino, genesisUTXOs []api.UTXO, starttime *time.Time) (*api.BuildGenesisArgs, []byte) {
 	require := require.New(t)
 
 	if starttime == nil {

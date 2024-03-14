@@ -9,13 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 func TestFinishProposalsTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 
 	proposalID1 := ids.ID{1}

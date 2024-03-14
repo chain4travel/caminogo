@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -160,7 +160,7 @@ func TestLock(t *testing.T) {
 	require.NoError(t, fx.Bootstrapped())
 
 	config := defaultConfig()
-	ctx := snow.DefaultContextTest()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	baseDB := versiondb.New(memdb.New())
 	rewardsCalc := reward.NewCalculator(config.RewardConfig)
 
@@ -915,7 +915,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 
 func TestGetDepositUnlockableAmounts(t *testing.T) {
 	config := defaultConfig()
-	ctx := snow.DefaultContextTest()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	baseDB := versiondb.New(memdb.New())
 	rewardsCalc := reward.NewCalculator(config.RewardConfig)
 	addr0 := ids.GenerateTestShortID()

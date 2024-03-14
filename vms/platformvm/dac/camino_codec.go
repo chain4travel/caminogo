@@ -5,6 +5,7 @@ package dac
 
 import (
 	"math"
+	"time"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
@@ -17,9 +18,9 @@ const Version = 0
 var Codec codec.Manager
 
 func init() {
-	c := linearcodec.NewCaminoDefault()
+	c := linearcodec.NewCaminoDefault(durangoTime)
 	Codec = codec.NewDefaultManager()
-	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32)
+	gc := linearcodec.NewCaminoCustomMaxLength(time.Time{}, math.MaxInt32)
 
 	errs := wrappers.Errs{}
 	for _, c := range []linearcodec.CaminoCodec{c, gc} {

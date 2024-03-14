@@ -198,7 +198,7 @@ func (cs *caminoState) writeProposals() error {
 				return err
 			}
 		} else {
-			proposalBytes, err := dac.Codec.Marshal(block.Version, &proposalStateWrapper{ProposalState: proposalDiff.Proposal})
+			proposalBytes, err := dac.Codec.Marshal(block.CodecVersion, &proposalStateWrapper{ProposalState: proposalDiff.Proposal})
 			if err != nil {
 				return fmt.Errorf("failed to serialize deposit: %w", err)
 			}

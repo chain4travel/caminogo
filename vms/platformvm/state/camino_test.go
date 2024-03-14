@@ -163,7 +163,7 @@ func getExpectedSupply(
 
 func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
-	s, _ := newInitializedState(require)
+	s := newInitializedState(require)
 	db := memdb.New()
 	validatorsDB := prefixdb.New(validatorsPrefix, db)
 

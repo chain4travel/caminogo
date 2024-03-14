@@ -311,7 +311,7 @@ func (fvi *fxVMInt) Logger() logging.Logger {
 
 func defaultFx(clk *mockable.Clock, log logging.Logger, isBootstrapped bool) fx.Fx {
 	fxVMInt := &fxVMInt{
-		registry: linearcodec.NewDefault(),
+		registry: linearcodec.NewDefault(time.Time{}),
 		clk:      clk,
 		log:      log,
 	}
@@ -340,7 +340,7 @@ func defaultCaminoState(
 		db,
 		genesisBytes,
 		prometheus.NewRegistry(),
-		cfg.Validators,
+		cfg,
 		execCfg,
 		ctx,
 		metrics.Noop,

@@ -215,7 +215,7 @@ func defaultCaminoState(
 		db,
 		genesisBytes,
 		prometheus.NewRegistry(),
-		cfg.Validators,
+		cfg,
 		execCfg,
 		ctx,
 		metrics.Noop,

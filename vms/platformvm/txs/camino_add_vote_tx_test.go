@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -16,15 +17,15 @@ import (
 )
 
 func TestAddVoteTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 
 	badVote := &VoteWrapper{Vote: &dac.DummyVote{ErrorStr: "test errr"}}
-	badVoteBytes, err := Codec.Marshal(Version, badVote)
+	badVoteBytes, err := Codec.Marshal(CodecVersion, badVote)
 	require.NoError(t, err)
 
 	vote := &VoteWrapper{Vote: &dac.DummyVote{}}
-	voteBytes, err := Codec.Marshal(Version, vote)
+	voteBytes, err := Codec.Marshal(CodecVersion, vote)
 	require.NoError(t, err)
 
 	baseTx := BaseTx{BaseTx: avax.BaseTx{
@@ -135,7 +136,7 @@ func TestAddVoteTxSyntacticVerify(t *testing.T) {
 
 func TestAddVoteTxVote(t *testing.T) {
 	expectedVote := &VoteWrapper{Vote: &dac.DummyVote{ErrorStr: "some data"}}
-	voteBytes, err := Codec.Marshal(Version, expectedVote)
+	voteBytes, err := Codec.Marshal(CodecVersion, expectedVote)
 	require.NoError(t, err)
 
 	tx := &AddVoteTx{VotePayload: voteBytes}

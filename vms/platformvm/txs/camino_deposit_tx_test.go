@@ -11,13 +11,14 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 func TestDepositTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{1}}}
 
 	tests := map[string]struct {

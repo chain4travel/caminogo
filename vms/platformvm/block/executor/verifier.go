@@ -472,7 +472,7 @@ func (v *verifier) processStandardTxs(txs []*txs.Tx, state state.Diff, parentID 
 		txExecutor := executor.CaminoStandardTxExecutor{
 			StandardTxExecutor: executor.StandardTxExecutor{
 				Backend: v.txExecutorBackend,
-				State:   onAcceptState,
+				State:   state,
 				Tx:      tx,
 			},
 		}

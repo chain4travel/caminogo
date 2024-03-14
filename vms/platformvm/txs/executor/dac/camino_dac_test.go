@@ -34,7 +34,7 @@ func TestProposalVerifierBaseFeeProposal(t *testing.T) {
 	bondUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{End: 1, Options: []uint64{1}}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -186,7 +186,7 @@ func TestProposalVerifierAddMemberProposal(t *testing.T) {
 	bondUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.AddMemberProposal{End: 1, ApplicantAddress: applicantAddress}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -364,7 +364,7 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 	bondUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.ExcludeMemberProposal{End: 1, MemberAddress: memberAddress}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -831,7 +831,7 @@ func TestProposalVerifierFeeDistributionProposal(t *testing.T) {
 	bondUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.FeeDistributionProposal{End: 1, Options: [][dac.FeeDistributionFractionsCount]uint64{{1}}}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{

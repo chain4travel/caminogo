@@ -118,7 +118,7 @@ func TestGetCaminoBalance(t *testing.T) {
 					Threshold: 1,
 					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.deposited, outputOwners, ids.GenerateTestID(), ids.Empty)
+				utxo := generateTestUTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.deposited, outputOwners, ids.GenerateTestID(), ids.Empty)
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -129,7 +129,7 @@ func TestGetCaminoBalance(t *testing.T) {
 					Threshold: 1,
 					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.bonded, outputOwners, ids.Empty, ids.GenerateTestID())
+				utxo := generateTestUTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.bonded, outputOwners, ids.Empty, ids.GenerateTestID())
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -140,7 +140,7 @@ func TestGetCaminoBalance(t *testing.T) {
 					Threshold: 1,
 					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.depositedBonded, outputOwners, ids.GenerateTestID(), ids.GenerateTestID())
+				utxo := generateTestUTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.depositedBonded, outputOwners, ids.GenerateTestID(), ids.GenerateTestID())
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -162,11 +162,11 @@ func TestGetCaminoBalance(t *testing.T) {
 				require.Equal(t, json.Uint64(defaultBalance), response.Unlocked, "Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, response.Unlocked)
 			} else {
 				response := responseWrapper.camino
-				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+defaultBalance+tt.bonded+tt.deposited+tt.depositedBonded), response.Balances[avaxAssetID], "Wrong balance. Expected %d ; Returned %d", expectedBalance, response.Balances[avaxAssetID])
-				require.Equal(t, json.Uint64(tt.deposited), response.DepositedOutputs[avaxAssetID], "Wrong deposited balance. Expected %d ; Returned %d", tt.deposited, response.DepositedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+tt.bonded), response.BondedOutputs[avaxAssetID], "Wrong bonded balance. Expected %d ; Returned %d", tt.bonded, response.BondedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(tt.depositedBonded), response.DepositedBondedOutputs[avaxAssetID], "Wrong depositedBonded balance. Expected %d ; Returned %d", tt.depositedBonded, response.DepositedBondedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(defaultBalance), response.UnlockedOutputs[avaxAssetID], "Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, response.UnlockedOutputs[avaxAssetID])
+				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+defaultBalance+tt.bonded+tt.deposited+tt.depositedBonded), response.Balances[service.vm.ctx.AVAXAssetID], "Wrong balance. Expected %d ; Returned %d", expectedBalance, response.Balances[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(tt.deposited), response.DepositedOutputs[service.vm.ctx.AVAXAssetID], "Wrong deposited balance. Expected %d ; Returned %d", tt.deposited, response.DepositedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+tt.bonded), response.BondedOutputs[service.vm.ctx.AVAXAssetID], "Wrong bonded balance. Expected %d ; Returned %d", tt.bonded, response.BondedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(tt.depositedBonded), response.DepositedBondedOutputs[service.vm.ctx.AVAXAssetID], "Wrong depositedBonded balance. Expected %d ; Returned %d", tt.depositedBonded, response.DepositedBondedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(defaultBalance), response.UnlockedOutputs[service.vm.ctx.AVAXAssetID], "Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, response.UnlockedOutputs[service.vm.ctx.AVAXAssetID])
 			}
 		})
 	}

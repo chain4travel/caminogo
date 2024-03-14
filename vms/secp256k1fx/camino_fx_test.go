@@ -313,7 +313,7 @@ func TestCollectMultisigAliases(t *testing.T) {
 func defaultFx(t *testing.T) *Fx {
 	require := require.New(t)
 	vm := TestVM{
-		Codec: linearcodec.NewDefault(),
+		Codec: linearcodec.NewDefault(time.Time{}),
 		Log:   logging.NoLog{},
 	}
 	date := time.Date(2019, time.January, 19, 16, 25, 17, 3, time.UTC)

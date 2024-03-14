@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/nodeid"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
 	signers := [][]*secp256k1.PrivateKey{{caminoPreFundedKeys[0]}, {nodeKey}}
 	outputOwners := secp256k1fx.OutputOwners{

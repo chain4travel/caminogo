@@ -26,7 +26,7 @@ func TestGetMultisigAlias(t *testing.T) {
 			Memo:   []byte("multisigAlias memo"),
 		},
 	}
-	multisigAliasBytes, err := block.GenesisCodec.Marshal(block.Version, &msigAlias{
+	multisigAliasBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, &msigAlias{
 		Owners: multisigAlias.Owners,
 		Memo:   multisigAlias.Memo,
 	})
@@ -232,7 +232,7 @@ func TestSetMultisigAlias(t *testing.T) {
 func TestWriteMultisigAliases(t *testing.T) {
 	multisigAlias1 := &multisig.AliasWithNonce{Alias: multisig.Alias{ID: ids.ShortID{1}, Owners: &secp256k1fx.OutputOwners{}}}
 	multisigAlias2 := &multisig.AliasWithNonce{Alias: multisig.Alias{ID: ids.ShortID{2}, Owners: &secp256k1fx.OutputOwners{}}}
-	multisigAliasBytes1, err := block.GenesisCodec.Marshal(block.Version, &msigAlias{Owners: multisigAlias1.Owners})
+	multisigAliasBytes1, err := block.GenesisCodec.Marshal(block.CodecVersion, &msigAlias{Owners: multisigAlias1.Owners})
 	require.NoError(t, err)
 	testError := errors.New("test error")
 

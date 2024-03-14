@@ -283,13 +283,13 @@ func TestWriteDepositOffers(t *testing.T) {
 	depositOffer0_3 := &deposit.Offer{ID: ids.ID{3}}
 	depositOffer0_4 := &deposit.Offer{ID: ids.ID{4}}
 	depositOffer1_5 := &deposit.Offer{ID: ids.ID{5}, UpgradeVersionID: codec.UpgradeVersion1}
-	depositOffer2modifiedBytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2modified)
+	depositOffer2modifiedBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_2modified)
 	require.NoError(t, err)
-	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2)
+	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_2)
 	require.NoError(t, err)
-	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_3)
+	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_3)
 	require.NoError(t, err)
-	depositOffer5Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer1_5)
+	depositOffer5Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer1_5)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -404,13 +404,13 @@ func TestLoadDepositOffers(t *testing.T) {
 	depositOffer1_4 := &deposit.Offer{
 		UpgradeVersionID: codec.UpgradeVersion1, ID: ids.ID{4}, Memo: []byte("4"),
 	}
-	depositOffer1Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_1)
+	depositOffer1Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_1)
 	require.NoError(t, err)
-	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2)
+	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_2)
 	require.NoError(t, err)
-	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_3)
+	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer0_3)
 	require.NoError(t, err)
-	depositOffer4Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer1_4)
+	depositOffer4Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositOffer1_4)
 	require.NoError(t, err)
 
 	tests := map[string]struct {

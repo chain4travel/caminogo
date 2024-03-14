@@ -5,6 +5,7 @@ package utxo
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -83,7 +84,7 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 func TestUTXOWithMSigSerialized(t *testing.T) {
 	// Create a new codec manager and linear codec instance
 	manager := codec.NewDefaultManager()
-	c := linearcodec.NewDefault()
+	c := linearcodec.NewDefault(time.Time{})
 
 	// Register all relevant types with the codec
 	errs := wrappers.Errs{}

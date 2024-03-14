@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -17,18 +18,18 @@ import (
 )
 
 func TestAddProposalTxSyntacticVerify(t *testing.T) {
-	ctx := defaultContext()
+	ctx := snowtest.Context(t, snowtest.PChainID)
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 
 	badProposal := &ProposalWrapper{Proposal: &dac.BaseFeeProposal{Options: []uint64{}}}
-	badProposalBytes, err := Codec.Marshal(Version, badProposal)
+	badProposalBytes, err := Codec.Marshal(CodecVersion, badProposal)
 	require.NoError(t, err)
 
 	proposal := &ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 		End:     1,
 		Options: []uint64{1},
 	}}
-	proposalBytes, err := Codec.Marshal(Version, proposal)
+	proposalBytes, err := Codec.Marshal(CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := BaseTx{BaseTx: avax.BaseTx{
@@ -128,7 +129,7 @@ func TestAddProposalTxProposal(t *testing.T) {
 		Start: 11, End: 12,
 		Options: []uint64{555, 123, 7},
 	}}
-	proposalBytes, err := Codec.Marshal(Version, expectedProposal)
+	proposalBytes, err := Codec.Marshal(CodecVersion, expectedProposal)
 	require.NoError(t, err)
 
 	tx := &AddProposalTx{

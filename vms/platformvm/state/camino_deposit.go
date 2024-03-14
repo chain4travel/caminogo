@@ -157,7 +157,7 @@ func (cs *caminoState) writeDeposits() error {
 				return err
 			}
 		} else {
-			depositBytes, err := block.GenesisCodec.Marshal(block.Version, depositDiff.Deposit)
+			depositBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, depositDiff.Deposit)
 			if err != nil {
 				return fmt.Errorf("failed to serialize deposit: %w", err)
 			}

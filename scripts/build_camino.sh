@@ -13,7 +13,7 @@ echo "Building camino node..."
 # Dockerfile
 # README.md
 # go.mod
-go_version_minimum="1.20.10"
+go_version_minimum="1.20.12"
 
 go_version() {
     go version | sed -nE -e 's/[^0-9.]+([0-9.]+).+/\1/p'
