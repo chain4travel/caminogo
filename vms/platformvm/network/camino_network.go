@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -29,6 +30,7 @@ type SystemTxBuilder interface {
 type caminoNetwork struct {
 	*network
 	txBuilder SystemTxBuilder
+	lock      sync.Locker
 }
 
 func NewCamino(
@@ -43,6 +45,7 @@ func NewCamino(
 	registerer prometheus.Registerer,
 	config Config,
 	txBuilder SystemTxBuilder,
+	lock sync.Locker,
 ) (Network, error) {
 	avaxNetwork, err := New(
 		log,
@@ -60,7 +63,11 @@ func NewCamino(
 		return nil, err
 	}
 
-	return &caminoNetwork{network: avaxNetwork.(*network), txBuilder: txBuilder}, nil
+	return &caminoNetwork{
+		network:   avaxNetwork.(*network),
+		txBuilder: txBuilder,
+		lock:      lock,
+	}, nil
 }
 
 func (n *caminoNetwork) CrossChainAppRequest(_ context.Context, chainID ids.ID, _ uint32, _ time.Time, request []byte) error {
@@ -74,20 +81,29 @@ func (n *caminoNetwork) CrossChainAppRequest(_ context.Context, chainID ids.ID, 
 		return errUnknownCrossChainMessage // this would be fatal
 	}
 
-	n.ctx.Lock.Lock()
-	defer n.ctx.Lock.Unlock()
-
-	tx, err := n.txBuilder.NewRewardsImportTx()
-	if err != nil {
-		n.log.Error("caminoCrossChainAppRequest couldn't create rewardsImportTx", zap.Error(err))
-		return nil // we don't want fatal here
+	tx := n.newRewardsImportTx()
+	if tx == nil {
+		return nil
 	}
 
 	if err := n.issueTx(tx); err != nil {
 		n.log.Error("caminoCrossChainAppRequest couldn't issue rewardsImportTx", zap.Error(err))
 		// we don't want fatal here: its better to have network running
 		// and try to repair stalled reward imports, than crash the whole network
+		// TODO@ evlekht check if it still fatals
 	}
 
 	return nil
+}
+
+func (n *caminoNetwork) newRewardsImportTx() *txs.Tx {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	tx, err := n.txBuilder.NewRewardsImportTx()
+	if err != nil {
+		n.log.Error("caminoCrossChainAppRequest couldn't create rewardsImportTx", zap.Error(err))
+		return nil // we don't want fatal here // TODO@ evlekht check if it still fatals
+	}
+	return tx
 }

@@ -224,6 +224,7 @@ func (vm *VM) Initialize(
 		registerer,
 		execConfig.Network,
 		vm.txBuilder,
+		&txExecutorBackend.Ctx.Lock,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize network: %w", err)
