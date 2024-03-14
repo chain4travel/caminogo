@@ -6,6 +6,7 @@ package reflectcodec
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/codec"
@@ -24,13 +25,13 @@ type StructFielder interface {
 	// is un-exported.
 	// GetSerializedField(Foo) --> [1,5,8] means Foo.Field(1), Foo.Field(5),
 	// Foo.Field(8) are to be serialized/deserialized.
-	GetSerializedFields(t reflect.Type) ([]int, error)
+	GetSerializedFields(t reflect.Type) (SerializedFields, error)
 }
 
 func NewStructFielder(tagNames []string) StructFielder {
 	return &structFielder{
 		tags:                   tagNames,
-		serializedFieldIndices: make(map[reflect.Type][]int),
+		serializedFieldIndices: make(map[reflect.Type]SerializedFields),
 	}
 }
 
@@ -46,10 +47,10 @@ type structFielder struct {
 	// that is serialized/deserialized e.g. Foo --> [1,5,8] means Foo.Field(1),
 	// etc. are to be serialized/deserialized. We assume this cache is pretty
 	// small (a few hundred keys at most) and doesn't take up much memory.
-	serializedFieldIndices map[reflect.Type][]int
+	serializedFieldIndices map[reflect.Type]SerializedFields
 }
 
-func (s *structFielder) GetSerializedFields(t reflect.Type) ([]int, error) {
+func (s *structFielder) GetSerializedFields(t reflect.Type) (SerializedFields, error) {
 	if serializedFields, ok := s.getCachedSerializedFields(t); ok { // use pre-computed result
 		return serializedFields, nil
 	}
@@ -58,8 +59,9 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) ([]int, error) {
 	defer s.lock.Unlock()
 
 	numFields := t.NumField()
-	serializedFields := make([]int, 0, numFields)
-	for i := 0; i < numFields; i++ { // Go through all fields of this struct
+	checkUpgrade, startIndex := checkUpgrade(t, numFields)
+	serializedFields := SerializedFields{Fields: make([]FieldDesc, 0, numFields), CheckUpgrade: checkUpgrade}
+	for i := startIndex; i < numFields; i++ { // Go through all fields of this struct
 		field := t.Field(i)
 
 		// Multiple tags per fields can be specified.
@@ -76,19 +78,32 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) ([]int, error) {
 			continue
 		}
 		if !field.IsExported() { // Can only marshal exported fields
-			return nil, fmt.Errorf("can not marshal %w: %s",
+			return SerializedFields{}, fmt.Errorf("can not marshal %w: %s",
 				codec.ErrUnexportedField,
 				field.Name,
 			)
 		}
-		serializedFields = append(serializedFields, i)
+
+		upgradeVersionTag := field.Tag.Get(upgradeVersionTagName)
+		if upgradeVersionTag != "" {
+			v, err := strconv.ParseUint(upgradeVersionTag, 10, 8)
+			if err != nil {
+				return SerializedFields{}, fmt.Errorf("can't parse %s (%s)", upgradeVersionTagName, upgradeVersionTag)
+			}
+			// TODO@ is this ok, that it always ovewrites?
+			serializedFields.MaxUpgradeVersion = uint16(v)
+		}
+
+		serializedFields.Fields = append(serializedFields.Fields, FieldDesc{
+			Index:          i,
+			UpgradeVersion: serializedFields.MaxUpgradeVersion,
+		})
 	}
-	serializedFields.MaxUpgradeVersion = maxUpgradeVersion
 	s.serializedFieldIndices[t] = serializedFields // cache result
 	return serializedFields, nil
 }
 
-func (s *structFielder) getCachedSerializedFields(t reflect.Type) ([]int, bool) {
+func (s *structFielder) getCachedSerializedFields(t reflect.Type) (SerializedFields, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 

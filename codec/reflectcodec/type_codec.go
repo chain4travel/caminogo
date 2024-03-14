@@ -221,8 +221,20 @@ func (c *genericCodec) size(
 			size      int
 			constSize = true
 		)
-		for _, fieldIndex := range serializedFields {
-			innerSize, innerConstSize, err := c.size(value.Field(fieldIndex), typeStack)
+		upgradeVersion := uint16(0)
+		if serializedFields.CheckUpgrade {
+			upgradeVersionID := value.Field(0).Uint()
+			if upgradeVersionID&codec.UpgradePrefix == codec.UpgradePrefix {
+				upgradeVersion = codec.UpgradeVersionID(upgradeVersionID).Version()
+				size += wrappers.LongLen
+			}
+		}
+
+		for _, fieldDesc := range serializedFields.Fields {
+			if fieldDesc.UpgradeVersion > upgradeVersion {
+				break
+			}
+			innerSize, innerConstSize, err := c.size(value.Field(fieldDesc.Index), typeStack)
 			if err != nil {
 				return 0, false, err
 			}
@@ -428,8 +440,22 @@ func (c *genericCodec) marshal(
 		if err != nil {
 			return err
 		}
-		for _, fieldIndex := range serializedFields { // Go through all fields of this struct that are serialized
-			if err := c.marshal(value.Field(fieldIndex), p, typeStack); err != nil { // Serialize the field and write to byte array
+		upgradeVersion := uint16(0)
+		if serializedFields.CheckUpgrade {
+			upgradeVersionID := value.Field(0).Uint()
+			if upgradeVersionID&codec.UpgradePrefix == codec.UpgradePrefix {
+				upgradeVersion = codec.UpgradeVersionID(upgradeVersionID).Version()
+				p.PackLong(upgradeVersionID)
+				if p.Err != nil {
+					return p.Err
+				}
+			}
+		}
+		for _, fieldDesc := range serializedFields.Fields { // Go through all fields of this struct that are serialized
+			if fieldDesc.UpgradeVersion > upgradeVersion {
+				break
+			}
+			if err := c.marshal(value.Field(fieldDesc.Index), p, typeStack); err != nil { // Serialize the field and write to byte array
 				return err
 			}
 		}
@@ -707,8 +733,11 @@ func (c *genericCodec) unmarshal(
 			}
 		}
 		// Go through the fields and umarshal into them
-		for _, fieldIndex := range serializedFieldIndices {
-			if err := c.unmarshal(p, value.Field(fieldIndex), typeStack); err != nil {
+		for _, fieldDesc := range serializedFieldIndices.Fields {
+			if fieldDesc.UpgradeVersion > upgradeVersion {
+				break
+			}
+			if err := c.unmarshal(p, value.Field(fieldDesc.Index), typeStack); err != nil {
 				return err
 			}
 		}

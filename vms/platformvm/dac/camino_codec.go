@@ -18,7 +18,7 @@ const Version = 0
 var Codec codec.Manager
 
 func init() {
-	c := linearcodec.NewCaminoDefault(durangoTime)
+	c := linearcodec.NewCaminoDefault(time.Time{})
 	Codec = codec.NewDefaultManager()
 	gc := linearcodec.NewCaminoCustomMaxLength(time.Time{}, math.MaxInt32)
 
