@@ -203,10 +203,6 @@ func AdvanceTimeTo(
 		changed = true
 	}
 
-	if err := caminoAdvanceTimeTo(backend, parentState, newChainTime, changes); err != nil {
-		return nil, err
-	}
-
 	if err := changes.Apply(parentState); err != nil {
 		return false, err
 	}

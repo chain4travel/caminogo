@@ -165,7 +165,7 @@ func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
 	s := newInitializedState(require)
 	db := memdb.New()
-	validatorsDB := prefixdb.New(validatorsPrefix, db)
+	validatorsDB := prefixdb.New(ValidatorsPrefix, db)
 
 	var (
 		id           = ids.GenerateTestID()
