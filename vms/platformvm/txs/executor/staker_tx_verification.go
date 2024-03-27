@@ -113,11 +113,16 @@ func verifyAddValidatorTx(
 	var (
 		currentTimestamp = chainState.GetTimestamp()
 		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
-		startTime        = currentTimestamp
 	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return nil, err
+	}
+
+	startTime := currentTimestamp
 	if !isDurangoActive {
 		startTime = tx.StartTime()
 	}
+
 	duration := tx.EndTime().Sub(startTime)
 	switch {
 	case tx.Validator.Wght < backend.Config.MinValidatorStake:
@@ -204,8 +209,12 @@ func verifyAddSubnetValidatorTx(
 	var (
 		currentTimestamp = chainState.GetTimestamp()
 		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
-		startTime        = currentTimestamp
 	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return err
+	}
+
+	startTime := currentTimestamp
 	if !isDurangoActive {
 		startTime = tx.StartTime()
 	}
@@ -293,6 +302,14 @@ func verifyRemoveSubnetValidatorTx(
 		return nil, false, err
 	}
 
+	var (
+		currentTimestamp = chainState.GetTimestamp()
+		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
+	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return nil, false, err
+	}
+
 	isCurrentValidator := true
 	vdr, err := chainState.GetCurrentValidator(tx.Subnet, tx.NodeID)
 	if err == database.ErrNotFound {
@@ -366,8 +383,14 @@ func verifyAddDelegatorTx(
 	var (
 		currentTimestamp = chainState.GetTimestamp()
 		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
-		endTime          = tx.EndTime()
-		startTime        = currentTimestamp
+	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return nil, err
+	}
+
+	var (
+		endTime   = tx.EndTime()
+		startTime = currentTimestamp
 	)
 	if !isDurangoActive {
 		startTime = tx.StartTime()
@@ -473,15 +496,19 @@ func verifyAddPermissionlessValidatorTx(
 		return err
 	}
 
+	var (
+		currentTimestamp = chainState.GetTimestamp()
+		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
+	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return err
+	}
+
 	if !backend.Bootstrapped.Get() {
 		return nil
 	}
 
-	var (
-		currentTimestamp = chainState.GetTimestamp()
-		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
-		startTime        = currentTimestamp
-	)
+	startTime := currentTimestamp
 	if !isDurangoActive {
 		startTime = tx.StartTime()
 	}
@@ -593,15 +620,21 @@ func verifyAddPermissionlessDelegatorTx(
 		return err
 	}
 
+	var (
+		currentTimestamp = chainState.GetTimestamp()
+		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
+	)
+	if err := avax.VerifyMemoFieldLength(tx.Memo, isDurangoActive); err != nil {
+		return err
+	}
+
 	if !backend.Bootstrapped.Get() {
 		return nil
 	}
 
 	var (
-		currentTimestamp = chainState.GetTimestamp()
-		isDurangoActive  = backend.Config.IsDurangoActivated(currentTimestamp)
-		endTime          = tx.EndTime()
-		startTime        = currentTimestamp
+		endTime   = tx.EndTime()
+		startTime = currentTimestamp
 	)
 	if !isDurangoActive {
 		startTime = tx.StartTime()
@@ -740,6 +773,10 @@ func verifyTransferSubnetOwnershipTx(
 
 	// Verify the tx is well-formed
 	if err := sTx.SyntacticVerify(backend.Ctx); err != nil {
+		return err
+	}
+
+	if err := avax.VerifyMemoFieldLength(tx.Memo, true /*=isDurangoActive*/); err != nil {
 		return err
 	}
 
