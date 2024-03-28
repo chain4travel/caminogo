@@ -46,9 +46,10 @@ const (
 )
 
 var (
-	localStakingPath          = "../../staking/local/"
-	caminoPreFundedKeys       = secp256k1.TestKeys()
-	_, caminoPreFundedNodeIDs = nodeid.LoadLocalCaminoNodeKeysAndIDs(localStakingPath)
+	localStakingPath               = "../../staking/local/"
+	caminoPreFundedKeys            = secp256k1.TestKeys()
+	caminoPreFundedAddressesBech32 = [5]string{}
+	_, caminoPreFundedNodeIDs      = nodeid.LoadLocalCaminoNodeKeysAndIDs(localStakingPath)
 
 	testAddressID ids.ShortID
 )
@@ -61,6 +62,14 @@ func init() {
 	testAddressID, err = ids.ToShortID(testAddressBytes)
 	if err != nil {
 		panic(err)
+	}
+
+	for i, key := range caminoPreFundedKeys {
+		addr, err := address.FormatBech32(constants.UnitTestHRP, key.Address().Bytes())
+		if err != nil {
+			panic(err)
+		}
+		caminoPreFundedAddressesBech32[i] = addr
 	}
 }
 
@@ -237,8 +246,6 @@ func newCaminoGenesisWithUTXOs(t *testing.T, avaxAssetID ids.ID, caminoGenesisCo
 
 	genesisValidators := make([]api.GenesisPermissionlessValidator, len(caminoPreFundedKeys))
 	for i, key := range caminoPreFundedKeys {
-		addr, err := address.FormatBech32(constants.UnitTestHRP, key.PublicKey().Address().Bytes())
-		require.NoError(err)
 		genesisValidators[i] = api.GenesisPermissionlessValidator{
 			GenesisValidator: api.GenesisValidator{
 				StartTime: json.Uint64(starttime.Unix()),
@@ -247,11 +254,11 @@ func newCaminoGenesisWithUTXOs(t *testing.T, avaxAssetID ids.ID, caminoGenesisCo
 			},
 			RewardOwner: &api.Owner{
 				Threshold: 1,
-				Addresses: []string{addr},
+				Addresses: []string{caminoPreFundedAddressesBech32[i]},
 			},
 			Staked: []api.UTXO{{
 				Amount:  json.Uint64(defaultCaminoValidatorWeight),
-				Address: addr,
+				Address: caminoPreFundedAddressesBech32[i],
 			}},
 		}
 		caminoGenesisConfig.ValidatorDeposits[i] = make([]api.UTXODeposit, 1)

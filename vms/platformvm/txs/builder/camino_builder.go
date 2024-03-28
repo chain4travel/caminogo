@@ -165,6 +165,14 @@ func (b *caminoBuilder) NewCaminoAddValidatorTx(
 		)
 	}
 
+	var changeOwner *secp256k1fx.OutputOwners
+	if changeAddr != ids.ShortEmpty {
+		changeOwner = &secp256k1fx.OutputOwners{
+			Threshold: 1,
+			Addrs:     []ids.ShortID{changeAddr},
+		}
+	}
+
 	ins, outs, signers, _, err := b.Lock(
 		b.state,
 		keys,
@@ -172,10 +180,7 @@ func (b *caminoBuilder) NewCaminoAddValidatorTx(
 		b.cfg.AddPrimaryNetworkValidatorFee,
 		locked.StateBonded,
 		nil,
-		&secp256k1fx.OutputOwners{
-			Threshold: 1,
-			Addrs:     []ids.ShortID{changeAddr},
-		},
+		changeOwner,
 		0,
 	)
 	if err != nil {

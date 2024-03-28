@@ -40,31 +40,21 @@ import (
 
 func TestRemoveDeferredValidator(t *testing.T) {
 	require := require.New(t)
-	addr := caminoPreFundedKeys[0].Address()
-	bech32Addr, err := address.FormatBech32(constants.UnitTestHRP, addr.Bytes())
-	require.NoError(err)
 
 	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
-
 	rootAdminKey := caminoPreFundedKeys[0]
 	adminProposerKey := caminoPreFundedKeys[0]
-	consortiumMemberKey, err := secp256k1.NewPrivateKey()
-	require.NoError(err)
+	consortiumMemberKey, _, _ := generateKeyAndOwner(t)
 
-	outputOwners := &secp256k1fx.OutputOwners{
-		Locktime:  0,
-		Threshold: 1,
-		Addrs:     []ids.ShortID{addr},
-	}
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
-		InitialAdmin:        addr,
+		InitialAdmin:        rootAdminKey.Address(),
 	}
 	genesisUTXOs := []api.UTXO{
 		{
-			Amount:  json.Uint64(defaultCaminoValidatorWeight),
-			Address: bech32Addr,
+			Amount:  json.Uint64(defaultCaminoValidatorWeight * 2),
+			Address: caminoPreFundedAddressesBech32[0],
 		},
 	}
 
@@ -72,20 +62,18 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
-	utxo := generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
-	vm.state.AddUTXO(utxo)
-	require.NoError(vm.state.Commit())
-
 	// Set consortium member
+	// add admin proposer role to root admin
 	tx, err := vm.txBuilder.NewAddressStateTx(
 		adminProposerKey.Address(),
 		false,
 		as.AddressStateBitRoleConsortiumAdminProposer,
 		[]*secp256k1.PrivateKey{rootAdminKey},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
+	// set kyc flag for test consortium member (not member yet)
 	addrStateTx, err := vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
@@ -95,23 +83,24 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, addrStateTx)
+	// make admin proposal to add consortium member
 	proposalTx := buildAddMemberProposalTx(t, vm, caminoPreFundedKeys[0], vm.Config.CaminoConfig.DACProposalBondAmount, defaultTxFee,
 		adminProposerKey, consortiumMemberKey.Address(), vm.clock.Time(), true)
 	_, _, _, _ = makeProposalWithTx(t, vm, proposalTx) // add admin proposal
 	_ = buildAndAcceptBlock(t, vm, nil)                // execute admin proposal
 
-	// Register node
+	// Register node for new consortium member
 	tx, err = vm.txBuilder.NewRegisterNodeTx(
 		ids.EmptyNodeID,
 		nodeID,
 		consortiumMemberKey.Address(),
 		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
 
-	// Add the validator
+	// Add validator for new consortium member and registered node
 	startTime := vm.clock.Time().Add(txexecutor.SyncBound).Add(1 * time.Second)
 	endTime := defaultValidateEndTime.Add(-1 * time.Hour)
 	addValidatorTx, err := vm.txBuilder.NewCaminoAddValidatorTx(
@@ -126,21 +115,10 @@ func TestRemoveDeferredValidator(t *testing.T) {
 		ids.ShortEmpty,
 	)
 	require.NoError(err)
+	_ = buildAndAcceptBlock(t, vm, addValidatorTx)
 
-	staker, err := state.NewCurrentStaker(
-		addValidatorTx.ID(),
-		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx),
-		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
-		0,
-	)
-	require.NoError(err)
-	vm.state.PutCurrentValidator(staker)
-	vm.state.AddTx(addValidatorTx, status.Committed)
-	require.NoError(vm.state.Commit())
-
-	utxo = generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
-	vm.state.AddUTXO(utxo)
-	require.NoError(vm.state.Commit())
+	// Fast-forward clock to time for validator to be moved from pending to current
+	vm.clock.Set(startTime)
 
 	// Defer the validator
 	tx, err = vm.txBuilder.NewAddressStateTx(
@@ -148,7 +126,7 @@ func TestRemoveDeferredValidator(t *testing.T) {
 		false,
 		as.AddressStateBitNodeDeferred,
 		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
@@ -219,31 +197,21 @@ func TestRemoveDeferredValidator(t *testing.T) {
 
 func TestRemoveReactivatedValidator(t *testing.T) {
 	require := require.New(t)
-	addr := caminoPreFundedKeys[0].Address()
-	bech32Addr, err := address.FormatBech32(constants.UnitTestHRP, addr.Bytes())
-	require.NoError(err)
 
 	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
-
 	rootAdminKey := caminoPreFundedKeys[0]
 	adminProposerKey := caminoPreFundedKeys[0]
-	consortiumMemberKey, err := secp256k1.NewPrivateKey()
-	require.NoError(err)
+	consortiumMemberKey, _, _ := generateKeyAndOwner(t)
 
-	outputOwners := &secp256k1fx.OutputOwners{
-		Locktime:  0,
-		Threshold: 1,
-		Addrs:     []ids.ShortID{addr},
-	}
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
-		InitialAdmin:        addr,
+		InitialAdmin:        rootAdminKey.Address(),
 	}
 	genesisUTXOs := []api.UTXO{
 		{
-			Amount:  json.Uint64(defaultCaminoValidatorWeight),
-			Address: bech32Addr,
+			Amount:  json.Uint64(defaultCaminoValidatorWeight * 2),
+			Address: caminoPreFundedAddressesBech32[0],
 		},
 	}
 
@@ -251,20 +219,18 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	vm.ctx.Lock.Lock()
 	defer stopVM(t, vm, false)
 
-	utxo := generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
-	vm.state.AddUTXO(utxo)
-	require.NoError(vm.state.Commit())
-
 	// Set consortium member
+	// add admin proposer role to root admin
 	tx, err := vm.txBuilder.NewAddressStateTx(
 		adminProposerKey.Address(),
 		false,
 		as.AddressStateBitRoleConsortiumAdminProposer,
 		[]*secp256k1.PrivateKey{rootAdminKey},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
+	// set kyc flag for test consortium member (not member yet)
 	addrStateTx, err := vm.txBuilder.NewAddressStateTx(
 		consortiumMemberKey.Address(),
 		false,
@@ -274,24 +240,24 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, addrStateTx)
+	// make admin proposal to add consortium member
 	proposalTx := buildAddMemberProposalTx(t, vm, caminoPreFundedKeys[0], vm.Config.CaminoConfig.DACProposalBondAmount, defaultTxFee,
 		adminProposerKey, consortiumMemberKey.Address(), vm.clock.Time(), true)
 	_, _, _, _ = makeProposalWithTx(t, vm, proposalTx) // add admin proposal
 	_ = buildAndAcceptBlock(t, vm, nil)                // execute admin proposal
 
-	// Register node
+	// Register node for new consortium member
 	tx, err = vm.txBuilder.NewRegisterNodeTx(
 		ids.EmptyNodeID,
 		nodeID,
 		consortiumMemberKey.Address(),
 		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], nodeKey, consortiumMemberKey},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
 
-	// Add the validator
-	vm.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr)
+	// Add validator for new consortium member and registered node
 	startTime := vm.clock.Time().Add(txexecutor.SyncBound).Add(1 * time.Second)
 	endTime := defaultValidateEndTime.Add(-1 * time.Hour)
 	addValidatorTx, err := vm.txBuilder.NewCaminoAddValidatorTx(
@@ -306,21 +272,10 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		ids.ShortEmpty,
 	)
 	require.NoError(err)
+	_ = buildAndAcceptBlock(t, vm, addValidatorTx)
 
-	staker, err := state.NewCurrentStaker(
-		addValidatorTx.ID(),
-		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx),
-		addValidatorTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
-		0,
-	)
-	require.NoError(err)
-	vm.state.PutCurrentValidator(staker)
-	vm.state.AddTx(addValidatorTx, status.Committed)
-	require.NoError(vm.state.Commit())
-
-	utxo = generateTestUTXO(ids.GenerateTestID(), vm.ctx.AVAXAssetID, defaultBalance, *outputOwners, ids.Empty, ids.Empty)
-	vm.state.AddUTXO(utxo)
-	require.NoError(vm.state.Commit())
+	// Fast-forward clock to time for validator to be moved from pending to current
+	vm.clock.Set(startTime)
 
 	// Defer the validator
 	tx, err = vm.txBuilder.NewAddressStateTx(
@@ -328,7 +283,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		false,
 		as.AddressStateBitNodeDeferred,
 		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
@@ -345,7 +300,7 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 		true,
 		as.AddressStateBitNodeDeferred,
 		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
-		outputOwners,
+		nil,
 	)
 	require.NoError(err)
 	_ = buildAndAcceptBlock(t, vm, tx)
