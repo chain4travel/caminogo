@@ -141,8 +141,15 @@ func (*options) ApricotAtomicBlock(*block.ApricotAtomicBlock) error {
 }
 
 func (o *options) prefersCommit(tx *txs.Tx) (bool, error) {
-	unsignedTx, ok := tx.Unsigned.(*txs.RewardValidatorTx)
-	if !ok {
+	var unsignedTx *txs.RewardValidatorTx
+	switch utx := tx.Unsigned.(type) {
+	case *txs.RewardValidatorTx:
+		unsignedTx = utx
+	case *txs.CaminoRewardValidatorTx:
+		// CaminoRewardValidatorTx doesn't have any difference
+		// between commmit and abort states, so we always prefer commit.
+		return true, nil
+	default:
 		return false, fmt.Errorf("%w: %T", errUnexpectedProposalTxType, tx.Unsigned)
 	}
 

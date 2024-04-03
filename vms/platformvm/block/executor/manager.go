@@ -142,10 +142,12 @@ func (m *manager) VerifyTx(tx *txs.Tx) error {
 		return err
 	}
 
-	err = tx.Unsigned.Visit(&executor.StandardTxExecutor{
-		Backend: m.txExecutorBackend,
-		State:   stateDiff,
-		Tx:      tx,
+	err = tx.Unsigned.Visit(&executor.CaminoStandardTxExecutor{
+		StandardTxExecutor: executor.StandardTxExecutor{
+			Backend: m.txExecutorBackend,
+			State:   stateDiff,
+			Tx:      tx,
+		},
 	})
 	// We ignore [errFutureStakeTime] here because the time will be advanced
 	// when this transaction is issued.

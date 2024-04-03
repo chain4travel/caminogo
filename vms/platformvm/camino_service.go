@@ -1063,8 +1063,21 @@ type GetValidatorsAtReply2 struct {
 	Validators map[ids.NodeID]ConsortiumMemberValidator `json:"validators"`
 }
 
+type GetValidatorsAtResponseWrapper struct {
+	LockModeBondDeposit bool
+	avax                GetValidatorsAtReply
+	camino              GetValidatorsAtReply2
+}
+
+func (response GetValidatorsAtResponseWrapper) MarshalJSON() ([]byte, error) {
+	if !response.LockModeBondDeposit {
+		return response.avax.MarshalJSON()
+	}
+	return stdjson.Marshal(response.camino)
+}
+
 // Overrides avax service GetValidatorsAt
-func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtReply2) error {
+func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtResponseWrapper) error {
 	height := uint64(args.Height)
 	s.vm.ctx.Log.Debug("API called",
 		zap.String("service", "platform"),
@@ -1074,13 +1087,23 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 	)
 
 	s.vm.ctx.Lock.Lock()
-	defer s.vm.ctx.Lock.Unlock()
+	caminoConfig, err := s.vm.state.CaminoConfig()
+	s.vm.ctx.Lock.Unlock()
+	if err != nil {
+		return err
+	}
+	reply.LockModeBondDeposit = caminoConfig.LockModeBondDeposit
+	if !caminoConfig.LockModeBondDeposit {
+		return s.Service.GetValidatorsAt(r, args, &reply.avax)
+	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 	vdrs, err := s.vm.GetValidatorSet(r.Context(), height, args.SubnetID)
 	if err != nil {
 		return fmt.Errorf("failed to get validator set: %w", err)
 	}
-	reply.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
+	reply.camino.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
 	for _, vdr := range vdrs {
 		cMemberAddr, err := s.vm.state.GetShortIDLink(ids.ShortID(vdr.NodeID), state.ShortLinkKeyRegisterNode)
 		if err != nil {
@@ -1092,7 +1115,7 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 			return fmt.Errorf("failed to format consortium member address: %w", err)
 		}
 
-		reply.Validators[vdr.NodeID] = ConsortiumMemberValidator{
+		reply.camino.Validators[vdr.NodeID] = ConsortiumMemberValidator{
 			ValidatorWeight:         json.Uint64(vdr.Weight),
 			ConsortiumMemberAddress: addrStr,
 		}

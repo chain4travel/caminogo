@@ -249,7 +249,7 @@ func TestDeferredStakers(t *testing.T) {
 
 			for _, newTime := range tt.advanceTimeTo {
 				env.clk.Set(newTime)
-				tx, err := env.txBuilder.NewAdvanceTimeTx(newTime)
+				tx, err := newAdvanceTimeTx(t, newTime)
 				require.NoError(err)
 
 				onCommitState, err := state.NewDiff(lastAcceptedID, env)

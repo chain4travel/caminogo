@@ -18,12 +18,14 @@ import (
 func TestSignedIpVerify(t *testing.T) {
 	tlsCert1, err := staking.NewTLSCert()
 	require.NoError(t, err)
-	cert1 := staking.CertificateFromX509(tlsCert1.Leaf)
+	cert1, err := staking.CertificateFromX509(tlsCert1.Leaf)
+	require.NoError(t, err)
 	require.NoError(t, staking.ValidateCertificate(cert1))
 
 	tlsCert2, err := staking.NewTLSCert()
 	require.NoError(t, err)
-	cert2 := staking.CertificateFromX509(tlsCert2.Leaf)
+	cert2, err := staking.CertificateFromX509(tlsCert2.Leaf)
+	require.NoError(t, err)
 	require.NoError(t, staking.ValidateCertificate(cert2))
 
 	now := time.Now()
