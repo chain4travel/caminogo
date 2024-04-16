@@ -302,7 +302,7 @@ func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressState
 
 	response.TxID = tx.ID()
 
-	return s.vm.Network.IssueTx(req.Context(), tx)
+	return s.vm.issueTx(req.Context(), tx)
 }
 
 // GetAdressStates retrieves the state applied to an address (see setAddressState)
@@ -509,7 +509,7 @@ func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, 
 
 	reply.TxID = tx.ID()
 
-	return s.vm.Network.IssueTx(req.Context(), tx)
+	return s.vm.issueTx(req.Context(), tx)
 }
 
 type ClaimedAmount struct {
@@ -585,7 +585,7 @@ func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSO
 
 	reply.TxID = tx.ID()
 
-	return s.vm.Network.IssueTx(req.Context(), tx)
+	return s.vm.issueTx(req.Context(), tx)
 }
 
 type TransferArgs struct {
@@ -631,7 +631,7 @@ func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *a
 
 	reply.TxID = tx.ID()
 
-	return s.vm.Network.IssueTx(req.Context(), tx)
+	return s.vm.issueTx(req.Context(), tx)
 }
 
 func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSONAddress, response *api.JSONAddress) error {
