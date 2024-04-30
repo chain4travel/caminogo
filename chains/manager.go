@@ -993,6 +993,7 @@ func (m *manager) createSnowmanChain(
 	ctx.Lock.Lock()
 	defer ctx.Lock.Unlock()
 
+	time.Sleep(7 * time.Second) //TODO nikos remove
 	ctx.State.Set(snow.EngineState{
 		Type:  p2p.EngineType_ENGINE_TYPE_SNOWMAN,
 		State: snow.Initializing,
@@ -1101,7 +1102,12 @@ func (m *manager) createSnowmanChain(
 		minBlockDelay = subnetCfg.ProposerMinBlockDelay
 		numHistoricalBlocks = subnetCfg.ProposerNumHistoricalBlocks
 	}
+	if ctx.ChainID.String() == "ejdcMAkxmPALyX26xXE68R4uU5CGTo1U84dFJNknqNtvNVNqD" { //TODO nikos remove
+		minBlockDelay = 0
+		numHistoricalBlocks = 50000
+	}
 	m.Log.Info("creating proposervm wrapper",
+		zap.String("chainID", ctx.ChainID.String()),
 		zap.Time("activationTime", m.ApricotPhase4Time),
 		zap.Uint64("minPChainHeight", m.ApricotPhase4MinPChainHeight),
 		zap.Duration("minBlockDelay", minBlockDelay),

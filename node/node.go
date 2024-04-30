@@ -98,6 +98,7 @@ import (
 	ipcsapi "github.com/ava-labs/avalanchego/api/ipcs"
 	avmconfig "github.com/ava-labs/avalanchego/vms/avm/config"
 	platformconfig "github.com/ava-labs/avalanchego/vms/platformvm/config"
+	travelvm "github.com/chain4travel/caminotravelvm"
 )
 
 const (
@@ -1082,11 +1083,19 @@ func (n *Node) initChainManager(avaxAssetID ids.ID) error {
 	}
 	cChainID := createEVMTx.ID()
 
+	createTVMTx, err := genesis.VMGenesis(n.Config.GenesisBytes, constants.TravelVMID)
+	if err != nil {
+		return err
+	}
+	tChainID := createTVMTx.ID()
+	fmt.Println("tChainID", tChainID)
+
 	// If any of these chains die, the node shuts down
 	criticalChains := set.Of(
 		constants.PlatformChainID,
 		xChainID,
 		cChainID,
+		tChainID,
 	)
 
 	n.timeoutManager, err = timeout.NewManager(
@@ -1241,6 +1250,7 @@ func (n *Node) initVMs() error {
 			},
 		}),
 		n.VMManager.RegisterFactory(context.TODO(), constants.EVMID, &coreth.Factory{}),
+		n.VMManager.RegisterFactory(context.TODO(), constants.TravelVMID, &travelvm.Factory{}),
 	)
 	if err != nil {
 		return err

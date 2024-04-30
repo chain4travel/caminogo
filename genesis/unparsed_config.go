@@ -104,6 +104,7 @@ type UnparsedConfig struct {
 	Camino                     *UnparsedCamino  `json:"camino"`
 
 	CChainGenesis string `json:"cChainGenesis"`
+	TChainGenesis string `json:"tChainGenesis"`
 
 	Message string `json:"message"`
 }
@@ -118,6 +119,7 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		InitialStakedFunds:         make([]ids.ShortID, len(uc.InitialStakedFunds)),
 		InitialStakers:             make([]Staker, len(uc.InitialStakers)),
 		CChainGenesis:              uc.CChainGenesis,
+		TChainGenesis:              uc.TChainGenesis,
 		Message:                    uc.Message,
 	}
 	for i, ua := range uc.Allocations {

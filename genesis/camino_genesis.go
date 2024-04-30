@@ -477,6 +477,10 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	if err != nil {
 		return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
 	}
+	tGenesisStr, err := formatting.Encode(defaultEncoding, []byte(config.TChainGenesis))
+	if err != nil {
+		return nil, ids.Empty, fmt.Errorf("couldn't encode message: %w", err)
+	}
 	platformvmArgs.Chains = []api.Chain{
 		{
 			GenesisData: xGenesisData,
@@ -494,6 +498,12 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 			SubnetID:    constants.PrimaryNetworkID,
 			VMID:        constants.EVMID,
 			Name:        "C-Chain",
+		},
+		{
+			GenesisData: tGenesisStr,
+			SubnetID:    constants.PrimaryNetworkID,
+			VMID:        constants.TravelVMID,
+			Name:        "T-Chain",
 		},
 	}
 
