@@ -270,22 +270,33 @@ type SetAddressStateArgs struct {
 func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
 
+	tx, err := s.buildAdressStateTx(args)
+	if err != nil {
+		return err
+	}
+
+	response.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildAdressStateTx(args *SetAddressStateArgs) (*txs.Tx, error) {
+	targetAddr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse param Address: %w", err)
+	}
+
+	change, err := s.secpOwnerFromAPI(&args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
+
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	change, err := s.secpOwnerFromAPI(&args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	targetAddr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
-	if err != nil {
-		return fmt.Errorf("couldn't parse param Address: %w", err)
+		return nil, err
 	}
 
 	// Create the transaction
@@ -297,12 +308,10 @@ func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressState
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf(errCreateTx, err)
+		return nil, fmt.Errorf(errCreateTx, err)
 	}
 
-	response.TxID = tx.ID()
-
-	return s.vm.issueTx(req.Context(), tx)
+	return tx, nil
 }
 
 // GetAdressStates retrieves the state applied to an address (see setAddressState)
@@ -476,23 +485,34 @@ type RegisterNodeArgs struct {
 func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: RegisterNode called")
 
+	tx, err := s.buildRegisterNodeTx(args)
+	if err != nil {
+		return err
+	}
+
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildRegisterNodeTx(args *RegisterNodeArgs) (*txs.Tx, error) {
+	// Parse the node owner address.
+	nodeOwnerAddress, err := avax.ParseServiceAddress(s.addrManager, args.NodeOwnerAddress)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse nodeOwnerAddress: %w", err)
+	}
+
+	change, err := s.secpOwnerFromAPI(&args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
+
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	change, err := s.secpOwnerFromAPI(&args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	// Parse the node owner address.
-	nodeOwnerAddress, err := avax.ParseServiceAddress(s.addrManager, args.NodeOwnerAddress)
-	if err != nil {
-		return fmt.Errorf("couldn't parse nodeOwnerAddress: %w", err)
+		return nil, err
 	}
 
 	// Create the transaction
@@ -504,12 +524,10 @@ func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, 
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	return s.vm.issueTx(req.Context(), tx)
+	return tx, nil
 }
 
 type ClaimedAmount struct {
@@ -532,22 +550,25 @@ type ClaimArgs struct {
 func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Claim called")
 
-	s.vm.ctx.Lock.Lock()
-	defer s.vm.ctx.Lock.Unlock()
-
-	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
+	tx, err := s.buildClaimTx(args)
 	if err != nil {
 		return err
 	}
 
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildClaimTx(args *ClaimArgs) (*txs.Tx, error) {
 	change, err := s.secpOwnerFromAPI(&args.Change)
 	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
 	}
 
 	claimTo, err := s.secpOwnerFromAPI(&args.ClaimTo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	claimables := make([]txs.ClaimAmount, len(args.Claimables))
@@ -558,18 +579,26 @@ func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSO
 		case txs.ClaimTypeExpiredDepositReward, txs.ClaimTypeValidatorReward, txs.ClaimTypeAllTreasury:
 			claimableOwner, err := s.secpOwnerFromAPI(&args.Claimables[i].ClaimableOwner)
 			if err != nil {
-				return fmt.Errorf("failed to parse api owner to secp owner: %w", err)
+				return nil, fmt.Errorf("failed to parse api owner to secp owner: %w", err)
 			}
 			ownerID, err := txs.GetOwnerID(claimableOwner)
 			if err != nil {
-				return fmt.Errorf("failed to calculate ownerID from owner: %w", err)
+				return nil, fmt.Errorf("failed to calculate ownerID from owner: %w", err)
 			}
 			claimables[i].ID = ownerID
 		default:
-			return txs.ErrWrongClaimType
+			return nil, txs.ErrWrongClaimType
 		}
 		claimables[i].Amount = uint64(args.Claimables[i].Amount)
 		claimables[i].Type = args.Claimables[i].ClaimType
+	}
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
+	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the transaction
@@ -580,12 +609,10 @@ func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSO
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	return s.vm.issueTx(req.Context(), tx)
+	return tx, nil
 }
 
 type TransferArgs struct {
@@ -600,22 +627,33 @@ type TransferArgs struct {
 func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Transfer called")
 
+	tx, err := s.buildBaseTx(args)
+	if err != nil {
+		return err
+	}
+
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildBaseTx(args *TransferArgs) (*txs.Tx, error) {
+	_, change, err := s.addrManager.ParseAddress(args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
+
+	transferTo, err := s.secpOwnerFromAPI(&args.TransferTo)
+	if err != nil {
+		return nil, err
+	}
+
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	_, change, err := s.addrManager.ParseAddress(args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	transferTo, err := s.secpOwnerFromAPI(&args.TransferTo)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Create the transaction
@@ -626,12 +664,10 @@ func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *a
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	return s.vm.issueTx(req.Context(), tx)
+	return tx, nil
 }
 
 func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSONAddress, response *api.JSONAddress) error {
