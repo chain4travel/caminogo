@@ -158,10 +158,11 @@ type CaminoState interface {
 	CaminoDiff
 
 	CaminoConfig() *CaminoConfig
-	SyncGenesis(*state, *genesis.Genesis) error
 	Load(*state) error
 	Write() error
 	Close() error
+
+	syncGenesis(*state, *genesis.Genesis) error
 }
 
 type CaminoConfig struct {
@@ -356,7 +357,7 @@ func (cs *caminoState) CaminoConfig() *CaminoConfig {
 }
 
 // Extract camino tag from genesis
-func (cs *caminoState) SyncGenesis(s *state, g *genesis.Genesis) error {
+func (cs *caminoState) syncGenesis(s *state, g *genesis.Genesis) error {
 	cs.genesisSynced = true
 	cs.lockModeBondDeposit = g.Camino.LockModeBondDeposit
 	cs.verifyNodeSignature = g.Camino.VerifyNodeSignature

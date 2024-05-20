@@ -284,13 +284,12 @@ func (b *caminoBuilder) NewRewardValidatorTx(txID ids.ID) (*txs.Tx, error) {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	utx := &txs.CaminoRewardValidatorTx{
+	tx := &txs.Tx{Unsigned: &txs.CaminoRewardValidatorTx{
 		RewardValidatorTx: txs.RewardValidatorTx{TxID: txID},
 		Ins:               ins,
 		Outs:              outs,
-	}
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 
@@ -626,15 +625,14 @@ func (b *caminoBuilder) NewRewardsImportTx() (*txs.Tx, error) {
 
 	avax.SortTransferableInputs(ins)
 
-	utx := &txs.RewardsImportTx{
+	tx := &txs.Tx{Unsigned: &txs.RewardsImportTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    b.ctx.NetworkID,
 			BlockchainID: b.ctx.ChainID,
 			Ins:          ins,
 		}},
-	}
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 
@@ -649,17 +647,15 @@ func (b *caminoBuilder) NewSystemUnlockDepositTx(
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	utx := &txs.UnlockDepositTx{
+	tx := &txs.Tx{Unsigned: &txs.UnlockDepositTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    b.ctx.NetworkID,
 			BlockchainID: b.ctx.ChainID,
 			Ins:          ins,
 			Outs:         outs,
 		}},
-	}
-
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 	return tx, tx.SyntacticVerify(b.ctx)
@@ -720,8 +716,8 @@ func (b *caminoBuilder) FinishProposalsTx(
 	utx.Ins = ins
 	utx.Outs = outs
 
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	tx := &txs.Tx{Unsigned: utx}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 	return tx, tx.SyntacticVerify(b.ctx)

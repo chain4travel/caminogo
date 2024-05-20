@@ -1865,7 +1865,7 @@ func (s *state) init(genesisBytes []byte) error {
 		return err
 	}
 
-	if err := s.caminoState.SyncGenesis(s, genesis); err != nil {
+	if err := s.caminoState.syncGenesis(s, genesis); err != nil {
 		return err
 	}
 
