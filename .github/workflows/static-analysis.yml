@@ -13,15 +13,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.51
-          skip-cache: true
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: 1.19
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v5
+        with:
+          version: v1.51
+          skip-cache: true
       - name: Run static analysis tests
         shell: bash
         run: scripts/lint.sh
