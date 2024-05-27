@@ -21,6 +21,7 @@ jobs:
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.51
+          skip-cache: true
       - name: Run static analysis tests
         shell: bash
         run: scripts/lint.sh
