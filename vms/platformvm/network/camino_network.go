@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -71,9 +72,10 @@ func NewCamino(
 	}, nil
 }
 
-func (n *caminoNetwork) CrossChainAppRequest(_ context.Context, chainID ids.ID, _ uint32, _ time.Time, request []byte) error {
+func (n *caminoNetwork) CrossChainAppRequest(ctx context.Context, chainID ids.ID, requestID uint32, _ time.Time, request []byte) error {
 	n.log.Debug("called CrossChainAppRequest message handler",
 		zap.Stringer("chainID", chainID),
+		zap.Uint32("requestID", requestID),
 		zap.Int("messageLen", len(request)),
 	)
 
@@ -82,28 +84,56 @@ func (n *caminoNetwork) CrossChainAppRequest(_ context.Context, chainID ids.ID, 
 		return errUnknownCrossChainMessage // this would be fatal
 	}
 
-	tx := n.newRewardsImportTx()
-	if tx == nil {
+	if err := n.appSender.SendCrossChainAppResponse(
+		ctx,
+		chainID,
+		requestID,
+		[]byte(n.caminoRewardMessage()),
+	); err != nil {
+		n.log.Error("caminoCrossChainAppRequest failed to send response", zap.Error(err))
+		// we don't want fatal here: response is for logging only, so
+		// its better to not respond properly, than crash the whole node
 		return nil
-	}
-
-	if err := n.issueTx(tx); err != nil {
-		n.log.Error("caminoCrossChainAppRequest couldn't issue rewardsImportTx", zap.Error(err))
-		// we don't want fatal here: its better to have network running
-		// and try to repair stalled reward imports, than crash the whole network
 	}
 
 	return nil
 }
 
-func (n *caminoNetwork) newRewardsImportTx() *txs.Tx {
+func (n *caminoNetwork) caminoRewardMessage() string {
+	tx, err := n.newRewardsImportTx()
+	if err != nil {
+		return err.Error()
+	}
+
+	utx, ok := tx.Unsigned.(*txs.RewardsImportTx)
+	if !ok {
+		// should never happen
+		err = fmt.Errorf("unexpected tx type: expected *txs.RewardsImportTx, got %T", utx)
+		n.log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
+		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
+	}
+
+	if err := n.issueTx(tx); err != nil {
+		n.log.Error("caminoCrossChainAppRequest failed to issue rewardsImportTx", zap.Error(err))
+		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
+	}
+
+	amts := make([]uint64, len(utx.Ins))
+	for i := range utx.Ins {
+		amts[i] = utx.Ins[i].In.Amount()
+	}
+
+	return fmt.Sprintf("caminoCrossChainAppRequest issued rewardsImportTx with utxos with %v nCAM", amts)
+}
+
+func (n *caminoNetwork) newRewardsImportTx() (*txs.Tx, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
 	tx, err := n.txBuilder.NewRewardsImportTx()
 	if err != nil {
-		n.log.Error("caminoCrossChainAppRequest couldn't create rewardsImportTx", zap.Error(err))
-		return nil // we don't want fatal here
+		n.log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
+		return nil, fmt.Errorf("caminoCrossChainAppRequest failed to create rewardsImportTx: %w", err)
 	}
-	return tx
+	return tx, nil
 }
