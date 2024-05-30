@@ -23,21 +23,14 @@ import (
 var String string
 
 func init() {
-	format := "caminogo: %s, commit: %s\ncompat: %s [database: %s, rpcchainvm=%d"
-	args := []interface{}{
-		GitVersion,
-		GitCommit,
-		Current,
-		CurrentDatabase,
-		RPCChainVMProtocol,
-	}
-
-	// add golang version
 	goVersion := runtime.Version()
 	goVersionNumber := strings.TrimPrefix(goVersion, "go")
-	format += ", go=%s"
-	args = append(args, goVersionNumber)
-
-	format += "]\n"
-	String = fmt.Sprintf(format, args...)
+	String = fmt.Sprintf("%s [git %s, %s; database: %s, rpcchainvm %d, go: %s]\n",
+		CurrentApp,
+		GitVersion,
+		GitCommit,
+		CurrentDatabase,
+		RPCChainVMProtocol,
+		goVersionNumber,
+	)
 }
