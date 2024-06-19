@@ -247,13 +247,13 @@ func TestSyncGenesis(t *testing.T) {
 					},
 					{
 						Address: shortID,
-						State:   as.AddressStateRoleKYC,
+						State:   as.AddressStateRoleKYCAdmin,
 					},
 				}, depositTxs, initialAdmin),
 			},
 			cs: *wrappers.IgnoreError(newCaminoState(db, validatorsDB, prometheus.NewRegistry())).(*caminoState),
 			want: caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]as.AddressState{initialAdmin: as.AddressStateRoleAdmin, shortID: as.AddressStateRoleKYC},
+				modifiedAddressStates: map[ids.ShortID]as.AddressState{initialAdmin: as.AddressStateRoleAdmin, shortID: as.AddressStateRoleKYCAdmin},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{
 					depositOffers[0].ID: depositOffers[0],
 					depositOffers[1].ID: depositOffers[1],

@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -242,9 +243,10 @@ func defaultCaminoState(
 }
 
 func defaultCaminoConfig(postBanff bool) *config.Config {
-	config := defaultConfig(postBanff, false, false)
+	config := defaultConfig(postBanff, true, false)
 	config.MinValidatorStake = defaultCaminoValidatorWeight
 	config.MaxValidatorStake = defaultCaminoValidatorWeight
+	config.BerlinPhaseTime = defaultValidateStartTime.Add(-2 * time.Second)
 	config.CaminoConfig = caminoconfig.Config{
 		DACProposalBondAmount: 100 * units.Avax,
 	}
@@ -789,4 +791,40 @@ func expectProduceNewlyLockedUTXOs(t *testing.T, s *state.MockDiff, outs []*avax
 			Out:   out,
 		})
 	}
+}
+
+type phase int
+
+const (
+	sunrisePhase phase = 0
+	athensPhase  phase = 1
+	berlinPhase  phase = 2
+	firstPhase   phase = sunrisePhase
+	lastPhase    phase = berlinPhase
+)
+
+func phaseTime(t *testing.T, phase phase, cfg *config.Config) time.Time {
+	switch phase {
+	case sunrisePhase: // SunrisePhase
+		return cfg.AthensPhaseTime.Add(-time.Second)
+	case athensPhase:
+		return cfg.AthensPhaseTime
+	case berlinPhase:
+		return cfg.BerlinPhaseTime
+	}
+	require.FailNow(t, "unknown phase")
+	return time.Time{}
+}
+
+func phaseName(t *testing.T, phase phase) string {
+	switch phase {
+	case sunrisePhase:
+		return "SunrisePhase"
+	case athensPhase:
+		return "AthensPhase"
+	case berlinPhase:
+		return "BerlinPhase"
+	}
+	require.FailNow(t, "unknown phase")
+	return ""
 }

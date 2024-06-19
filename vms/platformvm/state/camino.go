@@ -384,9 +384,9 @@ func (cs *caminoState) syncGenesis(s *state, g *genesis.Genesis) error {
 		initalAdminAddressState|as.AddressStateRoleAdmin)
 
 	addrStateTx, err := txs.NewSigned(&txs.AddressStateTx{
-		Address: g.Camino.InitialAdmin,
-		State:   as.AddressStateBitRoleAdmin,
-		Remove:  false,
+		Address:  g.Camino.InitialAdmin,
+		StateBit: as.AddressStateBitRoleAdmin,
+		Remove:   false,
 	}, txs.Codec, nil)
 	if err != nil {
 		return err
