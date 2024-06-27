@@ -10,23 +10,21 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
-	"github.com/ava-labs/avalanchego/utils/nodeid"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 	ctx := snowtest.Context(t, snowtest.PChainID)
-	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
-	signers := [][]*secp256k1.PrivateKey{{caminoPreFundedKeys[0]}, {nodeKey}}
+	nodeID := ids.NodeID{1, 1, 1}
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
 		Threshold: 1,
-		Addrs:     []ids.ShortID{caminoPreFundedKeys[0].Address()},
+		Addrs:     []ids.ShortID{{1}},
 	}
-	sigIndices := []uint32{0}
+	fee := uint64(100)
 
 	tests := map[string]struct {
 		preExecute  func(*testing.T, *CaminoAddValidatorTx) *CaminoAddValidatorTx
@@ -42,7 +40,7 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
 				return nil
 			},
-			expectedErr: errSignedTxNotInitialized,
+			expectedErr: ErrNilTx,
 		},
 		"Wrong networkID": {
 			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
@@ -77,7 +75,7 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 		},
 		"Stake outputs are not empty": {
 			preExecute: func(t *testing.T, utx *CaminoAddValidatorTx) *CaminoAddValidatorTx {
-				utx.StakeOuts = append(utx.StakeOuts, generateTestStakeableOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners))
+				utx.StakeOuts = append(utx.StakeOuts, generate.StakeableOut(ctx.AVAXAssetID, defaultWeight, 100, outputOwners))
 				return utx
 			},
 			expectedErr: errStakeOutsNotEmpty,
@@ -99,18 +97,18 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestIn(ctx.AVAXAssetID, defaultCaminoValidatorWeight*2, ids.Empty, ids.Empty, sigIndices),
+							generate.In(ctx.AVAXAssetID, defaultWeight*2, ids.Empty, ids.Empty, []uint32{0}),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-							generateTestOut(ctx.AVAXAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+							generate.Out(ctx.AVAXAssetID, defaultWeight-fee, outputOwners, ids.Empty, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, defaultWeight, outputOwners, ids.Empty, locked.ThisTxID),
 						},
 					}},
 					Validator: Validator{
 						NodeID: nodeID,
-						Start:  uint64(defaultValidateStartTime.Unix()) + 1,
-						End:    uint64(defaultValidateEndTime.Unix()),
-						Wght:   defaultCaminoValidatorWeight,
+						Start:  100,
+						End:    200,
+						Wght:   defaultWeight,
 					},
 					RewardsOwner: &secp256k1fx.OutputOwners{
 						Locktime:  0,
@@ -122,8 +120,7 @@ func TestCaminoAddValidatorTxSyntacticVerify(t *testing.T) {
 			}
 
 			utx = tt.preExecute(t, utx)
-			tx, _ := NewSigned(utx, Codec, signers)
-			err := tx.SyntacticVerify(ctx)
+			err := utx.SyntacticVerify(ctx)
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}

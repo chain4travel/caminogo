@@ -303,7 +303,7 @@ func (b *caminoBuilder) NewRewardValidatorTx(txID ids.ID) (*txs.Tx, error) {
 func (b *caminoBuilder) NewAddressStateTx(
 	address ids.ShortID,
 	remove bool,
-	state as.AddressStateBit,
+	stateBit as.AddressStateBit,
 	executor ids.ShortID,
 	keys []*secp256k1.PrivateKey,
 	change *secp256k1fx.OutputOwners,
@@ -322,13 +322,12 @@ func (b *caminoBuilder) NewAddressStateTx(
 		return nil, errEmptyExecutorAddress
 	}
 
-	executorSigner, err := getSigner(keys, executor)
-	if err != nil {
-		return nil, err
-	}
-
 	var utx *txs.AddressStateTx
 	if isBerlin {
+		executorSigner, err := getSigner(keys, executor)
+		if err != nil {
+			return nil, err
+		}
 		utx = &txs.AddressStateTx{
 			UpgradeVersionID: codec.UpgradeVersion1,
 			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -339,7 +338,7 @@ func (b *caminoBuilder) NewAddressStateTx(
 			}},
 			Address:      address,
 			Remove:       remove,
-			StateBit:     state,
+			StateBit:     stateBit,
 			Executor:     executor,
 			ExecutorAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
 		}
@@ -354,7 +353,7 @@ func (b *caminoBuilder) NewAddressStateTx(
 			}},
 			Address:  address,
 			Remove:   remove,
-			StateBit: state,
+			StateBit: stateBit,
 		}
 	}
 

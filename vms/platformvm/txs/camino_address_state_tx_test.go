@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -76,7 +77,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+						generate.StakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
 					},
 				}},
 				Address: addr1,
@@ -89,7 +90,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+						generate.StakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
 					},
 				}},
 				Address: addr1,
@@ -102,7 +103,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, lockTxID, ids.Empty, []uint32{0}),
+						generate.In(ctx.AVAXAssetID, 1, lockTxID, ids.Empty, []uint32{0}),
 					},
 				}},
 				Address: addr1,
@@ -115,7 +116,7 @@ func TestAddressStateTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, 1, owner1, lockTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, 1, owner1, lockTxID, ids.Empty),
 					},
 				}},
 				Address: addr1,

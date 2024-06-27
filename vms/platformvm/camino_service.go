@@ -266,11 +266,11 @@ type SetAddressStateArgs struct {
 	Remove  bool               `json:"remove"`
 }
 
-// AddAdressState issues an AddAdressStateTx
+// AddAddressState issues an AddAddressStateTx
 func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
 
-	tx, err := s.buildAdressStateTx(args)
+	tx, err := s.buildAddressStateTx(args)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressState
 	return s.vm.issueTx(req.Context(), tx)
 }
 
-func (s *CaminoService) buildAdressStateTx(args *SetAddressStateArgs) (*txs.Tx, error) {
+func (s *CaminoService) buildAddressStateTx(args *SetAddressStateArgs) (*txs.Tx, error) {
 	targetAddr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse param Address: %w", err)
@@ -315,7 +315,7 @@ func (s *CaminoService) buildAdressStateTx(args *SetAddressStateArgs) (*txs.Tx, 
 	return tx, nil
 }
 
-// GetAdressStates retrieves the state applied to an address (see setAddressState)
+// GetAddressStates retrieves the state applied to an address (see setAddressState)
 func (s *CaminoService) GetAddressStates(_ *http.Request, args *api.JSONAddress, response *json.Uint64) error {
 	s.vm.ctx.Log.Debug("Platform: GetAddressStates called")
 

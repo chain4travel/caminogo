@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -44,8 +45,8 @@ func TestDepositTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, math.MaxUint64, owner1, locked.ThisTxID, ids.Empty),
-						generateTestOut(ctx.AVAXAssetID, math.MaxUint64, owner1, locked.ThisTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, math.MaxUint64, owner1, locked.ThisTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, math.MaxUint64, owner1, locked.ThisTxID, ids.Empty),
 					},
 				}},
 				RewardsOwner: &secp256k1fx.OutputOwners{},

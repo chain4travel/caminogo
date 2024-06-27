@@ -52,7 +52,7 @@ var (
 	errDepositOfferInactive              = errors.New("deposit offer is inactive")
 	errDepositTooSmall                   = errors.New("deposit amount is less than deposit offer minimum amount")
 	errDepositTooBig                     = errors.New("deposit amount is greater than deposit offer available amount")
-	errDepositDurationTooSmall           = errors.New("deposit duration is less than deposit offer minmum duration")
+	errDepositDurationTooSmall           = errors.New("deposit duration is less than deposit offer minimum duration")
 	errDepositDurationTooBig             = errors.New("deposit duration is greater than deposit offer maximum duration")
 	errSupplyOverflow                    = errors.New("resulting total supply would be more than allowed maximum")
 	errNotConsortiumMember               = errors.New("address isn't consortium member")
@@ -422,11 +422,11 @@ func (e *CaminoStandardTxExecutor) wrapAtomicElementsForMultisig(tx *txs.ExportT
 			return locked.ErrWrongOutType
 		}
 
-		aliasInfs, err := e.Fx.CollectMultisigAliases(owned.Owners(), e.State)
+		aliasIntfs, err := e.Fx.CollectMultisigAliases(owned.Owners(), e.State)
 		if err != nil {
 			return err
 		}
-		if len(aliasInfs) == 0 {
+		if len(aliasIntfs) == 0 {
 			// no need to wrap current UTXO
 			continue
 		}
@@ -439,8 +439,8 @@ func (e *CaminoStandardTxExecutor) wrapAtomicElementsForMultisig(tx *txs.ExportT
 		}
 
 		// wrap utxo with alias
-		aliases := make([]verify.Verifiable, len(aliasInfs))
-		for i, inf := range aliasInfs {
+		aliases := make([]verify.Verifiable, len(aliasIntfs))
+		for i, inf := range aliasIntfs {
 			ali, ok := inf.(*multisig.AliasWithNonce)
 			if !ok {
 				return errors.New("wrong type, expected multisig.AliasWithNonce")
@@ -945,12 +945,12 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 
 				claimable, err := e.State.GetClaimable(claimableOwnerID)
 				if err == database.ErrNotFound {
-					scepOwner, ok := deposit.RewardOwner.(*secp256k1fx.OutputOwners)
+					secpOwner, ok := deposit.RewardOwner.(*secp256k1fx.OutputOwners)
 					if !ok {
 						return errWrongOwnerType
 					}
 					claimable = &state.Claimable{
-						Owner: scepOwner,
+						Owner: secpOwner,
 					}
 				} else if err != nil {
 					return err
@@ -1185,13 +1185,13 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 	oldNodeIDEmpty := tx.OldNodeID == ids.EmptyNodeID
 
 	linkedNodeID, err := e.State.GetShortIDLink(tx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode)
-	haslinkedNode := err != database.ErrNotFound
-	if haslinkedNode && err != nil {
+	hasLinkedNode := err != database.ErrNotFound
+	if hasLinkedNode && err != nil {
 		return err
 	}
 
 	if oldNodeIDEmpty {
-		if haslinkedNode {
+		if hasLinkedNode {
 			return errConsortiumMemberHasNode
 		}
 		// Verify that the node is not already registered
@@ -1218,7 +1218,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 
 	// verify old nodeID ownership
 
-	if !oldNodeIDEmpty && (!haslinkedNode || tx.OldNodeID != ids.NodeID(linkedNodeID)) {
+	if !oldNodeIDEmpty && (!hasLinkedNode || tx.OldNodeID != ids.NodeID(linkedNodeID)) {
 		return errNotNodeOwner
 	}
 
@@ -1788,7 +1788,7 @@ func (e *CaminoStandardTxExecutor) AddProposalTx(tx *txs.AddProposalTx) error {
 		return fmt.Errorf("%w: %w", errProposerCredentialMismatch, err)
 	}
 
-	if err := txProposal.VerifyWith(dac.NewProposalVerifier(e.State, e.Fx, e.Tx, tx, isAdminProposal)); err != nil {
+	if err := txProposal.VerifyWith(dac.NewProposalVerifier(e.State, tx, isAdminProposal)); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidProposal, err)
 	}
 
@@ -2077,7 +2077,7 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 		}
 
 		// try to execute proposal
-		if err := proposal.ExecuteWith(dac.NewProposalExecutor(e.State, e.Fx)); err != nil {
+		if err := proposal.ExecuteWith(dac.NewProposalExecutor(e.State)); err != nil {
 			return err
 		}
 
@@ -2128,7 +2128,7 @@ func (e *CaminoStandardTxExecutor) FinishProposalsTx(tx *txs.FinishProposalsTx) 
 		}
 
 		// try to execute proposal
-		if err := proposal.ExecuteWith(dac.NewProposalExecutor(e.State, e.Fx)); err != nil {
+		if err := proposal.ExecuteWith(dac.NewProposalExecutor(e.State)); err != nil {
 			return err
 		}
 

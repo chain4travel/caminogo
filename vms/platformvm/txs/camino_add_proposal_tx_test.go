@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/avalanchego/vms/types"
 )
@@ -78,7 +79,7 @@ func TestAddProposalTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+						generate.StakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
 					},
 				}},
 				ProposalPayload: proposalBytes,
@@ -92,7 +93,7 @@ func TestAddProposalTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+						generate.StakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
 					},
 				}},
 				ProposalPayload: proposalBytes,
