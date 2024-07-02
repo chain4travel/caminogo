@@ -69,11 +69,15 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		cortinaTime       = mockable.MaxTime
 		berlinTime        = mockable.MaxTime
 		durangoTime       = mockable.MaxTime
+		cairoTime         = mockable.MaxTime
 	)
 
 	// always reset LatestForkTime (a package level variable)
 	// to ensure test independence
 	switch phase {
+	case PhaseCairo:
+		cairoTime = LatestPhaseTime
+		fallthrough
 	case PhaseDurango:
 		durangoTime = LatestPhaseTime
 		fallthrough
@@ -117,6 +121,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		CortinaTime:            cortinaTime,
 		BerlinPhaseTime:        berlinTime,
 		DurangoTime:            durangoTime,
+		CairoPhaseTime:         cairoTime,
 		CaminoConfig: caminoconfig.Config{
 			DACProposalBondAmount: 100 * units.Avax,
 		},

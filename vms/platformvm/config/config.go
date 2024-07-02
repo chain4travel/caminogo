@@ -124,6 +124,9 @@ type Config struct {
 	// Time of the BerlinPhase network upgrade
 	BerlinPhaseTime time.Time
 
+	// Time of the CairoPhase network upgrade
+	CairoPhaseTime time.Time
+
 	// Camino relevant configuration
 	CaminoConfig caminoconfig.Config
 	// UseCurrentHeight forces [GetMinimumHeight] to return the current height
@@ -162,6 +165,10 @@ func (c *Config) IsAthensPhaseActivated(timestamp time.Time) bool {
 
 func (c *Config) IsBerlinPhaseActivated(timestamp time.Time) bool {
 	return !timestamp.Before(c.BerlinPhaseTime)
+}
+
+func (c *Config) IsCairoPhaseActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.CairoPhaseTime)
 }
 
 func (c *Config) GetCreateBlockchainTxFee(timestamp time.Time) uint64 {
