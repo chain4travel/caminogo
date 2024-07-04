@@ -43,6 +43,7 @@ find "/tmp/caminogo-${VERSION}"
 
 cd "/tmp/caminogo-${VERSION}"
 ./scripts/build.sh
+cd - 
 
 
 # Sourcing constants.sh ensures that the necessary CGO flags are set to
@@ -60,7 +61,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/upgrade
 
 #################################
 # By default, it runs all upgrade test cases!
-echo "running upgrade tests against the local cluster with ${CAMINOGO_BIN_PATH}"
+echo "running upgrade tests against the local cluster with ${CAMINOGO_BIN_PATH}" 
 ./tests/upgrade/upgrade.test \
   --ginkgo.v \
   --caminogo-path="/tmp/caminogo-${VERSION}/build/caminogo" \
