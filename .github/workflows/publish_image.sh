@@ -17,13 +17,13 @@ source "$CAMINO_PATH"/scripts/constants.sh
 source "$CAMINO_PATH"/scripts/build_image.sh -r
 
 if [[ $current_branch == "master" ]]; then
-  echo "Tagging current caminogo image as $caminogo_dockerhub_repo:latest"
-  docker tag "$caminogo_dockerhub_repo:$current_branch" "$caminogo_dockerhub_repo:latest"
+  echo "Tagging current caminogo image as $camino_node_dockerhub_repo:latest"
+  docker tag "$camino_node_dockerhub_repo:$current_branch" "$camino_node_dockerhub_repo:latest"
 fi
 
-echo "Pushing: $caminogo_dockerhub_repo:$current_branch"
+echo "Pushing: $camino_node_dockerhub_repo:$current_branch"
 
 echo "$DOCKER_PASS" | docker login --username "$DOCKER_USERNAME" --password-stdin
 
 ## pushing image with tags
-docker image push -a "$caminogo_dockerhub_repo"
+docker image push -a "$camino_node_dockerhub_repo"

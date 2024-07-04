@@ -16,7 +16,7 @@ fi
 # local network, this flag must be updated to the last compatible
 # version with the latest code.
 
-DEFAULT_VERSION="v1.1.19-rc0"
+DEFAULT_VERSION="v1.1.15-rc1"
 
 VERSION="${1:-${DEFAULT_VERSION}}"
 
@@ -31,19 +31,17 @@ CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
 #################################
 # clone caminogo tag
 # https://github.com/chain4travel/caminogo.git
-GOARCH=$(go env GOARCH)
-GOOS=$(go env GOOS)
 GIT_URL=https://github.com/chain4travel/caminogo.git
 
 rm -rf "/tmp/caminogo-${VERSION}"
 rm -rf /tmp/caminogo-build
 
 echo "cloning caminogo tag ${VERSION}"
-git clone -b ${VERSION} ${GIT_URL} /tmp/caminogo-${VERSION}
+git clone -b "${VERSION}" ${GIT_URL} /tmp/caminogo-${VERSION}
 
 find "/tmp/caminogo-${VERSION}"
 
-cd /tmp/caminogo-${VERSION}
+cd "/tmp/caminogo-${VERSION}"
 ./scripts/build.sh
 
 
