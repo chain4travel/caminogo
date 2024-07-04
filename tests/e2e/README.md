@@ -28,7 +28,7 @@ primarily target the X-Chain:
 
 ```bash
 ./tests/e2e/e2e.test \
-  --avalanchego-path=./build/avalanchego \
+  --caminogo-path=./build/caminogo \
   --ginkgo.label-filter=x
 ```
 
@@ -69,13 +69,13 @@ of the test under development.
 To create a temporary network for use across test runs:
 
 ```bash
-# From the root of the avalanchego repo
+# From the root of the caminogo repo
 
 # Build the tmpnetctl binary
 $ ./scripts/build_tmpnetctl.sh
 
 # Start a new network
-$ ./build/tmpnetctl start-network --avalanchego-path=/path/to/avalanchego
+$ ./build/tmpnetctl start-network --caminogo-path=/path/to/caminogo
 ...
 Started network 1000 @ /home/me/.tmpnet/networks/1000
 
@@ -87,12 +87,12 @@ with one of the following statements:
 
 # Start a new test run using the existing network
 ginkgo -v ./tests/e2e -- \
-    --avalanchego-path=/path/to/avalanchego \
+    --caminogo-path=/path/to/caminogo \
     --ginkgo.focus-file=[name of file containing test] \
     --use-existing-network \
     --network-dir=/path/to/network
 
-# It is also possible to set the CAMINOGO_BIN_PATH env var instead of supplying --avalanchego-path
+# It is also possible to set the CAMINOGO_BIN_PATH env var instead of supplying --caminogo-path
 # and to set TMPNET_NETWORK_DIR instead of supplying --network-dir.
 ```
 

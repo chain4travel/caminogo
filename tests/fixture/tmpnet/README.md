@@ -1,6 +1,6 @@
 # tmpnet - temporary network orchestration
 
-This package implements a simple orchestrator for the avalanchego
+This package implements a simple orchestrator for the caminogo
 nodes of a temporary network. Configuration is stored on disk, and
 nodes run as independent processes whose process details are also
 written to disk. Using the filesystem to store configuration and
@@ -16,7 +16,7 @@ commonly refers to a persistent blockchain network used for testing.
 To avoid confusion, the name was changed to `tmpnet` and its cli
 `tmpnetctl`. `tmpnet` is short for `temporary network` since the
 networks it deploys are likely to live for a limited duration in
-support of the development and testing of avalanchego and its related
+support of the development and testing of caminogo and its related
 repositories.
 
 ## Package details
@@ -27,7 +27,7 @@ the following non-test files:
 | Filename          | Types       | Purpose                                        |
 |:------------------|:------------|:-----------------------------------------------|
 | defaults.go       |             | Defines common default configuration           |
-| flags.go          | FlagsMap    | Simplifies configuration of avalanchego flags  |
+| flags.go          | FlagsMap    | Simplifies configuration of caminogo flags  |
 | genesis.go        |             | Creates test genesis                           |
 | network.go        | Network     | Orchestrates and configures temporary networks |
 | network_config.go | Network     | Reads and writes network configuration         |
@@ -44,13 +44,13 @@ the following non-test files:
 A temporary network can be managed by the `tmpnetctl` cli tool:
 
 ```bash
-# From the root of the avalanchego repo
+# From the root of the caminogo repo
 
 # Build the tmpnetctl binary
 $ ./scripts/build_tmpnetctl.sh
 
 # Start a new network
-$ ./build/tmpnetctl start-network --avalanchego-path=/path/to/avalanchego
+$ ./build/tmpnetctl start-network --caminogo-path=/path/to/caminogo
 ...
 Started network 1000 @ /home/me/.tmpnet/networks/1000
 
@@ -98,8 +98,8 @@ _ := tmpnet.StartNewNetwork(              // Start the network
     ginkgo.GinkgoWriter,                  // Writer to report progress of initialization
     network,
     "",                                   // Empty string uses the default network path (~/tmpnet/networks)
-    "/path/to/avalanchego",               // The path to the binary that nodes will execute
-    "/path/to/plugins",                   // The path nodes will use for plugin binaries (suggested value ~/.avalanchego/plugins)
+    "/path/to/caminogo",               // The path to the binary that nodes will execute
+    "/path/to/plugins",                   // The path nodes will use for plugin binaries (suggested value ~/.caminogo/plugins)
     5,                                    // Number of initial validating nodes
 )
 
@@ -117,7 +117,7 @@ By default, nodes in a temporary network will be started with staking and
 API ports set to `0` to ensure that ports will be dynamically
 chosen. The tmpnet fixture discovers the ports used by a given node
 by reading the `[base-data-dir]/process.json` file written by
-avalanchego on node start. The use of dynamic ports supports testing
+caminogo on node start. The use of dynamic ports supports testing
 with many temporary networks without having to manually select compatible
 port ranges.
 
@@ -158,7 +158,7 @@ HOME
 ### Common networking configuration
 
 Network configuration such as default flags (e.g. `--log-level=`),
-runtime defaults (e.g. avalanchego path) and pre-funded private keys
+runtime defaults (e.g. caminogo path) and pre-funded private keys
 are stored at `[network-dir]/config.json`. A given default will only
 be applied to a new node on its addition to the network if the node
 does not explicitly set a given value.
@@ -211,7 +211,7 @@ flag.
 
 The details required to configure a node's execution are written to
 `[network-path]/[node-id]/config.json`. This file contains the
-runtime-specific details like the path of the avalanchego binary to
+runtime-specific details like the path of the caminogo binary to
 start the node with.
 
 #### Flags
@@ -225,7 +225,7 @@ editing the config file.
 
 #### Process details
 
-The process details of a node are written by avalanchego to
+The process details of a node are written by caminogo to
 `[base-data-dir]/process.json`. The file contains the PID of the node
 process, the URI of the node's API, and the address other nodes can
 use to bootstrap themselves (aka staking address).

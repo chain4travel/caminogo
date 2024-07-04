@@ -2,7 +2,8 @@ name: Run fuzz tests
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    # Run every Saturday at 9 am
+    - cron: "0 9 * * 6"
 
 permissions:
   contents: read
@@ -12,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Git checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: 'dev'
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: '~1.20.12'
           check-latest: true

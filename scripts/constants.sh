@@ -12,6 +12,7 @@ CAMINOGO_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 
 # Where CaminoGo binary goes
 build_dir="$CAMINOGO_PATH/build"
+caminogo_path="$build_dir/caminogo"
 CAMINOGO_BIN_PATH="$build_dir/caminogo"
 camino_node_symlink_path="$build_dir/camino-node"
 plugin_dir="$build_dir/plugins"

@@ -43,18 +43,10 @@ rm -rf /var/lib/caminogo 2>/dev/null || true # Do || true to ignore error if fil
 echo "done existing database files"
 
 #download latest mainnet DB backup
-FILENAME="mainnet-db-daily-"
-DATE=$(date +'%m-%d-%Y')
-DB_FILE="$FILENAME$DATE"
-echo "Copying database file $DB_FILE from S3 to local..."
-aws s3 cp s3://camino-db-daily/ /opt/ --no-progress --recursive --exclude "*" --include "$DB_FILE*"
-echo "Done downloading database"
-
-# extract DB
-echo "Extracting database..."
+echo "Copying database from gcs to local..."
 mkdir -p /var/lib/caminogo/db
-tar -zxf /opt/"$DB_FILE"*-tar.gz -C /var/lib/caminogo/db
-echo "Done extracting database"
+gsutil cp gs://camino-db/* /var/lib/caminogo/db
+
 
 echo "Creating Docker network..."
 docker network create controlled-net
