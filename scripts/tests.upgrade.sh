@@ -37,7 +37,7 @@ rm -rf "/tmp/caminogo-${VERSION}"
 rm -rf /tmp/caminogo-build
 
 echo "cloning caminogo tag ${VERSION}"
-git clone -b "${VERSION}" ${GIT_URL} /tmp/caminogo-${VERSION}
+git clone -b "${VERSION}" ${GIT_URL} "/tmp/caminogo-${VERSION}"
 
 find "/tmp/caminogo-${VERSION}"
 
