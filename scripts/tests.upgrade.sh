@@ -16,7 +16,7 @@ fi
 # local network, this flag must be updated to the last compatible
 # version with the latest code.
 
-DEFAULT_VERSION="v1.1.15"
+DEFAULT_VERSION="v1.1.19-rc0"
 
 VERSION="${1:-${DEFAULT_VERSION}}"
 
