@@ -16,7 +16,7 @@ fi
 # local network, this flag must be updated to the last compatible
 # version with the latest code.
 
-DEFAULT_VERSION="v1.1.15-rc1"
+DEFAULT_VERSION="v1.1.20-rc0"
 
 VERSION="${1:-${DEFAULT_VERSION}}"
 
@@ -29,7 +29,7 @@ fi
 CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
 
 #################################
-# clone caminogo tag
+# clone caminogo tag/branch
 # https://github.com/chain4travel/caminogo.git
 GIT_URL=https://github.com/chain4travel/caminogo.git
 
