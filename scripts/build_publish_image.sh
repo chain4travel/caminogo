@@ -8,7 +8,7 @@ set -o pipefail
 CAMINOGO_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 
 # Build the container
-"$CAMINOGO_PATH"/scripts/build_local_image.sh
+"$CAMINOGO_PATH"/scripts/build_image.sh
 
 # If this is not a trusted build (Docker Credentials are not set)
 if [[ -z "$DOCKER_USERNAME"  ]]; then

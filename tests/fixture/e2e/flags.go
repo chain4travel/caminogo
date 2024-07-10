@@ -44,14 +44,14 @@ func RegisterFlags() *FlagVars {
 	vars := FlagVars{}
 	flag.StringVar(
 		&vars.avalancheGoExecPath,
-		"avalanchego-path",
+		"caminogo-path",
 		os.Getenv(tmpnet.AvalancheGoPathEnvName),
-		fmt.Sprintf("avalanchego executable path (required if not using an existing network). Also possible to configure via the %s env variable.", tmpnet.AvalancheGoPathEnvName),
+		fmt.Sprintf("caminogo executable path (required if not using an existing network). Also possible to configure via the %s env variable.", tmpnet.AvalancheGoPathEnvName),
 	)
 	flag.StringVar(
 		&vars.pluginDir,
 		"plugin-dir",
-		os.ExpandEnv("$HOME/.avalanchego/plugins"),
+		os.ExpandEnv("$HOME/.caminogo/plugins"),
 		"[optional] the dir containing VM plugins.",
 	)
 	flag.StringVar(
