@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck disable=all
-# TODO: re-assess shellcheck disable=all after workflow cleanup
 
 set -o errexit
 set -o nounset

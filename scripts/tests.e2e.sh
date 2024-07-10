@@ -35,7 +35,7 @@ if [[ -n "${E2E_USE_EXISTING_NETWORK:-}" && -n "${TMPNET_NETWORK_DIR:-}" ]]; the
   E2E_ARGS="--use-existing-network"
 else
   CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
-  E2E_ARGS="--avalanchego-path=${CAMINOGO_BIN_PATH}"
+  E2E_ARGS="--caminogo-path=${CAMINOGO_BIN_PATH}"
 fi
 
 #################################

@@ -21,7 +21,7 @@ import (
 const cliVersion = "0.0.1"
 
 var (
-	errAvalancheGoRequired = fmt.Errorf("--avalanchego-path or %s are required", tmpnet.AvalancheGoPathEnvName)
+	errAvalancheGoRequired = fmt.Errorf("--caminogo-path or %s are required", tmpnet.AvalancheGoPathEnvName)
 	errNetworkDirRequired  = fmt.Errorf("--network-dir or %s are required", tmpnet.NetworkDirEnvName)
 )
 
@@ -103,8 +103,8 @@ func main() {
 		},
 	}
 	startNetworkCmd.PersistentFlags().StringVar(&rootDir, "root-dir", os.Getenv(tmpnet.RootDirEnvName), "The path to the root directory for temporary networks")
-	startNetworkCmd.PersistentFlags().StringVar(&avalancheGoPath, "avalanchego-path", os.Getenv(tmpnet.AvalancheGoPathEnvName), "The path to an avalanchego binary")
-	startNetworkCmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", os.ExpandEnv("$HOME/.avalanchego/plugins"), "[optional] the dir containing VM plugins")
+	startNetworkCmd.PersistentFlags().StringVar(&avalancheGoPath, "caminogo-path", os.Getenv(tmpnet.AvalancheGoPathEnvName), "The path to an caminogo binary")
+	startNetworkCmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", os.ExpandEnv("$HOME/.caminogo/plugins"), "[optional] the dir containing VM plugins")
 	startNetworkCmd.PersistentFlags().Uint8Var(&nodeCount, "node-count", tmpnet.DefaultNodeCount, "Number of nodes the network should initially consist of")
 	rootCmd.AddCommand(startNetworkCmd)
 
