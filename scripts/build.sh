@@ -37,7 +37,7 @@ build_args="$race"
 "$CAMINO_PATH"/scripts/build_camino.sh $build_args
 
 # Exit build successfully if the CaminoGo binary is created successfully
-if [[ -f "$caminogo_path" ]]; then
+if [[ -f "$CAMINOGO_BIN_PATH" ]]; then
         echo "Build Successful"
         exit 0
 else
