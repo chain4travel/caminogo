@@ -207,6 +207,10 @@ func TestDeferredStakers(t *testing.T) {
 			subnetID := testSubnet1.ID()
 			env.config.TrackedSubnets.Add(subnetID)
 
+			addrState, err := env.state.GetAddressStates(test.FundedKeys[0].Address())
+			require.NoError(err)
+			env.state.SetAddressStates(test.FundedKeys[0].Address(), addrState|as.AddressStateRoleValidatorAdmin)
+
 			for _, staker := range tt.stakers {
 				_, err := addCaminoPendingValidator(
 					env,
