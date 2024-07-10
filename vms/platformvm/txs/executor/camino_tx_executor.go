@@ -2252,7 +2252,7 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	}
 
 	// Verify that executor roles are allowed to modify tx.State
-	if !isPermittedToModifyAddrStateBit(roles, txAddressState) {
+	if !isPermittedToModifyAddrStateBit(isBerlinPhase, roles, txAddressState) {
 		return fmt.Errorf("%w (addr: %s, bit: %b)", errAddrStateNotPermitted, tx.Address, tx.StateBit)
 	}
 
@@ -2326,13 +2326,24 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	return nil
 }
 
+const (
+	addressStateKYCAll   = as.AddressStateKYCVerified | as.AddressStateKYCExpired
+	addressStateRoleBits = as.AddressStateRoleAdmin | as.AddressStateRoleKYCAdmin |
+		as.AddressStateRoleConsortiumSecretary | as.AddressStateRoleOffersAdmin |
+		as.AddressStateRoleValidatorAdmin | as.AddressStateFoundationAdmin
+)
+
 // [state] must have only one bit set
-func isPermittedToModifyAddrStateBit(roles, state as.AddressState) bool {
-	const addressStateKYCAll = as.AddressStateKYCVerified | as.AddressStateKYCExpired
+func isPermittedToModifyAddrStateBit(isBerlinPhase bool, roles, state as.AddressState) bool {
 	switch {
-	case roles.Is(as.AddressStateRoleAdmin): // admin can do anything
-	case addressStateKYCAll&state != 0 && roles.Is(as.AddressStateRoleKYCAdmin): // kyc role can change kyc status
-	case state == as.AddressStateOffersCreator && roles.Is(as.AddressStateRoleOffersAdmin): // offers admin can assign offers creator role
+	// admin can do anything before BerlinPhase, after that admin can only modify other roles
+	case roles.Is(as.AddressStateRoleAdmin) && (!isBerlinPhase || addressStateRoleBits&state != 0):
+	// kyc role can change kyc status
+	case addressStateKYCAll&state != 0 && roles.Is(as.AddressStateRoleKYCAdmin):
+	// offers admin can assign offers creator role
+	case state == as.AddressStateOffersCreator && roles.Is(as.AddressStateRoleOffersAdmin):
+	// validator admin can defer or resume node
+	case state == as.AddressStateNodeDeferred && roles.Is(as.AddressStateRoleValidatorAdmin):
 	default:
 		return false
 	}
