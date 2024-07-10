@@ -38,17 +38,15 @@ function test_golangci_lint {
 
 # automatically checks license headers
 # to modify the file headers (if missing), remove "--verify" flag
-# TESTS='license_header' ADDLICENSE_FLAGS="--debug" ./scripts/lint.sh
-_addlicense_flags=${ADDLICENSE_FLAGS:-"--verify --debug"}
+# TESTS='license_header' ./scripts/lint.sh
 function test_license_header {
-  go install -v github.com/palantir/go-license@v1.25.0
+  go install -v github.com/chain4travel/camino-license@v0.0.1
   local files=()
   while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
 
   # shellcheck disable=SC2086
-  go-license \
-  --config=./header.yml \
-  ${_addlicense_flags} \
+  camino-license check\
+  --config=./header.yaml \
   "${files[@]}"
 }
 
