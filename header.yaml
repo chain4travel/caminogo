@@ -30,4 +30,5 @@ custom-headers:
       - "./genesis/genesis_camino.go"
       - "./genesis/genesis_columbus.go"
       - "./genesis/genesis_kopernikus.go"
+      - "./tools/**/*.go"
 

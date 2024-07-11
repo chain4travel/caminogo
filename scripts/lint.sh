@@ -41,8 +41,9 @@ function test_golangci_lint {
 # TESTS='license_header' ./scripts/lint.sh
 function test_license_header {
   go install -v github.com/chain4travel/camino-license@v0.0.1
+  # TODO: use directory instead of files and do these exclusions from camino-license configuration
   local files=()
-  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
+  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go' ! -name 'camino_mock_*.go')
 
   # shellcheck disable=SC2086
   camino-license check\
