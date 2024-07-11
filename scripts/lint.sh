@@ -29,7 +29,7 @@ fi
 # by default, "./scripts/lint.sh" runs all lint tests
 # to run only "license_header" test
 # TESTS='license_header' ./scripts/lint.sh
-TESTS=${TESTS:-"golangci_lint require_error_is_no_funcs_as_params single_import interface_compliance_nil require_equal_zero require_len_zero require_equal_len require_nil require_no_error_inline_func"}
+TESTS=${TESTS:-"golangci_lint license_header require_error_is_no_funcs_as_params single_import interface_compliance_nil require_equal_zero require_len_zero require_equal_len require_nil require_no_error_inline_func"}
 
 function test_golangci_lint {
   go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.1
@@ -43,7 +43,7 @@ function test_license_header {
   go install -v github.com/chain4travel/camino-license@v0.0.1
   # TODO: use directory instead of files and do these exclusions from camino-license configuration
   local files=()
-  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go' ! -name 'camino_mock_*.go' | grep -v '^./tools/camino-network-runner/')
+  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go' ! -name 'camino_mock_*.go')
 
   # shellcheck disable=SC2086
   camino-license check\
