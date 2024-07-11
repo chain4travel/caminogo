@@ -27,3 +27,7 @@ custom-headers:
     
     include-paths:
       - "./**/camino*.go"
+      - "./genesis/genesis_camino.go"
+      - "./genesis/genesis_columbus.go"
+      - "./genesis/genesis_kopernikus.go"
+
