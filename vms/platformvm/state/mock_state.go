@@ -955,15 +955,15 @@ func (mr *MockChainMockRecorder) SetFeeDistribution(arg0 any) *gomock.Call {
 }
 
 // SetMultisigAlias mocks base method.
-func (m *MockChain) SetMultisigAlias(arg0 *multisig.AliasWithNonce) {
+func (m *MockChain) SetMultisigAlias(arg0 ids.ShortID, arg1 *multisig.AliasWithNonce) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAlias", arg0, arg1)
 }
 
 // SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockChainMockRecorder) SetMultisigAlias(arg0 any) *gomock.Call {
+func (mr *MockChainMockRecorder) SetMultisigAlias(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockChain)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockChain)(nil).SetMultisigAlias), arg0, arg1)
 }
 
 // SetNotDistributedValidatorReward mocks base method.
@@ -2203,15 +2203,15 @@ func (mr *MockStateMockRecorder) SetLastAccepted(blkID any) *gomock.Call {
 }
 
 // SetMultisigAlias mocks base method.
-func (m *MockState) SetMultisigAlias(arg0 *multisig.AliasWithNonce) {
+func (m *MockState) SetMultisigAlias(arg0 ids.ShortID, arg1 *multisig.AliasWithNonce) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAlias", arg0, arg1)
 }
 
 // SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockStateMockRecorder) SetMultisigAlias(arg0 any) *gomock.Call {
+func (mr *MockStateMockRecorder) SetMultisigAlias(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockState)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockState)(nil).SetMultisigAlias), arg0, arg1)
 }
 
 // SetNotDistributedValidatorReward mocks base method.
@@ -3256,15 +3256,15 @@ func (mr *MockDiffMockRecorder) SetFeeDistribution(arg0 any) *gomock.Call {
 }
 
 // SetMultisigAlias mocks base method.
-func (m *MockDiff) SetMultisigAlias(arg0 *multisig.AliasWithNonce) {
+func (m *MockDiff) SetMultisigAlias(arg0 ids.ShortID, arg1 *multisig.AliasWithNonce) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetMultisigAlias", arg0)
+	m.ctrl.Call(m, "SetMultisigAlias", arg0, arg1)
 }
 
 // SetMultisigAlias indicates an expected call of SetMultisigAlias.
-func (mr *MockDiffMockRecorder) SetMultisigAlias(arg0 any) *gomock.Call {
+func (mr *MockDiffMockRecorder) SetMultisigAlias(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockDiff)(nil).SetMultisigAlias), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultisigAlias", reflect.TypeOf((*MockDiff)(nil).SetMultisigAlias), arg0, arg1)
 }
 
 // SetNotDistributedValidatorReward mocks base method.
