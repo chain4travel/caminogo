@@ -223,7 +223,7 @@ func TestSetMultisigAlias(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			caminoState := tt.caminoState(gomock.NewController(t))
-			caminoState.SetMultisigAlias(tt.multisigAlias)
+			caminoState.SetMultisigAlias(tt.multisigAlias.ID, tt.multisigAlias)
 			require.Equal(t, tt.expectedCaminoState(caminoState), caminoState)
 		})
 	}
