@@ -309,7 +309,7 @@ func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateAr
 	return nil
 }
 
-// GetAdressStates retrieves the state applied to an address (see setAddressState)
+// GetAddressStates retrieves the state applied to an address (see setAddressState)
 func (s *CaminoService) GetAddressStates(_ *http.Request, args *api.JSONAddress, response *json.Uint64) error {
 	s.vm.ctx.Log.Debug("Platform: GetAddressStates called")
 
@@ -395,14 +395,6 @@ type SpendReply struct {
 func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendReply) error {
 	s.vm.ctx.Log.Debug("Platform: Spend called")
 
-	privKeys, err := s.getFakeKeys(&args.JSONFromAddrs)
-	if err != nil {
-		return err
-	}
-	if len(privKeys) == 0 {
-		return errNoKeys
-	}
-
 	to, err := s.secpOwnerFromAPI(&args.To)
 	if err != nil {
 		return err
@@ -415,6 +407,14 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
+
+	privKeys, err := s.getFakeKeys(&args.JSONFromAddrs)
+	if err != nil {
+		return err
+	}
+	if len(privKeys) == 0 {
+		return errNoKeys
+	}
 
 	ins, outs, signers, owners, err := s.vm.txBuilder.Lock(
 		s.vm.state,

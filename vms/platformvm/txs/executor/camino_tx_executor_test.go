@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/nodeid"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
@@ -34,44 +33,29 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/expect"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
-
-func TestCaminoEnv(t *testing.T) {
-	caminoGenesisConf := api.Camino{
-		VerifyNodeSignature: true,
-		LockModeBondDeposit: true,
-	}
-	env := newCaminoEnvironment( /*postBanff*/ false, true, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	defer func() {
-		require.NoError(t, shutdownCaminoEnvironment(env))
-	}()
-	env.config.BanffTime = env.state.GetTimestamp()
-}
 
 func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	defer func() {
-		require.NoError(t, shutdownCaminoEnvironment(env))
-	}()
+	env := newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
 
-	env.config.BanffTime = env.state.GetTimestamp()
-	_, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
-	_, nodeID2 := nodeid.GenerateCaminoNodeKeyAndID()
+	nodeID1 := ids.NodeID{1, 1, 1}
+	nodeID2 := ids.NodeID{2, 2, 2}
 	// msigKey, err := testKeyfactory.NewPrivateKey()
 	// require.NoError(t, err)
-	// msigAlias := msigKey.PublicKey().Address()
+	// msigAlias := msigKey.Address()
 
-	addr0 := caminoPreFundedKeys[0].Address()
-	addr1 := caminoPreFundedKeys[1].Address()
+	addr0 := test.FundedKeys[0].Address()
+	addr1 := test.FundedKeys[1].Address()
 
 	require.NoError(t, env.state.Commit())
 
@@ -95,18 +79,18 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Unix()) + 1,
-					endTime:       uint64(defaultValidateEndTime.Unix()),
-					nodeID:        nodeID,
+					startTime:     uint64(test.ValidatorStartTime.Unix()) + 1,
+					endTime:       uint64(test.ValidatorEndTime.Unix()),
+					nodeID:        nodeID1,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr0)
+				env.state.SetShortIDLink(ids.ShortID(nodeID1), state.ShortLinkKeyRegisterNode, &addr0)
 			},
 			expectedErr: nil,
 		},
@@ -114,18 +98,18 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Unix()) - 1,
-					endTime:       uint64(defaultValidateEndTime.Unix()),
-					nodeID:        nodeID,
+					startTime:     uint64(test.ValidatorStartTime.Unix()) - 1,
+					endTime:       uint64(test.ValidatorEndTime.Unix()),
+					nodeID:        nodeID1,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr0)
+				env.state.SetShortIDLink(ids.ShortID(nodeID1), state.ShortLinkKeyRegisterNode, &addr0)
 			},
 			expectedErr: ErrTimestampNotBeforeStartTime,
 		},
@@ -133,18 +117,18 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Add(MaxFutureStartTime).Unix() + 1),
-					endTime:       uint64(defaultValidateEndTime.Add(MaxFutureStartTime).Add(defaultMinStakingDuration).Unix() + 1),
-					nodeID:        nodeID,
+					startTime:     uint64(test.ValidatorStartTime.Add(MaxFutureStartTime).Unix() + 1),
+					endTime:       uint64(test.ValidatorEndTime.Add(MaxFutureStartTime).Add(test.MinStakingDuration).Unix() + 1),
+					nodeID:        nodeID1,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr0)
+				env.state.SetShortIDLink(ids.ShortID(nodeID1), state.ShortLinkKeyRegisterNode, &addr0)
 			},
 			expectedErr: ErrFutureStakeTime,
 		},
@@ -152,18 +136,18 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:       uint64(defaultValidateEndTime.Unix()),
-					nodeID:        caminoPreFundedNodeIDs[0],
+					startTime:     uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:       uint64(test.ValidatorEndTime.Unix()),
+					nodeID:        test.FundedNodeIDs[0],
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(caminoPreFundedNodeIDs[0]), state.ShortLinkKeyRegisterNode, &addr0)
+				env.state.SetShortIDLink(ids.ShortID(test.FundedNodeIDs[0]), state.ShortLinkKeyRegisterNode, &addr0)
 			},
 			expectedErr: errValidatorExists,
 		},
@@ -171,13 +155,13 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultGenesisTime.Add(1 * time.Second).Unix()),
-					endTime:       uint64(defaultGenesisTime.Add(1 * time.Second).Add(defaultMinStakingDuration).Unix()),
+					startTime:     uint64(test.GenesisTime.Add(1 * time.Second).Unix()),
+					endTime:       uint64(test.GenesisTime.Add(1 * time.Second).Add(test.MinStakingDuration).Unix()),
 					nodeID:        nodeID2,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
@@ -201,13 +185,13 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultGenesisTime.Add(1 * time.Second).Unix()),
-					endTime:       uint64(defaultGenesisTime.Add(1 * time.Second).Add(defaultMinStakingDuration).Unix()),
+					startTime:     uint64(test.GenesisTime.Add(1 * time.Second).Unix()),
+					endTime:       uint64(test.GenesisTime.Add(1 * time.Second).Add(test.MinStakingDuration).Unix()),
 					nodeID:        nodeID2,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
@@ -231,19 +215,19 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:       uint64(defaultValidateEndTime.Unix()),
-					nodeID:        nodeID,
+					startTime:     uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:       uint64(test.ValidatorEndTime.Unix()),
+					nodeID:        nodeID1,
 					nodeOwnerAddr: addr1,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[1]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[1]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr1)
-				utxoIDs, err := env.state.UTXOIDs(caminoPreFundedKeys[1].PublicKey().Address().Bytes(), ids.Empty, math.MaxInt32)
+				env.state.SetShortIDLink(ids.ShortID(nodeID1), state.ShortLinkKeyRegisterNode, &addr1)
+				utxoIDs, err := env.state.UTXOIDs(test.FundedKeys[1].Address().Bytes(), ids.Empty, math.MaxInt32)
 				require.NoError(t, err)
 				for _, utxoID := range utxoIDs {
 					env.state.DeleteUTXO(utxoID)
@@ -255,18 +239,18 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					stakeAmount:   env.config.MinValidatorStake,
-					startTime:     uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:       uint64(defaultValidateEndTime.Unix()),
-					nodeID:        nodeID,
+					startTime:     uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:       uint64(test.ValidatorEndTime.Unix()),
+					nodeID:        nodeID1,
 					nodeOwnerAddr: addr0,
 					rewardAddress: ids.ShortEmpty,
 					shares:        reward.PercentDenominator,
-					keys:          []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+					keys:          []*secp256k1.PrivateKey{test.FundedKeys[0]},
 					changeAddr:    ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
-				env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr1)
+				env.state.SetShortIDLink(ids.ShortID(nodeID1), state.ShortLinkKeyRegisterNode, &addr1)
 			},
 			expectedErr: errSignatureMissing,
 		},
@@ -274,13 +258,13 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 		// 	generateArgs: func() args {
 		// 		return args{
 		// 			stakeAmount:          env.config.MinValidatorStake,
-		// 			startTime:            uint64(defaultValidateStartTime.Unix() + 1),
-		// 			endTime:              uint64(defaultValidateEndTime.Unix()),
+		// 			startTime:            uint64(test.ValidatorStartTime.Unix() + 1),
+		// 			endTime:              uint64(test.ValidatorEndTime.Unix()),
 		// 			nodeID:               nodeID,
 		// 			nodeOwnerAddr: msigAlias,
 		// 			rewardAddress:        ids.ShortEmpty,
 		// 			shares:               reward.PercentDenominator,
-		// 			keys:                 []*secp256k1.PrivateKey{caminoPreFundedKeys[0]},
+		// 			keys:                 []*secp256k1.PrivateKey{ test.PreFundedKeys[0]},
 		// 			changeAddr:           ids.ShortEmpty,
 		// 		}
 		// 	},
@@ -292,8 +276,8 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 		// 				Owners: &secp256k1fx.OutputOwners{
 		// 					Threshold: 2,
 		// 					Addrs: []ids.ShortID{
-		// 						caminoPreFundedKeys[0].Address(),
-		// 						caminoPreFundedKeys[1].Address(),
+		// 						 test.PreFundedKeys[0].Address(),
+		// 						 test.PreFundedKeys[1].Address(),
 		// 					},
 		// 				},
 		// 			},
@@ -341,29 +325,26 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, true, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	defer func() {
-		require.NoError(t, shutdownCaminoEnvironment(env))
-	}()
-	env.config.BanffTime = env.state.GetTimestamp()
-	nodeKey, nodeID := caminoPreFundedNodeKeys[0], caminoPreFundedNodeIDs[0]
-	tempNodeKey, tempNodeID := nodeid.GenerateCaminoNodeKeyAndID()
+	env := newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
+	env.addCaminoSubnet(t)
 
-	pendingDSValidatorKey, pendingDSValidatorID := nodeid.GenerateCaminoNodeKeyAndID()
-	dsStartTime := defaultGenesisTime.Add(10 * time.Second)
-	dsEndTime := dsStartTime.Add(5 * defaultMinStakingDuration)
+	nodeKey, nodeID := test.FundedNodeKeys[0], test.FundedNodeIDs[0]
+	tempNodeKey, tempNodeID := test.Keys[0], ids.NodeID(test.Keys[0].Address())
+
+	pendingValidatorNodeKey, pendingValidatorNodeID := test.Keys[1], ids.NodeID(test.Keys[1].Address())
+	dsStartTime := test.GenesisTime.Add(10 * time.Second)
+	dsEndTime := dsStartTime.Add(5 * test.MinStakingDuration)
 
 	// Add `pendingDSValidatorID` as validator to pending set
 	addDSTx, err := env.txBuilder.NewCaminoAddValidatorTx(
 		env.config.MinValidatorStake,
 		uint64(dsStartTime.Unix()),
 		uint64(dsEndTime.Unix()),
-		pendingDSValidatorID,
-		caminoPreFundedKeys[0].Address(),
+		pendingValidatorNodeID,
+		test.FundedKeys[0].Address(),
 		ids.ShortEmpty,
 		reward.PercentDenominator,
-		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], pendingDSValidatorKey},
+		[]*secp256k1.PrivateKey{test.FundedKeys[0], pendingValidatorNodeKey},
 		ids.ShortEmpty,
 	)
 	require.NoError(t, err)
@@ -379,14 +360,14 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	env.state.SetHeight(dummyHeight)
 	require.NoError(t, env.state.Commit())
 
-	// Add `caminoPreFundedNodeIDs[1]` as subnet validator
+	// Add `test.PreFundedNodeIDs[1]` as subnet validator
 	subnetTx, err := env.txBuilder.NewAddSubnetValidatorTx(
 		env.config.MinValidatorStake,
-		uint64(defaultValidateStartTime.Unix()),
-		uint64(defaultValidateEndTime.Unix()),
-		caminoPreFundedNodeIDs[1],
+		uint64(test.ValidatorStartTime.Unix()),
+		uint64(test.ValidatorEndTime.Unix()),
+		test.FundedNodeIDs[1],
 		testSubnet1.ID(),
-		[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], caminoPreFundedNodeKeys[1]},
+		[]*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], test.FundedNodeKeys[1]},
 		ids.ShortEmpty,
 	)
 	require.NoError(t, err)
@@ -420,11 +401,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix()) + 1,
-					endTime:    uint64(defaultValidateEndTime.Unix()),
+					startTime:  uint64(test.ValidatorStartTime.Unix()) + 1,
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
 					nodeID:     nodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -435,11 +416,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix()) + 1,
-					endTime:    uint64(defaultValidateEndTime.Unix() + 1),
+					startTime:  uint64(test.ValidatorStartTime.Unix()) + 1,
+					endTime:    uint64(test.ValidatorEndTime.Unix() + 1),
 					nodeID:     nodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -450,11 +431,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix()) + 1,
-					endTime:    uint64(defaultValidateEndTime.Unix()),
+					startTime:  uint64(test.ValidatorStartTime.Unix()) + 1,
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
 					nodeID:     tempNodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], tempNodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], tempNodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -467,9 +448,9 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 					weight:     env.config.MinValidatorStake,
 					startTime:  uint64(dsStartTime.Unix()) - 1,
 					endTime:    uint64(dsEndTime.Unix()),
-					nodeID:     pendingDSValidatorID,
+					nodeID:     pendingValidatorNodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingDSValidatorKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingValidatorNodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -482,9 +463,9 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 					weight:     env.config.MinValidatorStake,
 					startTime:  uint64(dsStartTime.Unix()),
 					endTime:    uint64(dsEndTime.Unix()) + 1,
-					nodeID:     pendingDSValidatorID,
+					nodeID:     pendingValidatorNodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingDSValidatorKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingValidatorNodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -497,9 +478,9 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 					weight:     env.config.MinValidatorStake,
 					startTime:  uint64(dsStartTime.Unix()),
 					endTime:    uint64(dsEndTime.Unix()),
-					nodeID:     pendingDSValidatorID,
+					nodeID:     pendingValidatorNodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingDSValidatorKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], pendingValidatorNodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -510,11 +491,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix()),
-					endTime:    uint64(defaultValidateEndTime.Unix()),
+					startTime:  uint64(test.ValidatorStartTime.Unix()),
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
 					nodeID:     nodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -525,11 +506,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:    uint64(defaultValidateEndTime.Unix()),
-					nodeID:     caminoPreFundedNodeIDs[1],
+					startTime:  uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
+					nodeID:     test.FundedNodeIDs[1],
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], caminoPreFundedNodeKeys[1]},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], test.FundedNodeKeys[1]},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -540,11 +521,11 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:    uint64(defaultValidateEndTime.Unix()),
+					startTime:  uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
 					nodeID:     nodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
@@ -559,17 +540,17 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 			generateArgs: func() args {
 				return args{
 					weight:     env.config.MinValidatorStake,
-					startTime:  uint64(defaultValidateStartTime.Unix() + 1),
-					endTime:    uint64(defaultValidateEndTime.Unix()),
+					startTime:  uint64(test.ValidatorStartTime.Unix() + 1),
+					endTime:    uint64(test.ValidatorEndTime.Unix()),
 					nodeID:     nodeID,
 					subnetID:   testSubnet1.ID(),
-					keys:       []*secp256k1.PrivateKey{caminoPreFundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
+					keys:       []*secp256k1.PrivateKey{test.FundedKeys[0], testCaminoSubnet1ControlKeys[0], testCaminoSubnet1ControlKeys[1], nodeKey},
 					changeAddr: ids.ShortEmpty,
 				}
 			},
 			preExecute: func(t *testing.T, tx *txs.Tx) {
 				// Replace a valid signature with one from keys[3]
-				sig, err := caminoPreFundedKeys[3].SignHash(hashing.ComputeHash256(tx.Unsigned.Bytes()))
+				sig, err := test.FundedKeys[3].SignHash(hashing.ComputeHash256(tx.Unsigned.Bytes()))
 				require.NoError(t, err)
 				copy(tx.Creds[0].(*secp256k1fx.Credential).Sigs[0][:], sig)
 			},
@@ -613,25 +594,20 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	defer func() {
-		require.NoError(t, shutdownCaminoEnvironment(env))
-	}()
+	env := newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
 
-	_, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
-	addr0 := caminoPreFundedKeys[0].Address()
+	nodeID := ids.NodeID{1, 1, 1}
+	addr0 := test.FundedKeys[0].Address()
 	env.state.SetShortIDLink(ids.ShortID(nodeID), state.ShortLinkKeyRegisterNode, &addr0)
 
 	existingTxID := ids.GenerateTestID()
-	env.config.BanffTime = env.state.GetTimestamp()
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
 		Threshold: 1,
-		Addrs:     []ids.ShortID{caminoPreFundedKeys[0].PublicKey().Address()},
+		Addrs:     []ids.ShortID{test.FundedKeys[0].Address()},
 	}
 	sigIndices := []uint32{0}
-	inputSigners := []*secp256k1.PrivateKey{caminoPreFundedKeys[0]}
+	inputSigners := []*secp256k1.PrivateKey{test.FundedKeys[0]}
 
 	tests := map[string]struct {
 		utxos       []*avax.UTXO
@@ -640,68 +616,68 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 	}{
 		"Happy path bonding": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, env.ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Happy path bonding deposited": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, existingTxID, ids.Empty),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, existingTxID, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, existingTxID, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Happy path bonding deposited and unlocked": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight/2, outputOwners, existingTxID, ids.Empty, true),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, ids.Empty, locked.ThisTxID),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight/2, outputOwners, existingTxID, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight/2-test.TxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight/2, outputOwners, ids.Empty, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight/2, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: nil,
 		},
 		"Bonding bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, existingTxID, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
 		"Fee burning bonded UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, existingTxID),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, existingTxID, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, existingTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, existingTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
 		"Fee burning deposited UTXO": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
-				generateTestUTXO(ids.GenerateTestID(), avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, ids.Empty),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.GenerateTestID(), env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, existingTxID, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, existingTxID, ids.Empty),
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, existingTxID, ids.Empty),
+				generate.Out(env.ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, existingTxID, locked.ThisTxID),
 			},
 			expectedErr: ErrFlowCheckFailed,
 		},
@@ -712,10 +688,10 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 			signers := make([][]*secp256k1.PrivateKey, len(tt.utxos))
 			for i, utxo := range tt.utxos {
 				env.state.AddUTXO(utxo)
-				ins[i] = generateTestInFromUTXO(utxo, sigIndices)
+				ins[i] = generate.InFromUTXO(t, utxo, sigIndices, false)
 				signers[i] = inputSigners
 			}
-			signers = append(signers, []*secp256k1.PrivateKey{caminoPreFundedKeys[0]})
+			signers = append(signers, []*secp256k1.PrivateKey{test.FundedKeys[0]})
 
 			avax.SortTransferableInputsWithSigners(ins, signers)
 			avax.SortTransferableOutputs(tt.outs, txs.Codec)
@@ -730,8 +706,8 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 					}},
 					Validator: txs.Validator{
 						NodeID: nodeID,
-						Start:  uint64(defaultValidateStartTime.Unix()) + 1,
-						End:    uint64(defaultValidateEndTime.Unix()),
+						Start:  uint64(test.ValidatorStartTime.Unix()) + 1,
+						End:    uint64(test.ValidatorEndTime.Unix()),
 						Wght:   env.config.MinValidatorStake,
 					},
 					RewardsOwner: &secp256k1fx.OutputOwners{
@@ -764,17 +740,18 @@ func TestCaminoStandardTxExecutorAddValidatorTxBody(t *testing.T) {
 }
 
 func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
+	ctx := test.Context(t)
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
 		Threshold: 1,
-		Addrs:     []ids.ShortID{caminoPreFundedKeys[0].PublicKey().Address()},
+		Addrs:     []ids.ShortID{test.FundedKeys[0].Address()},
 	}
 	sigIndices := []uint32{0}
 
-	nodeKey, nodeID := nodeid.GenerateCaminoNodeKeyAndID()
+	nodeKey, nodeID := test.Keys[0], ids.NodeID(test.Keys[0].Address())
 
 	now := time.Now()
-	signers := [][]*secp256k1.PrivateKey{{caminoPreFundedKeys[0]}}
+	signers := [][]*secp256k1.PrivateKey{{test.FundedKeys[0]}}
 	signers[len(signers)-1] = []*secp256k1.PrivateKey{nodeKey}
 
 	tests := map[string]struct {
@@ -785,7 +762,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 	}{
 		"Locked out - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -797,7 +774,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Locked in - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
+				generate.In(ctx.AVAXAssetID, test.ValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -807,7 +784,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Locked out - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.GenerateTestID()),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -819,7 +796,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Locked in - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
+				generate.In(ctx.AVAXAssetID, test.ValidatorWeight, ids.GenerateTestID(), ids.Empty, sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -829,7 +806,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Stakeable out - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generate.StakeableOut(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), outputOwners),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -841,7 +818,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Stakeable in - LockModeBondDeposit: true": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
+				generate.StakeableIn(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -851,7 +828,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 		"Stakeable out - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generate.StakeableOut(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), outputOwners),
 			},
 			ins:         []*avax.TransferableInput{},
 			expectedErr: locked.ErrWrongOutType,
@@ -863,7 +840,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		"Stakeable in - LockModeBondDeposit: false": {
 			outs: []*avax.TransferableOutput{},
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), sigIndices),
+				generate.StakeableIn(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), sigIndices),
 			},
 			expectedErr: locked.ErrWrongInType,
 			caminoConfig: api.Camino{
@@ -873,8 +850,8 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		},
 	}
 
-	generateExecutor := func(unsidngedTx txs.UnsignedTx, env *caminoEnvironment) CaminoStandardTxExecutor {
-		tx, err := txs.NewSigned(unsidngedTx, txs.Codec, signers)
+	generateExecutor := func(unsignedTx txs.UnsignedTx, env *caminoEnvironment) CaminoStandardTxExecutor {
+		tx, err := txs.NewSigned(unsignedTx, txs.Codec, signers)
 		require.NoError(t, err)
 
 		onAcceptState, err := state.NewDiff(lastAcceptedID, env)
@@ -893,12 +870,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run("ExportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			exportTx := &txs.ExportTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -909,7 +881,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 				}},
 				DestinationChain: env.ctx.XChainID,
 				ExportedOutputs: []*avax.TransferableOutput{
-					generateTestOut(env.ctx.AVAXAssetID, defaultMinValidatorStake-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+					generate.Out(env.ctx.AVAXAssetID, test.TxFee*10, outputOwners, ids.Empty, ids.Empty),
 				},
 			}
 
@@ -920,12 +892,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("ImportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			importTx := &txs.ImportTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -936,7 +903,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 				}},
 				SourceChain: env.ctx.XChainID,
 				ImportedInputs: []*avax.TransferableInput{
-					generateTestIn(env.ctx.AVAXAssetID, 10, ids.GenerateTestID(), ids.Empty, sigIndices),
+					generate.In(env.ctx.AVAXAssetID, 10, ids.GenerateTestID(), ids.Empty, sigIndices),
 				},
 			}
 
@@ -947,12 +914,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("AddressStateTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			addressStateTxLockedTx := &txs.AddressStateTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -961,7 +923,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 					Ins:          tt.ins,
 					Outs:         tt.outs,
 				}},
-				Address:  caminoPreFundedKeys[0].PublicKey().Address(),
+				Address:  test.FundedKeys[0].Address(),
 				StateBit: 0,
 				Remove:   false,
 			}
@@ -973,12 +935,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("CreateChainTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			createChainTx := &txs.CreateChainTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -998,12 +955,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("CreateSubnetTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			createSubnetTx := &txs.CreateSubnetTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1022,12 +974,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("TransformSubnetTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			transformSubnetTx := &txs.TransformSubnetTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1048,12 +995,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("AddSubnetValidatorTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			addSubnetValidatorTx := &txs.AddSubnetValidatorTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1081,12 +1023,7 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 		})
 
 		t.Run("RemoveSubnetValidatorTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
 
 			removeSubnetValidatorTx := &txs.RemoveSubnetValidatorTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1109,16 +1046,17 @@ func TestCaminoLockedInsOrLockedOuts(t *testing.T) {
 }
 
 func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
-	nodeKey1, nodeID1 := caminoPreFundedNodeKeys[0], caminoPreFundedNodeIDs[0]
-	nodeKey2 := caminoPreFundedNodeKeys[1]
+	ctx := test.Context(t)
+	nodeKey1, nodeID1 := test.FundedNodeKeys[0], test.FundedNodeIDs[0]
+	nodeKey2 := test.FundedNodeKeys[1]
 
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
 		Threshold: 1,
-		Addrs:     []ids.ShortID{caminoPreFundedKeys[0].PublicKey().Address()},
+		Addrs:     []ids.ShortID{test.FundedKeys[0].Address()},
 	}
 	sigIndices := []uint32{0}
-	inputSigners := []*secp256k1.PrivateKey{caminoPreFundedKeys[0]}
+	inputSigners := []*secp256k1.PrivateKey{test.FundedKeys[0]}
 
 	tests := map[string]struct {
 		caminoConfig api.Camino
@@ -1137,13 +1075,13 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generate.StakeableOut(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), outputOwners),
 			},
 			expectedErr: nil,
 		},
@@ -1155,13 +1093,13 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generate.StakeableOut(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), outputOwners),
 			},
 			expectedErr: errNodeSignatureMissing,
 		},
@@ -1173,10 +1111,10 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: errNodeSignatureMissing,
 		},
@@ -1188,10 +1126,10 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey2,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			expectedErr: errUnauthorizedSubnetModification,
 		},
@@ -1203,32 +1141,27 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			nodeID:  nodeID1,
 			nodeKey: nodeKey1,
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{1}, avaxAssetID, defaultCaminoValidatorWeight*2, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.ValidatorWeight*2, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.Empty, ids.Empty),
+				generate.Out(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.Empty, ids.Empty),
 			},
 			stakedOuts: []*avax.TransferableOutput{
-				generateTestStakeableOut(avaxAssetID, defaultCaminoValidatorWeight, uint64(defaultMinStakingDuration), outputOwners),
+				generate.StakeableOut(ctx.AVAXAssetID, test.ValidatorWeight, uint64(test.MinStakingDuration), outputOwners),
 			},
 			expectedErr: errUnauthorizedSubnetModification,
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, true, tt.caminoConfig)
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-
-			env.config.BanffTime = env.state.GetTimestamp()
+			env := newCaminoEnvironment(t, test.PhaseLast, tt.caminoConfig)
+			env.addCaminoSubnet(t)
 
 			ins := make([]*avax.TransferableInput, len(tt.utxos))
 			var signers [][]*secp256k1.PrivateKey
 			for i, utxo := range tt.utxos {
 				env.state.AddUTXO(utxo)
-				ins[i] = generateTestInFromUTXO(utxo, sigIndices)
+				ins[i] = generate.InFromUTXO(t, utxo, sigIndices, false)
 				signers = append(signers, inputSigners)
 			}
 
@@ -1240,7 +1173,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 			signers = append(signers, subnetSigners)
 			signers = append(signers, []*secp256k1.PrivateKey{tt.nodeKey})
 
-			addSubentValidatorTx := &txs.AddSubnetValidatorTx{
+			addSubnetValidatorTx := &txs.AddSubnetValidatorTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 					NetworkID:    env.ctx.NetworkID,
 					BlockchainID: env.ctx.ChainID,
@@ -1250,8 +1183,8 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 				SubnetValidator: txs.SubnetValidator{
 					Validator: txs.Validator{
 						NodeID: tt.nodeID,
-						Start:  uint64(defaultValidateStartTime.Unix()) + 1,
-						End:    uint64(defaultValidateEndTime.Unix()),
+						Start:  uint64(test.ValidatorStartTime.Unix()) + 1,
+						End:    uint64(test.ValidatorEndTime.Unix()),
 						Wght:   env.config.MinValidatorStake,
 					},
 					Subnet: testSubnet1.ID(),
@@ -1259,7 +1192,7 @@ func TestCaminoAddSubnetValidatorTxNodeSig(t *testing.T) {
 				SubnetAuth: subnetAuth,
 			}
 
-			var utx txs.UnsignedTx = addSubentValidatorTx
+			var utx txs.UnsignedTx = addSubnetValidatorTx
 			tx, _ := txs.NewSigned(utx, txs.Codec, signers)
 			onAcceptState, err := state.NewDiff(lastAcceptedID, env)
 			require.NoError(t, err)
@@ -1284,9 +1217,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		LockModeBondDeposit: true,
 	}
 
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	env.config.BanffTime = env.state.GetTimestamp()
+	env := newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
 
 	currentStakerIterator, err := env.state.GetCurrentStakerIterator()
 	require.NoError(t, err)
@@ -1317,7 +1248,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 	}
 	require.NotEqual(t, ids.Empty, unlockedUTXOTxID)
 
-	type test struct {
+	type testCase struct {
 		ins                      []*avax.TransferableInput
 		outs                     []*avax.TransferableOutput
 		preExecute               func(*testing.T, *txs.Tx)
@@ -1325,7 +1256,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		expectedErr              error
 	}
 
-	tests := map[string]test{
+	tests := map[string]testCase{
 		"Reward before end time": {
 			ins:        ins,
 			outs:       outs,
@@ -1438,7 +1369,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		},
 	}
 
-	execute := func(t *testing.T, tt test) (CaminoProposalTxExecutor, *txs.Tx) {
+	execute := func(t *testing.T, tt testCase) (CaminoProposalTxExecutor, *txs.Tx) {
 		tx := &txs.Tx{Unsigned: &txs.CaminoRewardValidatorTx{
 			RewardValidatorTx: txs.RewardValidatorTx{TxID: stakerToRemove.TxID},
 			Ins:               tt.ins,
@@ -1468,7 +1399,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 	}
 
 	// Asserting UTXO changes
-	assertBalance := func(t *testing.T, tt test, tx *txs.Tx) {
+	assertBalance := func(t *testing.T, tt testCase, tx *txs.Tx) {
 		onCommitUTXOs, err := avax.GetAllUTXOs(env.state, stakeOwnersAddresses)
 		require.NoError(t, err)
 		utxosAfterReward := tt.generateUTXOsAfterReward(tx.ID())
@@ -1502,7 +1433,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		})
 	}
 
-	happyPathTest := test{
+	happyPathTest := testCase{
 		ins:  ins,
 		outs: outs,
 		preExecute: func(t *testing.T, tx *txs.Tx) {
@@ -1510,8 +1441,8 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		},
 		generateUTXOsAfterReward: func(txID ids.ID) []*avax.UTXO {
 			return []*avax.UTXO{
-				generateTestUTXO(txID, env.ctx.AVAXAssetID, defaultCaminoValidatorWeight, stakeOwners, ids.Empty, ids.Empty),
-				generateTestUTXOWithIndex(unlockedUTXOTxID, 1, env.ctx.AVAXAssetID, defaultCaminoBalance, stakeOwners, ids.Empty, ids.Empty, true),
+				generate.UTXO(txID, env.ctx.AVAXAssetID, test.ValidatorWeight, stakeOwners, ids.Empty, ids.Empty, true),
+				generate.UTXOWithIndex(unlockedUTXOTxID, 2, env.ctx.AVAXAssetID, test.PreFundedBalance, stakeOwners, ids.Empty, ids.Empty, true),
 			}
 		},
 		expectedErr: nil,
@@ -1527,9 +1458,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 	})
 
 	// We need to start again the environment because the staker is already removed from the previous test
-	env = newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	env.config.BanffTime = env.state.GetTimestamp()
+	env = newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
 
 	t.Run("Happy path on abort", func(t *testing.T) {
 		// utxoids are polluted with cached ids, need to clean this non-exported field
@@ -1546,14 +1475,10 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		assertBalance(t, happyPathTest, tx)
 		assertNextStaker(t)
 	})
-
-	// Shut down the environment
-	require.NoError(t, shutdownCaminoEnvironment(env))
 }
 
-func TestAddressStateTxExecutor(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
-	// ctx := snowtest.Context(t, snowtest.PChainID)
+func TestCaminoStandardTxAddressStateTx(t *testing.T) {
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{VerifyNodeSignature: true, LockModeBondDeposit: true}
 
 	otherAddr := ids.ShortID{1}
@@ -1563,18 +1488,18 @@ func TestAddressStateTxExecutor(t *testing.T) {
 	deferredStaker := &state.Staker{TxID: ids.ID{1, 1, 1}}
 	msigAliasOwner := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{msigAliasAddr}}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	executorKey, executorAddr, executorOwner := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	executorKey, executorAddr, executorOwner := generate.KeyAndOwner(t, test.Keys[1])
 
-	feeUTXO := generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
-	halfFeeUTXO1 := generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, defaultTxFee/2, feeOwner, ids.Empty, ids.Empty)
-	halfFeeUTXO2 := generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, defaultTxFee-defaultTxFee/2, executorOwner, ids.Empty, ids.Empty)
-	msigFeeUTXO := generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, defaultTxFee, msigAliasOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty, false)
+	halfFeeUTXO1 := generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, defaultTxFee/2, feeOwner, ids.Empty, ids.Empty, false)
+	halfFeeUTXO2 := generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, defaultTxFee-defaultTxFee/2, executorOwner, ids.Empty, ids.Empty, false)
+	msigFeeUTXO := generate.UTXO(ids.ID{4}, ctx.AVAXAssetID, defaultTxFee, msigAliasOwner, ids.Empty, ids.Empty, false)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    ctx.NetworkID,
 		BlockchainID: ctx.ChainID,
-		Ins:          []*avax.TransferableInput{generateTestInFromUTXO(feeUTXO, []uint32{0})},
+		Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, feeUTXO, []uint32{0}, false)},
 	}}
 
 	type testData struct {
@@ -1589,27 +1514,28 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		state       func(*testing.T, *gomock.Controller, *txs.AddressStateTx, ids.ID, *config.Config) *state.MockDiff
 		utx         *txs.AddressStateTx
 		signers     [][]*secp256k1.PrivateKey
+		phase       test.Phase
 		expectedErr error
 	}
 
 	testCases := map[string]testCase{}
 
-	type testCaseFunc func(t *testing.T, tt testData, testCaseName string, phase phase)
-	type testCaseSimpleFunc func(t *testing.T, phase phase)
-	type testCaseFuncWithErr func(t *testing.T, tt testData, testCaseName string, expectedErr error, phase phase)
+	type testCaseFunc func(t *testing.T, tt testData, testCaseName string, phase test.Phase)
+	type testCaseSimpleFunc func(t *testing.T, phase test.Phase)
+	type testCaseFuncWithErr func(t *testing.T, tt testData, testCaseName string, expectedErr error, phase test.Phase)
 
-	var failCaseSimpleNoOp testCaseSimpleFunc = func(t *testing.T, phase phase) {}
+	var failCaseSimpleNoOp testCaseSimpleFunc = func(t *testing.T, phase test.Phase) {}
 
 	testCaseFailMultisigAlias := map[codec.UpgradeVersionID]testCaseSimpleFunc{}
-	testCaseFailMultisigAlias[codec.UpgradeVersion0] = func(t *testing.T, phase phase) {
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/Fail with multisig alias", phase, phaseName(t, phase))
+	testCaseFailMultisigAlias[codec.UpgradeVersion0] = func(t *testing.T, phase test.Phase) {
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/Fail with multisig alias", phase, test.PhaseName(t, phase))
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				require.Zero(t, utx.UpgradeVersionID.Version())
 
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 
 				// not getting addr state for msigAlias addr
 				s.EXPECT().GetAddressStates(feeOwnerAddr).Return(as.AddressStateEmpty, nil)
@@ -1621,7 +1547,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
-					Ins:          []*avax.TransferableInput{generateTestInFromUTXO(msigFeeUTXO, []uint32{0})},
+					Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, msigFeeUTXO, []uint32{0}, false)},
 				}},
 				Address:      otherAddr,
 				StateBit:     as.AddressStateBitKYCVerified,
@@ -1630,22 +1556,23 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey, executorKey},
 			},
+			phase:       phase,
 			expectedErr: errAddrStateNotPermitted,
 		}
 	}
 	testCaseFailMultisigAlias[codec.UpgradeVersion1] = failCaseSimpleNoOp
 
 	testCaseFailUpgradeVersionForbidden := map[codec.UpgradeVersionID]testCaseSimpleFunc{}
-	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion0] = func(t *testing.T, phase phase) {
-		require.GreaterOrEqual(t, phase, berlinPhase)
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/Upgrade version is forbidden", phase, phaseName(t, phase))
+	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion0] = func(t *testing.T, phase test.Phase) {
+		require.GreaterOrEqual(t, phase, test.PhaseBerlin)
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/Upgrade version is forbidden", phase, test.PhaseName(t, phase))
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				require.Zero(t, utx.UpgradeVersionID.Version())
-				require.GreaterOrEqual(t, phase, berlinPhase)
+				require.GreaterOrEqual(t, phase, test.PhaseBerlin)
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1657,19 +1584,20 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey},
 			},
+			phase:       phase,
 			expectedErr: errBerlinPhase,
 		}
 	}
-	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion1] = func(t *testing.T, phase phase) {
-		require.Equal(t, sunrisePhase, phase)
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/Upgrade version is forbidden", phase, phaseName(t, phase))
+	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion1] = func(t *testing.T, phase test.Phase) {
+		require.Equal(t, test.PhaseSunrise, phase)
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/Upgrade version is forbidden", phase, test.PhaseName(t, phase))
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				require.Greater(t, utx.UpgradeVersionID.Version(), uint16(0))
-				require.Equal(t, phase, sunrisePhase)
+				require.Equal(t, phase, test.PhaseSunrise)
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1683,23 +1611,24 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
+			phase:       phase,
 			expectedErr: errNotAthensPhase,
 		}
 	}
 
 	testCaseFailWrongExecutorCredential := map[codec.UpgradeVersionID]testCaseSimpleFunc{}
 	testCaseFailWrongExecutorCredential[codec.UpgradeVersion0] = failCaseSimpleNoOp
-	testCaseFailWrongExecutorCredential[codec.UpgradeVersion1] = func(t *testing.T, phase phase) {
-		if phase < athensPhase {
+	testCaseFailWrongExecutorCredential[codec.UpgradeVersion1] = func(t *testing.T, phase test.Phase) {
+		if phase < test.PhaseAthens {
 			return
 		}
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/Wrong executor credential", phase, phaseName(t, phase))
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/Wrong executor credential", phase, test.PhaseName(t, phase))
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1713,6 +1642,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {feeOwnerKey},
 			},
+			phase:       phase,
 			expectedErr: errSignatureMissing,
 		}
 	}
@@ -1722,14 +1652,14 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		t *testing.T,
 		tt testData,
 		testCaseName string,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				s.EXPECT().GetAddressStates(feeOwnerAddr).Return(tt.executorAddrState, nil)
 				return s
 			},
@@ -1742,6 +1672,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey},
 			},
+			phase:       phase,
 			expectedErr: errAddrStateNotPermitted,
 		}
 	}
@@ -1749,15 +1680,15 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		t *testing.T,
 		tt testData,
 		testCaseName string,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
 				s.EXPECT().GetAddressStates(executorAddr).Return(tt.executorAddrState, nil)
 				return s
 			},
@@ -1772,6 +1703,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
+			phase:       phase,
 			expectedErr: errAddrStateNotPermitted,
 		}
 	}
@@ -1782,14 +1714,14 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		tt testData,
 		testCaseName string,
 		expectedErr error,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1801,6 +1733,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey},
 			},
+			phase:       phase,
 			expectedErr: expectedErr,
 		}
 	}
@@ -1809,14 +1742,14 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		tt testData,
 		testCaseName string,
 		expectedErr error,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, fmt.Sprintf("duplicate test-case name: %s", testCaseName))
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1830,18 +1763,19 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
+			phase:       phase,
 			expectedErr: expectedErr,
 		}
 	}
 
 	testCaseFailAdminSelfRemove := map[codec.UpgradeVersionID]testCaseSimpleFunc{}
-	testCaseFailAdminSelfRemove[codec.UpgradeVersion0] = func(t *testing.T, phase phase) {
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/AddressStateRoleAdmin (%d) self-remove", phase, phaseName(t, phase), as.AddressStateBitRoleAdmin)
+	testCaseFailAdminSelfRemove[codec.UpgradeVersion0] = func(t *testing.T, phase test.Phase) {
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/AddressStateRoleAdmin (%d) self-remove", phase, test.PhaseName(t, phase), as.AddressStateBitRoleAdmin)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1854,17 +1788,18 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey},
 			},
+			phase:       phase,
 			expectedErr: errAdminCannotBeDeleted,
 		}
 	}
-	testCaseFailAdminSelfRemove[codec.UpgradeVersion1] = func(t *testing.T, phase phase) {
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/AddressStateRoleAdmin (%d) self-remove", phase, phaseName(t, phase), as.AddressStateBitRoleAdmin)
+	testCaseFailAdminSelfRemove[codec.UpgradeVersion1] = func(t *testing.T, phase test.Phase) {
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 1/AddressStateRoleAdmin (%d) self-remove", phase, test.PhaseName(t, phase), as.AddressStateBitRoleAdmin)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1879,6 +1814,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
+			phase:       phase,
 			expectedErr: errAdminCannotBeDeleted,
 		}
 	}
@@ -1888,9 +1824,9 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		t *testing.T,
 		tt testData,
 		testCaseName string,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 0/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		targetAddr := otherAddr
 		if tt.selfModify {
@@ -1904,12 +1840,12 @@ func TestAddressStateTxExecutor(t *testing.T) {
 				}
 
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 
 				s.EXPECT().GetAddressStates(feeOwnerAddr).Return(tt.executorAddrState, nil)
 
 				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 
 				if utx.StateBit == as.AddressStateBitNodeDeferred {
 					s.EXPECT().GetShortIDLink(utx.Address, state.ShortLinkKeyRegisterNode).Return(deferredNodeShortID, nil)
@@ -1936,8 +1872,8 @@ func TestAddressStateTxExecutor(t *testing.T) {
 					s.EXPECT().SetAddressStates(utx.Address, newTargetAddrState)
 				}
 
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -1947,6 +1883,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 				Remove:       tt.remove,
 				ExecutorAuth: &secp256k1fx.Input{},
 			},
+			phase: phase,
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey},
 			},
@@ -1956,9 +1893,9 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		t *testing.T,
 		tt testData,
 		testCaseName string,
-		phase phase,
+		phase test.Phase,
 	) {
-		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, phaseName(t, phase), testCaseName)
+		testCaseName = fmt.Sprintf("%d_%s/Upgrade 1/%s", phase, test.PhaseName(t, phase), testCaseName)
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		targetAddr := otherAddr
 		if tt.selfModify {
@@ -1973,13 +1910,13 @@ func TestAddressStateTxExecutor(t *testing.T) {
 				}
 
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.Executor}, nil)
 				s.EXPECT().GetAddressStates(utx.Executor).Return(tt.executorAddrState, nil)
 
 				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 
 				if utx.StateBit == as.AddressStateBitNodeDeferred {
 					s.EXPECT().GetShortIDLink(utx.Address, state.ShortLinkKeyRegisterNode).Return(deferredNodeShortID, nil)
@@ -2006,8 +1943,8 @@ func TestAddressStateTxExecutor(t *testing.T) {
 					s.EXPECT().SetAddressStates(utx.Address, newTargetAddrState)
 				}
 
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -2019,6 +1956,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 				Executor:         executorAddr,
 				ExecutorAuth:     &secp256k1fx.Input{SigIndices: []uint32{0}},
 			},
+			phase: phase,
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
@@ -2026,30 +1964,30 @@ func TestAddressStateTxExecutor(t *testing.T) {
 	}
 
 	testCaseOKMultiInput := map[codec.UpgradeVersionID]testCaseSimpleFunc{}
-	testCaseOKMultiInput[codec.UpgradeVersion0] = func(t *testing.T, phase phase) {
-		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/OK: Second input owner has admin role", phase, phaseName(t, phase))
+	testCaseOKMultiInput[codec.UpgradeVersion0] = func(t *testing.T, phase test.Phase) {
+		testCaseName := fmt.Sprintf("%d_%s/Upgrade 0/OK: Second input owner has admin role", phase, test.PhaseName(t, phase))
 		require.NotContains(t, testCases, testCaseName, testCaseName)
 		testCases[testCaseName] = testCase{
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddressStateTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				require.Zero(t, utx.UpgradeVersionID.Version())
 
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(phaseTime(t, phase, cfg))
+				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, phase, cfg))
 
 				// not getting addr state for msigAlias addr
 				s.EXPECT().GetAddressStates(feeOwnerAddr).Return(as.AddressStateEmpty, nil)
 				s.EXPECT().GetAddressStates(executorAddr).Return(as.AddressStateRoleAdmin, nil)
 
 				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{halfFeeUTXO1, halfFeeUTXO2},
 					[]ids.ShortID{feeOwnerAddr, executorAddr}, nil)
 
 				s.EXPECT().GetAddressStates(utx.Address).Return(as.AddressStateEmpty, nil)
 				s.EXPECT().SetAddressStates(utx.Address, as.AddressStateKYCVerified)
 
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.AddressStateTx{
@@ -2057,14 +1995,15 @@ func TestAddressStateTxExecutor(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(halfFeeUTXO1, []uint32{0}),
-						generateTestInFromUTXO(halfFeeUTXO2, []uint32{0}),
+						generate.InFromUTXO(t, halfFeeUTXO1, []uint32{0}, false),
+						generate.InFromUTXO(t, halfFeeUTXO2, []uint32{0}, false),
 					},
 				}},
 				Address:      otherAddr,
 				StateBit:     as.AddressStateBitKYCVerified,
 				ExecutorAuth: &secp256k1fx.Input{},
 			},
+			phase: phase,
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {executorKey},
 			},
@@ -2127,10 +2066,10 @@ func TestAddressStateTxExecutor(t *testing.T) {
 	permissionsMatrix[as.AddressStateBitRoleOffersAdmin][as.AddressStateBitOffersCreator] = true
 
 	// set phase-bit restrictions
-	bitsPhaseMatrix := map[as.AddressStateBit]map[phase]error{}
+	bitsPhaseMatrix := map[as.AddressStateBit]map[test.Phase]error{}
 	for _, bit := range validBits {
-		bitsPhaseMatrix[bit] = map[phase]error{}
-		for phase := firstPhase; phase <= lastPhase; phase++ {
+		bitsPhaseMatrix[bit] = map[test.Phase]error{}
+		for phase := test.PhaseFirst; phase <= test.PhaseLast; phase++ {
 			bitsPhaseMatrix[bit][phase] = nil
 		}
 	}
@@ -2138,30 +2077,30 @@ func TestAddressStateTxExecutor(t *testing.T) {
 	athensBits := getBitsFromAddressState(as.AddressStateAthensPhaseBits)
 	berlinBits := getBitsFromAddressState(as.AddressStateBerlinPhaseBits)
 	for _, bit := range athensBits {
-		for phase := firstPhase; phase < athensPhase; phase++ {
+		for phase := test.PhaseFirst; phase < test.PhaseAthens; phase++ {
 			bitsPhaseMatrix[bit][phase] = errNotAthensPhase
 		}
 	}
 	for _, bit := range berlinBits {
-		for phase := firstPhase; phase < berlinPhase; phase++ {
+		for phase := test.PhaseFirst; phase < test.PhaseBerlin; phase++ {
 			bitsPhaseMatrix[bit][phase] = errNotBerlinPhase
 		}
 	}
-	bitsPhaseMatrix[as.AddressStateBitConsortium][berlinPhase] = errBerlinPhase
+	bitsPhaseMatrix[as.AddressStateBitConsortium][test.PhaseBerlin] = errBerlinPhase
 
 	// set phase-txUpgrade restrictions := getBitsFromAddressState(as.AddressStateSunrisePhaseBits)
-	txUpgradeMatrix := map[phase][]codec.UpgradeVersionID{}
-	for phase := firstPhase; phase < berlinPhase; phase++ {
+	txUpgradeMatrix := map[test.Phase][]codec.UpgradeVersionID{}
+	for phase := test.PhaseFirst; phase < test.PhaseBerlin; phase++ {
 		txUpgradeMatrix[phase] = append(txUpgradeMatrix[phase], codec.UpgradeVersion0)
 	}
-	for phase := athensPhase; phase <= lastPhase; phase++ {
+	for phase := test.PhaseAthens; phase <= test.PhaseLast; phase++ {
 		txUpgradeMatrix[phase] = append(txUpgradeMatrix[phase], codec.UpgradeVersion1)
 	}
 
 	for role, permissions := range permissionsMatrix {
 		for bit, allowed := range permissions {
 			if allowed {
-				for phase := firstPhase; phase <= lastPhase; phase++ {
+				for phase := test.PhaseFirst; phase <= test.PhaseLast; phase++ {
 					if bitsPhaseMatrix[bit][phase] != nil {
 						continue
 					}
@@ -2182,7 +2121,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 					}
 				}
 			} else {
-				for phase := firstPhase; phase <= lastPhase; phase++ {
+				for phase := test.PhaseFirst; phase <= test.PhaseLast; phase++ {
 					if bitsPhaseMatrix[bit][phase] != nil {
 						continue
 					}
@@ -2199,7 +2138,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 	}
 
 	for _, bit := range validBits {
-		for phase := firstPhase; phase <= lastPhase; phase++ {
+		for phase := test.PhaseFirst; phase <= test.PhaseLast; phase++ {
 			expectedErr := bitsPhaseMatrix[bit][phase]
 			if expectedErr == nil {
 				continue
@@ -2212,7 +2151,7 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		}
 	}
 
-	for phase := firstPhase; phase <= lastPhase; phase++ {
+	for phase := test.PhaseFirst; phase <= test.PhaseLast; phase++ {
 		txUpgrades := txUpgradeMatrix[phase]
 		for _, txUpgrade := range txUpgrades {
 			for name, tt := range simpleOKCases {
@@ -2225,15 +2164,14 @@ func TestAddressStateTxExecutor(t *testing.T) {
 		}
 	}
 
-	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion1](t, sunrisePhase)
-	for phase := berlinPhase; phase <= lastPhase; phase++ {
+	testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion1](t, test.PhaseSunrise)
+	for phase := test.PhaseBerlin; phase <= test.PhaseLast; phase++ {
 		testCaseFailUpgradeVersionForbidden[codec.UpgradeVersion0](t, phase)
 	}
 
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, tt.phase, nil)
 
 			avax.SortTransferableInputsWithSigners(tt.utx.Ins, tt.signers)
 			avax.SortTransferableOutputs(tt.utx.Outs, txs.Codec)
@@ -2242,8 +2180,8 @@ func TestAddressStateTxExecutor(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
-					State:   tt.state(t, gomock.NewController(t), tt.utx, tx.ID(), env.config),
+					Backend: backend,
+					State:   tt.state(t, gomock.NewController(t), tt.utx, tx.ID(), backend.Config),
 					Tx:      tx,
 				},
 			})
@@ -2253,13 +2191,13 @@ func TestAddressStateTxExecutor(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	utxoOwnerKey, utxoOwnerAddr, utxoOwner := generateKeyAndOwner(t)
-	_, newUTXOOwnerAddr, newUTXOOwner := generateKeyAndOwner(t)
-	offerOwnerKey, offerOwnerAddr, _ := generateKeyAndOwner(t)
-	depositCreatorKey, depositCreatorAddr, _ := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	utxoOwnerKey, utxoOwnerAddr, utxoOwner := generate.KeyAndOwner(t, test.Keys[1])
+	_, newUTXOOwnerAddr, newUTXOOwner := generate.KeyAndOwner(t, test.Keys[2])
+	offerOwnerKey, offerOwnerAddr := test.Keys[3], test.Keys[3].Address()
+	depositCreatorKey, depositCreatorAddr := test.Keys[4], test.Keys[4].Address()
 
 	offer := &deposit.Offer{
 		ID:          ids.ID{0, 0, 1},
@@ -2299,27 +2237,27 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 		OwnerAddress: offerOwnerAddr,
 	}
 
-	feeUTXO := generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
-	doubleFeeUTXO := generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultTxFee*2, feeOwner, ids.Empty, ids.Empty)
-	unlockedUTXO1 := generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, offer.MinAmount, utxoOwner, ids.Empty, ids.Empty)
-	unlockedUTXO2 := generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, offerWithMaxAmount.RemainingAmount(), utxoOwner, ids.Empty, ids.Empty)
-	unlockedUTXO3 := generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, offerWithMaxRewardAmount.MaxRemainingAmountByReward(), utxoOwner, ids.Empty, ids.Empty)
-	bondedUTXOWithMinAmount := generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, offer.MinAmount, utxoOwner, ids.Empty, ids.ID{100})
+	feeUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
+	doubleFeeUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.TxFee*2, feeOwner, ids.Empty, ids.Empty, true)
+	unlockedUTXO1 := generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, offer.MinAmount, utxoOwner, ids.Empty, ids.Empty, true)
+	unlockedUTXO2 := generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, offerWithMaxAmount.RemainingAmount(), utxoOwner, ids.Empty, ids.Empty, true)
+	unlockedUTXO3 := generate.UTXO(ids.ID{4}, ctx.AVAXAssetID, offerWithMaxRewardAmount.MaxRemainingAmountByReward(), utxoOwner, ids.Empty, ids.Empty, true)
+	bondedUTXOWithMinAmount := generate.UTXO(ids.ID{4}, ctx.AVAXAssetID, offer.MinAmount, utxoOwner, ids.Empty, ids.ID{100}, true)
 
 	phases := []struct {
 		name    string
-		prepare func(*caminoEnvironment, time.Time)
+		prepare func(*Backend, time.Time)
 	}{
 		{
 			name: "SunrisePhase0",
-			prepare: func(env *caminoEnvironment, chaintime time.Time) {
-				env.config.AthensPhaseTime = chaintime.Add(1 * time.Second)
+			prepare: func(b *Backend, chaintime time.Time) {
+				b.Config.AthensPhaseTime = chaintime.Add(1 * time.Second)
 			},
 		},
 		{
 			name: "AthensPhase",
-			prepare: func(env *caminoEnvironment, chaintime time.Time) {
-				env.config.AthensPhaseTime = chaintime
+			prepare: func(b *Backend, chaintime time.Time) {
+				b.Config.AthensPhaseTime = chaintime
 			},
 		},
 	}
@@ -2362,7 +2300,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestStakeableIn(avaxAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), []uint32{0}),
+							generate.StakeableIn(ctx.AVAXAssetID, test.PreFundedBalance, uint64(test.MinStakingDuration), []uint32{0}),
 						},
 					}},
 					RewardsOwner: &secp256k1fx.OutputOwners{},
@@ -2382,7 +2320,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Outs: []*avax.TransferableOutput{
-							generateTestStakeableOut(avaxAssetID, defaultCaminoBalance, uint64(defaultMinStakingDuration), utxoOwner),
+							generate.StakeableOut(ctx.AVAXAssetID, test.PreFundedBalance, uint64(test.MinStakingDuration), utxoOwner),
 						},
 					}},
 					RewardsOwner: &secp256k1fx.OutputOwners{},
@@ -2530,7 +2468,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount-1, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount-1, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -2556,7 +2494,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offerWithMaxAmount.ID,
@@ -2582,7 +2520,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offerWithMaxRewardAmount.ID,
@@ -2599,8 +2537,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{unlockedUTXO1, nil}, nil, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{unlockedUTXO1, nil}, nil, nil)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -2609,11 +2547,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
-							generateTestInFromUTXO(bondedUTXOWithMinAmount, []uint32{0}),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
+							generate.InFromUTXO(t, bondedUTXOWithMinAmount, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -2630,8 +2568,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{unlockedUTXO1}, nil, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{unlockedUTXO1}, nil, nil)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -2640,10 +2578,10 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -2662,7 +2600,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
 				}
 				return s
 			},
@@ -2673,11 +2611,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -2709,7 +2647,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
 				}
 				return s
 			},
@@ -2720,11 +2658,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -2756,7 +2694,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress}, nil)
 				}
 				return s
 			},
@@ -2767,11 +2705,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -2803,7 +2741,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
 				}
 				return s
 			},
@@ -2814,11 +2752,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -2850,7 +2788,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
 				}
 				return s
 			},
@@ -2861,11 +2799,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -2896,8 +2834,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, unlockedUTXO1},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -2920,11 +2858,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -2942,8 +2880,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, unlockedUTXO1},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -2960,8 +2898,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -2970,11 +2908,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -2991,8 +2929,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{doubleFeeUTXO, unlockedUTXO1},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3009,8 +2947,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -3019,12 +2957,12 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(doubleFeeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, doubleFeeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, defaultTxFee, newUTXOOwner, ids.Empty, ids.Empty),
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, test.TxFee, newUTXOOwner, ids.Empty, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -3041,8 +2979,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, bondedUTXOWithMinAmount},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3059,8 +2997,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -3069,11 +3007,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(bondedUTXOWithMinAmount, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, bondedUTXOWithMinAmount, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.ID{100}),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.ID{100}),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -3090,8 +3028,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, unlockedUTXO1, bondedUTXOWithMinAmount},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, utxoOwnerAddr, // consumed
@@ -3108,8 +3046,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -3118,13 +3056,13 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
-							generateTestInFromUTXO(bondedUTXOWithMinAmount, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
+							generate.InFromUTXO(t, bondedUTXOWithMinAmount, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.ID{100}),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.ID{100}),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -3141,8 +3079,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offer, nil)
 				s.EXPECT().GetTimestamp().Return(offer.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, unlockedUTXO1},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3159,8 +3097,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -3169,11 +3107,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, newUTXOOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, newUTXOOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offer.ID,
@@ -3190,8 +3128,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithMaxAmount, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithMaxAmount.StartTime())
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, unlockedUTXO2},
 					[]ids.ShortID{
 						feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3211,8 +3149,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				updatedOffer.DepositedAmount += utx.DepositAmount()
 				s.EXPECT().SetDepositOffer(&updatedOffer)
 				s.EXPECT().AddDeposit(txID, deposit1)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				return s
 			},
 			utx: func() *txs.DepositTx {
@@ -3222,11 +3160,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO2, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO2, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offerWithMaxAmount.ID,
@@ -3244,8 +3182,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithMaxRewardAmount, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithMaxRewardAmount.StartTime())
 				if phaseIndex > 0 {
-					s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-					expectVerifyLock(t, s, utx.Ins,
+					s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+					expect.VerifyLock(t, s, utx.Ins,
 						[]*avax.UTXO{feeUTXO, unlockedUTXO3},
 						[]ids.ShortID{
 							feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3266,8 +3204,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 					s.EXPECT().SetDepositOffer(&updatedOffer)
 					s.EXPECT().SetCurrentSupply(constants.PrimaryNetworkID, cfg.RewardConfig.SupplyCap)
 					s.EXPECT().AddDeposit(txID, deposit1)
-					expectConsumeUTXOs(t, s, utx.Ins)
-					expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+					expect.ConsumeUTXOs(t, s, utx.Ins)
+					expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				}
 				return s
 			},
@@ -3278,11 +3216,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO3, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO3, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, amt, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:  offerWithMaxRewardAmount.ID,
@@ -3301,9 +3239,9 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(utx.DepositOfferID).Return(offerWithOwner, nil)
 				s.EXPECT().GetTimestamp().Return(offerWithOwner.StartTime())
 				if phaseIndex > 0 { // if Athens
-					expectVerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
-					s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-					expectVerifyLock(t, s, utx.Ins,
+					expect.VerifyMultisigPermission(t, s, []ids.ShortID{offerWithOwner.OwnerAddress, utx.DepositCreatorAddress}, nil)
+					s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+					expect.VerifyLock(t, s, utx.Ins,
 						[]*avax.UTXO{feeUTXO, unlockedUTXO1},
 						[]ids.ShortID{
 							feeOwnerAddr, utxoOwnerAddr, // consumed
@@ -3320,8 +3258,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 					s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 						Return(cfg.RewardConfig.SupplyCap-deposit1.TotalReward(offer), nil)
 					s.EXPECT().AddDeposit(txID, deposit1)
-					expectConsumeUTXOs(t, s, utx.Ins)
-					expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
+					expect.ConsumeUTXOs(t, s, utx.Ins)
+					expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateDeposited)
 				}
 				return s
 			},
@@ -3332,11 +3270,11 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(feeUTXO, []uint32{0}),
-							generateTestInFromUTXO(unlockedUTXO1, []uint32{0}),
+							generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, unlockedUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOut(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, offer.MinAmount, utxoOwner, locked.ThisTxID, ids.Empty),
 						},
 					}},
 					DepositOfferID:        offerWithOwner.ID,
@@ -3365,10 +3303,9 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 	for name, tt := range tests {
 		for phaseIndex, phase := range phases {
 			t.Run(fmt.Sprintf("%s, %s", phase.name, name), func(t *testing.T) {
-				env := newCaminoEnvironmentWithMocks(tt.caminoGenesisConf, nil)
-				defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+				backend := newExecutorBackend(t, tt.caminoGenesisConf, test.PhaseLast, nil)
 
-				phase.prepare(env, tt.chaintime)
+				phase.prepare(backend, tt.chaintime)
 
 				utx := tt.utx()
 				avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
@@ -3386,8 +3323,8 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 
 				err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 					StandardTxExecutor{
-						Backend: &env.backend,
-						State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), env.config, phaseIndex),
+						Backend: backend,
+						State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), backend.Config, phaseIndex),
 						Tx:      tx,
 					},
 				})
@@ -3402,14 +3339,14 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	owner1Key, owner1Addr, owner1 := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	owner1Key, owner1Addr, owner1 := generate.KeyAndOwner(t, test.Keys[1])
 	owner1ID, err := txs.GetOwnerID(owner1)
 	require.NoError(t, err)
 	depositTxID1 := ids.ID{0, 0, 1}
@@ -3460,13 +3397,13 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 	deposit1HalfUnlockableAmount := deposit1.UnlockableAmount(depositOffer, uint64(deposit1HalfUnlockTime.Unix()))
 	deposit2HalfUnlockableAmount := deposit2.UnlockableAmount(depositOffer, uint64(deposit1HalfUnlockTime.Unix()))
 
-	feeUTXO := generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
-	lessFeeUTXO := generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, 1, feeOwner, ids.Empty, ids.Empty)
-	deposit1UTXO := generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, deposit1.Amount, owner1, depositTxID1, ids.Empty)
-	deposit2UTXO := generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, deposit2.Amount, owner1, depositTxID2, ids.Empty)
-	deposit1WithRewardUTXO := generateTestUTXO(ids.ID{5}, ctx.AVAXAssetID, deposit1WithReward.Amount, owner1, depositWithRewardTxID1, ids.Empty)
-	deposit1UTXOLargerTxID := generateTestUTXO(ids.ID{6}, ctx.AVAXAssetID, deposit1.Amount, owner1, depositTxID1, ids.Empty)
-	unlockedUTXOWithLargerTxID := generateTestUTXO(ids.ID{7}, ctx.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
+	lessFeeUTXO := generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, 1, feeOwner, ids.Empty, ids.Empty, true)
+	deposit1UTXO := generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, deposit1.Amount, owner1, depositTxID1, ids.Empty, true)
+	deposit2UTXO := generate.UTXO(ids.ID{4}, ctx.AVAXAssetID, deposit2.Amount, owner1, depositTxID2, ids.Empty, true)
+	deposit1WithRewardUTXO := generate.UTXO(ids.ID{5}, ctx.AVAXAssetID, deposit1WithReward.Amount, owner1, depositWithRewardTxID1, ids.Empty, true)
+	deposit1UTXOLargerTxID := generate.UTXO(ids.ID{6}, ctx.AVAXAssetID, deposit1.Amount, owner1, depositTxID1, ids.Empty, true)
+	unlockedUTXOWithLargerTxID := generate.UTXO(ids.ID{7}, ctx.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty, true)
 
 	tests := map[string]struct {
 		state       func(*testing.T, *gomock.Controller, *txs.UnlockDepositTx, ids.ID) *state.MockDiff
@@ -3488,8 +3425,8 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1StartUnlockTime.Add(-1 * time.Second))
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, deposit1UTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, owner1Addr, // consumed (not expired deposit)
@@ -3500,10 +3437,10 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{feeUTXO, deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, deposit1.Amount-1, owner1, depositTxID1, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1.Amount-1, owner1, depositTxID1, ids.Empty),
 				},
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{{feeOwnerKey}, {owner1Key}},
@@ -3518,7 +3455,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{feeUTXO, deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{},
 			expectedErr: errMixedDeposits,
@@ -3532,7 +3469,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{deposit1UTXO, unlockedUTXOWithLargerTxID}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO, unlockedUTXOWithLargerTxID}),
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{},
 			expectedErr: errMixedDeposits,
@@ -3547,7 +3484,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{deposit2UTXO, deposit1UTXOLargerTxID}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit2UTXO, deposit1UTXOLargerTxID}),
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{},
 			expectedErr: errMixedDeposits,
@@ -3557,7 +3494,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1Expired)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{deposit1UTXO},
 					[]ids.ShortID{
 						owner1Addr, // produced unlocked
@@ -3566,10 +3503,10 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, deposit1.Amount-1, owner1, ids.Empty, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, 1, owner1, depositTxID1, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1.Amount-1, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, 1, owner1, depositTxID1, ids.Empty),
 				},
 			}}},
 			expectedErr: errExpiredDepositNotFullyUnlocked,
@@ -3579,8 +3516,8 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1HalfUnlockTime)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, deposit1UTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, owner1Addr, // consumed (not expired deposit)
@@ -3591,10 +3528,10 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{feeUTXO, deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, deposit1HalfUnlockableAmount+1, owner1, ids.Empty, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, deposit1.Amount-deposit1HalfUnlockableAmount-1, owner1, depositTxID1, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1HalfUnlockableAmount+1, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1.Amount-deposit1HalfUnlockableAmount-1, owner1, depositTxID1, ids.Empty),
 				},
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{{feeOwnerKey}, {owner1Key}},
@@ -3609,9 +3546,9 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, deposit1.Amount-1, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1.Amount-1, owner1, ids.Empty, ids.Empty),
 				},
 			}}},
 			expectedErr: errBurnedDepositUnlock,
@@ -3621,8 +3558,8 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1HalfUnlockTime)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, lessFeeUTXO, deposit1UTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, feeOwnerAddr, owner1Addr, // consumed (not expired deposit)
@@ -3632,10 +3569,10 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{feeUTXO, lessFeeUTXO, deposit1UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, lessFeeUTXO, deposit1UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, lessFeeUTXO.Out.(avax.Amounter).Amount(), feeOwner, ids.Empty, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, deposit1UTXO.Out.(avax.Amounter).Amount(), owner1, depositTxID1, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, lessFeeUTXO.Out.(avax.Amounter).Amount(), feeOwner, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1UTXO.Out.(avax.Amounter).Amount(), owner1, depositTxID1, ids.Empty),
 				},
 			}}},
 			signers:     [][]*secp256k1.PrivateKey{{feeOwnerKey}, {feeOwnerKey}, {owner1Key}},
@@ -3647,7 +3584,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				// checks
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1Expired)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{deposit1WithRewardUTXO},
 					[]ids.ShortID{
 						owner1Addr, // produced unlocked
@@ -3663,14 +3600,14 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				})
 				s.EXPECT().RemoveDeposit(depositWithRewardTxID1, deposit1WithReward)
 				// state update: ins/outs/utxos
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{deposit1WithRewardUTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1WithRewardUTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, deposit1WithReward.Amount, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1WithReward.Amount, owner1, ids.Empty, ids.Empty),
 				},
 			}}},
 		},
@@ -3680,8 +3617,8 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				// checks
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
 				s.EXPECT().GetTimestamp().Return(deposit1HalfUnlockTime)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyUnlockDeposit(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, deposit1UTXO, deposit2UTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, owner1Addr, owner1Addr, // consumed (not expired deposit)
@@ -3712,16 +3649,16 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 					RewardOwner:         deposit2.RewardOwner,
 				})
 				// state update: ins/outs/utxos
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				Ins: generateInsFromUTXOs([]*avax.UTXO{feeUTXO, deposit1UTXO, deposit2UTXO}),
+				Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO, deposit2UTXO}),
 				Outs: []*avax.TransferableOutput{
-					generateTestOut(ctx.AVAXAssetID, deposit1HalfUnlockableAmount+deposit2HalfUnlockableAmount, owner1, ids.Empty, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, deposit1.Amount-deposit1HalfUnlockableAmount, owner1, depositTxID1, ids.Empty),
-					generateTestOut(ctx.AVAXAssetID, deposit2.Amount-deposit2HalfUnlockableAmount, owner1, depositTxID2, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1HalfUnlockableAmount+deposit2HalfUnlockableAmount, owner1, ids.Empty, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit1.Amount-deposit1HalfUnlockableAmount, owner1, depositTxID1, ids.Empty),
+					generate.Out(ctx.AVAXAssetID, deposit2.Amount-deposit2HalfUnlockableAmount, owner1, depositTxID2, ids.Empty),
 				},
 			}}},
 			signers: [][]*secp256k1.PrivateKey{{feeOwnerKey}, {owner1Key}, {owner1Key}},
@@ -3730,17 +3667,16 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
-			tt.utx.BlockchainID = env.ctx.ChainID
-			tt.utx.NetworkID = env.ctx.NetworkID
+			tt.utx.BlockchainID = backend.Ctx.ChainID
+			tt.utx.NetworkID = backend.Ctx.NetworkID
 			tx, err := txs.NewSigned(tt.utx, txs.Codec, tt.signers)
 			require.NoError(err)
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
+					Backend: backend,
 					State:   tt.state(t, gomock.NewController(t), tt.utx, tx.ID()),
 					Tx:      tx,
 				},
@@ -3751,20 +3687,20 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	depositRewardOwnerKey, _, depositRewardOwner := generateKeyAndOwner(t)
-	claimableOwnerKey1, _, claimableOwner1 := generateKeyAndOwner(t)
-	claimableOwnerKey2, _, claimableOwner2 := generateKeyAndOwner(t)
-	_, claimToOwnerAddr1, claimToOwner1 := generateKeyAndOwner(t)
-	_, claimToOwnerAddr2, claimToOwner2 := generateKeyAndOwner(t)
-	depositRewardMsigKeys, depositRewardMsigAlias, depositRewardMsigAliasOwner, depositRewardMsigOwner := generateMsigAliasAndKeys(t, 1, 2, false)
-	claimableMsigKeys, claimableMsigAlias, claimableMsigAliasOwner, claimableMsigOwner := generateMsigAliasAndKeys(t, 2, 3, false)
-	feeMsigKeys, feeMsigAlias, feeMsigAliasOwner, feeMsigOwner := generateMsigAliasAndKeys(t, 2, 2, false)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	depositRewardOwnerKey, _, depositRewardOwner := generate.KeyAndOwner(t, test.Keys[1])
+	claimableOwnerKey1, _, claimableOwner1 := generate.KeyAndOwner(t, test.Keys[2])
+	claimableOwnerKey2, _, claimableOwner2 := generate.KeyAndOwner(t, test.Keys[3])
+	_, claimToOwnerAddr1, claimToOwner1 := generate.KeyAndOwner(t, test.Keys[4])
+	_, claimToOwnerAddr2, claimToOwner2 := generate.KeyAndOwner(t, test.Keys[5])
+	depositRewardMsigKeys, depositRewardMsigAlias, depositRewardMsigAliasOwner, depositRewardMsigOwner := generate.MsigAliasAndKeys([]*secp256k1.PrivateKey{test.Keys[6], test.Keys[7]}, 1, false)
+	claimableMsigKeys, claimableMsigAlias, claimableMsigAliasOwner, claimableMsigOwner := generate.MsigAliasAndKeys([]*secp256k1.PrivateKey{test.Keys[8], test.Keys[9], test.Keys[10]}, 2, false)
+	feeMsigKeys, feeMsigAlias, feeMsigAliasOwner, feeMsigOwner := generate.MsigAliasAndKeys([]*secp256k1.PrivateKey{test.Keys[11], test.Keys[12]}, 2, false)
 
-	feeUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
-	msigFeeUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, *feeMsigOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
+	msigFeeUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, *feeMsigOwner, ids.Empty, ids.Empty, true)
 
 	depositOfferID := ids.GenerateTestID()
 	depositTxID1 := ids.GenerateTestID()
@@ -3806,7 +3742,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 		return &txs.BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    ctx.NetworkID,
 			BlockchainID: ctx.ChainID,
-			Ins:          []*avax.TransferableInput{generateTestInFromUTXO(feeUTXO, []uint32{0})},
+			Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, feeUTXO, []uint32{0}, false)},
 			Outs:         outs,
 		}}
 	}
@@ -3851,7 +3787,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				// deposit
 				s.EXPECT().GetDeposit(depositTxID1).
 					Return(&deposit.Deposit{RewardOwner: &depositRewardOwner}, nil)
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				return s
 			},
 			utx: &txs.ClaimTx{
@@ -3877,7 +3813,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(timestamp)
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				return s
 			},
 			utx: &txs.ClaimTx{
@@ -3905,7 +3841,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable 1
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimableValidatorReward1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, &state.Claimable{
 					Owner:           claimableValidatorReward1.Owner,
 					ValidatorReward: claimableValidatorReward1.ValidatorReward - utx.Claimables[0].Amount,
@@ -3913,7 +3849,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable 2
 				s.EXPECT().GetClaimable(claimableOwnerID2).Return(claimableValidatorReward2, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
 				return s
 			},
 			utx: &txs.ClaimTx{
@@ -3949,7 +3885,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable 1
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, &state.Claimable{
 					Owner:                claimable1.Owner,
 					ExpiredDepositReward: 1,
@@ -3957,7 +3893,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable 2
 				s.EXPECT().GetClaimable(claimableOwnerID2).Return(claimable2, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
 				return s
 			},
 			utx: &txs.ClaimTx{
@@ -4000,7 +3936,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 					RewardOwner:    &depositRewardOwner,
 				}
 				s.EXPECT().GetDeposit(depositTxID1).Return(deposit1, nil)
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				s.EXPECT().GetDepositOffer(depositOfferID).Return(&deposit.Offer{
 					InterestRateNominator: 1_000_000, // 100%
 				}, nil)
@@ -4026,15 +3962,15 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1, claimToOwnerAddr1, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// deposit1
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				deposit1 := &deposit.Deposit{
 					DepositOfferID: depositOfferID,
 					Start:          uint64(timestamp.Unix()) - 365*24*60*60/2, // 0.5 year ago
@@ -4057,7 +3993,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				})
 
 				// deposit2
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				deposit2 := &deposit.Deposit{
 					DepositOfferID: depositOfferID,
 					Start:          uint64(timestamp.Unix()) - 365*24*60*60/2, // 0.5 year ago
@@ -4081,7 +4017,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, nil)
 				return s
 			},
@@ -4142,24 +4078,24 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, claimToOwnerAddr1, claimToOwnerAddr2,
 						claimToOwnerAddr1, claimToOwnerAddr1,
 					}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// claimable1
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimableValidatorReward1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, nil)
 
 				// claimable2
 				s.EXPECT().GetClaimable(claimableOwnerID2).Return(claimableValidatorReward2, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID2, &state.Claimable{
 					Owner:           claimableValidatorReward2.Owner,
 					ValidatorReward: claimableValidatorReward2.ValidatorReward - utx.Claimables[1].Amount,
@@ -4223,21 +4159,21 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// claimable1
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimableValidatorReward1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, nil)
 
 				// claimable2
 				s.EXPECT().GetClaimable(claimableOwnerID2).Return(claimableValidatorReward2, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner2.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID2, &state.Claimable{
 					Owner:           claimableValidatorReward2.Owner,
 					ValidatorReward: claimableValidatorReward2.ValidatorReward - utx.Claimables[1].Amount,
@@ -4280,15 +4216,15 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// deposit
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				deposit1 := &deposit.Deposit{
 					DepositOfferID:      depositOfferID,
 					Start:               uint64(timestamp.Unix()) - 365*24*60*60/12*6, // 6 month
@@ -4338,15 +4274,15 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// deposit1
-				expectVerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, depositRewardOwner.Addrs, nil)
 				deposit1 := &deposit.Deposit{
 					DepositOfferID: depositOfferID,
 					Start:          uint64(timestamp.Unix()) - 365*24*60*60/2, // 0.5 year ago
@@ -4370,7 +4306,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, &state.Claimable{
 					Owner:                claimable1.Owner,
 					ExpiredDepositReward: claimable1.ExpiredDepositReward / 2,
@@ -4420,16 +4356,16 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, &state.Claimable{
 					Owner:           claimable1.Owner,
 					ValidatorReward: claimable1.ValidatorReward,
@@ -4461,16 +4397,16 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO},
 					[]ids.ShortID{feeOwnerAddr, claimToOwnerAddr1}, nil)
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimable1, nil)
-				expectVerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
+				expect.VerifyMultisigPermission(t, s, claimableOwner1.Addrs, nil)
 				s.EXPECT().SetClaimable(claimableOwnerID1, &state.Claimable{
 					Owner:                claimable1.Owner,
 					ExpiredDepositReward: claimable1.ExpiredDepositReward,
@@ -4502,8 +4438,8 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// common checks and fee+
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{msigFeeUTXO},
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{msigFeeUTXO},
 					[]ids.ShortID{
 						feeMsigAlias.ID,
 						feeMsigAliasOwner.Addrs[0],
@@ -4512,11 +4448,11 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 					},
 					[]*multisig.AliasWithNonce{feeMsigAlias})
 				s.EXPECT().GetTimestamp().Return(timestamp)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				// deposit1
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{
 					depositRewardMsigAlias.ID,
 					depositRewardMsigAliasOwner.Addrs[0],
 					depositRewardMsigAliasOwner.Addrs[1],
@@ -4544,7 +4480,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 				// claimable
 				s.EXPECT().GetClaimable(claimableOwnerID1).Return(claimableMsigOwned, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{
 					claimableMsigAlias.ID,
 					claimableMsigAliasOwner.Addrs[0],
 					claimableMsigAliasOwner.Addrs[1],
@@ -4557,7 +4493,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
-					Ins:          []*avax.TransferableInput{generateTestInFromUTXO(msigFeeUTXO, []uint32{0, 1})},
+					Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, msigFeeUTXO, []uint32{0, 1}, false)},
 					Outs: []*avax.TransferableOutput{{
 						Asset: avax.Asset{ID: ctx.AVAXAssetID},
 						Out: &secp256k1fx.TransferOutput{
@@ -4591,8 +4527,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
 			// ensuring that ins and outs from test case are sorted, signing tx
 
@@ -4605,7 +4540,7 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
+					Backend: backend,
 					State:   tt.state(t, gomock.NewController(t), tt.utx, tx.ID()),
 					Tx:      tx,
 				},
@@ -4616,26 +4551,26 @@ func TestCaminoStandardTxExecutorClaimTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	consortiumMemberKey, consortiumMemberAddr, _ := generateKeyAndOwner(t)
-	consortiumMemberMsigKeys, consortiumMemberMsigAlias, consortiumMemberMsigAliasOwner, _ := generateMsigAliasAndKeys(t, 2, 3, false)
-	nodeKey1, nodeAddr1, _ := generateKeyAndOwner(t)
-	nodeKey2, nodeAddr2, _ := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	consortiumMemberKey, consortiumMemberAddr := test.Keys[1], test.Keys[1].Address()
+	consortiumMemberMsigKeys, consortiumMemberMsigAlias, consortiumMemberMsigAliasOwner, _ := generate.MsigAliasAndKeys([]*secp256k1.PrivateKey{test.Keys[2], test.Keys[3], test.Keys[4]}, 2, false)
+	nodeKey1, nodeAddr1 := test.Keys[5], test.Keys[5].Address()
+	nodeKey2, nodeAddr2 := test.Keys[6], test.Keys[6].Address()
 	nodeID1 := ids.NodeID(nodeAddr1)
 	nodeID2 := ids.NodeID(nodeAddr2)
 
-	feeUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    ctx.NetworkID,
 		BlockchainID: ctx.ChainID,
-		Ins:          []*avax.TransferableInput{generateTestInFromUTXO(feeUTXO, []uint32{0})},
+		Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, feeUTXO, []uint32{0}, false)},
 	}}
 
 	tests := map[string]struct {
@@ -4692,7 +4627,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 				s.EXPECT().GetAddressStates(utx.NodeOwnerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode).
 					Return(nodeAddr1, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, utx.OldNodeID).Return(nil, nil) // no error
 				return s
 			},
@@ -4718,7 +4653,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 				s.EXPECT().GetAddressStates(utx.NodeOwnerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode).
 					Return(nodeAddr1, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, utx.OldNodeID).
 					Return(nil, database.ErrNotFound)
 				s.EXPECT().GetPendingValidator(constants.PrimaryNetworkID, utx.OldNodeID).Return(nil, nil) // no error
@@ -4746,7 +4681,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 				s.EXPECT().GetAddressStates(utx.NodeOwnerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode).
 					Return(nodeAddr1, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, utx.OldNodeID).
 					Return(nil, database.ErrNotFound)
 				s.EXPECT().GetPendingValidator(constants.PrimaryNetworkID, utx.OldNodeID).
@@ -4776,15 +4711,15 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 				s.EXPECT().GetAddressStates(utx.NodeOwnerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode).
 					Return(nodeAddr1, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, utx.OldNodeID).
 					Return(nil, database.ErrNotFound)
 				s.EXPECT().GetPendingValidator(constants.PrimaryNetworkID, utx.OldNodeID).
 					Return(nil, database.ErrNotFound)
 				s.EXPECT().GetDeferredValidator(constants.PrimaryNetworkID, utx.OldNodeID).
 					Return(nil, database.ErrNotFound)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().SetShortIDLink(ids.ShortID(utx.OldNodeID), state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(utx.NodeOwnerAddress, state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(
@@ -4798,7 +4733,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 					state.ShortLinkKeyRegisterNode,
 					&link,
 				)
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func() *txs.RegisterNodeTx {
@@ -4824,7 +4759,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 					Return(ids.ShortEmpty, database.ErrNotFound)
 				s.EXPECT().GetShortIDLink(ids.ShortID(utx.NewNodeID), state.ShortLinkKeyRegisterNode).
 					Return(ids.ShortEmpty, database.ErrNotFound)
-				expectVerifyMultisigPermission(t, s,
+				expect.VerifyMultisigPermission(t, s,
 					[]ids.ShortID{
 						utx.NodeOwnerAddress,
 						consortiumMemberMsigAliasOwner.Addrs[0],
@@ -4832,8 +4767,8 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 						consortiumMemberMsigAliasOwner.Addrs[2],
 					},
 					[]*multisig.AliasWithNonce{consortiumMemberMsigAlias})
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().SetShortIDLink(
 					ids.ShortID(utx.NewNodeID),
 					state.ShortLinkKeyRegisterNode,
@@ -4845,7 +4780,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 					state.ShortLinkKeyRegisterNode,
 					&link,
 				)
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func() *txs.RegisterNodeTx {
@@ -4871,9 +4806,9 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 					Return(ids.ShortEmpty, database.ErrNotFound)
 				s.EXPECT().GetShortIDLink(ids.ShortID(utx.NewNodeID), state.ShortLinkKeyRegisterNode).
 					Return(ids.ShortEmpty, database.ErrNotFound)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.NodeOwnerAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().SetShortIDLink(
 					ids.ShortID(utx.NewNodeID),
 					state.ShortLinkKeyRegisterNode,
@@ -4885,7 +4820,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 					state.ShortLinkKeyRegisterNode,
 					&link,
 				)
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func() *txs.RegisterNodeTx {
@@ -4906,8 +4841,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
 			utx := tt.utx()
 			avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
@@ -4917,7 +4851,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
+					Backend: backend,
 					State:   tt.state(t, gomock.NewController(t), utx),
 					Tx:      tx,
 				},
@@ -4928,7 +4862,7 @@ func TestCaminoStandardTxExecutorRegisterNodeTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -4986,22 +4920,22 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(&utxos[0].UTXO, []uint32{0}),
-						generateTestInFromUTXO(&utxos[1].UTXO, []uint32{0}),
+						generate.InFromUTXO(t, &utxos[0].UTXO, []uint32{0}, false),
+						generate.InFromUTXO(t, &utxos[1].UTXO, []uint32{0}, false),
 					},
 				}}}
 			},
 			utxos: []*avax.TimedUTXO{
 				{
-					UTXO:      *generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 				},
 				{
-					UTXO:      *generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 				},
 				{
-					UTXO:      *generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 				},
 			},
@@ -5020,12 +4954,12 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
+						generate.In(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
 					},
 				}}}
 			},
 			utxos: []*avax.TimedUTXO{{
-				UTXO:      *generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+				UTXO:      *generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 				Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 			}},
 			expectedErr: errImportedUTXOMismatch,
@@ -5053,7 +4987,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 				}}}
 			},
 			utxos: []*avax.TimedUTXO{{
-				UTXO:      *generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+				UTXO:      *generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 				Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 			}},
 			expectedErr: errInputAmountMismatch,
@@ -5150,25 +5084,25 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestInFromUTXO(&utxos[0].UTXO, []uint32{0}),
-						generateTestInFromUTXO(&utxos[2].UTXO, []uint32{0}),
+						generate.InFromUTXO(t, &utxos[0].UTXO, []uint32{0}, false),
+						generate.InFromUTXO(t, &utxos[2].UTXO, []uint32{0}, false),
 					},
 				}}}
 			},
 			utxos: []*avax.TimedUTXO{
 				{ // timed utxo, old enough
-					UTXO:      *generateTestUTXO(ids.ID{1}, ctx.AVAXAssetID, 3, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, 3, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 				},
 				{ // not timed utxo
-					UTXO: *generateTestUTXO(ids.ID{2}, ctx.AVAXAssetID, 5, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO: *generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, 5, *treasury.Owner, ids.Empty, ids.Empty, true),
 				},
 				{ // timed utxo, old enough
-					UTXO:      *generateTestUTXO(ids.ID{3}, ctx.AVAXAssetID, 2, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, 2, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound,
 				},
 				{ // timed utxo, not old enough
-					UTXO:      *generateTestUTXO(ids.ID{4}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty),
+					UTXO:      *generate.UTXO(ids.ID{4}, ctx.AVAXAssetID, 1, *treasury.Owner, ids.Empty, ids.Empty, true),
 					Timestamp: uint64(blockTime.Unix()) - atomic.SharedMemorySyncBound + 1,
 				},
 			},
@@ -5192,8 +5126,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 			require := require.New(t)
 			ctrl := gomock.NewController(t)
 
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, tt.sharedMemory(t, ctrl, tt.utxos))
-			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, tt.sharedMemory(t, ctrl, tt.utxos))
 
 			utx := tt.utx(tt.utxos)
 			avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
@@ -5204,7 +5137,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 
 			e := &CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
+					Backend: backend,
 					State:   tt.state(ctrl, utx, tx.ID()),
 					Tx:      tx,
 				},
@@ -5229,8 +5162,9 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
-	fakeMSigAlias := preFundedKeys[0].Address()
-	sourceKey := preFundedKeys[1]
+	ctx := test.Context(t)
+	fakeMSigAlias := test.FundedKeys[0].Address()
+	sourceKey := test.FundedKeys[1]
 	nestedAlias := ids.ShortID{0, 0, 0, 1, 0xa}
 	aliasMemberOwners := secp256k1fx.OutputOwners{
 		Threshold: 1,
@@ -5258,35 +5192,31 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 		MultisigAliases:     []*multisig.Alias{&aliasDefinition.Alias, &nestedAliasDefinition.Alias},
 	}
 
-	env := newCaminoEnvironment( /*postBanff*/ true, false, caminoGenesisConf)
-	env.ctx.Lock.Lock()
-	defer func() {
-		require.NoError(t, shutdownCaminoEnvironment(env))
-	}()
+	env := newCaminoEnvironment(t, test.PhaseLast, caminoGenesisConf)
 
-	type test struct {
+	type testCase struct {
 		destinationChainID ids.ID
 		to                 ids.ShortID
 		expectedErr        error
 		expectedMsigAddrs  []ids.ShortID
 	}
 
-	tests := map[string]test{
+	tests := map[string]testCase{
 		"P->C export from msig wallet": {
-			destinationChainID: cChainID,
+			destinationChainID: ctx.CChainID,
 			to:                 fakeMSigAlias,
 			expectedErr:        nil,
 			expectedMsigAddrs:  []ids.ShortID{fakeMSigAlias},
 		},
 		"P->C export simple account not multisig": {
-			destinationChainID: cChainID,
+			destinationChainID: ctx.CChainID,
 			to:                 sourceKey.Address(),
 			expectedErr:        nil,
 			expectedMsigAddrs:  []ids.ShortID{},
 		},
 		// unsupported for now
 		// "P->C export from nested msig wallet": {
-		// 	destinationChainID: cChainID,
+		// 	destinationChainID: ctx.CChainID,
 		// 	to:                 nestedAlias,
 		// 	expectedErr:        nil,
 		// 	expectedMsigAddrs:  []ids.ShortID{nestedAlias, fakeMSigAlias},
@@ -5298,10 +5228,10 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 			require := require.New(t)
 
 			tx, err := env.txBuilder.NewExportTx(
-				defaultBalance-defaultTxFee,
+				test.PreFundedBalance-test.TxFee,
 				tt.destinationChainID,
 				tt.to,
-				preFundedKeys,
+				test.FundedKeys,
 				ids.ShortEmpty,
 			)
 			require.NoError(err)
@@ -5322,7 +5252,7 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 				return
 			}
 
-			// Check atomic elts
+			// Check atomic requests
 			ar, exists := executor.AtomicRequests[tt.destinationChainID]
 			require.True(exists)
 			require.Len(ar.PutRequests, 1)
@@ -5365,11 +5295,13 @@ func TestCaminoStandardTxExecutorExportTxMultisig(t *testing.T) {
 }
 
 func TestCaminoCrossExport(t *testing.T) {
-	addr0 := caminoPreFundedKeys[0].Address()
-	addr1 := caminoPreFundedKeys[1].Address()
+	ctx := test.Context(t)
+
+	addr0 := test.FundedKeys[0].Address()
+	addr1 := test.FundedKeys[1].Address()
 
 	sigIndices := []uint32{0}
-	signers := [][]*secp256k1.PrivateKey{{caminoPreFundedKeys[0]}}
+	signers := [][]*secp256k1.PrivateKey{{test.FundedKeys[0]}}
 
 	outputOwners := secp256k1fx.OutputOwners{
 		Locktime:  0,
@@ -5385,58 +5317,35 @@ func TestCaminoCrossExport(t *testing.T) {
 	}{
 		"CrossTransferOutput OK": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{0}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{0}, ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
+				generate.InWithTxID(ids.ID{0}, ctx.AVAXAssetID, test.ValidatorWeight, ids.Empty, ids.Empty, sigIndices),
 			},
 			exportedOuts: []*avax.TransferableOutput{
-				generateCrossOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, addr1),
+				generate.CrossOut(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, addr1),
 			},
 		},
 		"CrossTransferOutput Invalid Recipient": {
 			utxos: []*avax.UTXO{
-				generateTestUTXO(ids.ID{0}, avaxAssetID, defaultCaminoValidatorWeight, outputOwners, ids.Empty, ids.Empty),
+				generate.UTXO(ids.ID{0}, ctx.AVAXAssetID, test.ValidatorWeight, outputOwners, ids.Empty, ids.Empty, true),
 			},
 			ins: []*avax.TransferableInput{
-				generateTestIn(avaxAssetID, defaultCaminoValidatorWeight, ids.Empty, ids.Empty, sigIndices),
+				generate.InWithTxID(ids.ID{0}, ctx.AVAXAssetID, test.ValidatorWeight, ids.Empty, ids.Empty, sigIndices),
 			},
 			exportedOuts: []*avax.TransferableOutput{
-				generateCrossOut(avaxAssetID, defaultCaminoValidatorWeight-defaultTxFee, outputOwners, ids.ShortEmpty),
+				generate.CrossOut(ctx.AVAXAssetID, test.ValidatorWeight-test.TxFee, outputOwners, ids.ShortEmpty),
 			},
 			expectedErr: secp256k1fx.ErrEmptyRecipient,
 		},
 	}
 
-	generateExecutor := func(unsidngedTx txs.UnsignedTx, env *caminoEnvironment) CaminoStandardTxExecutor {
-		tx, err := txs.NewSigned(unsidngedTx, txs.Codec, signers)
-		require.NoError(t, err)
-
-		onAcceptState, err := state.NewDiff(lastAcceptedID, env)
-		require.NoError(t, err)
-
-		executor := CaminoStandardTxExecutor{
-			StandardTxExecutor{
-				Backend: &env.backend,
-				State:   onAcceptState,
-				Tx:      tx,
-			},
-		}
-
-		return executor
-	}
-
 	for name, tt := range tests {
 		t.Run("ExportTx "+name, func(t *testing.T) {
-			env := newCaminoEnvironment( /*postBanff*/ true, false, api.Camino{LockModeBondDeposit: true, VerifyNodeSignature: true})
+			env := newCaminoEnvironment(t, test.PhaseLast, api.Camino{LockModeBondDeposit: true, VerifyNodeSignature: true})
 			for _, utxo := range tt.utxos {
 				env.state.AddUTXO(utxo)
 			}
-			env.ctx.Lock.Lock()
-			defer func() {
-				require.NoError(t, shutdownCaminoEnvironment(env))
-			}()
-			env.config.BanffTime = env.state.GetTimestamp()
 
 			exportTx := &txs.ExportTx{
 				BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -5449,22 +5358,33 @@ func TestCaminoCrossExport(t *testing.T) {
 				ExportedOutputs:  tt.exportedOuts,
 			}
 
-			executor := generateExecutor(exportTx, env)
+			tx, err := txs.NewSigned(exportTx, txs.Codec, signers)
+			require.NoError(t, err)
 
-			err := executor.ExportTx(exportTx)
+			onAcceptState, err := state.NewDiff(lastAcceptedID, env)
+			require.NoError(t, err)
+
+			err = exportTx.Visit(&CaminoStandardTxExecutor{
+				StandardTxExecutor{
+					Backend: &env.backend,
+					State:   onAcceptState,
+					Tx:      tx,
+				},
+			})
+
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
 }
 
 func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 
-	ownerKey, ownerAddr, owner := generateKeyAndOwner(t)
-	msigKeys, msigAlias, msigAliasOwners, msigOwner := generateMsigAliasAndKeys(t, 2, 2, true)
+	ownerKey, ownerAddr, owner := generate.KeyAndOwner(t, test.Keys[0])
+	msigKeys, msigAlias, msigAliasOwners, msigOwner := generate.MsigAliasAndKeys([]*secp256k1.PrivateKey{test.Keys[1], test.Keys[2]}, 2, true)
 
-	ownerUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, owner, ids.Empty, ids.Empty)
-	msigUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, *msigOwner, ids.Empty, ids.Empty)
+	ownerUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, owner, ids.Empty, ids.Empty, true)
+	msigUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, *msigOwner, ids.Empty, ids.Empty, true)
 
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
@@ -5488,7 +5408,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(ownerUTXO, []uint32{0})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, ownerUTXO, []uint32{0}, false)},
 					},
 				},
 				MultisigAlias: multisig.Alias{
@@ -5506,7 +5426,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 		"Updating alias which does not exist": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.MultisigAliasTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				expectGetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
+				expect.GetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
 				s.EXPECT().GetMultisigAlias(msigAlias.ID).Return(nil, database.ErrNotFound)
 				return s
 			},
@@ -5515,7 +5435,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(ownerUTXO, []uint32{0})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, ownerUTXO, []uint32{0}, false)},
 					},
 				},
 				MultisigAlias: msigAlias.Alias,
@@ -5530,9 +5450,9 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 		"Updating existing alias with less signatures than threshold": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.MultisigAliasTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				expectGetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
+				expect.GetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
 				s.EXPECT().GetMultisigAlias(msigAlias.ID).Return(msigAlias, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{
 					msigAliasOwners.Addrs[0],
 					msigAliasOwners.Addrs[1],
 				}, []*multisig.AliasWithNonce{})
@@ -5543,7 +5463,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(ownerUTXO, []uint32{0})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, ownerUTXO, []uint32{0}, false)},
 					},
 				},
 				MultisigAlias: msigAlias.Alias,
@@ -5558,20 +5478,20 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 		"OK, update existing alias": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.MultisigAliasTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				expectGetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
+				expect.GetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
 				s.EXPECT().GetMultisigAlias(msigAlias.ID).Return(msigAlias, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{
 					msigAliasOwners.Addrs[0],
 					msigAliasOwners.Addrs[1],
 				}, []*multisig.AliasWithNonce{})
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{ownerUTXO}, []ids.ShortID{ownerAddr}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{ownerUTXO}, []ids.ShortID{ownerAddr}, nil)
 				s.EXPECT().SetMultisigAlias(&multisig.AliasWithNonce{
 					Alias: msigAlias.Alias,
 					Nonce: msigAlias.Nonce + 1,
 				})
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.MultisigAliasTx{
@@ -5579,7 +5499,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(ownerUTXO, []uint32{0})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, ownerUTXO, []uint32{0}, false)},
 					},
 				},
 				MultisigAlias: msigAlias.Alias,
@@ -5593,9 +5513,9 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 		"OK, add new alias": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.MultisigAliasTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				expectGetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{ownerUTXO}, []ids.ShortID{ownerAddr}, nil)
+				expect.GetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{ownerUTXO}, []ids.ShortID{ownerAddr}, nil)
 				s.EXPECT().SetMultisigAlias(&multisig.AliasWithNonce{
 					Alias: multisig.Alias{
 						ID:     multisig.ComputeAliasID(txID),
@@ -5604,8 +5524,8 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					},
 					Nonce: 0,
 				})
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.MultisigAliasTx{
@@ -5613,7 +5533,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(ownerUTXO, []uint32{0})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, ownerUTXO, []uint32{0}, false)},
 					},
 				},
 				MultisigAlias: multisig.Alias{
@@ -5630,9 +5550,9 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 		"OK, add new alias with multisig sender": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.MultisigAliasTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				expectGetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{msigUTXO}, []ids.ShortID{
+				expect.GetMultisigAliases(t, s, msigAliasOwners.Addrs, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{msigUTXO}, []ids.ShortID{
 					msigAlias.ID,
 					msigAliasOwners.Addrs[0],
 					msigAliasOwners.Addrs[1],
@@ -5645,8 +5565,8 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					},
 					Nonce: 0,
 				})
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: &txs.MultisigAliasTx{
@@ -5654,7 +5574,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 					BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins:          []*avax.TransferableInput{generateTestInFromUTXO(msigUTXO, []uint32{0, 1})},
+						Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, msigUTXO, []uint32{0, 1}, false)},
 					},
 				},
 				MultisigAlias: multisig.Alias{
@@ -5672,9 +5592,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-
-			defer func() { require.NoError(shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
 			avax.SortTransferableInputsWithSigners(tt.utx.Ins, tt.signers)
 
@@ -5683,7 +5601,7 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
+					Backend: backend,
 					State:   tt.state(t, gomock.NewController(t), tt.utx, tx.ID()),
 					Tx:      tx,
 				},
@@ -5694,16 +5612,16 @@ func TestCaminoStandardTxExecutorMultisigAliasTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
 	}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	offerCreatorKey, offerCreatorAddr, _ := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	offerCreatorKey, offerCreatorAddr := test.Keys[1], test.Keys[1].Address()
 
-	feeUTXO := generateTestUTXO(ids.GenerateTestID(), ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.GenerateTestID(), ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
 
 	offer1 := &deposit.Offer{
 		UpgradeVersionID:      codec.UpgradeVersion1,
@@ -5719,7 +5637,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    ctx.NetworkID,
 		BlockchainID: ctx.ChainID,
-		Ins:          []*avax.TransferableInput{generateTestInFromUTXO(feeUTXO, []uint32{0})},
+		Ins:          []*avax.TransferableInput{generate.InFromUTXO(t, feeUTXO, []uint32{0}, false)},
 	}}
 
 	tests := map[string]struct {
@@ -5750,9 +5668,9 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 		"Not offer creator": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddDepositOfferTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(time.Unix(100, 0))
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetTimestamp().Return(cfg.AthensPhaseTime)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().GetAddressStates(utx.DepositOfferCreatorAddress).Return(as.AddressStateEmpty, nil)
 				return s
 			},
@@ -5772,11 +5690,11 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 		"Bad offer creator signature": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddDepositOfferTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(time.Unix(100, 0))
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetTimestamp().Return(cfg.AthensPhaseTime)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().GetAddressStates(utx.DepositOfferCreatorAddress).Return(as.AddressStateOffersCreator, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
 				return s
 			},
 			utx: func() *txs.AddDepositOfferTx {
@@ -5794,14 +5712,12 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 		},
 		"Supply overflow (v1, no existing offers)": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddDepositOfferTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
-				chainTime := time.Unix(100, 0)
-
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(chainTime)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetTimestamp().Return(cfg.AthensPhaseTime)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().GetAddressStates(utx.DepositOfferCreatorAddress).Return(as.AddressStateOffersCreator, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-offer1.TotalMaxRewardAmount+1, nil)
 				s.EXPECT().GetAllDepositOffers().Return(nil, nil)
@@ -5823,7 +5739,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 		},
 		"Supply overflow (v1, existing offers)": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddDepositOfferTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
-				chainTime := time.Unix(100, 0)
+				chainTime := cfg.AthensPhaseTime
 				existingOffers := []*deposit.Offer{
 					{ // [0], expired
 						UpgradeVersionID:     1,
@@ -5885,10 +5801,10 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetTimestamp().Return(chainTime)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().GetAddressStates(utx.DepositOfferCreatorAddress).Return(as.AddressStateOffersCreator, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).Return(currentSupply, nil)
 				s.EXPECT().GetAllDepositOffers().Return(existingOffers, nil)
 				return s
@@ -5910,11 +5826,11 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 		"OK: v1": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddDepositOfferTx, txID ids.ID, cfg *config.Config) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetTimestamp().Return(time.Time{})
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				s.EXPECT().GetTimestamp().Return(cfg.AthensPhaseTime)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().GetAddressStates(utx.DepositOfferCreatorAddress).Return(as.AddressStateOffersCreator, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.DepositOfferCreatorAddress}, nil)
 				s.EXPECT().GetCurrentSupply(constants.PrimaryNetworkID).
 					Return(cfg.RewardConfig.SupplyCap-offer1.TotalMaxRewardAmount, nil)
 				s.EXPECT().GetAllDepositOffers().Return(nil, nil)
@@ -5923,7 +5839,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 				offer.ID = txID
 				s.EXPECT().SetDepositOffer(&offer)
 
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func() *txs.AddDepositOfferTx {
@@ -5942,8 +5858,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
 			utx := tt.utx()
 			avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
@@ -5953,8 +5868,8 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
-					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), env.config),
+					Backend: backend,
+					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), backend.Config),
 					Tx:      tx,
 				},
 			})
@@ -5964,7 +5879,7 @@ func TestCaminoStandardTxExecutorAddDepositOfferTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -5974,13 +5889,13 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 		LockModeBondDeposit: caminoGenesisConf.LockModeBondDeposit,
 	}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	bondOwnerKey, bondOwnerAddr, bondOwner := generateKeyAndOwner(t)
-	proposerKey, proposerAddr, _ := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	bondOwnerKey, bondOwnerAddr, bondOwner := generate.KeyAndOwner(t, test.Keys[1])
+	proposerKey, proposerAddr := test.Keys[2], test.Keys[2].Address()
 
 	proposalBondAmt := uint64(100)
-	feeUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
-	bondUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
+	bondUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty, true)
 
 	applicantAddress := ids.ShortID{1, 1, 1}
 
@@ -5995,11 +5910,11 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 			NetworkID:    ctx.NetworkID,
 			BlockchainID: ctx.ChainID,
 			Ins: []*avax.TransferableInput{
-				generateTestInFromUTXO(feeUTXO, []uint32{0}),
-				generateTestInFromUTXO(bondUTXO, []uint32{0}),
+				generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
+				generate.InFromUTXO(t, bondUTXO, []uint32{0}, false),
 			},
 			Outs: []*avax.TransferableOutput{
-				generateTestOut(ctx.AVAXAssetID, bondAmt, bondOwner, ids.Empty, locked.ThisTxID),
+				generate.Out(ctx.AVAXAssetID, bondAmt, bondOwner, ids.Empty, locked.ThisTxID),
 			},
 		}}
 	}
@@ -6202,7 +6117,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(caminoStateConf, nil)
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
@@ -6224,7 +6139,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(caminoStateConf, nil)
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
 				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateEmpty, nil) // not AddressStateCaminoProposer
 				return s
 			},
@@ -6263,7 +6178,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(caminoStateConf, nil)
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
 
 				// * proposal verifier
 				proposalsIterator := state.NewMockProposalsIterator(c)
@@ -6275,8 +6190,8 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s.EXPECT().GetProposalIterator().Return(proposalsIterator, nil)
 				// *
 
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, bondUTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, bondOwnerAddr, // consumed
@@ -6288,8 +6203,8 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s.EXPECT().GetShortIDLink(ids.ShortID(staker3.NodeID), state.ShortLinkKeyRegisterNode).
 					Return(consortiumMemberAddr3, nil)
 				s.EXPECT().AddProposal(txID, proposalState)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateBonded)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateBonded)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
@@ -6314,7 +6229,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s.EXPECT().CaminoConfig().Return(caminoStateConf, nil)
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
 				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateRoleConsortiumAdminProposer, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.ProposerAddress}, nil)
 
 				// * proposal verifier
 				proposalsIterator := state.NewMockProposalsIterator(c)
@@ -6326,8 +6241,8 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				s.EXPECT().GetProposalIterator().Return(proposalsIterator, nil)
 				// *
 
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins,
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, bondUTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, bondOwnerAddr, // consumed
@@ -6335,8 +6250,8 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 					}, nil)
 				s.EXPECT().AddProposal(txID, proposalState)
 				s.EXPECT().AddProposalIDToFinish(txID)
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateBonded)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceNewlyLockedUTXOs(t, s, utx.Outs, txID, 0, locked.StateBonded)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
@@ -6362,13 +6277,12 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
-			env.config.CaminoConfig.DACProposalBondAmount = proposalBondAmt
-			env.config.BerlinPhaseTime = proposalWrapper.StartTime()
+			backend.Config.CaminoConfig.DACProposalBondAmount = proposalBondAmt
+			backend.Config.BerlinPhaseTime = proposalWrapper.StartTime()
 
-			utx := tt.utx(env.config)
+			utx := tt.utx(backend.Config)
 			avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
 			avax.SortTransferableOutputs(utx.Outs, txs.Codec)
 			tx, err := txs.NewSigned(utx, txs.Codec, tt.signers)
@@ -6376,8 +6290,8 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
-					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), env.config),
+					Backend: backend,
+					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), backend.Config),
 					Tx:      tx,
 				},
 			})
@@ -6387,7 +6301,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -6397,13 +6311,13 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 		LockModeBondDeposit: caminoGenesisConf.LockModeBondDeposit,
 	}
 
-	feeOwnerKey, feeOwnerAddr, feeOwner := generateKeyAndOwner(t)
-	voterKey1, voterAddr1, _ := generateKeyAndOwner(t)
-	voterKey2, voterAddr2, _ := generateKeyAndOwner(t)
-	_, voterAddr3, _ := generateKeyAndOwner(t)
-	voterKey4, voterAddr4, _ := generateKeyAndOwner(t)
+	feeOwnerKey, feeOwnerAddr, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
+	voterKey1, voterAddr1 := test.Keys[1], test.Keys[1].Address()
+	voterKey2, voterAddr2 := test.Keys[2], test.Keys[2].Address()
+	_, voterAddr3 := test.Keys[3], test.Keys[3].Address()
+	voterKey4, voterAddr4 := test.Keys[4], test.Keys[4].Address()
 
-	feeUTXO := generateTestUTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, defaultTxFee, feeOwner, ids.Empty, ids.Empty)
+	feeUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
 
 	simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}}
 	voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
@@ -6413,7 +6327,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 		NetworkID:    ctx.NetworkID,
 		BlockchainID: ctx.ChainID,
 		Ins: []*avax.TransferableInput{
-			generateTestInFromUTXO(feeUTXO, []uint32{0}),
+			generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
 		},
 	}}
 
@@ -6573,7 +6487,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6597,9 +6511,9 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6626,9 +6540,9 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6655,9 +6569,9 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6681,9 +6595,9 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6714,11 +6628,11 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().ModifyProposal(utx.ProposalID, updatedProposal)
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6748,12 +6662,12 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(proposal.StartTime())
 				s.EXPECT().GetProposal(utx.ProposalID).Return(proposal, nil)
 				s.EXPECT().GetAddressStates(utx.VoterAddress).Return(as.AddressStateConsortium, nil)
-				expectVerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
-				s.EXPECT().GetBaseFee().Return(defaultTxFee, nil)
-				expectVerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
+				expect.VerifyMultisigPermission(t, s, []ids.ShortID{utx.VoterAddress}, nil)
+				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
+				expect.VerifyLock(t, s, utx.Ins, []*avax.UTXO{feeUTXO}, []ids.ShortID{feeOwnerAddr}, nil)
 				s.EXPECT().ModifyProposal(utx.ProposalID, updatedProposal)
 				s.EXPECT().AddProposalIDToFinish(utx.ProposalID)
-				expectConsumeUTXOs(t, s, utx.Ins)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
@@ -6775,12 +6689,11 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
-			env.config.BerlinPhaseTime = proposal.StartTime().Add(-1 * time.Second)
+			backend.Config.BerlinPhaseTime = proposal.StartTime().Add(-1 * time.Second)
 
-			utx := tt.utx(env.config)
+			utx := tt.utx(backend.Config)
 			avax.SortTransferableInputsWithSigners(utx.Ins, tt.signers)
 			avax.SortTransferableOutputs(utx.Outs, txs.Codec)
 			tx, err := txs.NewSigned(utx, txs.Codec, tt.signers)
@@ -6788,8 +6701,8 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
-					State:   tt.state(t, gomock.NewController(t), utx, env.config),
+					Backend: backend,
+					State:   tt.state(t, gomock.NewController(t), utx, backend.Config),
 					Tx:      tx,
 				},
 			})
@@ -6799,7 +6712,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 }
 
 func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
-	ctx, _ := defaultCtx(nil)
+	ctx := test.Context(t)
 	caminoGenesisConf := api.Camino{
 		VerifyNodeSignature: true,
 		LockModeBondDeposit: true,
@@ -6847,16 +6760,16 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 	validatorTxID1 := ids.ID{9, 9}
 	validatorTxID2 := ids.ID{10, 10}
 
-	earlySuccessfulProposalUTXO := generateTestUTXOWithIndex(earlySuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner1, ids.Empty, earlySuccessfulProposalID, true)
-	earlyFailedProposalUTXO := generateTestUTXOWithIndex(earlyFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner2, ids.Empty, earlyFailedProposalID, true)
-	expiredSuccessfulProposalUTXO := generateTestUTXOWithIndex(expiredSuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner3, ids.Empty, expiredSuccessfulProposalID, true)
-	expiredFailedProposalUTXO := generateTestUTXOWithIndex(expiredFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner4, ids.Empty, expiredFailedProposalID, true)
-	activeSuccessfulProposalUTXO := generateTestUTXOWithIndex(activeSuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner5, ids.Empty, activeSuccessfulProposalID, true)
-	activeFailedProposalUTXO := generateTestUTXOWithIndex(activeFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner6, ids.Empty, activeFailedProposalID, true)
-	earlySuccessfulProposalWithBondUTXO := generateTestUTXOWithIndex(earlySuccessfulProposalWithBondID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner7, ids.Empty, earlySuccessfulProposalWithBondID, true)
-	expiredSuccessfulProposalWithBondUTXO := generateTestUTXOWithIndex(expiredSuccessfulProposalWithBondID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner8, ids.Empty, expiredSuccessfulProposalWithBondID, true)
-	additionalBondUTXO1 := generateTestUTXOWithIndex(validatorTxID1, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner9, ids.Empty, validatorTxID1, true)
-	additionalBondUTXO2 := generateTestUTXOWithIndex(validatorTxID2, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner10, ids.Empty, validatorTxID2, true)
+	earlySuccessfulProposalUTXO := generate.UTXOWithIndex(earlySuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner1, ids.Empty, earlySuccessfulProposalID, true)
+	earlyFailedProposalUTXO := generate.UTXOWithIndex(earlyFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner2, ids.Empty, earlyFailedProposalID, true)
+	expiredSuccessfulProposalUTXO := generate.UTXOWithIndex(expiredSuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner3, ids.Empty, expiredSuccessfulProposalID, true)
+	expiredFailedProposalUTXO := generate.UTXOWithIndex(expiredFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner4, ids.Empty, expiredFailedProposalID, true)
+	activeSuccessfulProposalUTXO := generate.UTXOWithIndex(activeSuccessfulProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner5, ids.Empty, activeSuccessfulProposalID, true)
+	activeFailedProposalUTXO := generate.UTXOWithIndex(activeFailedProposalID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner6, ids.Empty, activeFailedProposalID, true)
+	earlySuccessfulProposalWithBondUTXO := generate.UTXOWithIndex(earlySuccessfulProposalWithBondID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner7, ids.Empty, earlySuccessfulProposalWithBondID, true)
+	expiredSuccessfulProposalWithBondUTXO := generate.UTXOWithIndex(expiredSuccessfulProposalWithBondID, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner8, ids.Empty, expiredSuccessfulProposalWithBondID, true)
+	additionalBondUTXO1 := generate.UTXOWithIndex(validatorTxID1, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner9, ids.Empty, validatorTxID1, true)
+	additionalBondUTXO2 := generate.UTXOWithIndex(validatorTxID2, 0, ctx.AVAXAssetID, proposalBondAmt, bondOwner10, ids.Empty, validatorTxID2, true)
 
 	pendingValidator1 := &state.Staker{TxID: validatorTxID1}
 	pendingValidator2 := &state.Staker{TxID: validatorTxID2}
@@ -6864,15 +6777,15 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
 		NetworkID:    ctx.NetworkID,
 		BlockchainID: ctx.ChainID,
-		Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+		Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 			earlySuccessfulProposalUTXO, earlyFailedProposalUTXO,
 			expiredSuccessfulProposalUTXO, expiredFailedProposalUTXO,
 		}, []uint32{}),
 		Outs: []*avax.TransferableOutput{
-			generateTestOutFromUTXO(earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
-			generateTestOutFromUTXO(earlyFailedProposalUTXO, ids.Empty, ids.Empty),
-			generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
-			generateTestOutFromUTXO(expiredFailedProposalUTXO, ids.Empty, ids.Empty),
+			generate.OutFromUTXO(t, earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
+			generate.OutFromUTXO(t, earlyFailedProposalUTXO, ids.Empty, ids.Empty),
+			generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+			generate.OutFromUTXO(t, expiredFailedProposalUTXO, ids.Empty, ids.Empty),
 		},
 	}}
 
@@ -7027,11 +6940,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							activeSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredSuccessfulProposalIDs: []ids.ID{activeSuccessfulProposalID},
@@ -7054,11 +6967,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							expiredSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredSuccessfulProposalIDs: []ids.ID{expiredSuccessfulProposalID},
@@ -7081,11 +6994,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							expiredSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlySuccessfulProposalID},
@@ -7102,7 +7015,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					Return([]ids.ID{expiredFailedProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{earlyFailedProposalID}, nil)
 				lockTxIDs := append(utx.EarlyFinishedFailedProposalIDs, utx.ExpiredFailedProposalIDs...) //nolint:gocritic
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr2, bondOwnerAddr4,
 				}, []*avax.UTXO{
 					earlyFailedProposalUTXO, expiredFailedProposalUTXO,
@@ -7115,11 +7028,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{ // missing 2nd input
-							generateTestInFromUTXO(earlyFailedProposalUTXO, []uint32{}),
+							generate.InFromUTXO(t, earlyFailedProposalUTXO, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlyFailedProposalUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(expiredFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlyFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedFailedProposalIDs: []ids.ID{earlyFailedProposalID},
@@ -7145,7 +7058,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				// *
 
 				lockTxIDs := append(utx.EarlyFinishedSuccessfulProposalIDs, validatorTxID1) //nolint:gocritic
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr7, bondOwnerAddr9,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalWithBondUTXO, additionalBondUTXO1,
@@ -7159,12 +7072,12 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(earlySuccessfulProposalWithBondUTXO, []uint32{}),
-							// generateTestInFromUTXO(additionalBondUTXO1, []uint32{}), // missing pending validator bond
+							generate.InFromUTXO(t, earlySuccessfulProposalWithBondUTXO, []uint32{0}, false),
+							// generate.TestInFromUTXO(additionalBondUTXO1, []uint32{}), // missing pending validator bond
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, additionalBondUTXO1, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlySuccessfulProposalWithBondID},
@@ -7181,7 +7094,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					Return([]ids.ID{expiredFailedProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{earlyFailedProposalID}, nil)
 				lockTxIDs := append(utx.EarlyFinishedFailedProposalIDs, utx.ExpiredFailedProposalIDs...) //nolint:gocritic
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr2, bondOwnerAddr4,
 				}, []*avax.UTXO{
 					earlyFailedProposalUTXO, expiredFailedProposalUTXO,
@@ -7193,12 +7106,12 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlyFailedProposalUTXO, expiredFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
-							generateTestOut(ctx.AVAXAssetID, proposalBondAmt, bondOwner1, ids.Empty, ids.Empty), // expiredFailedProposalUTXO with different owner
+							generate.OutFromUTXO(t, earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.Out(ctx.AVAXAssetID, proposalBondAmt, bondOwner1, ids.Empty, ids.Empty), // expiredFailedProposalUTXO with different owner
 						},
 					}},
 					EarlyFinishedFailedProposalIDs: []ids.ID{earlyFailedProposalID},
@@ -7224,7 +7137,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				// *
 
 				lockTxIDs := append(utx.EarlyFinishedSuccessfulProposalIDs, validatorTxID1) //nolint:gocritic
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr7, bondOwnerAddr9,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalWithBondUTXO, additionalBondUTXO1,
@@ -7238,12 +7151,12 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(earlySuccessfulProposalWithBondUTXO, []uint32{}),
-							generateTestInFromUTXO(additionalBondUTXO1, []uint32{}),
+							generate.InFromUTXO(t, earlySuccessfulProposalWithBondUTXO, []uint32{0}, false),
+							generate.InFromUTXO(t, additionalBondUTXO1, []uint32{0}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
-							// generateTestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty), // missing pending validator bond
+							generate.OutFromUTXO(t, earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
+							// generate.TestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty), // missing pending validator bond
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlySuccessfulProposalWithBondID},
@@ -7268,7 +7181,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				// *
 
 				lockTxIDs := append(utx.EarlyFinishedSuccessfulProposalIDs, validatorTxID1) //nolint:gocritic
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr7, bondOwnerAddr9,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalWithBondUTXO, additionalBondUTXO1,
@@ -7282,12 +7195,12 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(earlySuccessfulProposalWithBondUTXO, []uint32{}),
-							// generateTestInFromUTXO(additionalBondUTXO1, []uint32{}), // missing pending validator bond
+							generate.InFromUTXO(t, earlySuccessfulProposalWithBondUTXO, []uint32{0}, false),
+							// generate.TestInFromUTXO(additionalBondUTXO1, []uint32{}), // missing pending validator bond
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
-							// generateTestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty), // missing pending validator bond
+							generate.OutFromUTXO(t, earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
+							// generate.TestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty), // missing pending validator bond
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlySuccessfulProposalWithBondID},
@@ -7302,7 +7215,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return([]ids.ID{}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return(utx.EarlyFinishedFailedProposalIDs, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr2,
 				}, []*avax.UTXO{
 					earlyFailedProposalUTXO,
@@ -7315,11 +7228,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlyFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlyFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlyFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedFailedProposalIDs: []ids.ID{earlyFailedProposalID},
@@ -7336,7 +7249,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					Return([]ids.ID{expiredSuccessfulProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().
 					Return([]ids.ID{earlySuccessfulProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr1, bondOwnerAddr3,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalUTXO, expiredSuccessfulProposalUTXO,
@@ -7350,13 +7263,13 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlySuccessfulProposalUTXO,
 							expiredSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{expiredSuccessfulProposalID},
@@ -7374,7 +7287,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					Return([]ids.ID{expiredSuccessfulProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().
 					Return([]ids.ID{earlySuccessfulProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr1, bondOwnerAddr3,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalUTXO, expiredSuccessfulProposalUTXO,
@@ -7388,13 +7301,13 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlySuccessfulProposalUTXO,
 							expiredSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{expiredSuccessfulProposalID},
@@ -7411,7 +7324,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return([]ids.ID{}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().
 					Return([]ids.ID{earlySuccessfulProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr5,
 				}, []*avax.UTXO{
 					activeSuccessfulProposalUTXO,
@@ -7424,11 +7337,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							activeSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{activeSuccessfulProposalID},
@@ -7444,7 +7357,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return([]ids.ID{}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().
 					Return([]ids.ID{earlyFailedProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr6,
 				}, []*avax.UTXO{
 					activeFailedProposalUTXO,
@@ -7457,11 +7370,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							activeFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(activeFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, activeFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedFailedProposalIDs: []ids.ID{activeFailedProposalID},
@@ -7477,7 +7390,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).
 					Return([]ids.ID{expiredSuccessfulProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr5,
 				}, []*avax.UTXO{
 					activeSuccessfulProposalUTXO,
@@ -7490,11 +7403,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							activeSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, activeSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredSuccessfulProposalIDs: []ids.ID{activeSuccessfulProposalID},
@@ -7510,7 +7423,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).
 					Return([]ids.ID{expiredFailedProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr6,
 				}, []*avax.UTXO{
 					activeFailedProposalUTXO,
@@ -7523,11 +7436,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							activeFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(activeFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, activeFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredFailedProposalIDs: []ids.ID{activeFailedProposalID},
@@ -7543,7 +7456,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).
 					Return([]ids.ID{expiredFailedProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr4,
 				}, []*avax.UTXO{
 					expiredFailedProposalUTXO,
@@ -7557,11 +7470,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							expiredFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(expiredFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredSuccessfulProposalIDs: []ids.ID{expiredFailedProposalID},
@@ -7576,7 +7489,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return([]ids.ID{}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{earlyFailedProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr2,
 				}, []*avax.UTXO{
 					earlyFailedProposalUTXO,
@@ -7590,11 +7503,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlyFailedProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlyFailedProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlyFailedProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlyFailedProposalID},
@@ -7610,7 +7523,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).
 					Return([]ids.ID{expiredSuccessfulProposalID}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr3,
 				}, []*avax.UTXO{
 					expiredSuccessfulProposalUTXO,
@@ -7624,11 +7537,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							expiredSuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					ExpiredFailedProposalIDs: []ids.ID{expiredSuccessfulProposalID},
@@ -7643,7 +7556,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetTimestamp().Return(cfg.BerlinPhaseTime)
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return([]ids.ID{}, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{earlySuccessfulProposalID}, nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr1,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalUTXO,
@@ -7657,11 +7570,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 					BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
-						Ins: generateInsFromUTXOsWithSigIndices([]*avax.UTXO{
+						Ins: generate.InsFromUTXOsWithSigIndices(t, []*avax.UTXO{
 							earlySuccessfulProposalUTXO,
 						}, []uint32{}),
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlySuccessfulProposalUTXO, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedFailedProposalIDs: []ids.ID{earlySuccessfulProposalID},
@@ -7677,7 +7590,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				expiredProposalIDs := append(utx.ExpiredSuccessfulProposalIDs, utx.ExpiredFailedProposalIDs...) //nolint:gocritic
 				s.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return(expiredProposalIDs, cfg.BerlinPhaseTime, nil)
 				s.EXPECT().GetProposalIDsToFinish().Return(append(utx.EarlyFinishedSuccessfulProposalIDs, utx.EarlyFinishedFailedProposalIDs...), nil)
-				expectUnlock(t, s, utx.ProposalIDs(), []ids.ShortID{
+				expect.Unlock(t, s, utx.ProposalIDs(), []ids.ShortID{
 					bondOwnerAddr1, bondOwnerAddr2, bondOwnerAddr3, bondOwnerAddr4,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalUTXO, earlyFailedProposalUTXO,
@@ -7700,8 +7613,8 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().GetProposal(expiredFailedProposalID).Return(expiredFailedProposal, nil)
 				s.EXPECT().RemoveProposal(expiredFailedProposalID, expiredFailedProposal)
 
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.FinishProposalsTx {
@@ -7740,7 +7653,7 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 
 				lockTxIDs := append(utx.EarlyFinishedSuccessfulProposalIDs, utx.ExpiredSuccessfulProposalIDs...) //nolint:gocritic
 				lockTxIDs = append(lockTxIDs, validatorTxID1, validatorTxID2)
-				expectUnlock(t, s, lockTxIDs, []ids.ShortID{
+				expect.Unlock(t, s, lockTxIDs, []ids.ShortID{
 					bondOwnerAddr7, bondOwnerAddr8, bondOwnerAddr9, bondOwnerAddr10,
 				}, []*avax.UTXO{
 					earlySuccessfulProposalWithBondUTXO, expiredSuccessfulProposalWithBondUTXO,
@@ -7782,8 +7695,8 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 				s.EXPECT().DeletePendingValidator(pendingValidator2)
 				// *
 
-				expectConsumeUTXOs(t, s, utx.Ins)
-				expectProduceUTXOs(t, s, utx.Outs, txID, 0)
+				expect.ConsumeUTXOs(t, s, utx.Ins)
+				expect.ProduceUTXOs(t, s, utx.Outs, txID, 0)
 
 				return s
 			},
@@ -7793,16 +7706,16 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 						NetworkID:    ctx.NetworkID,
 						BlockchainID: ctx.ChainID,
 						Ins: []*avax.TransferableInput{
-							generateTestInFromUTXO(earlySuccessfulProposalWithBondUTXO, []uint32{}),
-							generateTestInFromUTXO(expiredSuccessfulProposalWithBondUTXO, []uint32{}),
-							generateTestInFromUTXO(additionalBondUTXO1, []uint32{}),
-							generateTestInFromUTXO(additionalBondUTXO2, []uint32{}),
+							generate.InFromUTXO(t, earlySuccessfulProposalWithBondUTXO, []uint32{}, false),
+							generate.InFromUTXO(t, expiredSuccessfulProposalWithBondUTXO, []uint32{}, false),
+							generate.InFromUTXO(t, additionalBondUTXO1, []uint32{}, false),
+							generate.InFromUTXO(t, additionalBondUTXO2, []uint32{}, false),
 						},
 						Outs: []*avax.TransferableOutput{
-							generateTestOutFromUTXO(earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(expiredSuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(additionalBondUTXO1, ids.Empty, ids.Empty),
-							generateTestOutFromUTXO(additionalBondUTXO2, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, earlySuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, expiredSuccessfulProposalWithBondUTXO, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, additionalBondUTXO1, ids.Empty, ids.Empty),
+							generate.OutFromUTXO(t, additionalBondUTXO2, ids.Empty, ids.Empty),
 						},
 					}},
 					EarlyFinishedSuccessfulProposalIDs: []ids.ID{earlySuccessfulProposalWithBondID},
@@ -7813,12 +7726,11 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			env := newCaminoEnvironmentWithMocks(caminoGenesisConf, nil)
-			defer func() { require.NoError(t, shutdownCaminoEnvironment(env)) }()
+			backend := newExecutorBackend(t, caminoGenesisConf, test.PhaseLast, nil)
 
-			env.config.BerlinPhaseTime = earlySuccessfulProposal.StartTime().Add(-1 * time.Second)
+			backend.Config.BerlinPhaseTime = earlySuccessfulProposal.StartTime().Add(-1 * time.Second)
 
-			utx := tt.utx(env.config)
+			utx := tt.utx(backend.Config)
 			avax.SortTransferableInputs(utx.Ins)
 			avax.SortTransferableOutputs(utx.Outs, txs.Codec)
 			tx, err := txs.NewSigned(utx, txs.Codec, tt.signers)
@@ -7826,8 +7738,8 @@ func TestCaminoStandardTxExecutorFinishProposalsTx(t *testing.T) {
 
 			err = tx.Unsigned.Visit(&CaminoStandardTxExecutor{
 				StandardTxExecutor{
-					Backend: &env.backend,
-					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), env.config),
+					Backend: backend,
+					State:   tt.state(t, gomock.NewController(t), utx, tx.ID(), backend.Config),
 					Tx:      tx,
 				},
 			})
