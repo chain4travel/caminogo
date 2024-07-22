@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-#
+
+# Ignore warnings about variables appearing unused since this file is not the consumer of the variables it defines.
+# shellcheck disable=SC2034
+
+set -euo pipefail
+
 # Use lower_case variables in the scripts and UPPER_CASE variables for override
 # Use the constants.sh for env overrides
 
@@ -25,8 +30,8 @@ current_branch=${current_branch_temp////-}
 # caminogo and caminoethvm git tag and sha
 git_commit=${CAMINO_NODE_COMMIT:-$(git rev-parse --short HEAD)}
 git_tag=${CAMINO_NODE_TAG:-$(git describe --tags --abbrev=0 --always || echo unknown)}
-caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.7-rc0'}
-caminoethvm_commit=${CAMINOETHVM_COMMIT:-'383f4172f51a5dd6bc0dba1c1407fc4b1b0b06ad'}
+caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.15-rc0'}
+caminoethvm_commit=${CAMINOETHVM_COMMIT:-'ffc063541f3f645420b524fb367375adbf07ed7e'}
 
 # Static compilation
 static_ld_flags=''

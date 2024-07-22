@@ -7,12 +7,8 @@ if ! [[ "$0" =~ scripts/mock.gen.sh ]]; then
   exit 255
 fi
 
-if ! command -v mockgen &> /dev/null
-then
-  echo "mockgen not found, installing..."
-  # https://github.com/uber-go/mock
-  go install -v go.uber.org/mock/mockgen@v0.2.0
-fi
+# https://github.com/uber-go/mock
+go install -v go.uber.org/mock/mockgen@v0.2.0
 
 source ./scripts/constants.sh
 
@@ -20,10 +16,10 @@ source ./scripts/constants.sh
 input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
 do
-  IFS='=' read src_import_path interface_name output_path <<< "${line}"
-  package_name=$(basename $(dirname $output_path))
+  IFS='=' read -r src_import_path interface_name output_path <<< "${line}"
+  package_name=$(basename "$(dirname "$output_path")")
   echo "Generating ${output_path}..."
-  mockgen -copyright_file=./LICENSE.header -package=${package_name} -destination=${output_path} ${src_import_path} ${interface_name}
+  mockgen -copyright_file=./LICENSE.header -package="${package_name}" -destination="${output_path}" "${src_import_path}" "${interface_name}"
 done < "$input"
 
 echo "SUCCESS"

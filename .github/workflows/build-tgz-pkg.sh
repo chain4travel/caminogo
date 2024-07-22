@@ -2,18 +2,18 @@
 
 set -euo pipefail
 
-AVALANCHE_ROOT=$PKG_ROOT/avalanchego-$TAG
+CAMINO_ROOT=$PKG_ROOT/caminogo-$TAG
 
-mkdir -p $AVALANCHE_ROOT
+mkdir -p "$CAMINO_ROOT"
 
-OK=`cp ./build/avalanchego $AVALANCHE_ROOT`
+OK=$(cp ./build/caminogo "$CAMINO_ROOT")
 if [[ $OK -ne 0 ]]; then
-  exit $OK;
+  exit "$OK";
 fi
 
 
 echo "Build tgz package..."
-cd $PKG_ROOT
+cd "$PKG_ROOT"
 echo "Tag: $TAG"
-tar -czvf "avalanchego-linux-$ARCH-$TAG.tar.gz" avalanchego-$TAG
-aws s3 cp avalanchego-linux-$ARCH-$TAG.tar.gz s3://$BUCKET/linux/binaries/ubuntu/$RELEASE/$ARCH/
+tar -czvf "caminogo-linux-$ARCH-$TAG.tar.gz" "caminogo-$TAG"
+#gsutil cp "caminogo-linux-$ARCH-$TAG.tar.gz" "gs://$BUCKET/linux/binaries/ubuntu/$RELEASE/$ARCH/"

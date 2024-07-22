@@ -11,7 +11,7 @@ set -euo pipefail
 # ./scripts/build.sh
 # ./scripts/tests.e2e.persistent.sh --ginkgo.label-filter=x               # All arguments are supplied to ginkgo
 # E2E_SERIAL=1 ./scripts/tests.e2e.sh                                     # Run tests serially
-# CAMINOGO_BIN_PATH=./build/caminogo ./scripts/tests.e2e.persistent.sh        # Customization of caminogo path
+# CAMINOGO_BIN_PATH=./build/caminogo ./scripts/tests.e2e.persistent.sh    # Customization of caminogo path
 if ! [[ "$0" =~ scripts/tests.e2e.persistent.sh ]]; then
   echo "must be run from repository root"
   exit 255
@@ -19,7 +19,8 @@ fi
 
 # Ensure an absolute path to avoid dependency on the working directory
 # of script execution.
-export CAMINOGO_BIN_PATH="$(realpath ${CAMINOGO_BIN_PATH:-./build/caminogo})"
+CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
+export CAMINOGO_BIN_PATH
 
 # Provide visual separation between testing and setup/teardown
 function print_separator {
@@ -44,7 +45,8 @@ print_separator
 # Determine the network configuration path from the latest symlink
 LATEST_SYMLINK_PATH="${HOME}/.testnetctl/networks/latest"
 if [[ -h "${LATEST_SYMLINK_PATH}" ]]; then
-  export TESTNETCTL_NETWORK_DIR="$(realpath ${LATEST_SYMLINK_PATH})"
+  TESTNETCTL_NETWORK_DIR="$(realpath "${LATEST_SYMLINK_PATH}")"
+  export TESTNETCTL_NETWORK_DIR
 else
   echo "failed to find configuration path: ${LATEST_SYMLINK_PATH} symlink not found"
   exit 255
