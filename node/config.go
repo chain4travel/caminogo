@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package node
@@ -21,7 +21,6 @@ import (
 	"github.com/ava-labs/avalanchego/chains"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/nat"
 	"github.com/ava-labs/avalanchego/network"
 	"github.com/ava-labs/avalanchego/snow/networking/benchlist"
 	"github.com/ava-labs/avalanchego/snow/networking/router"
@@ -29,7 +28,6 @@ import (
 	"github.com/ava-labs/avalanchego/subnets"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/dynamicip"
 	"github.com/ava-labs/avalanchego/utils/ips"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
@@ -84,19 +82,16 @@ type APIConfig struct {
 }
 
 type IPConfig struct {
-	IPPort           ips.DynamicIPPort `json:"ip"`
-	IPUpdater        dynamicip.Updater `json:"-"`
-	IPResolutionFreq time.Duration     `json:"ipResolutionFrequency"`
-	// True if we attempted NAT traversal
-	AttemptedNATTraversal bool `json:"attemptedNATTraversal"`
-	// Tries to perform network address translation
-	Nat nat.Router `json:"-"`
+	PublicIP                  string        `json:"publicIP"`
+	PublicIPResolutionService string        `json:"publicIPResolutionService"`
+	PublicIPResolutionFreq    time.Duration `json:"publicIPResolutionFreq"`
 	// The host portion of the address to listen on. The port to
 	// listen on will be sourced from IPPort.
 	//
 	// - If empty, listen on all interfaces (both ipv4 and ipv6).
 	// - If populated, listen only on the specified address.
 	ListenHost string `json:"listenHost"`
+	ListenPort uint16 `json:"listenPort"`
 }
 
 type StakingConfig struct {

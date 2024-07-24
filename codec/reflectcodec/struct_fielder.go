@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package reflectcodec
@@ -16,118 +16,69 @@ package reflectcodec
 import (
 	"fmt"
 	"reflect"
-	"strconv"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/codec"
 )
 
-const (
-	// SliceLenTagName that specifies the length of a slice.
-	SliceLenTagName = "len"
-
-	// TagValue is the value the tag must have to be serialized.
-	TagValue = "true"
-
-	// TagValue is the value the tag must have to be serialized, this variant
-	// includes the nullable option
-	TagWithNullableValue = "true,nullable"
-
-	UpgradeVersionIDFieldName = "UpgradeVersionID"
-	UpgradeVersionTagName     = "upgradeVersion"
-)
+// TagValue is the value the tag must have to be serialized.
+const TagValue = "true"
 
 var _ StructFielder = (*structFielder)(nil)
-
-type FieldDesc struct {
-	Index          int
-	MaxSliceLen    uint32
-	Nullable       bool
-	UpgradeVersion uint16
-}
-
-type SerializedFields struct {
-	Fields            []FieldDesc
-	CheckUpgrade      bool
-	MaxUpgradeVersion uint16
-}
 
 // StructFielder handles discovery of serializable fields in a struct.
 type StructFielder interface {
 	// Returns the fields that have been marked as serializable in [t], which is
-	// a struct type. Additionally, returns the custom maximum length slice that
-	// may be serialized into the field, if any.
+	// a struct type.
 	// Returns an error if a field has tag "[tagName]: [TagValue]" but the field
 	// is un-exported.
 	// GetSerializedField(Foo) --> [1,5,8] means Foo.Field(1), Foo.Field(5),
 	// Foo.Field(8) are to be serialized/deserialized.
-	GetSerializedFields(t reflect.Type) (*SerializedFields, error)
+	GetSerializedFields(t reflect.Type) ([]int, error)
 }
 
-func NewStructFielder(tagNames []string, maxSliceLen uint32) StructFielder {
+func NewStructFielder(tagNames []string) StructFielder {
 	return &structFielder{
 		tags:                   tagNames,
-		maxSliceLen:            maxSliceLen,
-		serializedFieldIndices: make(map[reflect.Type]*SerializedFields),
+		serializedFieldIndices: make(map[reflect.Type][]int),
 	}
 }
 
 type structFielder struct {
-	lock sync.Mutex
+	lock sync.RWMutex
 
 	// multiple tags per field can be specified. A field is serialized/deserialized
 	// if it has at least one of the specified tags.
 	tags []string
-
-	maxSliceLen uint32
 
 	// Key: a struct type
 	// Value: Slice where each element is index in the struct type of a field
 	// that is serialized/deserialized e.g. Foo --> [1,5,8] means Foo.Field(1),
 	// etc. are to be serialized/deserialized. We assume this cache is pretty
 	// small (a few hundred keys at most) and doesn't take up much memory.
-	serializedFieldIndices map[reflect.Type]*SerializedFields
+	serializedFieldIndices map[reflect.Type][]int
 }
 
-func (s *structFielder) GetSerializedFields(t reflect.Type) (*SerializedFields, error) {
+func (s *structFielder) GetSerializedFields(t reflect.Type) ([]int, error) {
+	if serializedFields, ok := s.getCachedSerializedFields(t); ok { // use pre-computed result
+		return serializedFields, nil
+	}
+
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if s.serializedFieldIndices == nil {
-		s.serializedFieldIndices = make(map[reflect.Type]*SerializedFields)
-	}
-	if serializedFields, ok := s.serializedFieldIndices[t]; ok { // use pre-computed result
-		return serializedFields, nil
-	}
 	numFields := t.NumField()
-	checkUpgrade := false
-	startIndex := 0
-	if numFields > 0 && t.Field(0).Type.Kind() == reflect.Uint64 &&
-		t.Field(0).Name == UpgradeVersionIDFieldName {
-		checkUpgrade = true
-		startIndex = 1
-	}
-	serializedFields := &SerializedFields{Fields: make([]FieldDesc, 0, numFields), CheckUpgrade: checkUpgrade}
-	maxUpgradeVersion := uint16(0)
-	for i := startIndex; i < numFields; i++ { // Go through all fields of this struct
+	serializedFields := make([]int, 0, numFields)
+	for i := 0; i < numFields; i++ { // Go through all fields of this struct
 		field := t.Field(i)
 
 		// Multiple tags per fields can be specified.
 		// Serialize/Deserialize field if it has
 		// any tag with the right value
-		var (
-			captureField bool
-			nullable     bool
-		)
+		var captureField bool
 		for _, tag := range s.tags {
-			switch field.Tag.Get(tag) {
-			case TagValue:
+			if field.Tag.Get(tag) == TagValue {
 				captureField = true
-			case TagWithNullableValue:
-				captureField = true
-				nullable = true
-			}
-			if captureField {
 				break
 			}
 		}
@@ -140,31 +91,17 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) (*SerializedFields, 
 				field.Name,
 			)
 		}
-
-		upgradeVersionTag := field.Tag.Get(UpgradeVersionTagName)
-		upgradeVersion := uint16(0)
-		if upgradeVersionTag != "" {
-			v, err := strconv.ParseUint(upgradeVersionTag, 10, 8)
-			if err != nil {
-				return nil, fmt.Errorf("can't parse %s (%s)", UpgradeVersionTagName, upgradeVersionTag)
-			}
-			upgradeVersion = uint16(v)
-			maxUpgradeVersion = upgradeVersion
-		}
-		sliceLenField := field.Tag.Get(SliceLenTagName)
-		maxSliceLen := s.maxSliceLen
-
-		if newLen, err := strconv.ParseUint(sliceLenField, 10, 31); err == nil {
-			maxSliceLen = uint32(newLen)
-		}
-		serializedFields.Fields = append(serializedFields.Fields, FieldDesc{
-			Index:          i,
-			MaxSliceLen:    maxSliceLen,
-			Nullable:       nullable,
-			UpgradeVersion: upgradeVersion,
-		})
+		serializedFields = append(serializedFields, i)
 	}
 	serializedFields.MaxUpgradeVersion = maxUpgradeVersion
 	s.serializedFieldIndices[t] = serializedFields // cache result
 	return serializedFields, nil
+}
+
+func (s *structFielder) getCachedSerializedFields(t reflect.Type) ([]int, bool) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	cachedFields, ok := s.serializedFieldIndices[t]
+	return cachedFields, ok
 }

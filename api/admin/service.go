@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package admin
@@ -377,7 +377,7 @@ func (a *Admin) LoadVMs(r *http.Request, args *Secret, reply *LoadVMsReply) erro
 	defer a.lock.Unlock()
 
 	ctx := r.Context()
-	loadedVMs, failedVMs, err := a.VMRegistry.ReloadWithReadLock(ctx)
+	loadedVMs, failedVMs, err := a.VMRegistry.Reload(ctx)
 	if err != nil {
 		return err
 	}

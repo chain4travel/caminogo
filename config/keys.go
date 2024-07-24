@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package config
@@ -23,6 +23,8 @@ const (
 	GenesisFileKey                                     = "genesis-file"
 	GenesisFileContentKey                              = "genesis-file-content"
 	NetworkNameKey                                     = "network-id"
+	ACPSupportKey                                      = "acp-support"
+	ACPObjectKey                                       = "acp-object"
 	TxFeeKey                                           = "tx-fee"
 	CreateAssetTxFeeKey                                = "create-asset-tx-fee"
 	CreateSubnetTxFeeKey                               = "create-subnet-tx-fee"
@@ -102,6 +104,8 @@ const (
 	NetworkPeerListNonValidatorGossipSizeKey           = "network-peer-list-non-validator-gossip-size"
 	NetworkPeerListPeersGossipSizeKey                  = "network-peer-list-peers-gossip-size"
 	NetworkPeerListGossipFreqKey                       = "network-peer-list-gossip-frequency"
+	NetworkPeerListPullGossipFreqKey                   = "network-peer-list-pull-gossip-frequency"
+	NetworkPeerListBloomResetFreqKey                   = "network-peer-list-bloom-reset-frequency"
 	NetworkInitialReconnectDelayKey                    = "network-initial-reconnect-delay"
 	NetworkReadHandshakeTimeoutKey                     = "network-read-handshake-timeout"
 	NetworkPingTimeoutKey                              = "network-ping-timeout"
@@ -138,6 +142,7 @@ const (
 	SnowConfidenceQuorumSizeKey                        = "snow-confidence-quorum-size"
 	SnowVirtuousCommitThresholdKey                     = "snow-virtuous-commit-threshold"
 	SnowRogueCommitThresholdKey                        = "snow-rogue-commit-threshold"
+	SnowCommitThresholdKey                             = "snow-commit-threshold"
 	SnowConcurrentRepollsKey                           = "snow-concurrent-repolls"
 	SnowOptimalProcessingKey                           = "snow-optimal-processing"
 	SnowMaxProcessingKey                               = "snow-max-processing"

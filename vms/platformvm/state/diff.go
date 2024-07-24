@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -27,7 +27,8 @@ import (
 )
 
 var (
-	_ Diff = (*diff)(nil)
+	_ Diff     = (*diff)(nil)
+	_ Versions = stateGetter{}
 
 	ErrMissingParentState = errors.New("missing parent state")
 )
@@ -87,6 +88,20 @@ func NewDiff(
 		subnetOwners:  make(map[ids.ID]fx.Owner),
 		caminoDiff:    newCaminoDiff(),
 	}, nil
+}
+
+type stateGetter struct {
+	state Chain
+}
+
+func (s stateGetter) GetState(ids.ID) (Chain, bool) {
+	return s.state, true
+}
+
+func NewDiffOn(parentState Chain) (Diff, error) {
+	return NewDiff(ids.Empty, stateGetter{
+		state: parentState,
+	})
 }
 
 func (d *diff) GetTimestamp() time.Time {

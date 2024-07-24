@@ -8,13 +8,14 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
 
 import (
 	"math"
+	"time"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
@@ -27,8 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
-// Version is the current default codec version
-const Version = 0
+const CodecVersion = 0
 
 var (
 	Codec codec.Manager
@@ -40,11 +40,13 @@ var (
 	GenesisCodec codec.Manager
 )
 
-func init() {
-	c := linearcodec.NewCaminoDefault()
-	Codec = codec.NewDefaultManager()
-	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32)
-	GenesisCodec = codec.NewManager(math.MaxInt32)
+// TODO: Remove after v1.11.x has activated
+//
+// Invariant: InitCodec, Codec, and GenesisCodec must not be accessed
+// concurrently
+func InitCodec(durangoTime time.Time) error {
+	c := linearcodec.NewCaminoDefault(durangoTime)
+	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32, time.Time{})
 
 	errs := wrappers.Errs{}
 	for _, c := range []linearcodec.CaminoCodec{c, gc} {
@@ -59,12 +61,25 @@ func init() {
 
 		errs.Add(RegisterDUnsignedTxsTypes(c))
 	}
+
+	newCodec := codec.NewDefaultManager()
+	newGenesisCodec := codec.NewManager(math.MaxInt32)
 	errs.Add(
-		Codec.RegisterCodec(Version, c),
-		GenesisCodec.RegisterCodec(Version, gc),
+		newCodec.RegisterCodec(CodecVersion, c),
+		newGenesisCodec.RegisterCodec(CodecVersion, gc),
 	)
 	if errs.Errored() {
-		panic(errs.Err)
+		return errs.Err
+	}
+
+	Codec = newCodec
+	GenesisCodec = newGenesisCodec
+	return nil
+}
+
+func init() {
+	if err := InitCodec(time.Time{}); err != nil {
+		panic(err)
 	}
 }
 

@@ -69,6 +69,13 @@ jobs:
       - name: Run e2e tests
         shell: bash
         run: E2E_SERIAL=1 ./scripts/tests.e2e.sh
+      - name: Upload tmpnet network dir
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-tmpnet-data
+          path: ${{ env.tmpnet_data_path }}
+          if-no-files-found: error
   e2e_existing_network:
     runs-on: ubuntu-latest
     steps:
@@ -85,6 +92,13 @@ jobs:
       - name: Run e2e tests with existing network
         shell: bash
         run: E2E_SERIAL=1 ./scripts/tests.e2e.existing.sh
+      - name: Upload tmpnet network dir
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-existing-network-tmpnet-data
+          path: ${{ env.tmpnet_data_path }}
+          if-no-files-found: error
   Upgrade:
     runs-on: ubuntu-latest
     steps:
@@ -99,6 +113,13 @@ jobs:
       - name: Run e2e tests
         shell: bash
         run: ./scripts/tests.upgrade.sh
+      - name: Upload tmpnet network dir
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upgrade-tmpnet-data
+          path: ${{ env.tmpnet_data_path }}
+          if-no-files-found: error
   Lint:
     runs-on: ubuntu-latest
     steps:
