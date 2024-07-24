@@ -359,7 +359,7 @@ func (p *postForkCommonComponents) verifyPreDurangoBlockDelay(
 
 	delay := blkTimestamp.Sub(parentTimestamp)
 	if delay < minDelay {
-		return false, errProposerWindowNotStarted
+		return false, fmt.Errorf("%w: delay %s < minDelay %s", errProposerWindowNotStarted, delay, minDelay)
 	}
 
 	return delay < proposer.MaxVerifyDelay, nil
@@ -374,6 +374,7 @@ func (p *postForkCommonComponents) verifyPostDurangoBlockDelay(
 	var (
 		blkTimestamp = blk.Timestamp()
 		blkHeight    = blk.Height()
+		currentSlot  = proposer.TimeToSlot(parentTimestamp, blkTimestamp)
 		proposerID   = blk.Proposer()
 	)
 
@@ -381,7 +382,7 @@ func (p *postForkCommonComponents) verifyPostDurangoBlockDelay(
 		ctx,
 		blkHeight,
 		parentPChainHeight,
-		proposer.TimeToSlot(parentTimestamp, blkTimestamp),
+		currentSlot,
 	)
 	switch {
 	case errors.Is(err, proposer.ErrAnyoneCanPropose):
@@ -396,7 +397,7 @@ func (p *postForkCommonComponents) verifyPostDurangoBlockDelay(
 	case expectedProposerID == proposerID:
 		return true, nil // block should be signed
 	default:
-		return false, errUnexpectedProposer
+		return false, fmt.Errorf("%w: slot %d expects %s", errUnexpectedProposer, currentSlot, expectedProposerID)
 	}
 }
 
@@ -464,7 +465,7 @@ func (p *postForkCommonComponents) shouldBuildSignedBlockPostDurango(
 	// In case the inner VM only issued one pendingTxs message, we should
 	// attempt to re-handle that once it is our turn to build the block.
 	p.vm.notifyInnerBlockReady()
-	return false, errProposerWindowNotStarted
+	return false, fmt.Errorf("%w: slot %d expects %s", errUnexpectedProposer, currentSlot, expectedProposerID)
 }
 
 func (p *postForkCommonComponents) shouldBuildSignedBlockPreDurango(
@@ -509,5 +510,5 @@ func (p *postForkCommonComponents) shouldBuildSignedBlockPreDurango(
 	// In case the inner VM only issued one pendingTxs message, we should
 	// attempt to re-handle that once it is our turn to build the block.
 	p.vm.notifyInnerBlockReady()
-	return false, errProposerWindowNotStarted
+	return false, fmt.Errorf("%w: delay %s < minDelay %s", errProposerWindowNotStarted, delay, minDelay)
 }

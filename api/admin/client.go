@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -17,7 +17,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/api"
+	"github.com/ava-labs/avalanchego/database/rpcdb"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/rpc"
 )
@@ -38,6 +40,7 @@ type Client interface {
 	SetLoggerLevel(ctx context.Context, loggerName, logLevel, displayLevel string, options ...rpc.Option) (map[string]LogAndDisplayLevels, error)
 	GetLoggerLevel(ctx context.Context, loggerName string, options ...rpc.Option) (map[string]LogAndDisplayLevels, error)
 	GetConfig(ctx context.Context, options ...rpc.Option) (interface{}, error)
+	DBGet(ctx context.Context, key []byte, options ...rpc.Option) ([]byte, error)
 	GetNodeSigner(ctx context.Context, _ string, options ...rpc.Option) (*GetNodeSignerReply, error)
 }
 
@@ -162,4 +165,24 @@ func (c *client) GetNodeSigner(ctx context.Context, _ string, options ...rpc.Opt
 	res := &GetNodeSignerReply{}
 	err := c.requester.SendRequest(ctx, "getNodeSigner", Secret{c.secret}, res, options...)
 	return res, err
+}
+
+func (c *client) DBGet(ctx context.Context, key []byte, options ...rpc.Option) ([]byte, error) {
+	keyStr, err := formatting.Encode(formatting.HexNC, key)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &DBGetReply{}
+	err = c.requester.SendRequest(ctx, "admin.dbGet", &DBGetArgs{
+		Key: keyStr,
+	}, res, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := rpcdb.ErrEnumToError[res.ErrorCode]; err != nil {
+		return nil, err
+	}
+	return formatting.Decode(formatting.HexNC, res.Value)
 }
