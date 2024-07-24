@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -27,8 +27,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/staking"
 	"github.com/ava-labs/avalanchego/vms/proposervm/block"
-
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 )
 
 func testBlockState(a *require.Assertions, bs BlockState) {
@@ -41,19 +39,14 @@ func testBlockState(a *require.Assertions, bs BlockState) {
 	tlsCert, err := staking.NewTLSCert()
 	a.NoError(err)
 
-	cert := staking.CertificateFromX509(tlsCert.Leaf)
+	cert, err := staking.CertificateFromX509(tlsCert.Leaf)
 	key := tlsCert.PrivateKey.(crypto.Signer)
-
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert.Leaf)
-	a.NoError(err)
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
 	a.NoError(err)
 
 	b, err := block.Build(
 		parentID,
 		timestamp,
 		pChainHeight,
-		nodeID,
 		cert,
 		innerBlockBytes,
 		chainID,
@@ -111,7 +104,7 @@ func TestGetBlockWithUncachedBlock(t *testing.T) {
 		block:  blk,
 	}
 
-	bytes, err := c.Marshal(version, &blkWrapper)
+	bytes, err := Codec.Marshal(CodecVersion, &blkWrapper)
 	a.NoError(err)
 
 	blkID := blk.ID()
@@ -133,20 +126,15 @@ func initCommonTestData(a *require.Assertions) (database.Database, BlockState, b
 	chainID := ids.ID{4}
 
 	tlsCert, _ := staking.NewTLSCert()
-	cert := staking.CertificateFromX509(tlsCert.Leaf)
+	cert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	a.NoError(err)
 
 	key := tlsCert.PrivateKey.(crypto.Signer)
-
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert.Leaf)
-	a.NoError(err)
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
-	a.NoError(err)
 
 	blk, err := block.Build(
 		parentID,
 		timestamp,
 		pChainHeight,
-		nodeID,
 		cert,
 		innerBlockBytes,
 		chainID,

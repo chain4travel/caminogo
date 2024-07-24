@@ -4,6 +4,7 @@
 package secp256k1
 
 import (
+	"crypto"
 	rsa "crypto/rsa"
 	x509 "crypto/x509"
 	"crypto/x509/pkix"
@@ -20,9 +21,10 @@ import (
 var oidLocalKeyID = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 21}
 
 var (
-	errWrongCertType = errors.New("wrong certificate type")
-	errNoSignature   = errors.New("failed to extract signature from certificate")
-	errRecoverFailed = errors.New("failed to recover public key")
+	errNoSignature        = errors.New("failed to extract signature from certificate")
+	errRecoverFailed      = errors.New("failed to recover public key")
+	errNotRSAPublicKey    = errors.New("certificate public key is not rsa public key")
+	ErrWrongExtensionType = errors.New("wrong extension type")
 )
 
 // Takes a RSA privateKey and builds using it's hash an secp256k1 private key.
@@ -49,26 +51,34 @@ func SignRsaPublicKey(privKey *secp256k1.PrivateKey, pubKey *rsa.PublicKey) *pki
 // This is the reverse what has been done in RsaPrivateKeyToSecp256PrivateKey
 // It returns the marshalled public key
 func RecoverSecp256PublicKey(cert *x509.Certificate) ([]byte, error) {
-	// Recover RSA public key from certificate
-	rPubKey := cert.PublicKey.(*rsa.PublicKey)
-	if rPubKey == nil {
-		return nil, errWrongCertType
-	}
-
-	// Locate the signature in certificate
-	var signature []byte
 	for _, ext := range cert.Extensions {
 		if ext.Id.Equal(oidLocalKeyID) {
-			signature = ext.Value
-			break
+			return recoverSecp256PublicKeyFromExtension(&ext, cert.PublicKey) //nolint:gosec
 		}
 	}
-	if signature == nil {
+	return nil, errNoSignature
+}
+
+func RecoverSecp256PublicKeyFromExtension(ext *pkix.Extension, publicKey crypto.PublicKey) ([]byte, error) {
+	if !ext.Id.Equal(oidLocalKeyID) {
+		return nil, ErrWrongExtensionType
+	}
+
+	return recoverSecp256PublicKeyFromExtension(ext, publicKey)
+}
+
+func recoverSecp256PublicKeyFromExtension(ext *pkix.Extension, publicKey crypto.PublicKey) ([]byte, error) {
+	if ext.Value == nil {
 		return nil, errNoSignature
 	}
 
-	data := hashing.ComputeHash256(x509.MarshalPKCS1PublicKey(rPubKey))
-	sPubKey, _, err := ecdsa.RecoverCompact(signature, data)
+	rsaPubKey, ok := publicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, errNotRSAPublicKey
+	}
+
+	data := hashing.ComputeHash256(x509.MarshalPKCS1PublicKey(rsaPubKey))
+	sPubKey, _, err := ecdsa.RecoverCompact(ext.Value, data)
 	if err != nil {
 		return nil, errRecoverFailed
 	}

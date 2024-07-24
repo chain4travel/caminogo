@@ -33,7 +33,7 @@ func TestGetProposal(t *testing.T) {
 			TotalAllowedVoters: 5,
 		},
 	}
-	proposalBytes, err := dac.Codec.Marshal(block.Version, wrapper)
+	proposalBytes, err := dac.Codec.Marshal(block.CodecVersion, wrapper)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -845,9 +845,9 @@ func TestWriteProposals(t *testing.T) {
 	}}
 
 	proposalEndtime := proposalWrapper2.EndTime()
-	proposal1Bytes, err := dac.Codec.Marshal(block.Version, proposalWrapper1)
+	proposal1Bytes, err := dac.Codec.Marshal(block.CodecVersion, proposalWrapper1)
 	require.NoError(t, err)
-	proposal2Bytes, err := dac.Codec.Marshal(block.Version, proposalWrapper2)
+	proposal2Bytes, err := dac.Codec.Marshal(block.CodecVersion, proposalWrapper2)
 	require.NoError(t, err)
 
 	tests := map[string]struct {

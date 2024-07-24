@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package executor
@@ -321,6 +321,7 @@ func TestVerifierVisitCommitBlock(t *testing.T) {
 	mempool := mempool.NewMockMempool(ctrl)
 	parentID := ids.GenerateTestID()
 	parentStatelessBlk := block.NewMockBlock(ctrl)
+	parentOnDecisionState := state.NewMockDiff(ctrl)
 	parentOnCommitState := state.NewMockDiff(ctrl)
 	parentOnAbortState := state.NewMockDiff(ctrl)
 
@@ -329,10 +330,10 @@ func TestVerifierVisitCommitBlock(t *testing.T) {
 			parentID: {
 				statelessBlock: parentStatelessBlk,
 				proposalBlockState: proposalBlockState{
-					onCommitState: parentOnCommitState,
-					onAbortState:  parentOnAbortState,
+					onDecisionState: parentOnDecisionState,
+					onCommitState:   parentOnCommitState,
+					onAbortState:    parentOnAbortState,
 				},
-				standardBlockState: standardBlockState{},
 			},
 		},
 		Mempool: mempool,
@@ -391,6 +392,7 @@ func TestVerifierVisitAbortBlock(t *testing.T) {
 	mempool := mempool.NewMockMempool(ctrl)
 	parentID := ids.GenerateTestID()
 	parentStatelessBlk := block.NewMockBlock(ctrl)
+	parentOnDecisionState := state.NewMockDiff(ctrl)
 	parentOnCommitState := state.NewMockDiff(ctrl)
 	parentOnAbortState := state.NewMockDiff(ctrl)
 
@@ -399,10 +401,10 @@ func TestVerifierVisitAbortBlock(t *testing.T) {
 			parentID: {
 				statelessBlock: parentStatelessBlk,
 				proposalBlockState: proposalBlockState{
-					onCommitState: parentOnCommitState,
-					onAbortState:  parentOnAbortState,
+					onDecisionState: parentOnDecisionState,
+					onCommitState:   parentOnCommitState,
+					onAbortState:    parentOnAbortState,
 				},
-				standardBlockState: standardBlockState{},
 			},
 		},
 		Mempool: mempool,
@@ -559,9 +561,11 @@ func TestBanffAbortBlockTimestampChecks(t *testing.T) {
 
 			// setup parent state
 			parentTime := defaultGenesisTime
-			s.EXPECT().GetLastAccepted().Return(parentID).Times(2)
-			s.EXPECT().GetTimestamp().Return(parentTime).Times(2)
+			s.EXPECT().GetLastAccepted().Return(parentID).Times(3)
+			s.EXPECT().GetTimestamp().Return(parentTime).Times(3)
 
+			onDecisionState, err := state.NewDiff(parentID, backend)
+			require.NoError(err)
 			onCommitState, err := state.NewDiff(parentID, backend)
 			require.NoError(err)
 			onAbortState, err := state.NewDiff(parentID, backend)
@@ -570,8 +574,9 @@ func TestBanffAbortBlockTimestampChecks(t *testing.T) {
 				timestamp:      test.parentTime,
 				statelessBlock: parentStatelessBlk,
 				proposalBlockState: proposalBlockState{
-					onCommitState: onCommitState,
-					onAbortState:  onAbortState,
+					onDecisionState: onDecisionState,
+					onCommitState:   onCommitState,
+					onAbortState:    onAbortState,
 				},
 			}
 
@@ -652,9 +657,11 @@ func TestBanffCommitBlockTimestampChecks(t *testing.T) {
 
 			// setup parent state
 			parentTime := defaultGenesisTime
-			s.EXPECT().GetLastAccepted().Return(parentID).Times(2)
-			s.EXPECT().GetTimestamp().Return(parentTime).Times(2)
+			s.EXPECT().GetLastAccepted().Return(parentID).Times(3)
+			s.EXPECT().GetTimestamp().Return(parentTime).Times(3)
 
+			onDecisionState, err := state.NewDiff(parentID, backend)
+			require.NoError(err)
 			onCommitState, err := state.NewDiff(parentID, backend)
 			require.NoError(err)
 			onAbortState, err := state.NewDiff(parentID, backend)
@@ -663,8 +670,9 @@ func TestBanffCommitBlockTimestampChecks(t *testing.T) {
 				timestamp:      test.parentTime,
 				statelessBlock: parentStatelessBlk,
 				proposalBlockState: proposalBlockState{
-					onCommitState: onCommitState,
-					onAbortState:  onAbortState,
+					onDecisionState: onDecisionState,
+					onCommitState:   onCommitState,
+					onAbortState:    onAbortState,
 				},
 			}
 
@@ -696,11 +704,9 @@ func TestVerifierVisitStandardBlockWithDuplicateInputs(t *testing.T) {
 	backend := &backend{
 		blkIDToState: map[ids.ID]*blockState{
 			grandParentID: {
-				standardBlockState: standardBlockState{
-					inputs: atomicInputs,
-				},
 				statelessBlock: grandParentStatelessBlk,
 				onAcceptState:  grandParentState,
+				inputs:         atomicInputs,
 			},
 			parentID: {
 				statelessBlock: parentStatelessBlk,
@@ -794,7 +800,6 @@ func TestVerifierVisitApricotStandardBlockWithProposalBlockParent(t *testing.T) 
 					onCommitState: parentOnCommitState,
 					onAbortState:  parentOnAbortState,
 				},
-				standardBlockState: standardBlockState{},
 			},
 		},
 		Mempool: mempool,
@@ -852,7 +857,6 @@ func TestVerifierVisitBanffStandardBlockWithProposalBlockParent(t *testing.T) {
 					onCommitState: parentOnCommitState,
 					onAbortState:  parentOnAbortState,
 				},
-				standardBlockState: standardBlockState{},
 			},
 		},
 		Mempool: mempool,

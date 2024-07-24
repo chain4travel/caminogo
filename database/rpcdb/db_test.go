@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcdb
@@ -71,6 +71,13 @@ func FuzzKeyValue(f *testing.F) {
 func FuzzNewIteratorWithPrefix(f *testing.F) {
 	db := setupDB(f)
 	database.FuzzNewIteratorWithPrefix(f, db.client)
+
+	db.closeFn()
+}
+
+func FuzzNewIteratorWithStartAndPrefix(f *testing.F) {
+	db := setupDB(f)
+	database.FuzzNewIteratorWithStartAndPrefix(f, db.client)
 
 	db.closeFn()
 }

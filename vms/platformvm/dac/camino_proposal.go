@@ -25,6 +25,8 @@ var (
 	errWrongOptionsCount          = errors.New("wrong options count")
 	errEndNotAfterStart           = errors.New("proposal end-time is not after start-time")
 	errWrongDuration              = errors.New("wrong proposal duration")
+	ErrNotActive                  = errors.New("proposal is not active anymore")
+	ErrNotYetActive               = errors.New("proposal is not yet active")
 	ErrWrongVote                  = errors.New("this proposal can't be voted with this vote")
 	ErrNotAllowedToVoteOnProposal = errors.New("this address has already voted or not allowed to vote on this proposal")
 
@@ -78,7 +80,7 @@ type Proposal interface {
 
 type ProposalState interface {
 	EndTime() time.Time
-	IsActiveAt(time time.Time) bool
+	VerifyActive(time time.Time) error
 	// Once a proposal has become Finishable, it cannot be undone by adding more votes. Should only return true, when future votes cannot change the outcome of proposal.
 	CanBeFinished() bool
 	IsSuccessful() bool // should be called only for finished proposals

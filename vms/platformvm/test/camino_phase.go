@@ -4,6 +4,7 @@
 package test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 	PhaseCortina  Phase = 3 // avax, included into Berlin phase
 	PhaseBerlin   Phase = 3
 	PhaseCairo    Phase = 4
+	PhaseDurango  Phase = math.MaxInt // avax
 )
 
 // TODO @evlekht we might want to clean up sunrise/banff timestamps/relations later

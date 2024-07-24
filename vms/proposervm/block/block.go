@@ -8,20 +8,18 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package block
 
 import (
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/staking"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
@@ -40,7 +38,7 @@ type Block interface {
 	Block() []byte
 	Bytes() []byte
 
-	initialize(bytes []byte) error
+	initialize(bytes []byte, durangoTime time.Time) error
 }
 
 type SignedBlock interface {
@@ -88,7 +86,7 @@ func (b *statelessBlock) Bytes() []byte {
 	return b.bytes
 }
 
-func (b *statelessBlock) initialize(bytes []byte) error {
+func (b *statelessBlock) initialize(bytes []byte, durangoTime time.Time) error {
 	b.bytes = bytes
 
 	// The serialized form of the block is the unsignedBytes followed by the
@@ -103,23 +101,18 @@ func (b *statelessBlock) initialize(bytes []byte) error {
 		return nil
 	}
 
-	tlsCert, err := x509.ParseCertificate(b.StatelessBlock.Certificate)
+	// TODO: Remove durangoTime after v1.11.x has activated.
+	var err error
+	if b.timestamp.Before(durangoTime) {
+		b.cert, err = staking.ParseCertificate(b.StatelessBlock.Certificate)
+	} else {
+		b.cert, err = staking.ParseCertificatePermissive(b.StatelessBlock.Certificate)
+	}
 	if err != nil {
 		return fmt.Errorf("%w: %w", errInvalidCertificate, err)
 	}
 
-	cert := staking.CertificateFromX509(tlsCert)
-	b.cert = cert
-
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert)
-	if err != nil {
-		return err
-	}
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
-	if err != nil {
-		return err
-	}
-	b.proposer = nodeID
+	b.proposer = b.cert.NodeID
 	return nil
 }
 

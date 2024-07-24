@@ -9,58 +9,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/timer"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/block"
-	blockexecutor "github.com/ava-labs/avalanchego/vms/platformvm/block/executor"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	txBuilder "github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
-	txexecutor "github.com/ava-labs/avalanchego/vms/platformvm/txs/executor"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
-
-// Overriding axax block builder methods with caminoBuilder methods
-// must be done with consideration, that network uses reference to avax builder,
-// not to camino builder. So it will actually call avax builder methods.
-
-type caminoBuilder struct {
-	builder
-	caminoTxBuilder txBuilder.CaminoBuilder
-}
-
-func CaminoNew(
-	mempool mempool.Mempool,
-	txBuilder txBuilder.CaminoBuilder,
-	txExecutorBackend *txexecutor.Backend,
-	blkManager blockexecutor.Manager,
-	toEngine chan<- common.Message,
-	appSender common.AppSender,
-) Builder {
-	builder := &caminoBuilder{
-		builder: builder{
-			Mempool:           mempool,
-			txExecutorBackend: txExecutorBackend,
-			blkManager:        blkManager,
-			toEngine:          toEngine,
-			txBuilder:         txBuilder,
-		},
-		caminoTxBuilder: txBuilder,
-	}
-
-	builder.timer = timer.NewTimer(builder.setNextBuildBlockTime)
-
-	builder.Network = NewCaminoNetwork(
-		txExecutorBackend.Ctx,
-		builder,
-		appSender,
-		builder.caminoTxBuilder,
-	)
-
-	go txExecutorBackend.Ctx.Log.RecoverAndPanic(builder.timer.Dispatch)
-	return builder
-}
 
 func caminoBuildBlock(
 	builder *builder,
@@ -87,6 +41,13 @@ func caminoBuildBlock(
 			return nil, fmt.Errorf("could not build tx to unlock deposits: %w", err)
 		}
 
+		// User-signed unlockDepositTx with partial unlock and
+		// system-issued unlockDepositTx with full unlock for the same deposit
+		// will conflict with each other resulting in block rejection.
+		// After that, txs (depending on node config) could be re-added to mempool
+		// and this case could happen again.
+		// Because of this, we can't allow block with system unlockDepositTx contain other txs.
+
 		return block.NewBanffStandardBlock(
 			timestamp,
 			parentID,
@@ -109,6 +70,14 @@ func caminoBuildBlock(
 		if err != nil {
 			return nil, fmt.Errorf("could not build tx to finish proposals: %w", err)
 		}
+
+		// User-signed addVoteTx and system-issued finishProposalsTx for the same proposal
+		// will conflict with each other resulting either in block rejection or
+		// in possible unexpected proposal outcome (finishProposalsTx issuing desicion
+		// is happenning based on before this addVoteTx state).
+		// After that, if block is rejected, txs (depending on node config) could be re-added to mempool
+		// and this case could happen again.
+		// Because of this, we can't allow block with system finishProposalsTx contain other txs.
 
 		// FinishProposalsTx should never be in block with addVoteTx,
 		// because it can affect state of proposals.

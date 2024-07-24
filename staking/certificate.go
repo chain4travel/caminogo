@@ -1,13 +1,20 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package staking
 
-import "crypto/x509"
+import (
+	"crypto"
+	"crypto/x509"
+
+	"github.com/ava-labs/avalanchego/ids"
+)
 
 type Certificate struct {
-	Raw                []byte
-	PublicKey          any
+	Raw       []byte
+	NodeID    ids.NodeID
+	PublicKey crypto.PublicKey
+	// TODO: Remove after v1.11.x activates.
 	SignatureAlgorithm x509.SignatureAlgorithm
 }
 
@@ -15,10 +22,15 @@ type Certificate struct {
 //
 // Invariant: The provided certificate must be a parseable into a staking
 // certificate.
-func CertificateFromX509(cert *x509.Certificate) *Certificate {
+func CertificateFromX509(cert *x509.Certificate) (*Certificate, error) {
+	nodeID, err := TLSCertToID(cert)
+	if err != nil {
+		return nil, err
+	}
 	return &Certificate{
 		Raw:                cert.Raw,
+		NodeID:             nodeID,
 		PublicKey:          cert.PublicKey,
 		SignatureAlgorithm: cert.SignatureAlgorithm,
-	}
+	}, nil
 }

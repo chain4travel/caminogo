@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -51,11 +51,11 @@ func TestRemoveSubnetValidatorTxSerialization(t *testing.T) {
 		0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88,
 		0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88,
 	}
-	nodeID := ids.NodeID{
+	nodeID := ids.BuildTestNodeID([]byte{
 		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
 		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
 		0x11, 0x22, 0x33, 0x44,
-	}
+	})
 	subnetID := ids.ID{
 		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 		0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -157,7 +157,7 @@ func TestRemoveSubnetValidatorTxSerialization(t *testing.T) {
 		0x00, 0x00, 0x00, 0x03,
 	}
 	var unsignedSimpleRemoveValidatorTx UnsignedTx = simpleRemoveValidatorTx
-	unsignedSimpleRemoveValidatorTxBytes, err := Codec.Marshal(Version, &unsignedSimpleRemoveValidatorTx)
+	unsignedSimpleRemoveValidatorTxBytes, err := Codec.Marshal(CodecVersion, &unsignedSimpleRemoveValidatorTx)
 	require.NoError(err)
 	require.Equal(expectedUnsignedSimpleRemoveValidatorTxBytes, unsignedSimpleRemoveValidatorTxBytes)
 
@@ -417,7 +417,7 @@ func TestRemoveSubnetValidatorTxSerialization(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00,
 	}
 	var unsignedComplexRemoveValidatorTx UnsignedTx = complexRemoveValidatorTx
-	unsignedComplexRemoveValidatorTxBytes, err := Codec.Marshal(Version, &unsignedComplexRemoveValidatorTx)
+	unsignedComplexRemoveValidatorTxBytes, err := Codec.Marshal(CodecVersion, &unsignedComplexRemoveValidatorTx)
 	require.NoError(err)
 	require.Equal(expectedUnsignedComplexRemoveValidatorTxBytes, unsignedComplexRemoveValidatorTxBytes)
 

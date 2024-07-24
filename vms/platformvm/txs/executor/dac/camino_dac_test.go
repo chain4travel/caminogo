@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -27,7 +26,7 @@ import (
 )
 
 func TestProposalVerifierBaseFeeProposal(t *testing.T) {
-	ctx := snow.DefaultContextTest()
+	ctx := test.Context(t)
 	// TODO @evlekht replace with test.PhaseLast when cairo phase will be added as last
 	defaultConfig := test.Config(t, test.PhaseCairo)
 
@@ -40,7 +39,7 @@ func TestProposalVerifierBaseFeeProposal(t *testing.T) {
 	bondUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty, true)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{End: 1, Options: []uint64{1}}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -207,7 +206,7 @@ func TestProposalExecutorBaseFeeProposal(t *testing.T) {
 }
 
 func TestProposalVerifierAddMemberProposal(t *testing.T) {
-	ctx := snow.DefaultContextTest()
+	ctx := test.Context(t)
 	defaultConfig := test.Config(t, test.PhaseLast)
 
 	feeOwnerKey, _, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
@@ -220,7 +219,7 @@ func TestProposalVerifierAddMemberProposal(t *testing.T) {
 	bondUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty, true)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.AddMemberProposal{End: 1, ApplicantAddress: applicantAddress}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -411,7 +410,7 @@ func TestProposalExecutorAddMemberProposal(t *testing.T) {
 }
 
 func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
-	ctx := snow.DefaultContextTest()
+	ctx := test.Context(t)
 	defaultConfig := test.Config(t, test.PhaseLast)
 
 	feeOwnerKey, _, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
@@ -427,7 +426,7 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 	bondUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty, true)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.ExcludeMemberProposal{End: 1, MemberAddress: memberAddress}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -891,7 +890,7 @@ func TestGetBondTxIDs(t *testing.T) {
 }
 
 func TestProposalVerifierFeeDistributionProposal(t *testing.T) {
-	ctx := snow.DefaultContextTest()
+	ctx := test.Context(t)
 	defaultConfig := test.Config(t, test.PhaseLast)
 
 	feeOwnerKey, _, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
@@ -903,7 +902,7 @@ func TestProposalVerifierFeeDistributionProposal(t *testing.T) {
 	bondUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 6}, ctx.AVAXAssetID, proposalBondAmt, bondOwner, ids.Empty, ids.Empty, true)
 
 	proposal := &txs.ProposalWrapper{Proposal: &dac.FeeDistributionProposal{End: 1, Options: [][dac.FeeDistributionFractionsCount]uint64{{1}}}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
