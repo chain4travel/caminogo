@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package config
@@ -115,8 +115,8 @@ type Config struct {
 	// Time of the Cortina network upgrade
 	CortinaTime time.Time
 
-	// Time of the D network upgrade
-	DTime time.Time
+	// Time of the Durango network upgrade
+	DurangoTime time.Time
 
 	// Time of the Athens Phase network upgrade
 	AthensPhaseTime time.Time
@@ -155,9 +155,8 @@ func (c *Config) IsCortinaActivated(timestamp time.Time) bool {
 	return !timestamp.Before(c.CortinaTime)
 }
 
-// TODO: Rename
-func (c *Config) IsDActivated(timestamp time.Time) bool {
-	return !timestamp.Before(c.DTime)
+func (c *Config) IsDurangoActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.DurangoTime)
 }
 
 func (c *Config) IsAthensPhaseActivated(timestamp time.Time) bool {

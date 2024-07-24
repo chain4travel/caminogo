@@ -121,9 +121,15 @@ func (p *BaseFeeProposalState) EndTime() time.Time {
 	return time.Unix(int64(p.End), 0)
 }
 
-func (p *BaseFeeProposalState) IsActiveAt(time time.Time) bool {
+func (p *BaseFeeProposalState) VerifyActive(time time.Time) error {
 	timestamp := uint64(time.Unix())
-	return p.Start <= timestamp && timestamp <= p.End
+	switch {
+	case timestamp < p.Start:
+		return ErrNotYetActive
+	case timestamp > p.End:
+		return ErrNotActive // should never happen, cause finished proposals removed from state
+	}
+	return nil
 }
 
 func (p *BaseFeeProposalState) CanBeFinished() bool {

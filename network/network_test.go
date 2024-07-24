@@ -1,4 +1,14 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package network
@@ -54,6 +64,8 @@ var (
 		PeerListNonValidatorGossipSize: 100,
 		PeerListPeersGossipSize:        100,
 		PeerListGossipFreq:             time.Second,
+		PeerListPullGossipFreq:         time.Second,
+		PeerListBloomResetFreq:         constants.DefaultNetworkPeerListBloomResetFreq,
 	}
 	defaultTimeoutConfig = TimeoutConfig{
 		PingPongTimeout:      30 * time.Second,
@@ -215,27 +227,16 @@ func newFullyConnectedTestNetwork(t *testing.T, handlers []router.InboundHandler
 		msgCreator := newMessageCreator(t)
 		registry := prometheus.NewRegistry()
 
-		g, err := peer.NewGossipTracker(registry, "foobar")
-		require.NoError(err)
-
-		log := logging.NoLog{}
-		gossipTrackerCallback := peer.GossipTrackerCallback{
-			Log:           log,
-			GossipTracker: g,
-		}
-
 		beacons := validators.NewManager()
 		require.NoError(beacons.AddStaker(constants.PrimaryNetworkID, nodeIDs[0], nil, ids.GenerateTestID(), 1))
 
 		vdrs := validators.NewManager()
-		vdrs.RegisterCallbackListener(constants.PrimaryNetworkID, &gossipTrackerCallback)
 		for _, nodeID := range nodeIDs {
 			require.NoError(vdrs.AddStaker(constants.PrimaryNetworkID, nodeID, nil, ids.GenerateTestID(), 1))
 		}
 
 		config := config
 
-		config.GossipTracker = g
 		config.Beacons = beacons
 		config.Validators = vdrs
 
@@ -244,7 +245,7 @@ func newFullyConnectedTestNetwork(t *testing.T, handlers []router.InboundHandler
 			config,
 			msgCreator,
 			registry,
-			log,
+			logging.NoLog{},
 			listeners[i],
 			dialer,
 			&testHandler{
@@ -405,15 +406,20 @@ func TestTrackVerifiesSignatures(t *testing.T) {
 	nodeID, tlsCert, _ := getTLS(t, 1)
 	require.NoError(network.config.Validators.AddStaker(constants.PrimaryNetworkID, nodeID, nil, ids.Empty, 1))
 
-	_, err := network.Track(ids.EmptyNodeID, []*ips.ClaimedIPPort{{
-		Cert: staking.CertificateFromX509(tlsCert.Leaf),
-		IPPort: ips.IPPort{
-			IP:   net.IPv4(123, 132, 123, 123),
-			Port: 10000,
-		},
-		Timestamp: 1000,
-		Signature: nil,
-	}})
+	stakingCert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	require.NoError(err)
+
+	err = network.Track([]*ips.ClaimedIPPort{
+		ips.NewClaimedIPPort(
+			stakingCert,
+			ips.IPPort{
+				IP:   net.IPv4(123, 132, 123, 123),
+				Port: 10000,
+			},
+			1000, // timestamp
+			nil,  // signature
+		),
+	})
 	// The signature is wrong so this peer tracking info isn't useful.
 	require.ErrorIs(err, rsa.ErrVerification)
 
@@ -437,27 +443,16 @@ func TestTrackDoesNotDialPrivateIPs(t *testing.T) {
 		msgCreator := newMessageCreator(t)
 		registry := prometheus.NewRegistry()
 
-		g, err := peer.NewGossipTracker(registry, "foobar")
-		require.NoError(err)
-
-		log := logging.NoLog{}
-		gossipTrackerCallback := peer.GossipTrackerCallback{
-			Log:           log,
-			GossipTracker: g,
-		}
-
 		beacons := validators.NewManager()
 		require.NoError(beacons.AddStaker(constants.PrimaryNetworkID, nodeIDs[0], nil, ids.GenerateTestID(), 1))
 
 		vdrs := validators.NewManager()
-		vdrs.RegisterCallbackListener(constants.PrimaryNetworkID, &gossipTrackerCallback)
 		for _, nodeID := range nodeIDs {
 			require.NoError(vdrs.AddStaker(constants.PrimaryNetworkID, nodeID, nil, ids.GenerateTestID(), 1))
 		}
 
 		config := config
 
-		config.GossipTracker = g
 		config.Beacons = beacons
 		config.Validators = vdrs
 		config.AllowPrivateIPs = false
@@ -466,7 +461,7 @@ func TestTrackDoesNotDialPrivateIPs(t *testing.T) {
 			config,
 			msgCreator,
 			registry,
-			log,
+			logging.NoLog{},
 			listeners[i],
 			dialer,
 			&testHandler{
@@ -532,23 +527,11 @@ func TestDialDeletesNonValidators(t *testing.T) {
 		msgCreator := newMessageCreator(t)
 		registry := prometheus.NewRegistry()
 
-		g, err := peer.NewGossipTracker(registry, "foobar")
-		require.NoError(err)
-
-		log := logging.NoLog{}
-		gossipTrackerCallback := peer.GossipTrackerCallback{
-			Log:           log,
-			GossipTracker: g,
-		}
-
 		beacons := validators.NewManager()
 		require.NoError(beacons.AddStaker(constants.PrimaryNetworkID, nodeIDs[0], nil, ids.GenerateTestID(), 1))
 
-		vdrs.RegisterCallbackListener(constants.PrimaryNetworkID, &gossipTrackerCallback)
-
 		config := config
 
-		config.GossipTracker = g
 		config.Beacons = beacons
 		config.Validators = vdrs
 		config.AllowPrivateIPs = false
@@ -557,7 +540,7 @@ func TestDialDeletesNonValidators(t *testing.T) {
 			config,
 			msgCreator,
 			registry,
-			log,
+			logging.NoLog{},
 			listeners[i],
 			dialer,
 			&testHandler{
@@ -581,16 +564,16 @@ func TestDialDeletesNonValidators(t *testing.T) {
 	wg.Add(len(networks))
 	for i, net := range networks {
 		if i != 0 {
-			peerAcks, err := net.Track(config.MyNodeID, []*ips.ClaimedIPPort{{
-				Cert:      staking.CertificateFromX509(config.TLSConfig.Certificates[0].Leaf),
-				IPPort:    ip.IPPort,
-				Timestamp: ip.Timestamp,
-				Signature: ip.Signature,
-			}})
+			stakingCert, err := staking.CertificateFromX509(config.TLSConfig.Certificates[0].Leaf)
 			require.NoError(err)
-			// peerAcks is empty because we aren't actually connected to
-			// MyNodeID yet
-			require.Empty(peerAcks)
+			require.NoError(net.Track([]*ips.ClaimedIPPort{
+				ips.NewClaimedIPPort(
+					stakingCert,
+					ip.IPPort,
+					ip.Timestamp,
+					ip.Signature,
+				),
+			}))
 		}
 
 		go func(net Network) {
@@ -694,25 +677,14 @@ func TestAllowConnectionAsAValidator(t *testing.T) {
 		msgCreator := newMessageCreator(t)
 		registry := prometheus.NewRegistry()
 
-		g, err := peer.NewGossipTracker(registry, "foobar")
-		require.NoError(err)
-
-		log := logging.NoLog{}
-		gossipTrackerCallback := peer.GossipTrackerCallback{
-			Log:           log,
-			GossipTracker: g,
-		}
-
 		beacons := validators.NewManager()
 		require.NoError(beacons.AddStaker(constants.PrimaryNetworkID, nodeIDs[0], nil, ids.GenerateTestID(), 1))
 
 		vdrs := validators.NewManager()
-		vdrs.RegisterCallbackListener(constants.PrimaryNetworkID, &gossipTrackerCallback)
 		require.NoError(vdrs.AddStaker(constants.PrimaryNetworkID, nodeIDs[0], nil, ids.GenerateTestID(), 1))
 
 		config := config
 
-		config.GossipTracker = g
 		config.Beacons = beacons
 		config.Validators = vdrs
 		config.RequireValidatorToConnect = true
@@ -721,7 +693,7 @@ func TestAllowConnectionAsAValidator(t *testing.T) {
 			config,
 			msgCreator,
 			registry,
-			log,
+			logging.NoLog{},
 			listeners[i],
 			dialer,
 			&testHandler{

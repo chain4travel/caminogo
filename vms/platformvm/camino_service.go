@@ -244,7 +244,7 @@ func (s *CaminoService) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	reply.SupplyCap = json.Uint64(s.vm.RewardConfig.SupplyCap)
 
 	// Codec information
-	reply.CodecVersion = json.Uint16(txs.Version)
+	reply.CodecVersion = json.Uint16(txs.CodecVersion)
 
 	caminoConfig, err := s.vm.state.CaminoConfig()
 	if err != nil {
@@ -266,26 +266,37 @@ type SetAddressStateArgs struct {
 	Remove  bool               `json:"remove"`
 }
 
-// AddAdressState issues an AddAdressStateTx
-func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
+// AddAddressState issues an AddAddressStateTx
+func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
+
+	tx, err := s.buildAddressStateTx(args)
+	if err != nil {
+		return err
+	}
+
+	response.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildAddressStateTx(args *SetAddressStateArgs) (*txs.Tx, error) {
+	targetAddr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse param Address: %w", err)
+	}
+
+	change, err := s.secpOwnerFromAPI(&args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
 
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	change, err := s.secpOwnerFromAPI(&args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	targetAddr, err := avax.ParseServiceAddress(s.addrManager, args.Address)
-	if err != nil {
-		return fmt.Errorf("couldn't parse param Address: %w", err)
+		return nil, err
 	}
 
 	// Create the transaction
@@ -298,15 +309,10 @@ func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateAr
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf(errCreateTx, err)
+		return nil, fmt.Errorf(errCreateTx, err)
 	}
 
-	response.TxID = tx.ID()
-
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return tx, nil
 }
 
 // GetAddressStates retrieves the state applied to an address (see setAddressState)
@@ -430,7 +436,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errCreateTransferables, err)
 	}
 
-	bytes, err := txs.Codec.Marshal(txs.Version, ins)
+	bytes, err := txs.Codec.Marshal(txs.CodecVersion, ins)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -439,7 +445,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errEncodeTransferables, err)
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, outs)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, outs)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -456,7 +462,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		}
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, owners)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, owners)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeOwners, err)
 	}
@@ -477,26 +483,37 @@ type RegisterNodeArgs struct {
 }
 
 // RegisterNode issues an RegisterNodeTx
-func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: RegisterNode called")
+
+	tx, err := s.buildRegisterNodeTx(args)
+	if err != nil {
+		return err
+	}
+
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildRegisterNodeTx(args *RegisterNodeArgs) (*txs.Tx, error) {
+	// Parse the node owner address.
+	nodeOwnerAddress, err := avax.ParseServiceAddress(s.addrManager, args.NodeOwnerAddress)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse nodeOwnerAddress: %w", err)
+	}
+
+	change, err := s.secpOwnerFromAPI(&args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
 
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	change, err := s.secpOwnerFromAPI(&args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	// Parse the node owner address.
-	nodeOwnerAddress, err := avax.ParseServiceAddress(s.addrManager, args.NodeOwnerAddress)
-	if err != nil {
-		return fmt.Errorf("couldn't parse nodeOwnerAddress: %w", err)
+		return nil, err
 	}
 
 	// Create the transaction
@@ -508,15 +525,10 @@ func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, re
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return tx, nil
 }
 
 type ClaimedAmount struct {
@@ -536,25 +548,28 @@ type ClaimArgs struct {
 }
 
 // Claim issues an ClaimTx
-func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Claim called")
 
-	s.vm.ctx.Lock.Lock()
-	defer s.vm.ctx.Lock.Unlock()
-
-	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
+	tx, err := s.buildClaimTx(args)
 	if err != nil {
 		return err
 	}
 
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildClaimTx(args *ClaimArgs) (*txs.Tx, error) {
 	change, err := s.secpOwnerFromAPI(&args.Change)
 	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
 	}
 
 	claimTo, err := s.secpOwnerFromAPI(&args.ClaimTo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	claimables := make([]txs.ClaimAmount, len(args.Claimables))
@@ -565,18 +580,26 @@ func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONT
 		case txs.ClaimTypeExpiredDepositReward, txs.ClaimTypeValidatorReward, txs.ClaimTypeAllTreasury:
 			claimableOwner, err := s.secpOwnerFromAPI(&args.Claimables[i].ClaimableOwner)
 			if err != nil {
-				return fmt.Errorf("failed to parse api owner to secp owner: %w", err)
+				return nil, fmt.Errorf("failed to parse api owner to secp owner: %w", err)
 			}
 			ownerID, err := txs.GetOwnerID(claimableOwner)
 			if err != nil {
-				return fmt.Errorf("failed to calculate ownerID from owner: %w", err)
+				return nil, fmt.Errorf("failed to calculate ownerID from owner: %w", err)
 			}
 			claimables[i].ID = ownerID
 		default:
-			return txs.ErrWrongClaimType
+			return nil, txs.ErrWrongClaimType
 		}
 		claimables[i].Amount = uint64(args.Claimables[i].Amount)
 		claimables[i].Type = args.Claimables[i].ClaimType
+	}
+
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
+
+	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the transaction
@@ -587,16 +610,10 @@ func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONT
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return tx, nil
 }
 
 type TransferArgs struct {
@@ -608,25 +625,36 @@ type TransferArgs struct {
 }
 
 // Transfer issues an BaseTx
-func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Transfer called")
+
+	tx, err := s.buildBaseTx(args)
+	if err != nil {
+		return err
+	}
+
+	reply.TxID = tx.ID()
+
+	return s.vm.issueTx(req.Context(), tx)
+}
+
+func (s *CaminoService) buildBaseTx(args *TransferArgs) (*txs.Tx, error) {
+	_, change, err := s.addrManager.ParseAddress(args.Change)
+	if err != nil {
+		return nil, fmt.Errorf(errInvalidChangeAddr, err)
+	}
+
+	transferTo, err := s.secpOwnerFromAPI(&args.TransferTo)
+	if err != nil {
+		return nil, err
+	}
 
 	s.vm.ctx.Lock.Lock()
 	defer s.vm.ctx.Lock.Unlock()
 
 	privKeys, err := s.getKeystoreKeys(&args.UserPass, &args.JSONFromAddrs)
 	if err != nil {
-		return err
-	}
-
-	_, change, err := s.addrManager.ParseAddress(args.Change)
-	if err != nil {
-		return fmt.Errorf(errInvalidChangeAddr, err)
-	}
-
-	transferTo, err := s.secpOwnerFromAPI(&args.TransferTo)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Create the transaction
@@ -637,16 +665,10 @@ func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api
 		change,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
+		return nil, fmt.Errorf("couldn't create tx: %w", err)
 	}
 
-	reply.TxID = tx.ID()
-
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return tx, nil
 }
 
 func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSONAddress, response *api.JSONAddress) error {
@@ -1077,8 +1099,21 @@ type GetValidatorsAtReply2 struct {
 	Validators map[ids.NodeID]ConsortiumMemberValidator `json:"validators"`
 }
 
+type GetValidatorsAtResponseWrapper struct {
+	LockModeBondDeposit bool
+	avax                GetValidatorsAtReply
+	camino              GetValidatorsAtReply2
+}
+
+func (response GetValidatorsAtResponseWrapper) MarshalJSON() ([]byte, error) {
+	if !response.LockModeBondDeposit {
+		return response.avax.MarshalJSON()
+	}
+	return stdjson.Marshal(response.camino)
+}
+
 // Overrides avax service GetValidatorsAt
-func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtReply2) error {
+func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtResponseWrapper) error {
 	height := uint64(args.Height)
 	s.vm.ctx.Log.Debug("API called",
 		zap.String("service", "platform"),
@@ -1088,13 +1123,23 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 	)
 
 	s.vm.ctx.Lock.Lock()
-	defer s.vm.ctx.Lock.Unlock()
+	caminoConfig, err := s.vm.state.CaminoConfig()
+	s.vm.ctx.Lock.Unlock()
+	if err != nil {
+		return err
+	}
+	reply.LockModeBondDeposit = caminoConfig.LockModeBondDeposit
+	if !caminoConfig.LockModeBondDeposit {
+		return s.Service.GetValidatorsAt(r, args, &reply.avax)
+	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 	vdrs, err := s.vm.GetValidatorSet(r.Context(), height, args.SubnetID)
 	if err != nil {
 		return fmt.Errorf("failed to get validator set: %w", err)
 	}
-	reply.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
+	reply.camino.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
 	for _, vdr := range vdrs {
 		cMemberAddr, err := s.vm.state.GetShortIDLink(ids.ShortID(vdr.NodeID), state.ShortLinkKeyRegisterNode)
 		if err != nil {
@@ -1106,7 +1151,7 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 			return fmt.Errorf("failed to format consortium member address: %w", err)
 		}
 
-		reply.Validators[vdr.NodeID] = ConsortiumMemberValidator{
+		reply.camino.Validators[vdr.NodeID] = ConsortiumMemberValidator{
 			ValidatorWeight:         json.Uint64(vdr.Weight),
 			ConsortiumMemberAddress: addrStr,
 		}

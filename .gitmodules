@@ -1,3 +1,0 @@
-[submodule "tools/camino-network-runner"]
-	path = tools/camino-network-runner
-	url = ../camino-network-runner.git

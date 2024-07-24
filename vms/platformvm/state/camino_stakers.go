@@ -5,6 +5,7 @@ package state
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 
@@ -52,7 +53,12 @@ func (cs *caminoState) loadDeferredValidators(s *state) error {
 				return fmt.Errorf("expected tx type txs.Staker but got %T", tx.Unsigned)
 			}
 
-			staker, err := NewCurrentStaker(txID, stakerTx, 0)
+			var startTime time.Time
+			if scheduledStakerTx, ok := tx.Unsigned.(txs.ScheduledStaker); ok {
+				startTime = scheduledStakerTx.StartTime()
+			}
+
+			staker, err := NewCurrentStaker(txID, stakerTx, startTime, 0)
 			if err != nil {
 				return err
 			}

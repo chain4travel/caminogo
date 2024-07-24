@@ -5,9 +5,9 @@ set -euo pipefail
 # e.g.,
 # ./scripts/tests.e2e.sh
 # ./scripts/tests.e2e.sh --ginkgo.label-filter=x                                       # All arguments are supplied to ginkgo
-# E2E_SERIAL=1 ./scripts/tests.e2e.sh ./build/caminogo                                 # Run tests serially
+# E2E_SERIAL=1 ./scripts/tests.e2e.sh                                                  # Run tests serially
 # CAMINOGO_BIN_PATH=./build/caminogo ./scripts/tests.e2e.sh                            # Customization of caminogo path
-# E2E_USE_PERSISTENT_NETWORK=1 TESTNETCTL_NETWORK_DIR=/path/to ./scripts/tests.e2e.sh  # Execute against a persistent network
+# E2E_USE_EXISTING_NETWORK=1 TMPNET_NETWORK_DIR=/path/to ./scripts/tests.e2e.sh        # Execute against an existing network
 if ! [[ "$0" =~ scripts/tests.e2e.sh ]]; then
   echo "must be run from repository root"
   exit 255
@@ -28,14 +28,14 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 ./tests/e2e/e2e.test --help
 
 #################################
-# Since TESTNETCTL_NETWORK_DIR may be persistently set in the environment (e.g. to configure
-# ginkgo or testnetctl), configuring the use of a persistent network with this script
-# requires the extra step of setting E2E_USE_PERSISTENT_NETWORK=1.
-if [[ -n "${E2E_USE_PERSISTENT_NETWORK:-}" && -n "${TESTNETCTL_NETWORK_DIR:-}" ]]; then
-  E2E_ARGS="--use-persistent-network"
+# Since TMPNET_NETWORK_DIR may be set in the environment (e.g. to configure ginkgo
+# or tmpnetctl), configuring the use of an existing network with this script
+# requires the extra step of setting E2E_USE_EXISTING_NETWORK=1.
+if [[ -n "${E2E_USE_EXISTING_NETWORK:-}" && -n "${TMPNET_NETWORK_DIR:-}" ]]; then
+  E2E_ARGS="--use-existing-network"
 else
   CAMINOGO_BIN_PATH="$(realpath "${CAMINOGO_BIN_PATH:-./build/caminogo}")"
-  E2E_ARGS="--avalanchego-path=${CAMINOGO_BIN_PATH}"
+  E2E_ARGS="--caminogo-path=${CAMINOGO_BIN_PATH}"
 fi
 
 #################################

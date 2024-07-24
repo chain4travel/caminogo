@@ -179,11 +179,11 @@ func TestRemoveDeferredValidator(t *testing.T) {
 	options, err := blk.(snowman.OracleBlock).Options(context.Background())
 	require.NoError(err)
 
-	commit := options[1].(*blockexecutor.Block)
+	commit := options[0].(*blockexecutor.Block)
 	_, ok := commit.Block.(*block.BanffCommitBlock)
 	require.True(ok)
 
-	abort := options[0].(*blockexecutor.Block)
+	abort := options[1].(*blockexecutor.Block)
 	_, ok = abort.Block.(*block.BanffAbortBlock)
 	require.True(ok)
 
@@ -378,11 +378,11 @@ func TestRemoveReactivatedValidator(t *testing.T) {
 	options, err := blk.(snowman.OracleBlock).Options(context.Background())
 	require.NoError(err)
 
-	commit := options[1].(*blockexecutor.Block)
+	commit := options[0].(*blockexecutor.Block)
 	_, ok := commit.Block.(*block.BanffCommitBlock)
 	require.True(ok)
 
-	abort := options[0].(*blockexecutor.Block)
+	abort := options[1].(*blockexecutor.Block)
 	_, ok = abort.Block.(*block.BanffAbortBlock)
 	require.True(ok)
 
@@ -624,8 +624,8 @@ func TestProposals(t *testing.T) {
 			// Try to vote on proposal, expect to fail
 			vm.clock.Set(baseFeeProposalState.StartTime().Add(-time.Second))
 			addVoteTx := buildSimpleVoteTx(t, vm, proposerKey, fee, proposalTx.ID(), test.FundedKeys[0], 0)
-			err = vm.Builder.AddUnverifiedTx(addVoteTx)
-			require.ErrorIs(err, txexecutor.ErrProposalInactive)
+			err = issueTx(t, vm, addVoteTx)
+			require.ErrorIs(err, dac.ErrNotYetActive)
 			vm.clock.Set(baseFeeProposalState.StartTime())
 
 			optionWeights := make([]uint32, len(baseFeeProposalState.Options))
@@ -1168,7 +1168,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 			if tt.moreExclude {
 				excludeMemberProposalTx := buildExcludeMemberProposalTx(t, vm, fundsKey, proposalBondAmount, fee,
 					consortiumSecretaryKey, memberToExcludeAddr, proposalStartTime, proposalStartTime.Add(time.Duration(dac.ExcludeMemberProposalMinDuration)*time.Second), true)
-				err = vm.Builder.AddUnverifiedTx(excludeMemberProposalTx)
+				err = issueTx(t, vm, excludeMemberProposalTx)
 				require.ErrorIs(err, txexecutor.ErrInvalidProposal)
 				height, err = vm.GetCurrentHeight(context.Background())
 				require.NoError(err)
@@ -1279,7 +1279,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 func buildAndAcceptBlock(t *testing.T, vm *VM, tx *txs.Tx) block.Block {
 	t.Helper()
 	if tx != nil {
-		require.NoError(t, vm.Builder.AddUnverifiedTx(tx))
+		require.NoError(t, issueTx(t, vm, tx))
 	}
 	blk, err := vm.Builder.BuildBlock(context.Background())
 	require.NoError(t, err)
@@ -1381,7 +1381,7 @@ func buildBaseFeeProposalTx(
 		End:     uint64(endTime.Unix()),
 		Options: options,
 	}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposal)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposal)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1428,7 +1428,7 @@ func buildAddMemberProposalTx(
 		proposal = &dac.AdminProposal{Proposal: proposal}
 	}
 	wrapper := &txs.ProposalWrapper{Proposal: proposal}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, wrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, wrapper)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1476,7 +1476,7 @@ func buildExcludeMemberProposalTx(
 		proposal = &dac.AdminProposal{Proposal: proposal}
 	}
 	wrapper := &txs.ProposalWrapper{Proposal: proposal}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, wrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, wrapper)
 	require.NoError(t, err)
 	proposalTx, err := txs.NewSigned(&txs.AddProposalTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1535,7 +1535,7 @@ func buildSimpleVoteTx(
 		nil, nil, 0,
 	)
 	require.NoError(t, err)
-	voteBytes, err := txs.Codec.Marshal(txs.Version, &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: votedOption}})
+	voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: votedOption}})
 	require.NoError(t, err)
 	addVoteTx, err := txs.NewSigned(&txs.AddVoteTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
@@ -1609,4 +1609,11 @@ func buildAndAcceptBaseTx(
 	blk := buildAndAcceptBlock(t, vm, feeTestingTx)
 	require.Len(t, blk.Txs(), 1)
 	checkTx(t, vm, blk.ID(), feeTestingTx.ID())
+}
+
+func issueTx(t *testing.T, vm *VM, tx *txs.Tx) error {
+	t.Helper()
+	vm.ctx.Lock.Unlock()
+	defer vm.ctx.Lock.Lock()
+	return vm.issueTx(context.Background(), tx)
 }

@@ -4,8 +4,6 @@
 package test
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -18,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -47,9 +46,6 @@ const (
 )
 
 var (
-	avaxAssetID  = ids.ID{'C', 'A', 'M'}
-	cChainID     = ids.ID{'C', '-', 'C', 'H', 'A', 'I', 'N'}
-	xChainID     = ids.ID{'X', '-', 'C', 'H', 'A', 'I', 'N'}
 	rewardConfig = reward.Config{
 		MaxConsumptionRate: .12 * reward.PercentDenominator,
 		MinConsumptionRate: .10 * reward.PercentDenominator,
@@ -76,11 +72,15 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		cortinaTime       = mockable.MaxTime
 		berlinTime        = mockable.MaxTime
 		cairoTime         = mockable.MaxTime
+		durangoTime       = mockable.MaxTime
 	)
 
 	// always reset LatestForkTime (a package level variable)
 	// to ensure test independence
 	switch phase {
+	case PhaseDurango:
+		durangoTime = LatestPhaseTime
+		fallthrough
 	case PhaseCairo:
 		cairoTime = LatestPhaseTime
 		fallthrough
@@ -124,6 +124,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		CortinaTime:            cortinaTime,
 		BerlinPhaseTime:        berlinTime,
 		CairoPhaseTime:         cairoTime,
+		DurangoTime:            durangoTime,
 		CaminoConfig: caminoconfig.Config{
 			DACProposalBondAmount: 100 * units.Avax,
 		},
@@ -151,10 +152,10 @@ func Genesis(t *testing.T, avaxAssetID ids.ID, caminoGenesisConfig api.Camino, a
 	caminoGenesisConfig.ValidatorDeposits = make([][]api.UTXODeposit, len(FundedKeys))
 	caminoGenesisConfig.ValidatorConsortiumMembers = make([]ids.ShortID, len(FundedKeys))
 
-	genesisValidators := make([]api.PermissionlessValidator, len(FundedKeys))
+	genesisValidators := make([]api.GenesisPermissionlessValidator, len(FundedKeys))
 	for i, key := range FundedKeys {
-		genesisValidators[i] = api.PermissionlessValidator{
-			Staker: api.Staker{
+		genesisValidators[i] = api.GenesisPermissionlessValidator{
+			GenesisValidator: api.GenesisValidator{
 				StartTime: json.Uint64(ValidatorStartTime.Unix()),
 				EndTime:   json.Uint64(ValidatorEndTime.Unix()),
 				NodeID:    FundedNodeIDs[i],
@@ -203,32 +204,7 @@ func Genesis(t *testing.T, avaxAssetID ids.ID, caminoGenesisConfig api.Camino, a
 
 func Context(t *testing.T) *snow.Context {
 	t.Helper()
-
-	aliaser := ids.NewAliaser()
-	require.NoError(t, aliaser.Alias(constants.PlatformChainID, "P"))
-
-	ctx := snow.DefaultContextTest()
-	ctx.AVAXAssetID = avaxAssetID
-	ctx.ChainID = constants.PlatformChainID
-	ctx.XChainID = xChainID
-	ctx.CChainID = cChainID
-	ctx.BCLookup = aliaser
-	ctx.NetworkID = constants.UnitTestID
-	ctx.SubnetID = constants.PrimaryNetworkID
-	ctx.ValidatorState = &validators.TestState{
-		GetSubnetIDF: func(_ context.Context, chainID ids.ID) (ids.ID, error) {
-			subnetID, ok := map[ids.ID]ids.ID{
-				constants.PlatformChainID: ctx.SubnetID,
-				ctx.XChainID:              ctx.SubnetID,
-				ctx.CChainID:              ctx.SubnetID,
-			}[chainID]
-			if !ok {
-				return ids.Empty, errors.New("missing")
-			}
-			return subnetID, nil
-		},
-	}
-	return ctx
+	return snowtest.Context(t, snowtest.PChainID)
 }
 
 func ContextWithSharedMemory(t *testing.T, db database.Database) *snow.Context {
@@ -271,7 +247,7 @@ func Fx(t *testing.T, clk *mockable.Clock, log logging.Logger, isBootstrapped bo
 	t.Helper()
 
 	fxVMInt := &fxVMInt{
-		registry: linearcodec.NewDefault(),
+		registry: linearcodec.NewDefault(time.Time{}),
 		clk:      clk,
 		log:      log,
 	}

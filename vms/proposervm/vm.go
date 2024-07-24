@@ -1,11 +1,20 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package proposervm
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"time"
@@ -26,7 +35,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/staking"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -98,18 +106,10 @@ func cachedBlockSize(_ ids.ID, blk snowman.Block) int {
 
 type VM struct {
 	block.ChainVM
+	Config
 	blockBuilderVM block.BuildBlockWithContextChainVM
 	batchedVM      block.BatchedChainVM
 	ssVM           block.StateSyncableVM
-
-	activationTime      time.Time
-	minimumPChainHeight uint64
-	minBlkDelay         time.Duration
-	numHistoricalBlocks uint64
-	// block signer
-	stakingLeafSigner crypto.Signer
-	// block certificate
-	stakingCertLeaf *staking.Certificate
 
 	state.State
 	hIndexer indexer.HeightIndexer
@@ -150,28 +150,17 @@ type VM struct {
 // timestamps are only specific to the second.
 func New(
 	vm block.ChainVM,
-	activationTime time.Time,
-	minimumPChainHeight uint64,
-	minBlkDelay time.Duration,
-	numHistoricalBlocks uint64,
-	stakingLeafSigner crypto.Signer,
-	stakingCertLeaf *staking.Certificate,
+	config Config,
 ) *VM {
 	blockBuilderVM, _ := vm.(block.BuildBlockWithContextChainVM)
 	batchedVM, _ := vm.(block.BatchedChainVM)
 	ssVM, _ := vm.(block.StateSyncableVM)
 	return &VM{
 		ChainVM:        vm,
+		Config:         config,
 		blockBuilderVM: blockBuilderVM,
 		batchedVM:      batchedVM,
 		ssVM:           ssVM,
-
-		activationTime:      activationTime,
-		minimumPChainHeight: minimumPChainHeight,
-		minBlkDelay:         minBlkDelay,
-		numHistoricalBlocks: numHistoricalBlocks,
-		stakingLeafSigner:   stakingLeafSigner,
-		stakingCertLeaf:     stakingCertLeaf,
 	}
 }
 
@@ -212,10 +201,10 @@ func (vm *VM) Initialize(
 	vm.State = baseState
 	vm.Windower = proposer.New(chainCtx.ValidatorState, chainCtx.SubnetID, chainCtx.ChainID)
 	vm.Tree = tree.New()
-	innerBlkCache, err := metercacher.New[ids.ID, snowman.Block](
+	innerBlkCache, err := metercacher.New(
 		"inner_block_cache",
 		registerer,
-		cache.NewSizedLRU[ids.ID, snowman.Block](
+		cache.NewSizedLRU(
 			innerBlkCacheSize,
 			cachedBlockSize,
 		),
@@ -366,17 +355,58 @@ func (vm *VM) SetPreference(ctx context.Context, preferred ids.ID) error {
 		return err
 	}
 
-	// reset scheduler
-	minDelay, err := vm.Windower.Delay(ctx, blk.Height()+1, pChainHeight, vm.ctx.NodeID)
+	var (
+		childBlockHeight = blk.Height() + 1
+		parentTimestamp  = blk.Timestamp()
+		nextStartTime    time.Time
+	)
+	if vm.IsDurangoActivated(parentTimestamp) {
+		currentTime := vm.Clock.Time().Truncate(time.Second)
+		nextStartTime, err = vm.getPostDurangoSlotTime(
+			ctx,
+			childBlockHeight,
+			pChainHeight,
+			proposer.TimeToSlot(parentTimestamp, currentTime),
+			parentTimestamp,
+		)
+	} else {
+		nextStartTime, err = vm.getPreDurangoSlotTime(
+			ctx,
+			childBlockHeight,
+			pChainHeight,
+			parentTimestamp,
+		)
+	}
 	if err != nil {
 		vm.ctx.Log.Debug("failed to fetch the expected delay",
 			zap.Error(err),
 		)
+
 		// A nil error is returned here because it is possible that
 		// bootstrapping caused the last accepted block to move past the latest
 		// P-chain height. This will cause building blocks to return an error
 		// until the P-chain's height has advanced.
 		return nil
+	}
+	vm.Scheduler.SetBuildBlockTime(nextStartTime)
+
+	vm.ctx.Log.Debug("set preference",
+		zap.Stringer("blkID", blk.ID()),
+		zap.Time("blockTimestamp", parentTimestamp),
+		zap.Time("nextStartTime", nextStartTime),
+	)
+	return nil
+}
+
+func (vm *VM) getPreDurangoSlotTime(
+	ctx context.Context,
+	blkHeight,
+	pChainHeight uint64,
+	parentTimestamp time.Time,
+) (time.Time, error) {
+	delay, err := vm.Windower.Delay(ctx, blkHeight, pChainHeight, vm.ctx.NodeID, proposer.MaxBuildWindows)
+	if err != nil {
+		return time.Time{}, err
 	}
 
 	// Note: The P-chain does not currently try to target any block time. It
@@ -385,20 +415,39 @@ func (vm *VM) SetPreference(ctx context.Context, preferred ids.ID) error {
 	// validators can specify. This delay may be an issue for high performance,
 	// custom VMs. Until the P-chain is modified to target a specific block
 	// time, ProposerMinBlockDelay can be configured in the subnet config.
-	if minDelay < vm.minBlkDelay {
-		minDelay = vm.minBlkDelay
-	}
+	delay = math.Max(delay, vm.MinBlkDelay)
+	return parentTimestamp.Add(delay), nil
+}
 
-	preferredTime := blk.Timestamp()
-	nextStartTime := preferredTime.Add(minDelay)
-	vm.Scheduler.SetBuildBlockTime(nextStartTime)
-
-	vm.ctx.Log.Debug("set preference",
-		zap.Stringer("blkID", blk.ID()),
-		zap.Time("blockTimestamp", preferredTime),
-		zap.Time("nextStartTime", nextStartTime),
+func (vm *VM) getPostDurangoSlotTime(
+	ctx context.Context,
+	blkHeight,
+	pChainHeight,
+	slot uint64,
+	parentTimestamp time.Time,
+) (time.Time, error) {
+	delay, err := vm.Windower.MinDelayForProposer(
+		ctx,
+		blkHeight,
+		pChainHeight,
+		vm.ctx.NodeID,
+		slot,
 	)
-	return nil
+	// Note: The P-chain does not currently try to target any block time. It
+	// notifies the consensus engine as soon as a new block may be built. To
+	// avoid fast runs of blocks there is an additional minimum delay that
+	// validators can specify. This delay may be an issue for high performance,
+	// custom VMs. Until the P-chain is modified to target a specific block
+	// time, ProposerMinBlockDelay can be configured in the subnet config.
+	switch {
+	case err == nil:
+		delay = math.Max(delay, vm.MinBlkDelay)
+		return parentTimestamp.Add(delay), err
+	case errors.Is(err, proposer.ErrAnyoneCanPropose):
+		return parentTimestamp.Add(vm.MinBlkDelay), err
+	default:
+		return time.Time{}, err
+	}
 }
 
 func (vm *VM) LastAccepted(ctx context.Context) (ids.ID, error) {
@@ -430,7 +479,7 @@ func (vm *VM) repair(ctx context.Context) error {
 		return err
 	}
 
-	if vm.numHistoricalBlocks != 0 {
+	if vm.NumHistoricalBlocks != 0 {
 		vm.ctx.Log.Fatal("block height index must be valid when pruning historical blocks")
 		return errHeightIndexInvalidWhilePruning
 	}
@@ -681,7 +730,7 @@ func (vm *VM) setLastAcceptedMetadata(ctx context.Context) error {
 }
 
 func (vm *VM) parsePostForkBlock(ctx context.Context, b []byte) (PostForkBlock, error) {
-	statelessBlock, err := statelessblock.Parse(b)
+	statelessBlock, err := statelessblock.Parse(b, vm.DurangoTime)
 	if err != nil {
 		return nil, err
 	}

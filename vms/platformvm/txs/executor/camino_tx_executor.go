@@ -22,7 +22,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
+	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	dacProposals "github.com/ava-labs/avalanchego/vms/platformvm/dac"
+	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
@@ -30,8 +32,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs/executor/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-
-	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
 
 // Max number of items allowed in a page
@@ -91,7 +91,6 @@ var (
 	errNestedMsigAlias                   = errors.New("nested msig aliases are not allowed")
 	errProposalStartToEarly              = errors.New("proposal start time is to early")
 	errProposalToFarInFuture             = fmt.Errorf("proposal start time is more than %s ahead of the current chain time", MaxFutureStartTime)
-	ErrProposalInactive                  = errors.New("proposal is inactive")
 	errProposerCredentialMismatch        = errors.New("proposer credential isn't matching")
 	errWrongProposalBondAmount           = errors.New("wrong proposal bond amount")
 	errVoterCredentialMismatch           = errors.New("voter credential isn't matching")
@@ -205,9 +204,15 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 		return fmt.Errorf("%w: %w", errSignatureMissing, err)
 	}
 
+	currentTimestamp := e.State.GetTimestamp()
+
 	// verify validator
 
-	duration := tx.Validator.Duration()
+	startTime := currentTimestamp
+	if !e.Backend.Config.IsDurangoActivated(currentTimestamp) {
+		startTime = tx.StartTime()
+	}
+	duration := tx.EndTime().Sub(startTime)
 
 	switch {
 	case tx.Validator.Wght < e.Backend.Config.MinValidatorStake:
@@ -225,7 +230,6 @@ func (e *CaminoStandardTxExecutor) AddValidatorTx(tx *txs.AddValidatorTx) error 
 	}
 
 	if e.Backend.Bootstrapped.Get() {
-		currentTimestamp := e.State.GetTimestamp()
 		// Ensure the proposed validator starts after the current time
 		startTime := tx.StartTime()
 		if !currentTimestamp.Before(startTime) {
@@ -449,7 +453,7 @@ func (e *CaminoStandardTxExecutor) wrapAtomicElementsForMultisig(tx *txs.ExportT
 			UTXO:    utxo,
 			Aliases: aliases,
 		}
-		bytes, err := txs.Codec.Marshal(txs.Version, wrappedUtxo)
+		bytes, err := txs.Codec.Marshal(txs.CodecVersion, wrappedUtxo)
 		if err != nil {
 			return err
 		}
@@ -757,7 +761,7 @@ func (e *CaminoStandardTxExecutor) DepositTx(tx *txs.DepositTx) error {
 		return err
 	}
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -888,7 +892,7 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 
 	amountToBurn := uint64(0)
 	if !hasExpiredDeposits {
-		baseFee, err := e.State.GetBaseFee()
+		baseFee, err := getBaseFee(e.State, e.Backend.Config)
 		if err != nil {
 			return err
 		}
@@ -1137,7 +1141,7 @@ func (e *CaminoStandardTxExecutor) ClaimTx(tx *txs.ClaimTx) error {
 	}
 
 	// BaseTx check (fee, reward outs)
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1244,7 +1248,7 @@ func (e *CaminoStandardTxExecutor) RegisterNodeTx(tx *txs.RegisterNodeTx) error 
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1502,7 +1506,7 @@ func (e *CaminoStandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
 		return err
 	}
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1593,7 +1597,7 @@ func (e *CaminoStandardTxExecutor) MultisigAliasTx(tx *txs.MultisigAliasTx) erro
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1654,7 +1658,7 @@ func (e *CaminoStandardTxExecutor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) 
 	}
 
 	// verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1812,7 +1816,7 @@ func (e *CaminoStandardTxExecutor) AddProposalTx(tx *txs.AddProposalTx) error {
 	// verify the flowcheck
 
 	lockState := locked.StateBonded
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -1913,8 +1917,8 @@ func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
 		return err
 	}
 
-	if !proposal.IsActiveAt(chainTime) {
-		return ErrProposalInactive // should never happen, cause inactive proposals are removed from state
+	if err := proposal.VerifyActive(chainTime); err != nil {
+		return err // could happen, if proposal didn't start yet
 	}
 
 	// verify voter credential and address state (role)
@@ -1947,7 +1951,7 @@ func (e *CaminoStandardTxExecutor) AddVoteTx(tx *txs.AddVoteTx) error {
 
 	// verify the flowcheck
 
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -2274,7 +2278,7 @@ func (e *CaminoStandardTxExecutor) AddressStateTx(tx *txs.AddressStateTx) error 
 	}
 
 	// Verify the flowcheck
-	baseFee, err := e.State.GetBaseFee()
+	baseFee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -2398,4 +2402,29 @@ func outputsAreEqual(outs1, outs2 []*avax.TransferableOutput) bool {
 		outEq1, ok := out1.Out.(interface{ Equal(any) bool })
 		return ok && out1.Asset == out2.Asset && outEq1.Equal(out2.Out)
 	})
+}
+
+func getBaseFee(s state.Chain, cfg *config.Config) (uint64, error) {
+	fee, err := s.GetBaseFee()
+	switch err {
+	case database.ErrNotFound:
+		return cfg.TxFee, nil
+	case nil:
+		return fee, nil
+	}
+	return 0, err
+}
+
+// TODO @evlekht remove nolint, when this func will be used.
+// Currently its not used, cause we didn't implement P->C transport of proposal outcomes
+// like new base fee or new fee distribution or at least api that will provide this info.
+func getFeeDistribution(s state.Chain, cfg *config.Config) ([dacProposals.FeeDistributionFractionsCount]uint64, error) { //nolint:unused
+	feeDistribution, err := s.GetFeeDistribution()
+	switch err {
+	case database.ErrNotFound:
+		return cfg.CaminoConfig.FeeDistribution, nil
+	case nil:
+		return feeDistribution, nil
+	}
+	return [dacProposals.FeeDistributionFractionsCount]uint64{}, err
 }

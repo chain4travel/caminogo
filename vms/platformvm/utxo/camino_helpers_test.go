@@ -5,12 +5,12 @@ package utxo
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -43,7 +43,7 @@ func defaultCaminoHandler(t *testing.T) *caminoHandler {
 	vm := &secp256k1fx.TestVM{
 		Clk:   *clk,
 		Log:   logging.NoLog{},
-		Codec: linearcodec.NewDefault(),
+		Codec: linearcodec.NewDefault(time.Time{}),
 	}
 	fx := &secp256k1fx.Fx{}
 	require.NoError(t, fx.InitializeVM(vm))
@@ -51,7 +51,7 @@ func defaultCaminoHandler(t *testing.T) *caminoHandler {
 
 	return &caminoHandler{
 		handler: handler{
-			ctx: snow.DefaultContextTest(),
+			ctx: test.Context(t),
 			clk: clk,
 			fx:  fx,
 		},

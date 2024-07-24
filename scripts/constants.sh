@@ -30,8 +30,8 @@ current_branch=${current_branch_temp////-}
 # caminogo and caminoethvm git tag and sha
 git_commit=${CAMINO_NODE_COMMIT:-$(git rev-parse --short HEAD)}
 git_tag=${CAMINO_NODE_TAG:-$(git describe --tags --abbrev=0 --always || echo unknown)}
-caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.15-rc0'}
-caminoethvm_commit=${CAMINOETHVM_COMMIT:-'ffc063541f3f645420b524fb367375adbf07ed7e'}
+caminoethvm_tag=${CAMINO_ETHVM_VERSION:-'v1.1.16-rc0'}
+caminoethvm_commit=${CAMINOETHVM_COMMIT:-'d258907cfd8a448ccb111e9e0f232980f85bb0da'}
 
 # Static compilation
 static_ld_flags=''
@@ -50,3 +50,6 @@ export CGO_CFLAGS="-O2 -D__BLST_PORTABLE__"
 # While CGO_ENABLED doesn't need to be explicitly set, it produces a much more
 # clear error due to the default value change in go1.20.
 export CGO_ENABLED=1
+
+# Disable version control fallbacks
+export GOPROXY="https://proxy.golang.org"

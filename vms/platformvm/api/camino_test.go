@@ -62,8 +62,8 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					Address: addrStr,
 					Amount:  10,
 				}},
-				Validators: []PermissionlessValidator{{
-					Staker: Staker{
+				Validators: []GenesisPermissionlessValidator{{
+					GenesisValidator: GenesisValidator{
 						StartTime: 0,
 						EndTime:   20,
 						NodeID:    nodeID,
@@ -347,9 +347,9 @@ func TestBuildCaminoGenesis(t *testing.T) {
 						Amount:  10,
 					},
 				},
-				Validators: []PermissionlessValidator{
+				Validators: []GenesisPermissionlessValidator{
 					{
-						Staker: Staker{
+						GenesisValidator: GenesisValidator{
 							StartTime: 0,
 							EndTime:   20,
 							NodeID:    nodeID,
@@ -407,7 +407,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 						Amount:  0,
 					},
 				},
-				Validators: []PermissionlessValidator{},
+				Validators: []GenesisPermissionlessValidator{},
 				Time:       5,
 				Encoding:   formatting.Hex,
 				Camino: &Camino{
@@ -435,9 +435,9 @@ func TestBuildCaminoGenesis(t *testing.T) {
 		"Wrong Validator Number": {
 			args: BuildGenesisArgs{
 				UTXOs: []UTXO{},
-				Validators: []PermissionlessValidator{
+				Validators: []GenesisPermissionlessValidator{
 					{
-						Staker: Staker{
+						GenesisValidator: GenesisValidator{
 							StartTime: 0,
 							EndTime:   20,
 							NodeID:    nodeID,
@@ -483,9 +483,9 @@ func TestBuildCaminoGenesis(t *testing.T) {
 		"Deposits and Staked Misalignment": {
 			args: BuildGenesisArgs{
 				UTXOs: []UTXO{},
-				Validators: []PermissionlessValidator{
+				Validators: []GenesisPermissionlessValidator{
 					{
-						Staker: Staker{
+						GenesisValidator: GenesisValidator{
 							StartTime: 0,
 							EndTime:   20,
 							NodeID:    nodeID,
@@ -530,9 +530,9 @@ func TestBuildCaminoGenesis(t *testing.T) {
 						Amount:  0,
 					},
 				},
-				Validators: []PermissionlessValidator{
+				Validators: []GenesisPermissionlessValidator{
 					{
-						Staker: Staker{
+						GenesisValidator: GenesisValidator{
 							StartTime: 0,
 							EndTime:   20,
 							NodeID:    nodeID,
@@ -599,7 +599,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				expectedGenesis, err := tt.expectedGenesis(t)
 				require.NoError(t, err)
 
-				bytes, err := genesis.Codec.Marshal(genesis.Version, expectedGenesis)
+				bytes, err := genesis.Codec.Marshal(genesis.CodecVersion, expectedGenesis)
 				require.NoError(t, err)
 
 				expectedReply.Bytes = string(bytes)

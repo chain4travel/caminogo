@@ -20,7 +20,7 @@ import (
 func TestGetClaimable(t *testing.T) {
 	claimableOwnerID := ids.ID{1}
 	claimable := &Claimable{Owner: &secp256k1fx.OutputOwners{Addrs: []ids.ShortID{}}}
-	claimableBytes, err := block.GenesisCodec.Marshal(block.Version, claimable)
+	claimableBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, claimable)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -314,7 +314,7 @@ func TestWriteClaimableAndValidatorRewards(t *testing.T) {
 	claimableOwnerID1 := ids.ID{1}
 	claimableOwnerID2 := ids.ID{2}
 	claimable1 := &Claimable{Owner: &secp256k1fx.OutputOwners{}, ValidatorReward: 1, ExpiredDepositReward: 2}
-	claimableBytes1, err := block.GenesisCodec.Marshal(block.Version, claimable1)
+	claimableBytes1, err := block.GenesisCodec.Marshal(block.CodecVersion, claimable1)
 	require.NoError(t, err)
 
 	tests := map[string]struct {

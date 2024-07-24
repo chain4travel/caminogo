@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package x
@@ -18,9 +18,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/avm"
 )
+
+const Alias = "X"
 
 var _ Context = (*context)(nil)
 
@@ -42,7 +46,7 @@ type context struct {
 
 func NewContextFromURI(ctx stdcontext.Context, uri string) (Context, error) {
 	infoClient := info.NewClient(uri)
-	xChainClient := avm.NewClient(uri, "X")
+	xChainClient := avm.NewClient(uri, Alias)
 	return NewContextFromClients(ctx, infoClient, xChainClient)
 }
 
@@ -56,7 +60,7 @@ func NewContextFromClients(
 		return nil, err
 	}
 
-	chainID, err := infoClient.GetBlockchainID(ctx, "X")
+	chainID, err := infoClient.GetBlockchainID(ctx, Alias)
 	if err != nil {
 		return nil, err
 	}
@@ -114,4 +118,18 @@ func (c *context) BaseTxFee() uint64 {
 
 func (c *context) CreateAssetTxFee() uint64 {
 	return c.createAssetTxFee
+}
+
+func newSnowContext(c Context) (*snow.Context, error) {
+	chainID := c.BlockchainID()
+	lookup := ids.NewAliaser()
+	return &snow.Context{
+		NetworkID:   c.NetworkID(),
+		SubnetID:    constants.PrimaryNetworkID,
+		ChainID:     chainID,
+		XChainID:    chainID,
+		AVAXAssetID: c.AVAXAssetID(),
+		Log:         logging.NoLog{},
+		BCLookup:    lookup,
+	}, lookup.Alias(chainID, Alias)
 }
