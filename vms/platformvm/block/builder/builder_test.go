@@ -61,7 +61,7 @@ func TestBlockBuilderAddLocalTx(t *testing.T) {
 	env.sender.SendAppGossipF = func(context.Context, []byte) error {
 		return nil
 	}
-	require.NoError(env.Builder.AddUnverifiedTx(tx))
+	require.NoError(env.network.IssueTx(context.Background(), tx))
 	require.True(env.mempool.Has(txID))
 
 	// show that build block include that tx and removes it from mempool
@@ -120,7 +120,7 @@ func TestNoErrorOnUnexpectedSetPreferenceDuringBootstrapping(t *testing.T) {
 		require.NoError(t, shutdownEnvironment(env))
 	}()
 
-	env.Builder.SetPreference(ids.GenerateTestID()) // should not panic
+	require.False(t, env.blkManager.SetPreference(ids.GenerateTestID())) // should not panic
 }
 
 func TestGetNextStakerToReward(t *testing.T) {
@@ -416,7 +416,7 @@ func TestBuildBlock(t *testing.T) {
 				mempool := mempool.NewMockMempool(ctrl)
 
 				// There are txs.
-				mempool.EXPECT().HasStakerTx().Return(false)
+				mempool.EXPECT().DropExpiredStakerTxs(gomock.Any()).Return([]ids.ID{})
 				mempool.EXPECT().HasTxs().Return(true)
 				mempool.EXPECT().PeekTxs(targetBlockSize).Return(transactions)
 				return &builder{
@@ -463,7 +463,7 @@ func TestBuildBlock(t *testing.T) {
 				mempool := mempool.NewMockMempool(ctrl)
 
 				// There are no txs.
-				mempool.EXPECT().HasStakerTx().Return(false)
+				mempool.EXPECT().DropExpiredStakerTxs(gomock.Any()).Return([]ids.ID{})
 				mempool.EXPECT().HasTxs().Return(false)
 
 				clk := &mockable.Clock{}
@@ -511,7 +511,7 @@ func TestBuildBlock(t *testing.T) {
 				mempool := mempool.NewMockMempool(ctrl)
 
 				// There are no txs.
-				mempool.EXPECT().HasStakerTx().Return(false)
+				mempool.EXPECT().DropExpiredStakerTxs(gomock.Any()).Return([]ids.ID{})
 				mempool.EXPECT().HasTxs().Return(false)
 				mempool.EXPECT().PeekTxs(targetBlockSize).Return(nil)
 
@@ -566,7 +566,7 @@ func TestBuildBlock(t *testing.T) {
 				mempool := mempool.NewMockMempool(ctrl)
 
 				// There is a tx.
-				mempool.EXPECT().HasStakerTx().Return(false)
+				mempool.EXPECT().DropExpiredStakerTxs(gomock.Any()).Return([]ids.ID{})
 				mempool.EXPECT().HasTxs().Return(true)
 				mempool.EXPECT().PeekTxs(targetBlockSize).Return([]*txs.Tx{transactions[0]})
 
@@ -620,7 +620,7 @@ func TestBuildBlock(t *testing.T) {
 
 				// There are no decision txs
 				// There is a staker tx.
-				mempool.EXPECT().HasStakerTx().Return(false)
+				mempool.EXPECT().DropExpiredStakerTxs(gomock.Any()).Return([]ids.ID{})
 				mempool.EXPECT().HasTxs().Return(true)
 				mempool.EXPECT().PeekTxs(targetBlockSize).Return([]*txs.Tx{transactions[0]})
 

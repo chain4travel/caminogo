@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -108,6 +108,9 @@ type Staker struct {
 	StakeAmount *json.Uint64 `json:"stakeAmount,omitempty"`
 }
 
+// GenesisValidator should to be used for genesis validators only.
+type GenesisValidator Staker
+
 // Owner is the repr. of a reward owner sent over APIs.
 type Owner struct {
 	Locktime  json.Uint64 `json:"locktime"`
@@ -140,6 +143,15 @@ type PermissionlessValidator struct {
 	DelegatorCount  *json.Uint64        `json:"delegatorCount,omitempty"`
 	DelegatorWeight *json.Uint64        `json:"delegatorWeight,omitempty"`
 	Delegators      *[]PrimaryDelegator `json:"delegators,omitempty"`
+}
+
+// GenesisPermissionlessValidator should to be used for genesis validators only.
+type GenesisPermissionlessValidator struct {
+	GenesisValidator
+	RewardOwner        *Owner       `json:"rewardOwner,omitempty"`
+	DelegationFee      json.Float32 `json:"delegationFee"`
+	ExactDelegationFee *json.Uint32 `json:"exactDelegationFee,omitempty"`
+	Staked             []UTXO       `json:"staked,omitempty"`
 }
 
 // PermissionedValidator is the repr. of a permissioned validator sent over APIs.
@@ -184,7 +196,7 @@ type BuildGenesisArgs struct {
 	AvaxAssetID   ids.ID                    `json:"avaxAssetID"`
 	NetworkID     json.Uint32               `json:"networkID"`
 	UTXOs         []UTXO                    `json:"utxos"`
-	Validators    []PermissionlessValidator `json:"validators"`
+	Validators    []GenesisPermissionlessValidator `json:"validators"`
 	Chains        []Chain                   `json:"chains"`
 	Camino        *Camino                   `json:"camino"`
 	Time          json.Uint64               `json:"time"`
@@ -211,6 +223,7 @@ func bech32ToID(addrStr string) (ids.ShortID, error) {
 // BuildGenesis build the genesis state of the Platform Chain (and thereby the Avalanche network.)
 func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, reply *BuildGenesisReply) error {
 	// Specify the UTXOs on the Platform chain that exist at genesis.
+	var vdrs txheap.TimedHeap
 	if args.Camino != nil && args.Camino.LockModeBondDeposit {
 		return buildCaminoGenesis(args, reply)
 	}
@@ -257,7 +270,7 @@ func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, repl
 	}
 
 	// Specify the validators that are validating the primary network at genesis.
-	vdrs := txheap.NewByEndTime()
+	vdrs = txheap.NewByEndTime()
 	for _, vdr := range args.Validators {
 		weight := uint64(0)
 		stake := make([]*avax.TransferableOutput, len(vdr.Staked))
