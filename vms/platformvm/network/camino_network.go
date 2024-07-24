@@ -113,9 +113,6 @@ func (n *caminoNetwork) caminoRewardMessage() string {
 		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
 	}
 
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	if err := n.issueTx(tx); err != nil {
 		n.log.Error("caminoCrossChainAppRequest failed to issue rewardsImportTx", zap.Error(err))
 		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)

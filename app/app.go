@@ -30,8 +30,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/ulimit"
 )
 
-const (
-	Header = `
+const Header = `
     __   ____  ___ ___  ____  ____    ___  
    /  ] /    ||   |   ||    ||    \  /   \ 
   /  / |  o  || _   _ | |  | |  _  ||     |
@@ -39,7 +38,6 @@ const (
 /   \_ |  _  ||   |   | |  | |  |  ||     |
 \     ||  |  ||   |   | |  | |  |  ||     |
  \____||__|__||___|___||____||__|__| \___/ `
-)
 
 var _ App = (*app)(nil)
 

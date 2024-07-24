@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/snowtest"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
@@ -188,13 +187,5 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 			err := tt.tx.SyntacticVerify(ctx)
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
-	}
-}
-
-func defaultContext() *snow.Context {
-	return &snow.Context{
-		ChainID:     ids.GenerateTestID(),
-		NetworkID:   1337,
-		AVAXAssetID: ids.GenerateTestID(),
 	}
 }

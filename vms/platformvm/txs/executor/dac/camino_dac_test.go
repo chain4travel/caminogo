@@ -891,7 +891,8 @@ func TestGetBondTxIDs(t *testing.T) {
 
 func TestProposalVerifierFeeDistributionProposal(t *testing.T) {
 	ctx := test.Context(t)
-	defaultConfig := test.Config(t, test.PhaseLast)
+	// TODO @evlekht replace with test.PhaseLast when cairo phase will be added as last
+	defaultConfig := test.Config(t, test.PhaseCairo)
 
 	feeOwnerKey, _, feeOwner := generate.KeyAndOwner(t, test.Keys[0])
 	bondOwnerKey, _, bondOwner := generate.KeyAndOwner(t, test.Keys[1])
