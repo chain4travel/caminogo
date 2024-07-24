@@ -26,7 +26,7 @@ var (
 	ErrExistingAppProtocol = errors.New("existing app protocol")
 	ErrUnrequestedResponse = errors.New("unrequested response")
 
-	_ common.AppHandler = (*Router)(nil)
+	_ common.AppHandler = (*router)(nil)
 )
 
 type metrics struct {
@@ -49,15 +49,16 @@ type pendingCrossChainAppRequest struct {
 	CrossChainAppResponseCallback
 }
 
+// meteredHandler emits metrics for a Handler
 type meteredHandler struct {
 	*responder
 	*metrics
 }
 
-// Router routes incoming application messages to the corresponding registered
+// router routes incoming application messages to the corresponding registered
 // app handler. App messages must be made using the registered handler's
 // corresponding Client.
-type Router struct {
+type router struct {
 	log       logging.Logger
 	sender    common.AppSender
 	metrics   prometheus.Registerer
@@ -70,14 +71,14 @@ type Router struct {
 	requestID                    uint32
 }
 
-// NewRouter returns a new instance of Router
-func NewRouter(
+// newRouter returns a new instance of Router
+func newRouter(
 	log logging.Logger,
 	sender common.AppSender,
 	metrics prometheus.Registerer,
 	namespace string,
-) *Router {
-	return &Router{
+) *router {
+	return &router{
 		log:                          log,
 		sender:                       sender,
 		metrics:                      metrics,
@@ -90,15 +91,12 @@ func NewRouter(
 	}
 }
 
-// RegisterAppProtocol reserves an identifier for an application protocol and
-// returns a Client that can be used to send messages for the corresponding
-// protocol.
-func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSampler NodeSampler) (*Client, error) {
+func (r *router) addHandler(handlerID uint64, handler Handler) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
 	if _, ok := r.handlers[handlerID]; ok {
-		return nil, fmt.Errorf("failed to register handler id %d: %w", handlerID, ErrExistingAppProtocol)
+		return fmt.Errorf("failed to register handler id %d: %w", handlerID, ErrExistingAppProtocol)
 	}
 
 	appRequestTime, err := metric.NewAverager(
@@ -108,7 +106,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register app request metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register app request metric for handler_%d: %w", handlerID, err)
 	}
 
 	appRequestFailedTime, err := metric.NewAverager(
@@ -118,7 +116,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register app request failed metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register app request failed metric for handler_%d: %w", handlerID, err)
 	}
 
 	appResponseTime, err := metric.NewAverager(
@@ -128,7 +126,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register app response metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register app response metric for handler_%d: %w", handlerID, err)
 	}
 
 	appGossipTime, err := metric.NewAverager(
@@ -138,7 +136,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register app gossip metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register app gossip metric for handler_%d: %w", handlerID, err)
 	}
 
 	crossChainAppRequestTime, err := metric.NewAverager(
@@ -148,7 +146,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register cross-chain app request metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register cross-chain app request metric for handler_%d: %w", handlerID, err)
 	}
 
 	crossChainAppRequestFailedTime, err := metric.NewAverager(
@@ -158,7 +156,7 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register cross-chain app request failed metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register cross-chain app request failed metric for handler_%d: %w", handlerID, err)
 	}
 
 	crossChainAppResponseTime, err := metric.NewAverager(
@@ -168,13 +166,13 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		r.metrics,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register cross-chain app response metric for handler_%d: %w", handlerID, err)
+		return fmt.Errorf("failed to register cross-chain app response metric for handler_%d: %w", handlerID, err)
 	}
 
 	r.handlers[handlerID] = &meteredHandler{
 		responder: &responder{
+			Handler:   handler,
 			handlerID: handlerID,
-			handler:   handler,
 			log:       r.log,
 			sender:    r.sender,
 		},
@@ -189,16 +187,15 @@ func (r *Router) RegisterAppProtocol(handlerID uint64, handler Handler, nodeSamp
 		},
 	}
 
-	return &Client{
-		handlerID:     handlerID,
-		handlerPrefix: binary.AppendUvarint(nil, handlerID),
-		sender:        r.sender,
-		router:        r,
-		nodeSampler:   nodeSampler,
-	}, nil
+	return nil
 }
 
-func (r *Router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, deadline time.Time, request []byte) error {
+// AppRequest routes an AppRequest to a Handler based on the handler prefix. The
+// message is dropped if no matching handler can be found.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, deadline time.Time, request []byte) error {
 	start := time.Now()
 	parsedMsg, handler, ok := r.parse(request)
 	if !ok {
@@ -212,6 +209,7 @@ func (r *Router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID ui
 		return nil
 	}
 
+	// call the corresponding handler and send back a response to nodeID
 	if err := handler.AppRequest(ctx, nodeID, requestID, deadline, parsedMsg); err != nil {
 		return err
 	}
@@ -220,10 +218,16 @@ func (r *Router) AppRequest(ctx context.Context, nodeID ids.NodeID, requestID ui
 	return nil
 }
 
-func (r *Router) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
+// AppRequestFailed routes an AppRequestFailed message to the callback
+// corresponding to requestID.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
 	start := time.Now()
 	pending, ok := r.clearAppRequest(requestID)
 	if !ok {
+		// we should never receive a timeout without a corresponding requestID
 		return ErrUnrequestedResponse
 	}
 
@@ -232,10 +236,16 @@ func (r *Router) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, reques
 	return nil
 }
 
-func (r *Router) AppResponse(ctx context.Context, nodeID ids.NodeID, requestID uint32, response []byte) error {
+// AppResponse routes an AppResponse message to the callback corresponding to
+// requestID.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) AppResponse(ctx context.Context, nodeID ids.NodeID, requestID uint32, response []byte) error {
 	start := time.Now()
 	pending, ok := r.clearAppRequest(requestID)
 	if !ok {
+		// we should never receive a timeout without a corresponding requestID
 		return ErrUnrequestedResponse
 	}
 
@@ -244,7 +254,12 @@ func (r *Router) AppResponse(ctx context.Context, nodeID ids.NodeID, requestID u
 	return nil
 }
 
-func (r *Router) AppGossip(ctx context.Context, nodeID ids.NodeID, gossip []byte) error {
+// AppGossip routes an AppGossip message to a Handler based on the handler
+// prefix. The message is dropped if no matching handler can be found.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) AppGossip(ctx context.Context, nodeID ids.NodeID, gossip []byte) error {
 	start := time.Now()
 	parsedMsg, handler, ok := r.parse(gossip)
 	if !ok {
@@ -262,7 +277,13 @@ func (r *Router) AppGossip(ctx context.Context, nodeID ids.NodeID, gossip []byte
 	return nil
 }
 
-func (r *Router) CrossChainAppRequest(
+// CrossChainAppRequest routes a CrossChainAppRequest message to a Handler
+// based on the handler prefix. The message is dropped if no matching handler
+// can be found.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) CrossChainAppRequest(
 	ctx context.Context,
 	chainID ids.ID,
 	requestID uint32,
@@ -290,10 +311,16 @@ func (r *Router) CrossChainAppRequest(
 	return nil
 }
 
-func (r *Router) CrossChainAppRequestFailed(ctx context.Context, chainID ids.ID, requestID uint32) error {
+// CrossChainAppRequestFailed routes a CrossChainAppRequestFailed message to
+// the callback corresponding to requestID.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) CrossChainAppRequestFailed(ctx context.Context, chainID ids.ID, requestID uint32) error {
 	start := time.Now()
 	pending, ok := r.clearCrossChainAppRequest(requestID)
 	if !ok {
+		// we should never receive a timeout without a corresponding requestID
 		return ErrUnrequestedResponse
 	}
 
@@ -302,10 +329,16 @@ func (r *Router) CrossChainAppRequestFailed(ctx context.Context, chainID ids.ID,
 	return nil
 }
 
-func (r *Router) CrossChainAppResponse(ctx context.Context, chainID ids.ID, requestID uint32, response []byte) error {
+// CrossChainAppResponse routes a CrossChainAppResponse message to the callback
+// corresponding to requestID.
+//
+// Any error condition propagated outside Handler application logic is
+// considered fatal
+func (r *router) CrossChainAppResponse(ctx context.Context, chainID ids.ID, requestID uint32, response []byte) error {
 	start := time.Now()
 	pending, ok := r.clearCrossChainAppRequest(requestID)
 	if !ok {
+		// we should never receive a timeout without a corresponding requestID
 		return ErrUnrequestedResponse
 	}
 
@@ -323,7 +356,7 @@ func (r *Router) CrossChainAppResponse(ctx context.Context, chainID ids.ID, requ
 // - A boolean indicating that parsing succeeded.
 //
 // Invariant: Assumes [r.lock] isn't held.
-func (r *Router) parse(msg []byte) ([]byte, *meteredHandler, bool) {
+func (r *router) parse(msg []byte) ([]byte, *meteredHandler, bool) {
 	handlerID, bytesRead := binary.Uvarint(msg)
 	if bytesRead <= 0 {
 		return nil, nil, false
@@ -337,7 +370,7 @@ func (r *Router) parse(msg []byte) ([]byte, *meteredHandler, bool) {
 }
 
 // Invariant: Assumes [r.lock] isn't held.
-func (r *Router) clearAppRequest(requestID uint32) (pendingAppRequest, bool) {
+func (r *router) clearAppRequest(requestID uint32) (pendingAppRequest, bool) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -347,7 +380,7 @@ func (r *Router) clearAppRequest(requestID uint32) (pendingAppRequest, bool) {
 }
 
 // Invariant: Assumes [r.lock] isn't held.
-func (r *Router) clearCrossChainAppRequest(requestID uint32) (pendingCrossChainAppRequest, bool) {
+func (r *router) clearCrossChainAppRequest(requestID uint32) (pendingCrossChainAppRequest, bool) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 

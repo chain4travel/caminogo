@@ -5,9 +5,7 @@
 
 github.com/ava-labs/avalanchego/cache=Cacher=cache/mock_cacher.go
 github.com/ava-labs/avalanchego/vms/components/avax=AtomicUTXOManager=vms/components/avax/mock_atomic_utxos.go
-github.com/ava-labs/avalanchego/vms/platformvm/state=Chain=vms/platformvm/state/mock_chain.go
-github.com/ava-labs/avalanchego/vms/platformvm/state=Diff=vms/platformvm/state/mock_diff.go
-github.com/ava-labs/avalanchego/vms/platformvm/state=State=vms/platformvm/state/mock_state.go
+github.com/ava-labs/avalanchego/vms/platformvm/state=Chain,Diff,State,Versions=vms/platformvm/state/mock_state.go
 
 
 // avax also have their own mocks excluded from list,

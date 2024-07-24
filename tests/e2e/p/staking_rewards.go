@@ -29,8 +29,8 @@ import (
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
-	"github.com/ava-labs/avalanchego/tests/e2e"
-	"github.com/ava-labs/avalanchego/tests/fixture/testnet"
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -53,13 +53,13 @@ var _ = ginkgo.Describe("[Staking Rewards]", func() {
 
 		ginkgo.By("checking that the network has a compatible minimum stake duration", func() {
 			minStakeDuration := cast.ToDuration(network.GetConfig().DefaultFlags[config.MinStakeDurationKey])
-			require.Equal(testnet.DefaultMinStakeDuration, minStakeDuration)
+			require.Equal(tmpnet.DefaultMinStakeDuration, minStakeDuration)
 		})
 
 		ginkgo.By("adding alpha node, whose uptime should result in a staking reward")
-		alphaNode := e2e.AddEphemeralNode(network, testnet.FlagsMap{})
+		alphaNode := e2e.AddEphemeralNode(network, tmpnet.FlagsMap{})
 		ginkgo.By("adding beta node, whose uptime should not result in a staking reward")
-		betaNode := e2e.AddEphemeralNode(network, testnet.FlagsMap{})
+		betaNode := e2e.AddEphemeralNode(network, tmpnet.FlagsMap{})
 
 		// Wait to check health until both nodes have started to minimize the duration
 		// required for both nodes to report healthy.
@@ -100,7 +100,7 @@ var _ = ginkgo.Describe("[Staking Rewards]", func() {
 		fundedKey := e2e.Env.AllocateFundedKey()
 		keychain.Add(fundedKey)
 		nodeURI := e2e.Env.GetRandomNodeURI()
-		baseWallet := e2e.Env.NewWallet(keychain, nodeURI)
+		baseWallet := e2e.NewWallet(keychain, nodeURI)
 		pWallet := baseWallet.P()
 
 		ginkgo.By("retrieving alpha node id and pop")
@@ -271,7 +271,7 @@ var _ = ginkgo.Describe("[Staking Rewards]", func() {
 		rewardBalances := make(map[ids.ShortID]uint64, len(rewardKeys))
 		for _, rewardKey := range rewardKeys {
 			keychain := secp256k1fx.NewKeychain(rewardKey)
-			baseWallet := e2e.Env.NewWallet(keychain, nodeURI)
+			baseWallet := e2e.NewWallet(keychain, nodeURI)
 			pWallet := baseWallet.P()
 			balances, err := pWallet.Builder().GetBalance()
 			require.NoError(err)

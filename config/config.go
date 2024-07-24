@@ -70,8 +70,9 @@ const (
 	subnetConfigFileExt  = ".json"
 	ipResolutionTimeout  = 30 * time.Second
 
-	ipcDeprecationMsg      = "IPC API is deprecated"
-	keystoreDeprecationMsg = "keystore API is deprecated"
+	ipcDeprecationMsg                    = "IPC API is deprecated"
+	keystoreDeprecationMsg               = "keystore API is deprecated"
+	acceptedFrontierGossipDeprecationMsg = "push-based accepted frontier gossip is deprecated"
 )
 
 var (
@@ -82,6 +83,12 @@ var (
 		IpcsChainIDsKey:       ipcDeprecationMsg,
 		IpcsPathKey:           ipcDeprecationMsg,
 		KeystoreAPIEnabledKey: keystoreDeprecationMsg,
+		ConsensusGossipAcceptedFrontierValidatorSizeKey:    acceptedFrontierGossipDeprecationMsg,
+		ConsensusGossipAcceptedFrontierNonValidatorSizeKey: acceptedFrontierGossipDeprecationMsg,
+		ConsensusGossipAcceptedFrontierPeerSizeKey:         acceptedFrontierGossipDeprecationMsg,
+		ConsensusGossipOnAcceptValidatorSizeKey:            acceptedFrontierGossipDeprecationMsg,
+		ConsensusGossipOnAcceptNonValidatorSizeKey:         acceptedFrontierGossipDeprecationMsg,
+		ConsensusGossipOnAcceptPeerSizeKey:                 acceptedFrontierGossipDeprecationMsg,
 	}
 
 	errSybilProtectionDisabledStakerWeights   = errors.New("sybil protection disabled weights must be positive")
@@ -531,8 +538,6 @@ func getStateSyncConfig(v *viper.Viper) (node.StateSyncConfig, error) {
 
 func getBootstrapConfig(v *viper.Viper, networkID uint32) (node.BootstrapConfig, error) {
 	config := node.BootstrapConfig{
-		RetryBootstrap:                          v.GetBool(RetryBootstrapKey),
-		RetryBootstrapWarnFrequency:             v.GetInt(RetryBootstrapWarnFrequencyKey),
 		BootstrapBeaconConnectionTimeout:        v.GetDuration(BootstrapBeaconConnectionTimeoutKey),
 		BootstrapMaxTimeGetAncestors:            v.GetDuration(BootstrapMaxTimeGetAncestorsKey),
 		BootstrapAncestorsMaxContainersSent:     int(v.GetUint(BootstrapAncestorsMaxContainersSentKey)),
@@ -945,7 +950,8 @@ func getDatabaseConfig(v *viper.Viper, networkID uint32) (node.DatabaseConfig, e
 	}
 
 	return node.DatabaseConfig{
-		Name: v.GetString(DBTypeKey),
+		Name:     v.GetString(DBTypeKey),
+		ReadOnly: v.GetBool(DBReadOnlyKey),
 		Path: filepath.Join(
 			GetExpandedArg(v, DBPathKey),
 			constants.NetworkName(networkID),
@@ -1338,9 +1344,9 @@ func GetNodeConfig(v *viper.Viper) (node.Config, error) {
 	}
 
 	// Gossiping
-	nodeConfig.AcceptedFrontierGossipFrequency = v.GetDuration(ConsensusAcceptedFrontierGossipFrequencyKey)
-	if nodeConfig.AcceptedFrontierGossipFrequency < 0 {
-		return node.Config{}, fmt.Errorf("%s must be >= 0", ConsensusAcceptedFrontierGossipFrequencyKey)
+	nodeConfig.FrontierPollFrequency = v.GetDuration(ConsensusFrontierPollFrequencyKey)
+	if nodeConfig.FrontierPollFrequency < 0 {
+		return node.Config{}, fmt.Errorf("%s must be >= 0", ConsensusFrontierPollFrequencyKey)
 	}
 
 	// App handling

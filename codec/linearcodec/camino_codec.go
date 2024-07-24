@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/reflectcodec"
+	"github.com/ava-labs/avalanchego/utils/bimap"
 )
 
 const (
@@ -38,9 +39,8 @@ type caminoLinearCodec struct {
 func NewCamino(tagNames []string, maxSliceLen uint32) CaminoCodec {
 	hCodec := &caminoLinearCodec{
 		linearCodec: linearCodec{
-			nextTypeID:   0,
-			typeIDToType: map[uint32]reflect.Type{},
-			typeToTypeID: map[reflect.Type]uint32{},
+			nextTypeID:      0,
+			registeredTypes: bimap.New[uint32, reflect.Type](),
 		},
 		nextCustomTypeID: firstCustomTypeID,
 	}
@@ -66,12 +66,10 @@ func (c *caminoLinearCodec) RegisterCustomType(val interface{}) error {
 	defer c.lock.Unlock()
 
 	valType := reflect.TypeOf(val)
-	if _, exists := c.typeToTypeID[valType]; exists {
-		return fmt.Errorf("type %v has already been registered", valType)
+	if c.registeredTypes.HasValue(valType) {
+		return fmt.Errorf("%w: %v", codec.ErrDuplicateType, valType)
 	}
-
-	c.typeIDToType[c.nextCustomTypeID] = valType
-	c.typeToTypeID[valType] = c.nextCustomTypeID
+	c.registeredTypes.Put(c.nextCustomTypeID, valType)
 	c.nextCustomTypeID++
 	return nil
 }

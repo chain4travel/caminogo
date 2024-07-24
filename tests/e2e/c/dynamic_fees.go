@@ -19,8 +19,8 @@ import (
 	"github.com/ava-labs/coreth/plugin/evm"
 
 	"github.com/ava-labs/avalanchego/tests"
-	"github.com/ava-labs/avalanchego/tests/e2e"
-	"github.com/ava-labs/avalanchego/tests/fixture/testnet"
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 )
 
@@ -47,11 +47,11 @@ var _ = e2e.DescribeCChain("[Dynamic Fees]", func() {
 
 		ginkgo.By("initializing a coreth client")
 		node := privateNetwork.GetNodes()[0]
-		nodeURI := testnet.NodeURI{
+		nodeURI := tmpnet.NodeURI{
 			NodeID: node.GetID(),
 			URI:    node.GetProcessContext().URI,
 		}
-		ethClient := e2e.Env.NewEthClient(nodeURI)
+		ethClient := e2e.NewEthClient(nodeURI)
 
 		ginkgo.By("initializing a transaction signer")
 		cChainID, err := ethClient.ChainID(e2e.DefaultContext())

@@ -624,7 +624,7 @@ func TestProposals(t *testing.T) {
 			// Try to vote on proposal, expect to fail
 			vm.clock.Set(baseFeeProposalState.StartTime().Add(-time.Second))
 			addVoteTx := buildSimpleVoteTx(t, vm, proposerKey, fee, proposalTx.ID(), test.FundedKeys[0], 0)
-			err = vm.Builder.AddUnverifiedTx(addVoteTx)
+			err = vm.Network.IssueTx(context.Background(), addVoteTx)
 			require.ErrorIs(err, txexecutor.ErrProposalInactive)
 			vm.clock.Set(baseFeeProposalState.StartTime())
 
@@ -1168,7 +1168,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 			if tt.moreExclude {
 				excludeMemberProposalTx := buildExcludeMemberProposalTx(t, vm, fundsKey, proposalBondAmount, fee,
 					consortiumSecretaryKey, memberToExcludeAddr, proposalStartTime, proposalStartTime.Add(time.Duration(dac.ExcludeMemberProposalMinDuration)*time.Second), true)
-				err = vm.Builder.AddUnverifiedTx(excludeMemberProposalTx)
+				err = vm.Network.IssueTx(context.Background(), excludeMemberProposalTx)
 				require.ErrorIs(err, txexecutor.ErrInvalidProposal)
 				height, err = vm.GetCurrentHeight(context.Background())
 				require.NoError(err)
@@ -1279,7 +1279,7 @@ func TestExcludeMemberProposals(t *testing.T) {
 func buildAndAcceptBlock(t *testing.T, vm *VM, tx *txs.Tx) block.Block {
 	t.Helper()
 	if tx != nil {
-		require.NoError(t, vm.Builder.AddUnverifiedTx(tx))
+		require.NoError(t, vm.Network.IssueTx(context.Background(), tx))
 	}
 	blk, err := vm.Builder.BuildBlock(context.Background())
 	require.NoError(t, err)

@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/avalanchego/subnets"
 	"github.com/ava-labs/avalanchego/utils/math/meter"
 	"github.com/ava-labs/avalanchego/utils/resource"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	commontracker "github.com/ava-labs/avalanchego/snow/engine/common/tracker"
 )
@@ -67,9 +68,6 @@ func TestHandlerDropsTimedOutMessages(t *testing.T) {
 	handler := handlerIntf.(*handler)
 
 	bootstrapper := &common.BootstrapperTest{
-		BootstrapableTest: common.BootstrapableTest{
-			T: t,
-		},
 		EngineTest: common.EngineTest{
 			T: t,
 		},
@@ -78,11 +76,11 @@ func TestHandlerDropsTimedOutMessages(t *testing.T) {
 	bootstrapper.ContextF = func() *snow.ConsensusContext {
 		return ctx
 	}
-	bootstrapper.GetAcceptedFrontierF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32) error {
+	bootstrapper.GetAcceptedFrontierF = func(context.Context, ids.NodeID, uint32) error {
 		require.FailNow("GetAcceptedFrontier message should have timed out")
 		return nil
 	}
-	bootstrapper.GetAcceptedF = func(ctx context.Context, nodeID ids.NodeID, requestID uint32, containerIDs []ids.ID) error {
+	bootstrapper.GetAcceptedF = func(context.Context, ids.NodeID, uint32, set.Set[ids.ID]) error {
 		called <- struct{}{}
 		return nil
 	}
@@ -169,9 +167,6 @@ func TestHandlerClosesOnError(t *testing.T) {
 	})
 
 	bootstrapper := &common.BootstrapperTest{
-		BootstrapableTest: common.BootstrapableTest{
-			T: t,
-		},
 		EngineTest: common.EngineTest{
 			T: t,
 		},
@@ -259,9 +254,6 @@ func TestHandlerDropsGossipDuringBootstrapping(t *testing.T) {
 	handler.clock.Set(time.Now())
 
 	bootstrapper := &common.BootstrapperTest{
-		BootstrapableTest: common.BootstrapableTest{
-			T: t,
-		},
 		EngineTest: common.EngineTest{
 			T: t,
 		},
@@ -337,9 +329,6 @@ func TestHandlerDispatchInternal(t *testing.T) {
 	require.NoError(err)
 
 	bootstrapper := &common.BootstrapperTest{
-		BootstrapableTest: common.BootstrapableTest{
-			T: t,
-		},
 		EngineTest: common.EngineTest{
 			T: t,
 		},
@@ -414,9 +403,6 @@ func TestHandlerSubnetConnector(t *testing.T) {
 	require.NoError(err)
 
 	bootstrapper := &common.BootstrapperTest{
-		BootstrapableTest: common.BootstrapableTest{
-			T: t,
-		},
 		EngineTest: common.EngineTest{
 			T: t,
 		},
@@ -586,9 +572,6 @@ func TestDynamicEngineTypeDispatch(t *testing.T) {
 			require.NoError(err)
 
 			bootstrapper := &common.BootstrapperTest{
-				BootstrapableTest: common.BootstrapableTest{
-					T: t,
-				},
 				EngineTest: common.EngineTest{
 					T: t,
 				},

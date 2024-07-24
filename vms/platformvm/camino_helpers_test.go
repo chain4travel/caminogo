@@ -99,7 +99,7 @@ func newCaminoVM(t *testing.T, genesisConfig api.Camino, phase test.Phase, genes
 	)
 
 	require.NoError(err)
-	require.NoError(vm.Builder.AddUnverifiedTx(testSubnet1))
+	require.NoError(vm.Network.IssueTx(context.Background(), testSubnet1))
 	blk, err := vm.Builder.BuildBlock(context.Background())
 	require.NoError(err)
 	require.NoError(blk.Verify(context.Background()))

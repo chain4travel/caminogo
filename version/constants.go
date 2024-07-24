@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -19,6 +19,7 @@ import (
 
 	_ "embed"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
 )
 
@@ -35,7 +36,7 @@ var (
 	Current = &Semantic{
 		Major: 1,
 		Minor: 1,
-		Patch: 15,
+		Patch: 17,
 	}
 	CurrentApp = &Application{
 		Major: Current.Major,
@@ -89,7 +90,6 @@ var (
 		constants.MainnetID: 793005,
 		constants.FujiID:    47437,
 	}
-	ApricotPhase4DefaultMinPChainHeight uint64
 
 	ApricotPhase5Times = map[uint32]time.Time{
 		constants.MainnetID: time.Date(2021, time.December, 2, 18, 0, 0, 0, time.UTC),
@@ -129,9 +129,10 @@ var (
 		constants.MainnetID: time.Date(2023, time.April, 25, 15, 0, 0, 0, time.UTC),
 		constants.FujiID:    time.Date(2023, time.April, 6, 15, 0, 0, 0, time.UTC),
 	}
+	CortinaXChainStopVertexID map[uint32]ids.ID
 
 	// TODO: update this before release
-	DTimes = map[uint32]time.Time{
+	DurangoTimes = map[uint32]time.Time{
 		constants.MainnetID: time.Date(10000, time.December, 1, 0, 0, 0, 0, time.UTC),
 		constants.FujiID:    time.Date(10000, time.December, 1, 0, 0, 0, 0, time.UTC),
 	}
@@ -156,6 +157,29 @@ func init() {
 		}
 		RPCChainVMProtocolCompatibility[rpcChainVMProtocol] = versions
 	}
+
+	// The mainnet stop vertex is well known. It can be verified on any fully
+	// synced node by looking at the parentID of the genesis block.
+	//
+	// Ref: https://subnets.avax.network/x-chain/block/0
+	mainnetXChainStopVertexID, err := ids.FromString("jrGWDh5Po9FMj54depyunNixpia5PN4aAYxfmNzU8n752Rjga")
+	if err != nil {
+		panic(err)
+	}
+
+	// The fuji stop vertex is well known. It can be verified on any fully
+	// synced node by looking at the parentID of the genesis block.
+	//
+	// Ref: https://subnets-test.avax.network/x-chain/block/0
+	fujiXChainStopVertexID, err := ids.FromString("2D1cmbiG36BqQMRyHt4kFhWarmatA1ighSpND3FeFgz3vFVtCZ")
+	if err != nil {
+		panic(err)
+	}
+
+	CortinaXChainStopVertexID = map[uint32]ids.ID{
+		constants.MainnetID: mainnetXChainStopVertexID,
+		constants.FujiID:    fujiXChainStopVertexID,
+	}
 }
 
 func GetApricotPhase3Time(networkID uint32) time.Time {
@@ -170,13 +194,6 @@ func GetApricotPhase4Time(networkID uint32) time.Time {
 		return upgradeTime
 	}
 	return DefaultUpgradeTime
-}
-
-func GetApricotPhase4MinPChainHeight(networkID uint32) uint64 {
-	if minHeight, exists := ApricotPhase4MinPChainHeight[networkID]; exists {
-		return minHeight
-	}
-	return ApricotPhase4DefaultMinPChainHeight
 }
 
 func GetApricotPhase5Time(networkID uint32) time.Time {
@@ -228,8 +245,8 @@ func GetCortinaTime(networkID uint32) time.Time {
 	return DefaultUpgradeTime
 }
 
-func GetDTime(networkID uint32) time.Time {
-	if upgradeTime, exists := DTimes[networkID]; exists {
+func GetDurangoTime(networkID uint32) time.Time {
+	if upgradeTime, exists := DurangoTimes[networkID]; exists {
 		return upgradeTime
 	}
 	return DefaultUpgradeTime

@@ -181,7 +181,7 @@ func (e *StandardTxExecutor) ImportTx(tx *txs.ImportTx) error {
 		copy(ins, tx.Ins)
 		copy(ins[len(tx.Ins):], tx.ImportedInputs)
 
-		fee, err := e.State.GetBaseFee()
+		fee, err := getBaseFee(e.State, e.Backend.Config)
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func (e *StandardTxExecutor) ExportTx(tx *txs.ExportTx) error {
 		}
 	}
 
-	fee, err := e.State.GetBaseFee()
+	fee, err := getBaseFee(e.State, e.Backend.Config)
 	if err != nil {
 		return err
 	}
@@ -537,8 +537,8 @@ func (e *StandardTxExecutor) TransferSubnetOwnershipTx(tx *txs.TransferSubnetOwn
 }
 
 func (e *StandardTxExecutor) BaseTx(tx *txs.BaseTx) error {
-	if !e.Backend.Config.IsDActivated(e.State.GetTimestamp()) {
-		return ErrDUpgradeNotActive
+	if !e.Backend.Config.IsDurangoActivated(e.State.GetTimestamp()) {
+		return ErrDurangoUpgradeNotActive
 	}
 
 	// Verify the tx is well-formed

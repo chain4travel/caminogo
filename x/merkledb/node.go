@@ -4,7 +4,6 @@
 package merkledb
 
 import (
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -14,17 +13,10 @@ import (
 
 const HashLength = 32
 
-// the values that go into the node's id
-type hashValues struct {
-	Children map[byte]child
-	Value    maybe.Maybe[[]byte]
-	Key      Key
-}
-
 // Representation of a node stored in the database.
 type dbNode struct {
 	value    maybe.Maybe[[]byte]
-	children map[byte]child
+	children map[byte]*child
 }
 
 type child struct {
@@ -36,31 +28,25 @@ type child struct {
 // node holds additional information on top of the dbNode that makes calculations easier to do
 type node struct {
 	dbNode
-	id          ids.ID
 	key         Key
 	nodeBytes   []byte
 	valueDigest maybe.Maybe[[]byte]
 }
 
 // Returns a new node with the given [key] and no value.
-// If [parent] isn't nil, the new node is added as a child of [parent].
-func newNode(parent *node, key Key) *node {
-	newNode := &node{
+func newNode(key Key) *node {
+	return &node{
 		dbNode: dbNode{
-			children: make(map[byte]child, key.branchFactor),
+			children: make(map[byte]*child, 2),
 		},
 		key: key,
 	}
-	if parent != nil {
-		parent.addChild(newNode)
-	}
-	return newNode
 }
 
 // Parse [nodeBytes] to a node and set its key to [key].
 func parseNode(key Key, nodeBytes []byte) (*node, error) {
 	n := dbNode{}
-	if err := codec.decodeDBNode(nodeBytes, &n, key.branchFactor); err != nil {
+	if err := codec.decodeDBNode(nodeBytes, &n); err != nil {
 		return nil, err
 	}
 	result := &node{
@@ -90,23 +76,14 @@ func (n *node) bytes() []byte {
 // clear the cached values that will need to be recalculated whenever the node changes
 // for example, node ID and byte representation
 func (n *node) onNodeChanged() {
-	n.id = ids.Empty
 	n.nodeBytes = nil
 }
 
 // Returns and caches the ID of this node.
-func (n *node) calculateID(metrics merkleMetrics) {
-	if n.id != ids.Empty {
-		return
-	}
-
+func (n *node) calculateID(metrics merkleMetrics) ids.ID {
 	metrics.HashCalculated()
-	bytes := codec.encodeHashValues(&hashValues{
-		Children: n.children,
-		Value:    n.valueDigest,
-		Key:      n.key,
-	})
-	n.id = hashing.ComputeHash256Array(bytes)
+	bytes := codec.encodeHashValues(n)
+	return hashing.ComputeHash256Array(bytes)
 }
 
 // Set [n]'s value to [val].
@@ -127,27 +104,26 @@ func (n *node) setValueDigest() {
 // Adds [child] as a child of [n].
 // Assumes [child]'s key is valid as a child of [n].
 // That is, [n.key] is a prefix of [child.key].
-func (n *node) addChild(childNode *node) {
+func (n *node) addChild(childNode *node, tokenSize int) {
 	n.setChildEntry(
-		childNode.key.Token(n.key.tokenLength),
-		child{
-			compressedKey: childNode.key.Skip(n.key.tokenLength + 1),
-			id:            childNode.id,
+		childNode.key.Token(n.key.length, tokenSize),
+		&child{
+			compressedKey: childNode.key.Skip(n.key.length + tokenSize),
 			hasValue:      childNode.hasValue(),
 		},
 	)
 }
 
 // Adds a child to [n] without a reference to the child node.
-func (n *node) setChildEntry(index byte, childEntry child) {
+func (n *node) setChildEntry(index byte, childEntry *child) {
 	n.onNodeChanged()
 	n.children[index] = childEntry
 }
 
 // Removes [child] from [n]'s children.
-func (n *node) removeChild(child *node) {
+func (n *node) removeChild(child *node, tokenSize int) {
 	n.onNodeChanged()
-	delete(n.children, child.key.Token(n.key.tokenLength))
+	delete(n.children, child.key.Token(n.key.length, tokenSize))
 }
 
 // clone Returns a copy of [n].
@@ -155,16 +131,23 @@ func (n *node) removeChild(child *node) {
 // if this ever changes, value will need to be copied as well
 // it is safe to clone all fields because they are only written/read while one or both of the db locks are held
 func (n *node) clone() *node {
-	return &node{
-		id:  n.id,
+	result := &node{
 		key: n.key,
 		dbNode: dbNode{
 			value:    n.value,
-			children: maps.Clone(n.children),
+			children: make(map[byte]*child, len(n.children)),
 		},
 		valueDigest: n.valueDigest,
 		nodeBytes:   n.nodeBytes,
 	}
+	for key, existing := range n.children {
+		result.children[key] = &child{
+			compressedKey: existing.compressedKey,
+			id:            existing.id,
+			hasValue:      existing.hasValue,
+		}
+	}
+	return result
 }
 
 // Returns the ProofNode representation of this node.

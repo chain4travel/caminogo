@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -117,10 +117,8 @@ type Chain interface {
 	GetCurrentSupply(subnetID ids.ID) (uint64, error)
 	SetCurrentSupply(subnetID ids.ID, cs uint64)
 
-	GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error)
 	AddRewardUTXO(txID ids.ID, utxo *avax.UTXO)
 
-	GetSubnets() ([]*txs.Tx, error)
 	AddSubnet(createSubnetTx *txs.Tx)
 
 	GetSubnetOwner(subnetID ids.ID) (fx.Owner, error)
@@ -129,7 +127,6 @@ type Chain interface {
 	GetSubnetTransformation(subnetID ids.ID) (*txs.Tx, error)
 	AddSubnetTransformation(transformSubnetTx *txs.Tx)
 
-	GetChains(subnetID ids.ID) ([]*txs.Tx, error)
 	AddChain(createChainTx *txs.Tx)
 
 	GetTx(txID ids.ID) (*txs.Tx, status.Status, error)
@@ -151,9 +148,9 @@ type State interface {
 
 	GetBlockIDAtHeight(height uint64) (ids.ID, error)
 
-	// ApplyCurrentValidators adds all the current validators and delegators of
-	// [subnetID] into [vdrs].
-	ApplyCurrentValidators(subnetID ids.ID, vdrs validators.Manager) error
+	GetRewardUTXOs(txID ids.ID) ([]*avax.UTXO, error)
+	GetSubnets() ([]*txs.Tx, error)
+	GetChains(subnetID ids.ID) ([]*txs.Tx, error)
 
 	// ApplyValidatorWeightDiffs iterates from [startHeight] towards the genesis
 	// block until it has applied all of the diffs up to and including
@@ -301,11 +298,10 @@ type stateBlk struct {
 type state struct {
 	validatorState
 
-	cfg          *config.Config
-	ctx          *snow.Context
-	metrics      metrics.Metrics
-	rewards      reward.Calculator
-	bootstrapped *utils.Atomic[bool]
+	validators validators.Manager
+	ctx        *snow.Context
+	metrics    metrics.Metrics
+	rewards    reward.Calculator
 
 	baseDB *versiondb.Database
 
@@ -469,22 +465,20 @@ func New(
 	db database.Database,
 	genesisBytes []byte,
 	metricsReg prometheus.Registerer,
-	cfg *config.Config,
+	validators validators.Manager,
 	execCfg *config.ExecutionConfig,
 	ctx *snow.Context,
 	metrics metrics.Metrics,
 	rewards reward.Calculator,
-	bootstrapped *utils.Atomic[bool],
 ) (State, error) {
 	s, err := newState(
 		db,
 		metrics,
-		cfg,
+		validators,
 		execCfg,
 		ctx,
 		metricsReg,
 		rewards,
-		bootstrapped,
 	)
 	if err != nil {
 		return nil, err
@@ -524,12 +518,11 @@ func New(
 func newState(
 	db database.Database,
 	metrics metrics.Metrics,
-	cfg *config.Config,
+	validators validators.Manager,
 	execCfg *config.ExecutionConfig,
 	ctx *snow.Context,
 	metricsReg prometheus.Registerer,
 	rewards reward.Calculator,
-	bootstrapped *utils.Atomic[bool],
 ) (*state, error) {
 	blockIDCache, err := metercacher.New[uint64, ids.ID](
 		"block_id_cache",
@@ -653,12 +646,11 @@ func newState(
 	return &state{
 		validatorState: newValidatorState(),
 
-		cfg:          cfg,
-		ctx:          ctx,
-		metrics:      metrics,
-		rewards:      rewards,
-		bootstrapped: bootstrapped,
-		baseDB:       baseDB,
+		validators: validators,
+		ctx:        ctx,
+		metrics:    metrics,
+		rewards:    rewards,
+		baseDB:     baseDB,
 
 		addedBlockIDs: make(map[uint64]ids.ID),
 		blockIDCache:  blockIDCache,
@@ -1159,26 +1151,6 @@ func (s *state) SetCurrentSupply(subnetID ids.ID, cs uint64) {
 	}
 }
 
-func (s *state) ApplyCurrentValidators(subnetID ids.ID, vdrs validators.Manager) error {
-	for nodeID, validator := range s.currentStakers.validators[subnetID] {
-		staker := validator.validator
-		if err := vdrs.AddStaker(subnetID, nodeID, staker.PublicKey, staker.TxID, staker.Weight); err != nil {
-			return err
-		}
-
-		delegatorIterator := NewTreeIterator(validator.delegators)
-		for delegatorIterator.Next() {
-			staker := delegatorIterator.Value()
-			if err := vdrs.AddWeight(subnetID, nodeID, staker.Weight); err != nil {
-				delegatorIterator.Release()
-				return err
-			}
-		}
-		delegatorIterator.Release()
-	}
-	return nil
-}
-
 func (s *state) ApplyValidatorWeightDiffs(
 	ctx context.Context,
 	validators map[ids.NodeID]*validators.GetValidatorOutput,
@@ -1368,13 +1340,13 @@ func (s *state) syncGenesis(genesisBlk block.Block, genesis *genesis.Genesis) er
 
 	// Persist primary network validator set at genesis
 	for _, vdrTx := range genesis.Validators {
-		tx, ok := vdrTx.Unsigned.(txs.ValidatorTx)
+		validatorTx, ok := vdrTx.Unsigned.(txs.ValidatorTx)
 		if !ok {
 			return fmt.Errorf("expected tx type txs.ValidatorTx but got %T", vdrTx.Unsigned)
 		}
 
-		stakeAmount := tx.Weight()
-		stakeDuration := tx.EndTime().Sub(tx.StartTime())
+		stakeAmount := validatorTx.Weight()
+		stakeDuration := validatorTx.EndTime().Sub(validatorTx.StartTime())
 		currentSupply, err := s.GetCurrentSupply(constants.PrimaryNetworkID)
 		if err != nil {
 			return err
@@ -1390,7 +1362,7 @@ func (s *state) syncGenesis(genesisBlk block.Block, genesis *genesis.Genesis) er
 			return err
 		}
 
-		staker, err := NewCurrentStaker(vdrTx.ID(), tx, potentialReward)
+		staker, err := NewCurrentStaker(vdrTx.ID(), validatorTx, potentialReward)
 		if err != nil {
 			return err
 		}
@@ -1710,38 +1682,36 @@ func (s *state) loadPendingValidators() error {
 // Invariant: initValidatorSets requires loadCurrentValidators to have already
 // been called.
 func (s *state) initValidatorSets() error {
-	if s.cfg.Validators.Count(constants.PrimaryNetworkID) != 0 {
-		// Enforce the invariant that the validator set is empty here.
-		return errValidatorSetAlreadyPopulated
-	}
-	err := s.ApplyCurrentValidators(constants.PrimaryNetworkID, s.cfg.Validators)
-	if err != nil {
-		return err
+	for subnetID, validators := range s.currentStakers.validators {
+		if s.validators.Count(subnetID) != 0 {
+			// Enforce the invariant that the validator set is empty here.
+			return fmt.Errorf("%w: %s", errValidatorSetAlreadyPopulated, subnetID)
+		}
+
+		for nodeID, validator := range validators {
+			validatorStaker := validator.validator
+			if err := s.validators.AddStaker(subnetID, nodeID, validatorStaker.PublicKey, validatorStaker.TxID, validatorStaker.Weight); err != nil {
+				return err
+			}
+
+			delegatorIterator := NewTreeIterator(validator.delegators)
+			for delegatorIterator.Next() {
+				delegatorStaker := delegatorIterator.Value()
+				if err := s.validators.AddWeight(subnetID, nodeID, delegatorStaker.Weight); err != nil {
+					delegatorIterator.Release()
+					return err
+				}
+			}
+			delegatorIterator.Release()
+		}
 	}
 
-	vl := validators.NewLogger(s.ctx.Log, s.bootstrapped, constants.PrimaryNetworkID, s.ctx.NodeID)
-	s.cfg.Validators.RegisterCallbackListener(constants.PrimaryNetworkID, vl)
-
-	s.metrics.SetLocalStake(s.cfg.Validators.GetWeight(constants.PrimaryNetworkID, s.ctx.NodeID))
-	totalWeight, err := s.cfg.Validators.TotalWeight(constants.PrimaryNetworkID)
+	s.metrics.SetLocalStake(s.validators.GetWeight(constants.PrimaryNetworkID, s.ctx.NodeID))
+	totalWeight, err := s.validators.TotalWeight(constants.PrimaryNetworkID)
 	if err != nil {
 		return fmt.Errorf("failed to get total weight of primary network validators: %w", err)
 	}
 	s.metrics.SetTotalStake(totalWeight)
-
-	for subnetID := range s.cfg.TrackedSubnets {
-		if s.cfg.Validators.Count(subnetID) != 0 {
-			// Enforce the invariant that the validator set is empty here.
-			return errValidatorSetAlreadyPopulated
-		}
-		err := s.ApplyCurrentValidators(subnetID, s.cfg.Validators)
-		if err != nil {
-			return err
-		}
-
-		vl := validators.NewLogger(s.ctx.Log, s.bootstrapped, subnetID, s.ctx.NodeID)
-		s.cfg.Validators.RegisterCallbackListener(subnetID, vl)
-	}
 	return nil
 }
 
@@ -2088,7 +2058,7 @@ func (s *state) writeCurrentStakers(updateValidators bool, height uint64) error 
 					//
 					// Note: We store the compressed public key here.
 					pkBytes := bls.PublicKeyToBytes(staker.PublicKey)
-					if err := nestedPKDiffDB.Put(nodeID[:], pkBytes); err != nil {
+					if err := nestedPKDiffDB.Put(nodeID.Bytes(), pkBytes); err != nil {
 						return err
 					}
 				}
@@ -2127,7 +2097,7 @@ func (s *state) writeCurrentStakers(updateValidators bool, height uint64) error 
 			if err != nil {
 				return fmt.Errorf("failed to serialize validator weight diff: %w", err)
 			}
-			if err := nestedWeightDiffDB.Put(nodeID[:], weightDiffBytes); err != nil {
+			if err := nestedWeightDiffDB.Put(nodeID.Bytes(), weightDiffBytes); err != nil {
 				return err
 			}
 
@@ -2136,17 +2106,12 @@ func (s *state) writeCurrentStakers(updateValidators bool, height uint64) error 
 				continue
 			}
 
-			// We only track the current validator set of tracked subnets.
-			if subnetID != constants.PrimaryNetworkID && !s.cfg.TrackedSubnets.Contains(subnetID) {
-				continue
-			}
-
 			if weightDiff.Decrease {
-				err = s.cfg.Validators.RemoveWeight(subnetID, nodeID, weightDiff.Amount)
+				err = s.validators.RemoveWeight(subnetID, nodeID, weightDiff.Amount)
 			} else {
 				if validatorDiff.validatorStatus == added {
 					staker := validatorDiff.validator
-					err = s.cfg.Validators.AddStaker(
+					err = s.validators.AddStaker(
 						subnetID,
 						nodeID,
 						staker.PublicKey,
@@ -2154,7 +2119,7 @@ func (s *state) writeCurrentStakers(updateValidators bool, height uint64) error 
 						weightDiff.Amount,
 					)
 				} else {
-					err = s.cfg.Validators.AddWeight(subnetID, nodeID, weightDiff.Amount)
+					err = s.validators.AddWeight(subnetID, nodeID, weightDiff.Amount)
 				}
 			}
 			if err != nil {
@@ -2170,12 +2135,12 @@ func (s *state) writeCurrentStakers(updateValidators bool, height uint64) error 
 		return nil
 	}
 
-	totalWeight, err := s.cfg.Validators.TotalWeight(constants.PrimaryNetworkID)
+	totalWeight, err := s.validators.TotalWeight(constants.PrimaryNetworkID)
 	if err != nil {
 		return fmt.Errorf("failed to get total weight of primary network: %w", err)
 	}
 
-	s.metrics.SetLocalStake(s.cfg.Validators.GetWeight(constants.PrimaryNetworkID, s.ctx.NodeID))
+	s.metrics.SetLocalStake(s.validators.GetWeight(constants.PrimaryNetworkID, s.ctx.NodeID))
 	s.metrics.SetTotalStake(totalWeight)
 	return nil
 }

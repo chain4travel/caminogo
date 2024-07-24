@@ -160,7 +160,7 @@ func TestLock(t *testing.T) {
 	rewardsCalc := reward.NewCalculator(config.RewardConfig)
 
 	genesisBytes := test.Genesis(t, ctx.AVAXAssetID, api.Camino{}, nil)
-	testState := stateTest.State(t, config, ctx, baseDB, rewardsCalc, genesisBytes)
+	testState := stateTest.State(t, config.Validators, ctx, baseDB, rewardsCalc, genesisBytes)
 
 	key, err := secp256k1.NewPrivateKey()
 	require.NoError(t, err)

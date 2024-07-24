@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/validators"
-	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
@@ -58,9 +57,7 @@ func newEmptyState(t *testing.T) *state {
 	newState, err := newState(
 		memdb.New(),
 		metrics.Noop,
-		&config.Config{
-			Validators: validators.NewManager(),
-		},
+		validators.NewManager(),
 		execCfg,
 		&snow.Context{},
 		prometheus.NewRegistry(),
@@ -70,7 +67,6 @@ func newEmptyState(t *testing.T) *state {
 			MintingPeriod:      365 * 24 * time.Hour,
 			SupplyCap:          720 * units.MegaAvax,
 		}),
-		&utils.Atomic[bool]{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, newState)
