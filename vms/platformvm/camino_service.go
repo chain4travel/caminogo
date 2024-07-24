@@ -244,7 +244,7 @@ func (s *CaminoService) GetConfiguration(_ *http.Request, _ *struct{}, reply *Ge
 	reply.SupplyCap = json.Uint64(s.vm.RewardConfig.SupplyCap)
 
 	// Codec information
-	reply.CodecVersion = json.Uint16(txs.Version)
+	reply.CodecVersion = json.Uint16(txs.CodecVersion)
 
 	caminoConfig, err := s.vm.state.CaminoConfig()
 	if err != nil {
@@ -267,7 +267,7 @@ type SetAddressStateArgs struct {
 }
 
 // AddAdressState issues an AddAdressStateTx
-func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
+func (s *CaminoService) SetAddressState(req *http.Request, args *SetAddressStateArgs, response *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: SetAddressState called")
 
 	s.vm.ctx.Lock.Lock()
@@ -303,10 +303,7 @@ func (s *CaminoService) SetAddressState(_ *http.Request, args *SetAddressStateAr
 
 	response.TxID = tx.ID()
 
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 // GetAddressStates retrieves the state applied to an address (see setAddressState)
@@ -430,7 +427,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errCreateTransferables, err)
 	}
 
-	bytes, err := txs.Codec.Marshal(txs.Version, ins)
+	bytes, err := txs.Codec.Marshal(txs.CodecVersion, ins)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -439,7 +436,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %w", errEncodeTransferables, err)
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, outs)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, outs)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeTransferables, err)
 	}
@@ -456,7 +453,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		}
 	}
 
-	bytes, err = txs.Codec.Marshal(txs.Version, owners)
+	bytes, err = txs.Codec.Marshal(txs.CodecVersion, owners)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errSerializeOwners, err)
 	}
@@ -477,7 +474,7 @@ type RegisterNodeArgs struct {
 }
 
 // RegisterNode issues an RegisterNodeTx
-func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) RegisterNode(req *http.Request, args *RegisterNodeArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: RegisterNode called")
 
 	s.vm.ctx.Lock.Lock()
@@ -513,10 +510,7 @@ func (s *CaminoService) RegisterNode(_ *http.Request, args *RegisterNodeArgs, re
 
 	reply.TxID = tx.ID()
 
-	if err = s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return err
-	}
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 type ClaimedAmount struct {
@@ -536,7 +530,7 @@ type ClaimArgs struct {
 }
 
 // Claim issues an ClaimTx
-func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Claim(req *http.Request, args *ClaimArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Claim called")
 
 	s.vm.ctx.Lock.Lock()
@@ -592,11 +586,7 @@ func (s *CaminoService) Claim(_ *http.Request, args *ClaimArgs, reply *api.JSONT
 
 	reply.TxID = tx.ID()
 
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 type TransferArgs struct {
@@ -608,7 +598,7 @@ type TransferArgs struct {
 }
 
 // Transfer issues an BaseTx
-func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
+func (s *CaminoService) Transfer(req *http.Request, args *TransferArgs, reply *api.JSONTxID) error {
 	s.vm.ctx.Log.Debug("Platform: Transfer called")
 
 	s.vm.ctx.Lock.Lock()
@@ -642,11 +632,7 @@ func (s *CaminoService) Transfer(_ *http.Request, args *TransferArgs, reply *api
 
 	reply.TxID = tx.ID()
 
-	if err := s.vm.Builder.AddUnverifiedTx(tx); err != nil {
-		return fmt.Errorf("couldn't create tx: %w", err)
-	}
-
-	return nil
+	return s.vm.Network.IssueTx(req.Context(), tx)
 }
 
 func (s *CaminoService) GetRegisteredShortIDLink(_ *http.Request, args *api.JSONAddress, response *api.JSONAddress) error {
@@ -1077,8 +1063,21 @@ type GetValidatorsAtReply2 struct {
 	Validators map[ids.NodeID]ConsortiumMemberValidator `json:"validators"`
 }
 
+type GetValidatorsAtResponseWrapper struct {
+	LockModeBondDeposit bool
+	avax                GetValidatorsAtReply
+	camino              GetValidatorsAtReply2
+}
+
+func (response GetValidatorsAtResponseWrapper) MarshalJSON() ([]byte, error) {
+	if !response.LockModeBondDeposit {
+		return response.avax.MarshalJSON()
+	}
+	return stdjson.Marshal(response.camino)
+}
+
 // Overrides avax service GetValidatorsAt
-func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtReply2) error {
+func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtArgs, reply *GetValidatorsAtResponseWrapper) error {
 	height := uint64(args.Height)
 	s.vm.ctx.Log.Debug("API called",
 		zap.String("service", "platform"),
@@ -1088,13 +1087,23 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 	)
 
 	s.vm.ctx.Lock.Lock()
-	defer s.vm.ctx.Lock.Unlock()
+	caminoConfig, err := s.vm.state.CaminoConfig()
+	s.vm.ctx.Lock.Unlock()
+	if err != nil {
+		return err
+	}
+	reply.LockModeBondDeposit = caminoConfig.LockModeBondDeposit
+	if !caminoConfig.LockModeBondDeposit {
+		return s.Service.GetValidatorsAt(r, args, &reply.avax)
+	}
 
+	s.vm.ctx.Lock.Lock()
+	defer s.vm.ctx.Lock.Unlock()
 	vdrs, err := s.vm.GetValidatorSet(r.Context(), height, args.SubnetID)
 	if err != nil {
 		return fmt.Errorf("failed to get validator set: %w", err)
 	}
-	reply.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
+	reply.camino.Validators = make(map[ids.NodeID]ConsortiumMemberValidator, len(vdrs))
 	for _, vdr := range vdrs {
 		cMemberAddr, err := s.vm.state.GetShortIDLink(ids.ShortID(vdr.NodeID), state.ShortLinkKeyRegisterNode)
 		if err != nil {
@@ -1106,7 +1115,7 @@ func (s *CaminoService) GetValidatorsAt(r *http.Request, args *GetValidatorsAtAr
 			return fmt.Errorf("failed to format consortium member address: %w", err)
 		}
 
-		reply.Validators[vdr.NodeID] = ConsortiumMemberValidator{
+		reply.camino.Validators[vdr.NodeID] = ConsortiumMemberValidator{
 			ValidatorWeight:         json.Uint64(vdr.Weight),
 			ConsortiumMemberAddress: addrStr,
 		}

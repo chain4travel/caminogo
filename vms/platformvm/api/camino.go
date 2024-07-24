@@ -274,7 +274,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 	}
 
 	// Marshal genesis to bytes
-	bytes, err := genesis.Codec.Marshal(genesis.Version, g)
+	bytes, err := genesis.Codec.Marshal(genesis.CodecVersion, g)
 	if err != nil {
 		return fmt.Errorf("couldn't marshal genesis: %w", err)
 	}
@@ -287,7 +287,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 }
 
 func makeValidator(
-	vdr *PermissionlessValidator,
+	vdr *GenesisPermissionlessValidator,
 	avaxAssetID ids.ID,
 	networkID uint32,
 ) (*txs.Tx, error) {

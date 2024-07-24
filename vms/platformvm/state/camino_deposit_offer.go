@@ -85,7 +85,7 @@ func (cs *caminoState) writeDepositOffers() error {
 			}
 			delete(cs.depositOffers, offerID)
 		} else {
-			offerBytes, err := block.GenesisCodec.Marshal(block.Version, offer)
+			offerBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, offer)
 			if err != nil {
 				return fmt.Errorf("failed to serialize deposit offer: %w", err)
 			}

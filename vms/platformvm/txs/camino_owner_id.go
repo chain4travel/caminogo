@@ -16,7 +16,7 @@ var errOutNotOwned = errors.New("out doesn't implement fx.Owned interface")
 
 // Returns hash of marshalled bytes of owner, which can be treated as owner ID.
 func GetOwnerID(owner interface{}) (ids.ID, error) {
-	ownerBytes, err := Codec.Marshal(Version, owner)
+	ownerBytes, err := Codec.Marshal(CodecVersion, owner)
 	if err != nil {
 		return ids.Empty, fmt.Errorf("couldn't marshal owner: %w", err)
 	}

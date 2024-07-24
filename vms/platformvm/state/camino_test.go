@@ -163,9 +163,9 @@ func getExpectedSupply(
 
 func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
-	s, _ := newInitializedState(require)
+	s := newInitializedState(require)
 	db := memdb.New()
-	validatorsDB := prefixdb.New(validatorsPrefix, db)
+	validatorsDB := prefixdb.New(ValidatorsPrefix, db)
 
 	var (
 		id           = ids.GenerateTestID()
@@ -449,6 +449,8 @@ func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.T
 }
 
 func TestGetBaseFee(t *testing.T) {
+	baseFee := uint64(123)
+
 	tests := map[string]struct {
 		caminoState         *caminoState
 		expectedCaminoState *caminoState
@@ -456,8 +458,8 @@ func TestGetBaseFee(t *testing.T) {
 		expectedErr         error
 	}{
 		"OK": {
-			caminoState:         &caminoState{baseFee: 123},
-			expectedCaminoState: &caminoState{baseFee: 123},
+			caminoState:         &caminoState{baseFee: &baseFee},
+			expectedCaminoState: &caminoState{baseFee: &baseFee},
 			expectedBaseFee:     123,
 		},
 	}
@@ -472,6 +474,8 @@ func TestGetBaseFee(t *testing.T) {
 }
 
 func TestSetBaseFee(t *testing.T) {
+	baseFee := uint64(123)
+
 	tests := map[string]struct {
 		baseFee             uint64
 		caminoState         *caminoState
@@ -479,8 +483,8 @@ func TestSetBaseFee(t *testing.T) {
 	}{
 		"OK": {
 			baseFee:             123,
-			caminoState:         &caminoState{baseFee: 111},
-			expectedCaminoState: &caminoState{baseFee: 123},
+			caminoState:         &caminoState{baseFee: &baseFee},
+			expectedCaminoState: &caminoState{baseFee: &baseFee},
 		},
 	}
 	for name, tt := range tests {

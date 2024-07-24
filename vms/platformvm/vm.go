@@ -8,15 +8,19 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/rpc/v2"
 
@@ -41,11 +45,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/metrics"
+	"github.com/ava-labs/avalanchego/vms/platformvm/network"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -71,6 +75,7 @@ var (
 type VM struct {
 	config.Config
 	blockbuilder.Builder
+	network.Network
 	validators.State
 
 	metrics            metrics.Metrics
@@ -95,6 +100,12 @@ type VM struct {
 
 	txBuilder txbuilder.CaminoBuilder
 	manager   blockexecutor.Manager
+
+	// Cancelled on shutdown
+	onShutdownCtx context.Context
+	// Call [onShutdownCtxCancel] to cancel [onShutdownCtx] during Shutdown()
+	onShutdownCtxCancel context.CancelFunc
+	awaitShutdown       sync.WaitGroup
 
 	// TODO: Remove after v1.11.x is activated
 	pruned utils.Atomic[bool]
@@ -135,7 +146,8 @@ func (vm *VM) Initialize(
 	vm.ctx = chainCtx
 	vm.db = db
 
-	vm.codecRegistry = linearcodec.NewCaminoDefault()
+	// Note: this codec is never used to serialize anything
+	vm.codecRegistry = linearcodec.NewCaminoDefault(time.Time{})
 	vm.fx = &secp256k1fx.CaminoFx{}
 	if err := vm.fx.Initialize(vm); err != nil {
 		return err
@@ -152,7 +164,6 @@ func (vm *VM) Initialize(
 		vm.ctx,
 		vm.metrics,
 		rewards,
-		&vm.bootstrapped,
 	)
 	if err != nil {
 		return err
@@ -187,9 +198,7 @@ func (vm *VM) Initialize(
 		Bootstrapped: &vm.bootstrapped,
 	}
 
-	// Note: There is a circular dependency between the mempool and block
-	//       builder which is broken by passing in the vm.
-	mempool, err := mempool.NewMempool("mempool", registerer, vm)
+	mempool, err := mempool.New("mempool", registerer, toEngine)
 	if err != nil {
 		return fmt.Errorf("failed to create mempool: %w", err)
 	}
@@ -201,13 +210,43 @@ func (vm *VM) Initialize(
 		txExecutorBackend,
 		validatorManager,
 	)
-	vm.Builder = blockbuilder.CaminoNew(
+
+	txVerifier := network.NewLockedTxVerifier(&txExecutorBackend.Ctx.Lock, vm.manager)
+	vm.Network, err = network.NewCamino(
+		chainCtx.Log,
+		chainCtx.NodeID,
+		chainCtx.SubnetID,
+		validators.NewLockedState(
+			&chainCtx.Lock,
+			validatorManager,
+		),
+		txVerifier,
+		mempool,
+		txExecutorBackend.Config.PartialSyncPrimaryNetwork,
+		appSender,
+		registerer,
+		execConfig.Network,
+		vm.txBuilder,
+		&txExecutorBackend.Ctx.Lock,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize network: %w", err)
+	}
+
+	vm.onShutdownCtx, vm.onShutdownCtxCancel = context.WithCancel(context.Background())
+	vm.awaitShutdown.Add(1)
+	go func() {
+		defer vm.awaitShutdown.Done()
+
+		// Invariant: Gossip must never grab the context lock.
+		vm.Network.Gossip(vm.onShutdownCtx)
+	}()
+
+	vm.Builder = blockbuilder.New(
 		mempool,
 		vm.txBuilder,
 		txExecutorBackend,
 		vm.manager,
-		toEngine,
-		appSender,
 	)
 
 	// Create all of the chains that the database says exist
@@ -225,6 +264,10 @@ func (vm *VM) Initialize(
 	if err := vm.SetPreference(ctx, lastAcceptedID); err != nil {
 		return err
 	}
+
+	// Incrementing [awaitShutdown] would cause a deadlock since
+	// [periodicallyPruneMempool] grabs the context lock.
+	go vm.periodicallyPruneMempool(execConfig.MempoolPruneFrequency)
 
 	shouldPrune, err := vm.state.ShouldPrune()
 	if err != nil {
@@ -249,6 +292,49 @@ func (vm *VM) Initialize(
 
 		vm.pruned.Set(true)
 	}()
+
+	return nil
+}
+
+func (vm *VM) periodicallyPruneMempool(frequency time.Duration) {
+	ticker := time.NewTicker(frequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-vm.onShutdownCtx.Done():
+			return
+		case <-ticker.C:
+			if err := vm.pruneMempool(); err != nil {
+				vm.ctx.Log.Debug("pruning mempool failed",
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
+func (vm *VM) pruneMempool() error {
+	vm.ctx.Lock.Lock()
+	defer vm.ctx.Lock.Unlock()
+
+	// Packing all of the transactions in order performs additional checks that
+	// the MempoolTxVerifier doesn't include. So, evicting transactions from
+	// here is expected to happen occasionally.
+	blockTxs, err := vm.Builder.PackBlockTxs(math.MaxInt)
+	if err != nil {
+		return err
+	}
+
+	for _, tx := range blockTxs {
+		if err := vm.Builder.Add(tx); err != nil {
+			vm.ctx.Log.Debug(
+				"failed to reissue tx",
+				zap.Stringer("txID", tx.ID()),
+				zap.Error(err),
+			)
+		}
+	}
 
 	return nil
 }
@@ -315,17 +401,21 @@ func (vm *VM) onNormalOperationsStarted() error {
 	}
 
 	primaryVdrIDs := vm.Validators.GetValidatorIDs(constants.PrimaryNetworkID)
-
 	if err := vm.uptimeManager.StartTracking(primaryVdrIDs, constants.PrimaryNetworkID); err != nil {
 		return err
 	}
 
+	vl := validators.NewLogger(vm.ctx.Log, constants.PrimaryNetworkID, vm.ctx.NodeID)
+	vm.Validators.RegisterCallbackListener(constants.PrimaryNetworkID, vl)
+
 	for subnetID := range vm.TrackedSubnets {
 		vdrIDs := vm.Validators.GetValidatorIDs(subnetID)
-
 		if err := vm.uptimeManager.StartTracking(vdrIDs, subnetID); err != nil {
 			return err
 		}
+
+		vl := validators.NewLogger(vm.ctx.Log, subnetID, vm.ctx.NodeID)
+		vm.Validators.RegisterCallbackListener(subnetID, vl)
 	}
 
 	if err := vm.state.Commit(); err != nil {
@@ -333,7 +423,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 	}
 
 	// Start the block builder
-	vm.Builder.ResetBlockTimer()
+	vm.Builder.StartBlockTimer()
 	return nil
 }
 
@@ -354,7 +444,10 @@ func (vm *VM) Shutdown(context.Context) error {
 		return nil
 	}
 
-	vm.Builder.Shutdown()
+	vm.onShutdownCtxCancel()
+	vm.awaitShutdown.Wait()
+
+	vm.Builder.ShutdownBlockTimer()
 
 	if vm.bootstrapped.Get() {
 		primaryVdrIDs := vm.Validators.GetValidatorIDs(constants.PrimaryNetworkID)
@@ -405,7 +498,9 @@ func (vm *VM) LastAccepted(context.Context) (ids.ID, error) {
 
 // SetPreference sets the preferred block to be the one with ID [blkID]
 func (vm *VM) SetPreference(_ context.Context, blkID ids.ID) error {
-	vm.Builder.SetPreference(blkID)
+	if vm.manager.SetPreference(blkID) {
+		vm.Builder.ResetBlockTimer()
+	}
 	return nil
 }
 
@@ -435,18 +530,6 @@ func (vm *VM) CreateHandlers(context.Context) (map[string]http.Handler, error) {
 	return map[string]http.Handler{
 		"": server,
 	}, err
-}
-
-// CreateStaticHandlers returns a map where:
-// * keys are API endpoint extensions
-// * values are API handlers
-func (*VM) CreateStaticHandlers(context.Context) (map[string]http.Handler, error) {
-	server := rpc.NewServer()
-	server.RegisterCodec(json.NewCodec(), "application/json")
-	server.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
-	return map[string]http.Handler{
-		"": server,
-	}, server.RegisterService(&api.StaticService{}, "platform")
 }
 
 func (vm *VM) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
@@ -486,4 +569,17 @@ func (vm *VM) VerifyHeightIndex(_ context.Context) error {
 
 func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	return vm.state.GetBlockIDAtHeight(height)
+}
+
+func (vm *VM) issueTx(ctx context.Context, tx *txs.Tx) error {
+	err := vm.Network.IssueTx(ctx, tx)
+	if err != nil && !errors.Is(err, mempool.ErrDuplicateTx) {
+		vm.ctx.Log.Debug("failed to add tx to mempool",
+			zap.Stringer("txID", tx.ID()),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	return nil
 }

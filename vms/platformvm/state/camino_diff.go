@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -77,14 +76,6 @@ func (d *diff) LockedUTXOs(txIDs set.Set[ids.ID], addresses set.Set[ids.ShortID]
 	}
 
 	return retUtxos, nil
-}
-
-func (d *diff) Config() (*config.Config, error) {
-	parentState, ok := d.stateVersions.GetState(d.parentID)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
-	}
-	return parentState.Config()
 }
 
 func (d *diff) CaminoConfig() (*CaminoConfig, error) {
@@ -652,7 +643,7 @@ func (d *diff) SetFeeDistribution(feeDistribution [dac.FeeDistributionFractionsC
 }
 
 // Finally apply all changes
-func (d *diff) ApplyCaminoState(baseState State) error {
+func (d *diff) ApplyCaminoState(baseState Chain) error {
 	if d.caminoDiff.modifiedNotDistributedValidatorReward != nil {
 		baseState.SetNotDistributedValidatorReward(*d.caminoDiff.modifiedNotDistributedValidatorReward)
 	}

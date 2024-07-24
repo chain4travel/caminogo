@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package executor
@@ -41,9 +41,6 @@ func TestApricotStandardBlockTimeVerification(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	env := newEnvironment(t, ctrl)
-	defer func() {
-		require.NoError(shutdownEnvironment(env))
-	}()
 
 	// setup and store parent block
 	// it's a standard block for simplicity
@@ -97,9 +94,6 @@ func TestBanffStandardBlockTimeVerification(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	env := newEnvironment(t, ctrl)
-	defer func() {
-		require.NoError(shutdownEnvironment(env))
-	}()
 	now := env.clk.Time()
 	env.clk.Set(now)
 	env.config.BanffTime = time.Time{} // activate Banff
@@ -129,7 +123,6 @@ func TestBanffStandardBlockTimeVerification(t *testing.T) {
 	env.blkManager.(*manager).lastAccepted = parentID
 	env.mockedState.EXPECT().GetLastAccepted().Return(parentID).AnyTimes()
 	env.mockedState.EXPECT().GetTimestamp().Return(chainTime).AnyTimes()
-	onParentAccept.EXPECT().Config().Return(env.config, nil).AnyTimes()
 
 	nextStakerTime := chainTime.Add(executor.SyncBound).Add(-1 * time.Second)
 
@@ -319,9 +312,6 @@ func TestBanffStandardBlockUpdatePrimaryNetworkStakers(t *testing.T) {
 	require := require.New(t)
 
 	env := newEnvironment(t, nil)
-	defer func() {
-		require.NoError(shutdownEnvironment(env))
-	}()
 	env.config.BanffTime = time.Time{} // activate Banff
 
 	// Case: Timestamp is after next validator start time
@@ -384,39 +374,45 @@ func TestBanffStandardBlockUpdateStakers(t *testing.T) {
 	// Staker3sub:             |----------------|
 	// Staker4:            |------------------------|
 	// Staker5:                                 |--------------------|
+
+	// In this test multiple stakers may join and leave the staker set at the same time.
+	// The order in which they do it is asserted; the order may depend on the staker.TxID,
+	// which in turns depend on every feature of the transaction creating the staker.
+	// So in this test we avoid ids.GenerateTestNodeID, in favour of ids.BuildTestNodeID
+	// so that TxID does not depend on the order we run tests.
 	staker1 := staker{
-		nodeID:        ids.GenerateTestNodeID(),
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf1}),
+		rewardAddress: ids.ShortID{0xf1},
 		startTime:     defaultGenesisTime.Add(1 * time.Minute),
 		endTime:       defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute),
 	}
 	staker2 := staker{
-		nodeID:        ids.GenerateTestNodeID(),
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf2}),
+		rewardAddress: ids.ShortID{0xf2},
 		startTime:     staker1.startTime.Add(1 * time.Minute),
 		endTime:       staker1.startTime.Add(1 * time.Minute).Add(defaultMinStakingDuration),
 	}
 	staker3 := staker{
-		nodeID:        ids.GenerateTestNodeID(),
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf3}),
+		rewardAddress: ids.ShortID{0xf3},
 		startTime:     staker2.startTime.Add(1 * time.Minute),
 		endTime:       staker2.endTime.Add(1 * time.Minute),
 	}
 	staker3Sub := staker{
-		nodeID:        staker3.nodeID,
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf3}),
+		rewardAddress: ids.ShortID{0xff},
 		startTime:     staker3.startTime.Add(1 * time.Minute),
 		endTime:       staker3.endTime.Add(-1 * time.Minute),
 	}
 	staker4 := staker{
-		nodeID:        ids.GenerateTestNodeID(),
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf4}),
+		rewardAddress: ids.ShortID{0xf4},
 		startTime:     staker3.startTime,
 		endTime:       staker3.endTime,
 	}
 	staker5 := staker{
-		nodeID:        ids.GenerateTestNodeID(),
-		rewardAddress: ids.GenerateTestShortID(),
+		nodeID:        ids.BuildTestNodeID([]byte{0xf5}),
+		rewardAddress: ids.ShortID{0xf5},
 		startTime:     staker2.endTime,
 		endTime:       staker2.endTime.Add(defaultMinStakingDuration),
 	}
@@ -495,11 +491,17 @@ func TestBanffStandardBlockUpdateStakers(t *testing.T) {
 			},
 		},
 		{
-			description:   "advance time to staker5 end",
+			description:   "advance time to staker5 start",
 			stakers:       []staker{staker1, staker2, staker3, staker4, staker5},
 			advanceTimeTo: []time.Time{staker1.startTime, staker2.startTime, staker3.startTime, staker5.startTime},
 			expectedStakers: map[ids.NodeID]stakerStatus{
 				staker1.nodeID: current,
+
+				// Staker2's end time matches staker5's start time, so typically
+				// the block builder would produce a ProposalBlock to remove
+				// staker2 when advancing the time. However, it is valid to only
+				// advance the time with a StandardBlock and not remove staker2,
+				// which is what this test does.
 				staker2.nodeID: current,
 				staker3.nodeID: current,
 				staker4.nodeID: current,
@@ -512,9 +514,6 @@ func TestBanffStandardBlockUpdateStakers(t *testing.T) {
 		t.Run(test.description, func(t *testing.T) {
 			require := require.New(t)
 			env := newEnvironment(t, nil)
-			defer func() {
-				require.NoError(shutdownEnvironment(env))
-			}()
 			env.config.BanffTime = time.Time{} // activate Banff
 
 			subnetID := testSubnet1.ID()
@@ -614,17 +613,13 @@ func TestBanffStandardBlockUpdateStakers(t *testing.T) {
 func TestBanffStandardBlockRemoveSubnetValidator(t *testing.T) {
 	require := require.New(t)
 	env := newEnvironment(t, nil)
-	defer func() {
-		require.NoError(shutdownEnvironment(env))
-	}()
 	env.config.BanffTime = time.Time{} // activate Banff
 
 	subnetID := testSubnet1.ID()
 	env.config.TrackedSubnets.Add(subnetID)
 
 	// Add a subnet validator to the staker set
-	subnetValidatorNodeID := ids.NodeID(preFundedKeys[0].PublicKey().Address())
-	// Starts after the corre
+	subnetValidatorNodeID := genesisNodeIDs[0]
 	subnetVdr1StartTime := defaultValidateStartTime
 	subnetVdr1EndTime := defaultValidateStartTime.Add(defaultMinStakingDuration)
 	tx, err := env.txBuilder.NewAddSubnetValidatorTx(
@@ -638,9 +633,11 @@ func TestBanffStandardBlockRemoveSubnetValidator(t *testing.T) {
 	)
 	require.NoError(err)
 
+	addSubnetValTx := tx.Unsigned.(*txs.AddSubnetValidatorTx)
 	staker, err := state.NewCurrentStaker(
 		tx.ID(),
-		tx.Unsigned.(*txs.AddSubnetValidatorTx),
+		addSubnetValTx,
+		addSubnetValTx.StartTime(),
 		0,
 	)
 	require.NoError(err)
@@ -652,7 +649,7 @@ func TestBanffStandardBlockRemoveSubnetValidator(t *testing.T) {
 	// The above validator is now part of the staking set
 
 	// Queue a staker that joins the staker set after the above validator leaves
-	subnetVdr2NodeID := ids.NodeID(preFundedKeys[1].PublicKey().Address())
+	subnetVdr2NodeID := genesisNodeIDs[1]
 	tx, err = env.txBuilder.NewAddSubnetValidatorTx(
 		1, // Weight
 		uint64(subnetVdr1EndTime.Add(time.Second).Unix()),                                // Start time
@@ -712,9 +709,6 @@ func TestBanffStandardBlockTrackedSubnet(t *testing.T) {
 		t.Run(fmt.Sprintf("tracked %t", tracked), func(t *testing.T) {
 			require := require.New(t)
 			env := newEnvironment(t, nil)
-			defer func() {
-				require.NoError(shutdownEnvironment(env))
-			}()
 			env.config.BanffTime = time.Time{} // activate Banff
 
 			subnetID := testSubnet1.ID()
@@ -723,8 +717,7 @@ func TestBanffStandardBlockTrackedSubnet(t *testing.T) {
 			}
 
 			// Add a subnet validator to the staker set
-			subnetValidatorNodeID := ids.NodeID(preFundedKeys[0].PublicKey().Address())
-
+			subnetValidatorNodeID := genesisNodeIDs[0]
 			subnetVdr1StartTime := defaultGenesisTime.Add(1 * time.Minute)
 			subnetVdr1EndTime := defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute)
 			tx, err := env.txBuilder.NewAddSubnetValidatorTx(
@@ -768,7 +761,7 @@ func TestBanffStandardBlockTrackedSubnet(t *testing.T) {
 			require.NoError(block.Verify(context.Background()))
 			require.NoError(block.Accept(context.Background()))
 			_, ok := env.config.Validators.GetValidator(subnetID, subnetValidatorNodeID)
-			require.Equal(tracked, ok)
+			require.True(ok)
 		})
 	}
 }
@@ -776,9 +769,6 @@ func TestBanffStandardBlockTrackedSubnet(t *testing.T) {
 func TestBanffStandardBlockDelegatorStakerWeight(t *testing.T) {
 	require := require.New(t)
 	env := newEnvironment(t, nil)
-	defer func() {
-		require.NoError(shutdownEnvironment(env))
-	}()
 	env.config.BanffTime = time.Time{} // activate Banff
 
 	// Case: Timestamp is after next validator start time

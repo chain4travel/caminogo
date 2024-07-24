@@ -28,7 +28,7 @@ func TestGetDeposit(t *testing.T) {
 			Addrs: []ids.ShortID{{1}},
 		},
 	}
-	depositBytes, err := block.GenesisCodec.Marshal(block.Version, deposit1)
+	depositBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, deposit1)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -608,9 +608,9 @@ func TestWriteDeposits(t *testing.T) {
 		},
 	}
 	depositEndtime := deposit2.EndTime()
-	deposit1Bytes, err := block.GenesisCodec.Marshal(block.Version, deposit1)
+	deposit1Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, deposit1)
 	require.NoError(t, err)
-	deposit2Bytes, err := block.GenesisCodec.Marshal(block.Version, deposit2)
+	deposit2Bytes, err := block.GenesisCodec.Marshal(block.CodecVersion, deposit2)
 	require.NoError(t, err)
 
 	tests := map[string]struct {

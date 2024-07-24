@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gvalidators
@@ -66,7 +66,7 @@ func (s *Server) GetValidatorSet(ctx context.Context, req *pb.GetValidatorSetReq
 	i := 0
 	for _, vdr := range vdrs {
 		vdrPB := &pb.Validator{
-			NodeId: vdr.NodeID[:],
+			NodeId: vdr.NodeID.Bytes(),
 			Weight: vdr.Weight,
 		}
 		if vdr.PublicKey != nil {

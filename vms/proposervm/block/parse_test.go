@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********************************************************
-// Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package block
@@ -18,8 +18,6 @@ import (
 	"encoding/hex"
 	"testing"
 	"time"
-
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 
 	"github.com/stretchr/testify/require"
 
@@ -40,20 +38,14 @@ func TestParse(t *testing.T) {
 	tlsCert, err := staking.NewTLSCert()
 	require.NoError(err)
 
-	cert := staking.CertificateFromX509(tlsCert.Leaf)
+	cert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	require.NoError(err)
 	key := tlsCert.PrivateKey.(crypto.Signer)
-
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert.Leaf)
-	require.NoError(err)
-
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
-	require.NoError(err)
 
 	builtBlock, err := Build(
 		parentID,
 		timestamp,
 		pChainHeight,
-		nodeID,
 		cert,
 		innerBlockBytes,
 		chainID,
@@ -62,25 +54,38 @@ func TestParse(t *testing.T) {
 	require.NoError(err)
 
 	builtBlockBytes := builtBlock.Bytes()
+	durangoTimes := []time.Time{
+		timestamp.Add(time.Second),  // Durango not activated yet
+		timestamp.Add(-time.Second), // Durango activated
+	}
+	for _, durangoTime := range durangoTimes {
+		parsedBlockIntf, err := Parse(builtBlockBytes, durangoTime)
+		require.NoError(err)
 
-	parsedBlockIntf, err := Parse(builtBlockBytes)
-	require.NoError(err)
+		parsedBlock, ok := parsedBlockIntf.(SignedBlock)
+		require.True(ok)
 
-	parsedBlock, ok := parsedBlockIntf.(SignedBlock)
-	require.True(ok)
-
-	equal(require, chainID, builtBlock, parsedBlock)
+		equal(require, chainID, builtBlock, parsedBlock)
+	}
 }
 
 func TestParseDuplicateExtension(t *testing.T) {
 	require := require.New(t)
 
-	blockHex := "0000000000000100000000000000000000000000000000000000000000000000000000000000000000000000007b0000000000000002000004bd308204b9308202a1a003020102020100300d06092a864886f70d01010b050030003020170d3939313233313030303030305a180f32313232303830333233323835335a300030820222300d06092a864886f70d01010105000382020f003082020a0282020100c2b2de1c16924d9b9254a0d5b80a4bc5f9beaa4f4f40a0e4efb69eb9b55d7d37f8c82328c237d7c5b451f5427b487284fa3f365f9caa53c7fcfef8d7a461d743bd7d88129f2da62b877ebe9d6feabf1bd12923e6c12321382c782fc3bb6b6cb4986a937a1edc3814f4e621e1a62053deea8c7649e43edd97ab6b56315b00d9ab5026bb9c31fb042dc574ba83c54e720e0120fcba2e8a66b77839be3ece0d4a6383ef3f76aac952b49a15b65e18674cd1340c32cecbcbaf80ae45be001366cb56836575fb0ab51ea44bf7278817e99b6b180fdd110a49831a132968489822c56692161bbd372cf89d9b8ee5a734cff15303b3a960ee78d79e76662a701941d9ec084429f26707f767e9b1d43241c0e4f96655d95c1f4f4aa00add78eff6bf0a6982766a035bf0b465786632c5bb240788ca0fdf032d8815899353ea4bec5848fd30118711e5b356bde8a0da074cc25709623225e734ff5bd0cf65c40d9fd8fccf746d8f8f35145bcebcf378d2b086e57d78b11e84f47fa467c4d037f92bff6dd4e934e0189b58193f24c4222ffb72b5c06361cf68ca64345bc3e230cc0f40063ad5f45b1659c643662996328c2eeddcd760d6f7c9cbae081ccc065844f7ea78c858564a408979764de882793706acc67d88092790dff567ed914b03355330932616a0f26f994b963791f0b1dbd8df979db86d1ea490700a3120293c3c2b10bef10203010001a33c303a300e0603551d0f0101ff0404030204b030130603551d25040c300a06082b0601050507030230130603551d25040c300a06082b06010505070302300d06092a864886f70d01010b05000382020100a21a0d73ec9ef4eb39f810557ac70b0b775772b8bae5f42c98565bc50b5b2c57317aa9cb1da12f55d0aac7bb36a00cd4fd0d7384c4efa284b53520c5a3c4b8a65240b393eeab02c802ea146c0728c3481c9e8d3aaad9d4dd7607103dcfaa96da83460adbe18174ed5b71bde7b0a93d4fb52234a9ff54e3fd25c5b74790dfb090f2e59dc5907357f510cc3a0b70ccdb87aee214def794b316224f318b471ffa13b66e44b467670e881cb1628c99c048a503376d9b6d7b8eef2e7be47ff7d5c1d56221f4cf7fa2519b594cb5917815c64dc75d8d281bcc99b5a12899b08f2ca0f189857b64a1afc5963337f3dd6e79390e85221569f6dbbb13aadce06a3dfb5032f0cc454809627872cd7cd0cea5eba187723f07652c8abc3fc42bd62136fc66287f2cc19a7cb416923ad1862d7f820b55cacb65e43731cb6df780e2651e457a3438456aeeeb278ad9c0ad2e760f6c1cbe276eeb621c8a4e609b5f2d902beb3212e3e45df99497021ff536d0b56390c5d785a8bf7909f6b61bdc705d7d92ae22f58e7b075f164a0450d82d8286bf449072751636ab5185f59f518b845a75d112d6f7b65223479202cff67635e2ad88106bc8a0cc9352d87c5b182ac19a4680a958d814a093acf46730f87da0df6926291d02590f215041b44a0a1a32eeb3a52cddabc3d256689bace18a8d85e644cf9137cce3718f7caac1cb16ae06e874f4c701000000010300000200b8e3a4d9a4394bac714cb597f5ba1a81865185e35c782d0317e7abc0b52d49ff8e10f787bedf86f08148e3dbd2d2d478caa2a2893d31db7d5ee51339883fe84d3004440f16cb3797a7fab0f627d3ebd79217e995488e785cd6bb7b96b9d306f8109daa9cfc4162f9839f60fb965bcb3b56a5fa787549c153a4c80027398f73a617b90b7f24f437b140cd3ac832c0b75ec98b9423b275782988a9fd426937b8f82fbb0e88a622934643fb6335c1a080a4d13125544b04585d5f5295be7cd2c8be364246ea3d5df3e837b39a85074575a1fa2f4799050460110bdfb20795c8a9172a20f61b95e1c5c43eccd0c2c155b67385366142c63409cb3fb488e7aba6c8930f7f151abf1c24a54bd21c3f7a06856ea9db35beddecb30d2c61f533a3d0590bdbb438c6f2a2286dfc3c71b383354f0abad72771c2cc3687b50c2298783e53857cf26058ed78d0c1cf53786eb8d006a058ee3c85a7b2b836b5d03ef782709ce8f2725548e557b3de45a395a669a15f1d910e97015d22ac70020cab7e2531e8b1f739b023b49e742203e9e19a7fe0053826a9a2fe2e118d3b83498c2cb308573202ad41aa4a390aee4b6b5dd2164e5c5cd1b5f68b7d5632cf7dbb9a9139663c9aac53a74b2c6fc73cad80e228a186ba027f6f32f0182d62503e04fcced385f2e7d2e11c00940622ebd533b4d144689082f9777e5b16c36f9af9066e0ad6564d43"
+	blockHex := "0000000000000100000000000000000000000000000000000000000000000000000000000000000000000000007b000000000000000200000549308205453082032da003020102020100300d06092a864886f70d01010b050030003020170d3939313233313030303030305a180f32313234303331383134303631345a300030820222300d06092a864886f70d01010105000382020f003082020a0282020100d26e5f3da1caab11ce37919f7e307ee7c3c994498e78a7b8ab54c1c7c5246cb72b29a8fe1288f0938860bdca7335a885c645dcb7bc53cf80775945533cb9d46548f0038ae15ba63c5dcbab1600b42abaf70f467054cced3cd17142c031c43626b10db7986ad858581f6ead5185b77102602fdf2c7e2cddb7c7f11d8d461e3022c0b853ee18a5a93f18b321c8391c745be4c36d5c1759ab8b0bf6779e36529af4b3fcd924b1a33bdc0d807d47bc20040d32f11f1210f3088d55a7282ea07c59da0442805998bcb50ffe98420fc9835d6e664d25e6e41766761588e0fbfc6dacdb9c724f877c28dc45e79aecc4fa5fc24b238aa4512fd7823879edff32073ef8f34c8e609605014712254c4a7cf50f8b35d406e587e5b24a5f75d43d43c57591ee8b2c9ad1c2044c581dac3227e2d404e1e9af4674e762fc125c169b9a1b254a485d656f5c91d0388b956ad52cdac520b701555c2fe0e09087b6bbcffda981a58d8e98456af6a69ae24127ee7b438e24c67d88872f2363b505ac427c49e1592c2436de5ec245fac56cc24111b8a38a24e0bdfbef7627d6ca27af96d6b20d6fecb032dee7f3a459dc34730f290fda40f0eea1024c9b2a087b0055fdbc1621d9a9d87dd4b356b7caf121ba00022bf8a87711ca39583890128d01333b9ddb0ec4447c5bb0c85c6b295b2481f3a8f86b45536b3d15a0582fd3ac780ab01739fd6cd4d70203010001a381c73081c4300e0603551d0f0101ff0404030204b0300c0603551d130101ff04023000305106092a864886f70d0109150101ff04411cd3184187185ef0be03549b4c5d9b9d7592fd75eebfbd3de12c71e7360e2776543cf4edf4dbb5d674f61c58841abad64fb1e0ca0c24255d119fd658387cf2b800305106092a864886f70d0109150101ff04411cd3184187185ef0be03549b4c5d9b9d7592fd75eebfbd3de12c71e7360e2776543cf4edf4dbb5d674f61c58841abad64fb1e0ca0c24255d119fd658387cf2b800300d06092a864886f70d01010b050003820201001cf95b768b37bde828ca239e739a4229bacff2c53eb09e6b7f1499cb5157851b51ebdb45f5a94a3d0dc16c3d844ce57bb1f551b9bb6f92bcbdc08a7692e98ac257e594696a6f124df3b8a230a2f6ea34a8dd996516993cd91a2c0993e2c77f73454e77ee0f9d9a191f0a1d6b6b1bec901a1466bc0bcf781aa2e96bc65abc20bb2f5643829d811c50af8360022ee1da37f14d3e46e3d23e17fab57a847f7f3ba685090abf16d548c275654ab832935ecc73d496159078e124223314d0e2d8fc9f27426c8fbe6721684d205bac75d955ee71dd8ce6a1ae3c94da7c87c9c3126f9ae4715cbcccb1a9213357c0115e89e9b8d31cc9bbe0ad7e41e25d7473bdc30eaa541228182f650f53b952bdac8c4e9e5f3ceebe5858d85dd58431eb9dba5e4ff28f4212dd9c5ebf6abcae5dcad6b5f09144befb5a7c3f02c0ba5bff781c3acedc22c1cde635a39fb245bcf9f514949fac8321d6ec054377dbc1b24839caaabc29e3884c4de84523e6fa549253b691f6b5c7bdba6a410dc176c765ca14a499ef01916742138fc8156f2c14e4a122e581d1b6ca79e82dfd015b13c38011e248d25e0daccbe266dafbdff3f4ec99227c56795fe75d0d32876d054e5d124d873bebbaeff57ecb9f35146e97f7683809a615c54b89a8b21d0120cfedf133d4253ab9ae521106d245b50de8163b3e97b2e9eae63a72fc283d73b086e35b83fff3cb3d60000000010300000200032444fef47bcd6f77f9b5890a51a1de3b52269d476a04506727aa20b61dc535d09511c4c403058e2fdd7ee5d751b1b6153c4d02f07bf60988be15bf3ff6469bcfde45bdf12e979879d9537586b7394df60ca465f5facdac1722570b5f51f1eb2e8fa20c46a390d4319555d1a39a289563de511d36d517ecdb21b02f76a76d518a6b0eb40d15544f6d1b2e7fd70108af12260e6eaca8efbb2e254b5a3bcf486da1ebabace68c42c13a2a8f04cc626711f0b26f2d66bd0b451b5b4db474364b2dea51b93a41c9c676c00f54e30d4ddad249faa851bf7e99a5dc1b6431c0f79fc4748fb8fa299ad0eb8d92b24aa083f6d93f60384bccc980fc7ba957b71068977eedb7da7884d8a969fb84f3ef921055d63ceebde7c45ead163e19f6425668ff5c205f8368d4df57179efd64312ea4ddcbbabc1e99438e8d2bd05c5728edf505b9caf87cc07ec19f8b457667fc402d0bf53b437b7079c57bbd1dc004950d016440a178061582d4f5431dcb7f7be3b44c085ea982938800272bb140a1aa53208c849c342cb534bad44d06fddb156c0429b9afa920d765dbf9fd09a9dfc9adcb8abe6e238d1a586ffb8164f05e44822d6130662a358d0ed54c0031fe48f0157d211d307a5ef423a7bea821c0886f562140d0347fb429cc978e69a3fe6733a373224acaccf9cbbd5574f5157c78cf2c1623d8f984efd730f7a9a553058073672d49a0"
 	blockBytes, err := hex.DecodeString(blockHex)
 	require.NoError(err)
 
-	_, err = Parse(blockBytes)
+	// Note: The above blockHex specifies 123 as the block's timestamp.
+	timestamp := time.Unix(123, 0)
+	durangoNotYetActivatedTime := timestamp.Add(time.Second)
+	durangoAlreadyActivatedTime := timestamp.Add(-time.Second)
+
+	_, err = Parse(blockBytes, durangoNotYetActivatedTime)
 	require.ErrorIs(err, errInvalidCertificate)
+
+	_, err = Parse(blockBytes, durangoAlreadyActivatedTime)
+	require.NoError(err)
 }
 
 func TestParseHeader(t *testing.T) {
@@ -116,7 +121,7 @@ func TestParseOption(t *testing.T) {
 
 	builtOptionBytes := builtOption.Bytes()
 
-	parsedOption, err := Parse(builtOptionBytes)
+	parsedOption, err := Parse(builtOptionBytes, time.Time{})
 	require.NoError(err)
 
 	equalOption(require, builtOption, parsedOption)
@@ -134,14 +139,19 @@ func TestParseUnsigned(t *testing.T) {
 	require.NoError(err)
 
 	builtBlockBytes := builtBlock.Bytes()
+	durangoTimes := []time.Time{
+		timestamp.Add(time.Second),  // Durango not activated yet
+		timestamp.Add(-time.Second), // Durango activated
+	}
+	for _, durangoTime := range durangoTimes {
+		parsedBlockIntf, err := Parse(builtBlockBytes, durangoTime)
+		require.NoError(err)
 
-	parsedBlockIntf, err := Parse(builtBlockBytes)
-	require.NoError(err)
+		parsedBlock, ok := parsedBlockIntf.(SignedBlock)
+		require.True(ok)
 
-	parsedBlock, ok := parsedBlockIntf.(SignedBlock)
-	require.True(ok)
-
-	equal(require, ids.Empty, builtBlock, parsedBlock)
+		equal(require, ids.Empty, builtBlock, parsedBlock)
+	}
 }
 
 func TestParseGibberish(t *testing.T) {
@@ -149,6 +159,6 @@ func TestParseGibberish(t *testing.T) {
 
 	bytes := []byte{0, 1, 2, 3, 4, 5}
 
-	_, err := Parse(bytes)
+	_, err := Parse(bytes, time.Time{})
 	require.ErrorIs(err, codec.ErrUnknownVersion)
 }

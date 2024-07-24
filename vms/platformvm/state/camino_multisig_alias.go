@@ -78,7 +78,7 @@ func (cs *caminoState) writeMultisigAliases() error {
 				Owners: alias.Owners,
 				Nonce:  alias.Nonce,
 			}
-			aliasBytes, err := block.GenesisCodec.Marshal(block.Version, multisigAlias)
+			aliasBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, multisigAlias)
 			if err != nil {
 				return fmt.Errorf("failed to serialize multisig alias: %w", err)
 			}

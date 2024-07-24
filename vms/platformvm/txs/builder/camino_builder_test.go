@@ -933,7 +933,7 @@ func TestNewRewardsImportTx(t *testing.T) {
 					if utxo.Timestamp == 0 {
 						toMarshal = utxo.UTXO
 					}
-					utxoBytes, err := txs.Codec.Marshal(txs.Version, toMarshal)
+					utxoBytes, err := txs.Codec.Marshal(txs.CodecVersion, toMarshal)
 					require.NoError(t, err)
 					utxosBytes[i] = utxoBytes
 				}
