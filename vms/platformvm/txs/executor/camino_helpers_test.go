@@ -53,7 +53,7 @@ func newCaminoEnvironment(t *testing.T, phase test.Phase, caminoGenesisConf api.
 	rewards := reward.NewCalculator(config.RewardConfig)
 
 	genesisBytes := test.Genesis(t, ctx.AVAXAssetID, caminoGenesisConf, nil)
-	baseState := testState.State(t, config, ctx, baseDB, rewards, genesisBytes)
+	baseState := testState.State(t, config.Validators, ctx, baseDB, rewards, genesisBytes)
 
 	atomicUTXOs := avax.NewAtomicUTXOManager(ctx.SharedMemory, txs.Codec)
 	uptimes := uptime.NewManager(baseState, clk)
@@ -193,7 +193,7 @@ func newExecutorBackend(
 	rewards := reward.NewCalculator(config.RewardConfig)
 
 	genesisBytes := test.Genesis(t, ctx.AVAXAssetID, caminoGenesisConf, nil)
-	state := testState.State(t, config, ctx, baseDB, rewards, genesisBytes)
+	state := testState.State(t, config.Validators, ctx, baseDB, rewards, genesisBytes)
 
 	if sharedMemory != nil {
 		ctx.SharedMemory = &mutableSharedMemory{

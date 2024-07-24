@@ -1,7 +1,7 @@
 // Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package builder
+package network
 
 import (
 	"context"
@@ -16,8 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/vms/components/message"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block/executor"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	txBuilder "github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
 
 var errUnknownCrossChainMessage = errors.New("unknown cross-chain message")
@@ -27,18 +29,24 @@ type caminoNetwork struct {
 	txBuilder txBuilder.CaminoBuilder
 }
 
-func NewCaminoNetwork(
+func NewCamino(
 	ctx *snow.Context,
-	blkBuilder *caminoBuilder,
+	manager executor.Manager,
+	mempool mempool.Mempool,
+	partialSyncPrimaryNetwork bool,
 	appSender common.AppSender,
 	txBuilder txBuilder.CaminoBuilder,
 ) Network {
 	return &caminoNetwork{
 		network: network{
-			ctx:        ctx,
-			blkBuilder: &blkBuilder.builder,
-			appSender:  appSender,
-			recentTxs:  &cache.LRU[ids.ID, struct{}]{Size: recentCacheSize},
+			AppHandler: common.NewNoOpAppHandler(ctx.Log),
+
+			ctx:                       ctx,
+			manager:                   manager,
+			mempool:                   mempool,
+			partialSyncPrimaryNetwork: partialSyncPrimaryNetwork,
+			appSender:                 appSender,
+			recentTxs:                 &cache.LRU[ids.ID, struct{}]{Size: recentCacheSize},
 		},
 		txBuilder: txBuilder,
 	}
@@ -88,9 +96,9 @@ func (n *caminoNetwork) caminoRewardMessage() string {
 	n.ctx.Lock.Lock()
 	defer n.ctx.Lock.Unlock()
 
-	if err := n.blkBuilder.AddUnverifiedTx(tx); err != nil {
-		n.ctx.Log.Error("caminoCrossChainAppRequest failed to add unverified rewardsImportTx to block builder", zap.Error(err))
-		return fmt.Sprintf("caminoCrossChainAppRequest failed to add unverified rewardsImportTx to block builder: %s", err)
+	if err := n.issueTx(tx); err != nil {
+		n.ctx.Log.Error("caminoCrossChainAppRequest failed to issue rewardsImportTx", zap.Error(err))
+		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
 	}
 
 	amounts := make([]uint64, len(utx.Ins))

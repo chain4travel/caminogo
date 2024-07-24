@@ -325,7 +325,7 @@ func verifyRemoveSubnetValidatorTx(
 		return nil, false, err
 	}
 
-	fee, err := chainState.GetBaseFee()
+	fee, err := getBaseFee(chainState, backend.Config)
 	if err != nil {
 		return nil, false, err
 	}

@@ -2,7 +2,7 @@ name: Tests
 
 on:
   pull_request:
-    branches: [chain4travel, dev]
+    branches: [chain4travel, dev, evlekht/new-dev-c19]
   workflow_dispatch:
   merge_group:
     types: [checks_requested]
