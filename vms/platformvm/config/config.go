@@ -115,8 +115,8 @@ type Config struct {
 	// Time of the Cortina network upgrade
 	CortinaTime time.Time
 
-	// Time of the D network upgrade
-	DTime time.Time
+	// Time of the Durango network upgrade
+	DurangoTime time.Time
 
 	// Time of the Athens Phase network upgrade
 	AthensPhaseTime time.Time
@@ -155,9 +155,8 @@ func (c *Config) IsCortinaActivated(timestamp time.Time) bool {
 	return !timestamp.Before(c.CortinaTime)
 }
 
-// TODO: Rename
-func (c *Config) IsDActivated(timestamp time.Time) bool {
-	return !timestamp.Before(c.DTime)
+func (c *Config) IsDurangoActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.DurangoTime)
 }
 
 func (c *Config) IsAthensPhaseActivated(timestamp time.Time) bool {

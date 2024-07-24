@@ -28,7 +28,7 @@ primarily target the X-Chain:
 
 ```bash
 ./tests/e2e/e2e.test \
-  --caminogo-path=./build/caminogo \
+  --avalanchego-path=./build/avalanchego \
   --ginkgo.label-filter=x
 ```
 
@@ -42,7 +42,7 @@ Define any flags/configurations in [`e2e.go`](./e2e.go).
 Create a new package to implement feature-specific tests, or add tests to an existing package. For example:
 
 ```
-tests
+.
 └── e2e
     ├── README.md
     ├── e2e.go
@@ -66,16 +66,16 @@ across multiple test runs. This can increase the speed of iteration by
 removing the requirement to start a new network for every invocation
 of the test under development.
 
-To create a temporary network for use across test runs:
+To create an temporary network for use across test runs:
 
 ```bash
-# From the root of the caminogo repo
+# From the root of the avalanchego repo
 
 # Build the tmpnetctl binary
 $ ./scripts/build_tmpnetctl.sh
 
 # Start a new network
-$ ./build/tmpnetctl start-network --caminogo-path=/path/to/caminogo
+$ ./build/tmpnetctl start-network --avalanchego-path=/path/to/avalanchego
 ...
 Started network 1000 @ /home/me/.tmpnet/networks/1000
 
@@ -87,12 +87,12 @@ with one of the following statements:
 
 # Start a new test run using the existing network
 ginkgo -v ./tests/e2e -- \
-    --caminogo-path=/path/to/caminogo \
+    --avalanchego-path=/path/to/avalanchego \
     --ginkgo.focus-file=[name of file containing test] \
     --use-existing-network \
     --network-dir=/path/to/network
 
-# It is also possible to set the CAMINOGO_BIN_PATH env var instead of supplying --caminogo-path
+# It is also possible to set the CAMINOGO_BIN_PATH env var instead of supplying --avalanchego-path
 # and to set TMPNET_NETWORK_DIR instead of supplying --network-dir.
 ```
 
