@@ -7,19 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 func TestGetGenesisBytes(t *testing.T) {
-	mockLog := logging.NewMockLogger(gomock.NewController(t))
-	service := Info{log: mockLog}
-
-	mockLog.EXPECT().Debug(gomock.Any()).Times(1)
-
+	service := Info{log: logging.NoLog{}}
 	service.GenesisBytes = []byte("some random bytes")
-
 	reply := GetGenesisBytesReply{}
 	require.NoError(t, service.GetGenesisBytes(nil, nil, &reply))
 	require.Equal(t, GetGenesisBytesReply{GenesisBytes: service.GenesisBytes}, reply)

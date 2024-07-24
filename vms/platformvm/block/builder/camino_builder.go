@@ -41,6 +41,13 @@ func caminoBuildBlock(
 			return nil, fmt.Errorf("could not build tx to unlock deposits: %w", err)
 		}
 
+		// User-signed unlockDepositTx with partial unlock and
+		// system-issued unlockDepositTx with full unlock for the same deposit
+		// will conflict with each other resulting in block rejection.
+		// After that, txs (depending on node config) could be re-added to mempool
+		// and this case could happen again.
+		// Because of this, we can't allow block with system unlockDepositTx contain other txs.
+
 		return block.NewBanffStandardBlock(
 			timestamp,
 			parentID,
@@ -63,6 +70,14 @@ func caminoBuildBlock(
 		if err != nil {
 			return nil, fmt.Errorf("could not build tx to finish proposals: %w", err)
 		}
+
+		// User-signed addVoteTx and system-issued finishProposalsTx for the same proposal
+		// will conflict with each other resulting either in block rejection or
+		// in possible unexpected proposal outcome (finishProposalsTx issuing desicion
+		// is happenning based on before this addVoteTx state).
+		// After that, if block is rejected, txs (depending on node config) could be re-added to mempool
+		// and this case could happen again.
+		// Because of this, we can't allow block with system finishProposalsTx contain other txs.
 
 		// FinishProposalsTx should never be in block with addVoteTx,
 		// because it can affect state of proposals.

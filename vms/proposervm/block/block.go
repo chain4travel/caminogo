@@ -14,14 +14,12 @@
 package block
 
 import (
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/staking"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
@@ -114,15 +112,7 @@ func (b *statelessBlock) initialize(bytes []byte, durangoTime time.Time) error {
 		return fmt.Errorf("%w: %w", errInvalidCertificate, err)
 	}
 
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert)
-	if err != nil {
-		return err
-	}
-	nodeID, err := ids.ToNodeID(nodeIDBytes)
-	if err != nil {
-		return err
-	}
-	b.proposer = nodeID
+	b.proposer = b.cert.NodeID
 	return nil
 }
 

@@ -57,7 +57,9 @@ func newEmptyState(t *testing.T) *state {
 	newState, err := newState(
 		memdb.New(),
 		metrics.Noop,
-		validators.NewManager(),
+		&config.Config{
+			Validators: validators.NewManager(),
+		},
 		execCfg,
 		&snow.Context{},
 		prometheus.NewRegistry(),

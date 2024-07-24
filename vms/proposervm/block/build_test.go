@@ -36,14 +36,14 @@ func TestBuild(t *testing.T) {
 	tlsCert, err := staking.NewTLSCert()
 	require.NoError(err)
 
-	cert := staking.CertificateFromX509(tlsCert.Leaf)
+	cert, err := staking.CertificateFromX509(tlsCert.Leaf)
+	require.NoError(err)
 	key := tlsCert.PrivateKey.(crypto.Signer)
 
 	builtBlock, err := Build(
 		parentID,
 		timestamp,
 		pChainHeight,
-		ids.EmptyNodeID,
 		cert,
 		innerBlockBytes,
 		chainID,

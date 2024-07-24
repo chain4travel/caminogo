@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -155,12 +154,12 @@ func TestLock(t *testing.T) {
 	require.NoError(t, fx.Bootstrapped())
 
 	config := test.Config(t, test.PhaseLast)
-	ctx := snow.DefaultContextTest()
+	ctx := test.Context(t)
 	baseDB := versiondb.New(memdb.New())
 	rewardsCalc := reward.NewCalculator(config.RewardConfig)
 
 	genesisBytes := test.Genesis(t, ctx.AVAXAssetID, api.Camino{}, nil)
-	testState := stateTest.State(t, config.Validators, ctx, baseDB, rewardsCalc, genesisBytes)
+	testState := stateTest.State(t, config, ctx, baseDB, rewardsCalc, genesisBytes)
 
 	key, err := secp256k1.NewPrivateKey()
 	require.NoError(t, err)

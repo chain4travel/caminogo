@@ -210,7 +210,7 @@ func (vm *VM) Initialize(
 		txExecutorBackend,
 		validatorManager,
 	)
-	
+
 	txVerifier := network.NewLockedTxVerifier(&txExecutorBackend.Ctx.Lock, vm.manager)
 	vm.Network, err = network.NewCamino(
 		chainCtx.Log,
@@ -224,6 +224,7 @@ func (vm *VM) Initialize(
 		registerer,
 		execConfig.Network,
 		vm.txBuilder,
+		&txExecutorBackend.Ctx.Lock,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize network: %w", err)

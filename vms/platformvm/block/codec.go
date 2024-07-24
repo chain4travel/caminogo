@@ -42,7 +42,7 @@ var (
 // concurrently
 func InitCodec(durangoTime time.Time) error {
 	c := linearcodec.NewCaminoDefault(durangoTime)
-	gc := linearcodec.NewCaminoCustomMaxLength(math.MaxInt32, time.Time{})
+	gc := linearcodec.NewCaminoCustomMaxLength(time.Time{}, math.MaxInt32)
 
 	errs := wrappers.Errs{}
 	for _, c := range []linearcodec.CaminoCodec{c, gc} {

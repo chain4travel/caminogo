@@ -88,7 +88,7 @@ func (cs *caminoState) writeClaimableAndValidatorRewards() error {
 				return err
 			}
 		} else {
-			claimableBytes, err := block.GenesisCodec.Marshal(block.Version, claimable)
+			claimableBytes, err := block.GenesisCodec.Marshal(block.CodecVersion, claimable)
 			if err != nil {
 				return fmt.Errorf("failed to serialize claimable: %w", err)
 			}

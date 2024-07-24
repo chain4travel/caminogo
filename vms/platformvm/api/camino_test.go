@@ -599,7 +599,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				expectedGenesis, err := tt.expectedGenesis(t)
 				require.NoError(t, err)
 
-				bytes, err := genesis.Codec.Marshal(genesis.Version, expectedGenesis)
+				bytes, err := genesis.Codec.Marshal(genesis.CodecVersion, expectedGenesis)
 				require.NoError(t, err)
 
 				expectedReply.Bytes = string(bytes)

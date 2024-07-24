@@ -78,16 +78,16 @@ func makeRawTestPeers(t *testing.T, trackedSubnets set.Set[ids.ID]) (*rawTestPee
 
 	tlsCert0, err := staking.NewTLSCert()
 	require.NoError(err)
-	cert0 := staking.CertificateFromX509(tlsCert0.Leaf)
+	cert0, err := staking.CertificateFromX509(tlsCert0.Leaf)
+	require.NoError(err)
 
 	tlsCert1, err := staking.NewTLSCert()
 	require.NoError(err)
-	cert1 := staking.CertificateFromX509(tlsCert1.Leaf)
+	cert1, err := staking.CertificateFromX509(tlsCert1.Leaf)
+	require.NoError(err)
 
-	nodeID0, err := CertToID(tlsCert0.Leaf)
-	require.NoError(err)
-	nodeID1, err := CertToID(tlsCert1.Leaf)
-	require.NoError(err)
+	nodeID0 := cert0.NodeID
+	nodeID1 := cert1.NodeID
 
 	mc := newMessageCreator(t)
 

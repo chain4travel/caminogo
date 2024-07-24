@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/gossip"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
@@ -93,7 +95,7 @@ func (g *gossipMempool) Add(tx *txs.Tx) error {
 		return fmt.Errorf("tx %s dropped: %w", txID, mempool.ErrDuplicateTx)
 	}
 
-	if reason := g.Mempool.GetDropReason(txID); reason != nil {
+	if reason := g.Mempool.GetDropReason(txID); reason != nil && !errors.Is(reason, dac.ErrNotYetActive) {
 		// If the tx is being dropped - just ignore it
 		//
 		// TODO: Should we allow re-verification of the transaction even if it

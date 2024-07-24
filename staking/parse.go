@@ -61,7 +61,10 @@ func ParseCertificate(der []byte) (*Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	stakingCert := CertificateFromX509(x509Cert)
+	stakingCert, err := CertificateFromX509(x509Cert)
+	if err != nil {
+		return nil, err
+	}
 	return stakingCert, ValidateCertificate(stakingCert)
 }
 
@@ -86,7 +89,8 @@ func ParseCertificatePermissive(bytes []byte) (*Certificate, error) {
 	if !input.ReadASN1(&input, cryptobyte_asn1.SEQUENCE) {
 		return nil, ErrMalformedTBSCertificate
 	}
-	if !input.SkipOptionalASN1(cryptobyte_asn1.Tag(0).Constructed().ContextSpecific()) {
+	var certVersion int
+	if !input.ReadOptionalASN1Integer(&certVersion, cryptobyte_asn1.Tag(0).Constructed().ContextSpecific(), 0) {
 		return nil, ErrMalformedVersion
 	}
 	if !input.SkipASN1(cryptobyte_asn1.INTEGER) {
@@ -105,14 +109,15 @@ func ParseCertificatePermissive(bytes []byte) (*Certificate, error) {
 		return nil, ErrMalformedIssuer
 	}
 
-	// Read the "subject public key info" into input.
-	if !input.ReadASN1(&input, cryptobyte_asn1.SEQUENCE) {
+	// Read the "subject public key info" into spki.
+	var spki cryptobyte.String
+	if !input.ReadASN1(&spki, cryptobyte_asn1.SEQUENCE) {
 		return nil, ErrMalformedSPKI
 	}
 
 	// Read the public key algorithm identifier.
 	var pkAISeq cryptobyte.String
-	if !input.ReadASN1(&pkAISeq, cryptobyte_asn1.SEQUENCE) {
+	if !spki.ReadASN1(&pkAISeq, cryptobyte_asn1.SEQUENCE) {
 		return nil, ErrMalformedPublicKeyAlgorithmIdentifier
 	}
 	var pkAI asn1.ObjectIdentifier
@@ -123,15 +128,23 @@ func ParseCertificatePermissive(bytes []byte) (*Certificate, error) {
 	// Note: Unlike the x509 package, we require parsing the public key.
 
 	var spk asn1.BitString
-	if !input.ReadASN1BitString(&spk) {
+	if !spki.ReadASN1BitString(&spk) {
 		return nil, ErrMalformedSubjectPublicKey
 	}
+
 	publicKey, signatureAlgorithm, err := parsePublicKey(pkAI, spk)
-	return &Certificate{
+	cert := &Certificate{
 		Raw:                bytes,
 		SignatureAlgorithm: signatureAlgorithm,
 		PublicKey:          publicKey,
-	}, err
+	}
+	if err != nil {
+		return cert, err
+	}
+
+	nodeID, err := getNodeID(input, certVersion, publicKey)
+	cert.NodeID = nodeID
+	return cert, err
 }
 
 // Ref: https://github.com/golang/go/blob/go1.19.12/src/crypto/x509/parser.go#L215-L306

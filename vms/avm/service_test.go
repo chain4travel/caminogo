@@ -2087,6 +2087,8 @@ func TestGetAssetDescription(t *testing.T) {
 		AssetID: avaxAssetID.String(),
 	}, &reply))
 
+	require.Equal(reply.AssetID, env.vm.feeAssetID)
+
 	require.Equal("AVAX", reply.Name)
 	require.Equal("SYMB", reply.Symbol)
 }

@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	AvalancheGoPathEnvName = "AVALANCHEGO_PATH"
+	AvalancheGoPathEnvName = "CAMINOGO_BIN_PATH"
 
 	defaultNodeInitTimeout = 10 * time.Second
 )

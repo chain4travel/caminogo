@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/metrics"
@@ -21,7 +20,7 @@ import (
 
 func State(
 	t *testing.T,
-	validators validators.Manager,
+	cfg *config.Config,
 	ctx *snow.Context,
 	db database.Database,
 	rewards reward.Calculator,
@@ -34,7 +33,7 @@ func State(
 		db,
 		genesisBytes,
 		prometheus.NewRegistry(),
-		validators,
+		cfg,
 		execCfg,
 		ctx,
 		metrics.Noop,

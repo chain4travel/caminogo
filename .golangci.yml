@@ -19,8 +19,6 @@ run:
   # Allowed values: readonly|vendor|mod
   # By default, it isn't set.
   modules-download-mode: readonly
-  skip-dirs:
-    - "tools/camino-network-runner"
 
 output:
   # Make issues output unique by line.

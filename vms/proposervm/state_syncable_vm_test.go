@@ -93,7 +93,7 @@ func helperBuildStateSyncTestObjects(t *testing.T) (*fullVM, *VM) {
 	)
 
 	ctx := snowtest.Context(t, snowtest.CChainID)
-	ctx.NodeID = NodeIDFromCert(pTestCert)
+	ctx.NodeID = pTestCert.NodeID
 
 	require.NoError(vm.Initialize(
 		context.Background(),
@@ -200,7 +200,6 @@ func TestStateSyncGetOngoingSyncStateSummary(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,
@@ -286,7 +285,6 @@ func TestStateSyncGetLastStateSummary(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,
@@ -375,7 +373,6 @@ func TestStateSyncGetStateSummary(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,
@@ -449,7 +446,6 @@ func TestParseStateSummary(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,
@@ -505,7 +501,6 @@ func TestStateSummaryAccept(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,
@@ -586,7 +581,6 @@ func TestStateSummaryAcceptOlderBlock(t *testing.T) {
 		vm.preferred,
 		innerBlk.Timestamp(),
 		100, // pChainHeight,
-		vm.ctx.NodeID,
 		vm.StakingCertLeaf,
 		innerBlk.Bytes(),
 		vm.ctx.ChainID,

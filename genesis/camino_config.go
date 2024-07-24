@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -121,9 +122,11 @@ func (a CaminoAllocation) Unparse(networkID uint32) (UnparsedCaminoAllocation, e
 	return ua, err
 }
 
-func (a CaminoAllocation) Less(other CaminoAllocation) bool {
-	return a.XAmount < other.XAmount ||
-		(a.XAmount == other.XAmount && a.AVAXAddr.Less(other.AVAXAddr))
+func (a CaminoAllocation) Compare(other CaminoAllocation) int {
+	if amountCmp := utils.Compare(a.XAmount, other.XAmount); amountCmp != 0 {
+		return amountCmp
+	}
+	return a.AVAXAddr.Compare(other.AVAXAddr)
 }
 
 type PlatformAllocation struct {

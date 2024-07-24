@@ -264,18 +264,22 @@ type manager struct {
 }
 
 // New returns a new Manager
-func New(config *ManagerConfig) Manager {
+func New(config *ManagerConfig) (Manager, error) {
+	cert, err := staking.CertificateFromX509(config.StakingTLSCert.Leaf)
+	if err != nil {
+		return nil, err
+	}
 	return &manager{
 		Aliaser:                ids.NewAliaser(),
 		ManagerConfig:          *config,
 		stakingSigner:          config.StakingTLSCert.PrivateKey.(crypto.Signer),
-		stakingCert:            staking.CertificateFromX509(config.StakingTLSCert.Leaf),
+		stakingCert:            cert,
 		subnets:                make(map[ids.ID]subnets.Subnet),
 		chains:                 make(map[ids.ID]handler.Handler),
 		chainsQueue:            buffer.NewUnboundedBlockingDeque[ChainParameters](initialQueueSize),
 		unblockChainCreatorCh:  make(chan struct{}),
 		chainCreatorShutdownCh: make(chan struct{}),
-	}
+	}, nil
 }
 
 // Router that this chain manager is using to route consensus messages to chains

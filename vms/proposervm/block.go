@@ -249,7 +249,6 @@ func (p *postForkCommonComponents) buildChild(
 			parentID,
 			newTimestamp,
 			pChainHeight,
-			p.vm.ctx.NodeID,
 			p.vm.StakingCertLeaf,
 			innerBlock.Bytes(),
 			p.vm.ctx.ChainID,

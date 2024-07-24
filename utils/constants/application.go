@@ -15,7 +15,7 @@ package constants
 
 // Variables to be exported
 // Can be overwritten with -X during build step
-var (
+const (
 	// PlatformName exports the name of the platform
 	PlatformName = "camino"
 

@@ -5,7 +5,7 @@ set -euo pipefail
 # e.g.,
 # ./scripts/tests.e2e.sh
 # ./scripts/tests.e2e.sh --ginkgo.label-filter=x                                       # All arguments are supplied to ginkgo
-# E2E_SERIAL=1 ./scripts/tests.e2e.sh ./build/caminogo                                 # Run tests serially
+# E2E_SERIAL=1 ./scripts/tests.e2e.sh                                                  # Run tests serially
 # CAMINOGO_BIN_PATH=./build/caminogo ./scripts/tests.e2e.sh                            # Customization of caminogo path
 # E2E_USE_EXISTING_NETWORK=1 TMPNET_NETWORK_DIR=/path/to ./scripts/tests.e2e.sh        # Execute against an existing network
 if ! [[ "$0" =~ scripts/tests.e2e.sh ]]; then

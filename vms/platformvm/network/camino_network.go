@@ -7,53 +7,73 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/cache"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/components/message"
-	"github.com/ava-labs/avalanchego/vms/platformvm/block/executor"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	txBuilder "github.com/ava-labs/avalanchego/vms/platformvm/txs/builder"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs/mempool"
 )
 
 var errUnknownCrossChainMessage = errors.New("unknown cross-chain message")
 
+type SystemTxBuilder interface {
+	NewRewardsImportTx() (*txs.Tx, error)
+}
+
 type caminoNetwork struct {
-	network
-	txBuilder txBuilder.CaminoBuilder
+	*network
+	txBuilder SystemTxBuilder
+	lock      sync.Locker
 }
 
 func NewCamino(
-	ctx *snow.Context,
-	manager executor.Manager,
+	log logging.Logger,
+	nodeID ids.NodeID,
+	subnetID ids.ID,
+	vdrs validators.State,
+	txVerifier TxVerifier,
 	mempool mempool.Mempool,
 	partialSyncPrimaryNetwork bool,
 	appSender common.AppSender,
-	txBuilder txBuilder.CaminoBuilder,
-) Network {
-	return &caminoNetwork{
-		network: network{
-			AppHandler: common.NewNoOpAppHandler(ctx.Log),
-
-			ctx:                       ctx,
-			manager:                   manager,
-			mempool:                   mempool,
-			partialSyncPrimaryNetwork: partialSyncPrimaryNetwork,
-			appSender:                 appSender,
-			recentTxs:                 &cache.LRU[ids.ID, struct{}]{Size: recentCacheSize},
-		},
-		txBuilder: txBuilder,
+	registerer prometheus.Registerer,
+	config Config,
+	txBuilder SystemTxBuilder,
+	lock sync.Locker,
+) (Network, error) {
+	avaxNetwork, err := New(
+		log,
+		nodeID,
+		subnetID,
+		vdrs,
+		txVerifier,
+		mempool,
+		partialSyncPrimaryNetwork,
+		appSender,
+		registerer,
+		config,
+	)
+	if err != nil {
+		return nil, err
 	}
+
+	return &caminoNetwork{
+		network:   avaxNetwork.(*network),
+		txBuilder: txBuilder,
+		lock:      lock,
+	}, nil
 }
 
 func (n *caminoNetwork) CrossChainAppRequest(ctx context.Context, chainID ids.ID, requestID uint32, _ time.Time, request []byte) error {
-	n.ctx.Log.Debug("called CrossChainAppRequest message handler",
+	n.log.Debug("called CrossChainAppRequest message handler",
 		zap.Stringer("chainID", chainID),
 		zap.Uint32("requestID", requestID),
 		zap.Int("messageLen", len(request)),
@@ -70,7 +90,7 @@ func (n *caminoNetwork) CrossChainAppRequest(ctx context.Context, chainID ids.ID
 		requestID,
 		[]byte(n.caminoRewardMessage()),
 	); err != nil {
-		n.ctx.Log.Error("caminoCrossChainAppRequest failed to send response", zap.Error(err))
+		n.log.Error("caminoCrossChainAppRequest failed to send response", zap.Error(err))
 		// we don't want fatal here: response is for logging only, so
 		// its better to not respond properly, than crash the whole node
 		return nil
@@ -89,33 +109,33 @@ func (n *caminoNetwork) caminoRewardMessage() string {
 	if !ok {
 		// should never happen
 		err = fmt.Errorf("unexpected tx type: expected *txs.RewardsImportTx, got %T", utx)
-		n.ctx.Log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
+		n.log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
 		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
 	}
 
-	n.ctx.Lock.Lock()
-	defer n.ctx.Lock.Unlock()
+	n.lock.Lock()
+	defer n.lock.Unlock()
 
 	if err := n.issueTx(tx); err != nil {
-		n.ctx.Log.Error("caminoCrossChainAppRequest failed to issue rewardsImportTx", zap.Error(err))
+		n.log.Error("caminoCrossChainAppRequest failed to issue rewardsImportTx", zap.Error(err))
 		return fmt.Sprintf("caminoCrossChainAppRequest failed to issue rewardsImportTx: %s", err)
 	}
 
-	amounts := make([]uint64, len(utx.Ins))
+	amts := make([]uint64, len(utx.Ins))
 	for i := range utx.Ins {
-		amounts[i] = utx.Ins[i].In.Amount()
+		amts[i] = utx.Ins[i].In.Amount()
 	}
 
-	return fmt.Sprintf("caminoCrossChainAppRequest issued rewardsImportTx with utxos with %v nCAM", amounts)
+	return fmt.Sprintf("caminoCrossChainAppRequest issued rewardsImportTx with utxos with %v nCAM", amts)
 }
 
 func (n *caminoNetwork) newRewardsImportTx() (*txs.Tx, error) {
-	n.ctx.Lock.Lock()
-	defer n.ctx.Lock.Unlock()
+	n.lock.Lock()
+	defer n.lock.Unlock()
 
 	tx, err := n.txBuilder.NewRewardsImportTx()
 	if err != nil {
-		n.ctx.Log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
+		n.log.Error("caminoCrossChainAppRequest failed to create rewardsImportTx", zap.Error(err))
 		return nil, fmt.Errorf("caminoCrossChainAppRequest failed to create rewardsImportTx: %w", err)
 	}
 	return tx, nil

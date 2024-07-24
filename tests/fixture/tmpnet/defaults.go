@@ -44,7 +44,7 @@ func DefaultFlags() FlagsMap {
 		config.HTTPHostKey:                  "127.0.0.1",
 		config.StakingHostKey:               "127.0.0.1",
 		config.HealthCheckFreqKey:           "2s",
-		config.AdminAPIEnabledKey:           true,
+		config.AdminAPIEnabledKey:           "e2e",
 		config.IpcAPIEnabledKey:             true,
 		config.IndexEnabledKey:              true,
 		config.LogDisplayLevelKey:           "INFO",

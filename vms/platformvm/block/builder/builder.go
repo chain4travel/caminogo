@@ -314,8 +314,7 @@ func buildBlock(
 			blockTxs,
 		)
 	}
-	
-	// TODO@ packBlockTxs
+
 	if block, err := caminoBuildBlock(builder, parentID, height, timestamp, parentState); err != nil {
 		return nil, err
 	} else if block != nil {
@@ -394,10 +393,12 @@ func packBlockTxs(
 			return nil, err
 		}
 
-		executor := &txexecutor.StandardTxExecutor{
-			Backend: backend,
-			State:   txDiff,
-			Tx:      tx,
+		executor := &txexecutor.CaminoStandardTxExecutor{
+			StandardTxExecutor: txexecutor.StandardTxExecutor{
+				Backend: backend,
+				State:   txDiff,
+				Tx:      tx,
+			},
 		}
 
 		err = tx.Unsigned.Visit(executor)

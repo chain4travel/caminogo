@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
@@ -76,8 +77,8 @@ func (b *Block) Init() error {
 	return nil
 }
 
-func (b *Block) Less(b1 *Block) bool {
-	return b.Timestamp < b1.Timestamp
+func (b *Block) Compare(b1 *Block) int {
+	return utils.Compare(b.Timestamp, b1.Timestamp)
 }
 
 func (b *Block) Time() time.Time {
@@ -93,7 +94,7 @@ func (b *Block) Txs() []*txs.Tx {
 
 // Generate deposit offer id from its bytes hash and set it to offer's ID field
 func SetDepositOfferID(offer *deposit.Offer) error {
-	bytes, err := txs.GenesisCodec.Marshal(txs.Version, offer)
+	bytes, err := txs.GenesisCodec.Marshal(txs.CodecVersion, offer)
 	if err != nil {
 		return err
 	}

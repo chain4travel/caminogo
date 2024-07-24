@@ -55,7 +55,6 @@ func Build(
 	parentID ids.ID,
 	timestamp time.Time,
 	pChainHeight uint64,
-	nodeID ids.NodeID,
 	cert *staking.Certificate,
 	blockBytes []byte,
 	chainID ids.ID,
@@ -71,7 +70,7 @@ func Build(
 		},
 		timestamp: timestamp,
 		cert:      cert,
-		proposer:  nodeID,
+		proposer:  cert.NodeID,
 	}
 	var blockIntf SignedBlock = block
 

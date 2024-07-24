@@ -170,6 +170,7 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 				staker, err := state.NewCurrentStaker(
 					tx.ID(),
 					tx.Unsigned.(*txs.CaminoAddValidatorTx),
+					tx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 					0,
 				)
 				require.NoError(t, err)
@@ -200,6 +201,7 @@ func TestCaminoStandardTxExecutorAddValidatorTx(t *testing.T) {
 				staker, err := state.NewCurrentStaker(
 					tx.ID(),
 					tx.Unsigned.(*txs.CaminoAddValidatorTx),
+					tx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 					0,
 				)
 				require.NoError(t, err)
@@ -351,6 +353,7 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	staker, err := state.NewCurrentStaker(
 		addDSTx.ID(),
 		addDSTx.Unsigned.(*txs.CaminoAddValidatorTx),
+		addDSTx.Unsigned.(*txs.CaminoAddValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(t, err)
@@ -374,6 +377,7 @@ func TestCaminoStandardTxExecutorAddSubnetValidatorTx(t *testing.T) {
 	staker, err = state.NewCurrentStaker(
 		subnetTx.ID(),
 		subnetTx.Unsigned.(*txs.AddSubnetValidatorTx),
+		subnetTx.Unsigned.(*txs.AddSubnetValidatorTx).StartTime(),
 		0,
 	)
 	require.NoError(t, err)
@@ -1442,7 +1446,7 @@ func TestCaminoRewardValidatorTx(t *testing.T) {
 		generateUTXOsAfterReward: func(txID ids.ID) []*avax.UTXO {
 			return []*avax.UTXO{
 				generate.UTXO(txID, env.ctx.AVAXAssetID, test.ValidatorWeight, stakeOwners, ids.Empty, ids.Empty, true),
-				generate.UTXOWithIndex(unlockedUTXOTxID, 2, env.ctx.AVAXAssetID, test.PreFundedBalance, stakeOwners, ids.Empty, ids.Empty, true),
+				generate.UTXOWithIndex(unlockedUTXOTxID, 3, env.ctx.AVAXAssetID, test.PreFundedBalance, stakeOwners, ids.Empty, ids.Empty, true),
 			}
 		},
 		expectedErr: nil,
@@ -3304,7 +3308,7 @@ func TestCaminoStandardTxExecutorDepositTx(t *testing.T) {
 				// creating offer permission cred
 				if tt.offerPermissionCred != nil {
 					tx.Creds = append(tx.Creds, tt.offerPermissionCred(t))
-					signedBytes, err := txs.Codec.Marshal(txs.Version, tx)
+					signedBytes, err := txs.Codec.Marshal(txs.CodecVersion, tx)
 					require.NoError(t, err)
 					tx.SetBytes(tx.Unsigned.Bytes(), signedBytes)
 				}
@@ -4876,7 +4880,7 @@ func TestCaminoStandardTxExecutorRewardsImportTx(t *testing.T) {
 			}
 			utxoID := utxo.InputID()
 			utxoIDs[i] = utxoID[:]
-			utxoBytes, err := txs.Codec.Marshal(txs.Version, toMarshal)
+			utxoBytes, err := txs.Codec.Marshal(txs.CodecVersion, toMarshal)
 			require.NoError(t, err)
 			utxosBytes[i] = utxoBytes
 		}
@@ -5982,7 +5986,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 	proposalWrapper := &txs.ProposalWrapper{Proposal: &dac.GeneralProposal{
 		Start: 100, End: 100 + dac.GeneralProposalMinDuration, Options: [][]byte{{}},
 	}}
-	proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+	proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 	require.NoError(t, err)
 
 	baseTxWithBondAmt := func(bondAmt uint64) *txs.BaseTx {
@@ -6092,7 +6096,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 				return s
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 					Start:   uint64(cfg.BerlinPhaseTime.Unix()) - 1,
 					End:     uint64(cfg.BerlinPhaseTime.Unix()) + 1,
 					Options: []uint64{1},
@@ -6119,7 +6123,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddProposalTx {
 				startTime := uint64(cfg.BerlinPhaseTime.Add(MaxFutureStartTime).Unix() + 1)
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, &txs.ProposalWrapper{Proposal: &dac.BaseFeeProposal{
 					Start:   startTime,
 					End:     startTime + 1,
 					Options: []uint64{1},
@@ -6150,7 +6154,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, Options: []uint64{1},
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6178,7 +6182,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, ApplicantAddress: applicantAddress,
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6339,7 +6343,7 @@ func TestCaminoStandardTxExecutorAddProposalTx(t *testing.T) {
 						Start: 100, End: 100 + dac.AddMemberProposalDuration, ApplicantAddress: applicantAddress,
 					},
 				}}
-				proposalBytes, err := txs.Codec.Marshal(txs.Version, proposalWrapper)
+				proposalBytes, err := txs.Codec.Marshal(txs.CodecVersion, proposalWrapper)
 				require.NoError(t, err)
 				return &txs.AddProposalTx{
 					BaseTx:          *baseTxWithBondAmt(cfg.CaminoConfig.DACProposalBondAmount),
@@ -6398,7 +6402,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 	feeUTXO := generate.UTXO(ids.ID{1, 2, 3, 4, 5}, ctx.AVAXAssetID, test.TxFee, feeOwner, ids.Empty, ids.Empty, true)
 
 	simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 0}}
-	voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+	voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 	require.NoError(t, err)
 
 	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
@@ -6511,7 +6515,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey1},
 			},
-			expectedErr: ErrProposalInactive,
+			expectedErr: dac.ErrNotActive,
 		},
 		"Proposal is not active yet": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {
@@ -6533,7 +6537,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			signers: [][]*secp256k1.PrivateKey{
 				{feeOwnerKey}, {voterKey1},
 			},
-			expectedErr: ErrProposalInactive,
+			expectedErr: dac.ErrNotYetActive,
 		},
 		"Voter isn't consortium member": {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.AddVoteTx, cfg *config.Config) *state.MockDiff {
@@ -6596,7 +6600,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				vote := &txs.VoteWrapper{Vote: &dac.DummyVote{}} // not SimpleVote
-				voteBytes, err := txs.Codec.Marshal(txs.Version, vote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, vote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,
@@ -6625,7 +6629,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 5}} // just 3 options in proposal
-				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,
@@ -6750,7 +6754,7 @@ func TestCaminoStandardTxExecutorAddVoteTx(t *testing.T) {
 			},
 			utx: func(cfg *config.Config) *txs.AddVoteTx {
 				simpleVote := &txs.VoteWrapper{Vote: &dac.SimpleVote{OptionIndex: 1}}
-				voteBytes, err := txs.Codec.Marshal(txs.Version, simpleVote)
+				voteBytes, err := txs.Codec.Marshal(txs.CodecVersion, simpleVote)
 				require.NoError(t, err)
 				return &txs.AddVoteTx{
 					BaseTx:       baseTx,
