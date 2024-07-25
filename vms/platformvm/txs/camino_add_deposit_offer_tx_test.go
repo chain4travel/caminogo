@@ -10,9 +10,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -117,7 +119,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
+						generate.In(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -132,7 +134,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -147,7 +149,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+						generate.StakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -162,7 +164,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+						generate.StakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -185,5 +187,13 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 			err := tt.tx.SyntacticVerify(ctx)
 			require.ErrorIs(t, err, tt.expectedErr)
 		})
+	}
+}
+
+func defaultContext() *snow.Context {
+	return &snow.Context{
+		ChainID:     ids.GenerateTestID(),
+		NetworkID:   1337,
+		AVAXAssetID: ids.GenerateTestID(),
 	}
 }

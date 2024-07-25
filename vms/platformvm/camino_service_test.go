@@ -12,24 +12,20 @@ import (
 
 	json_api "github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
 // Test method GetBalance in CaminoService
 func TestGetCaminoBalance(t *testing.T) {
-	id := caminoPreFundedKeys[0].PublicKey().Address()
-	addr, err := address.FormatBech32(constants.UnitTestHRP, id.Bytes())
-	require.NoError(t, err)
-
 	tests := map[string]struct {
 		camino          api.Camino
-		genesisUTXOs    []api.UTXO // unlocked utxos
 		address         string
 		bonded          uint64 // additional (to existing genesis validator bond) bonded utxos
 		deposited       uint64 // additional deposited utxos
@@ -40,54 +36,30 @@ func TestGetCaminoBalance(t *testing.T) {
 			camino: api.Camino{
 				LockModeBondDeposit: true,
 			},
-			genesisUTXOs: []api.UTXO{
-				{
-					Amount:  json.Uint64(defaultBalance),
-					Address: addr,
-				},
-			},
-			address: addr,
+			address: test.FundedKeysBech32[0],
 			bonded:  defaultWeight,
 		},
 		"Genesis Validator with deposited amount": {
 			camino: api.Camino{
 				LockModeBondDeposit: true,
 			},
-			genesisUTXOs: []api.UTXO{
-				{
-					Amount:  json.Uint64(defaultBalance),
-					Address: addr,
-				},
-			},
-			address:   addr,
+			address:   test.FundedKeysBech32[0],
 			bonded:    defaultWeight,
-			deposited: defaultBalance,
+			deposited: test.PreFundedBalance,
 		},
 		"Genesis Validator with depositedBonded amount": {
 			camino: api.Camino{
 				LockModeBondDeposit: true,
 			},
-			genesisUTXOs: []api.UTXO{
-				{
-					Amount:  json.Uint64(defaultBalance),
-					Address: addr,
-				},
-			},
-			address:         addr,
+			address:         test.FundedKeysBech32[0],
 			bonded:          defaultWeight,
-			depositedBonded: defaultBalance,
+			depositedBonded: test.PreFundedBalance,
 		},
 		"Genesis Validator with added balance and disabled LockModeBondDeposit": {
 			camino: api.Camino{
 				LockModeBondDeposit: false,
 			},
-			genesisUTXOs: []api.UTXO{
-				{
-					Amount:  json.Uint64(defaultBalance),
-					Address: addr,
-				},
-			},
-			address: addr,
+			address: test.FundedKeysBech32[0],
 			bonded:  defaultWeight,
 		},
 		"Error - Empty address ": {
@@ -100,8 +72,7 @@ func TestGetCaminoBalance(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			service := defaultCaminoService(t, tt.camino, tt.genesisUTXOs)
-			defer stopVM(t, service.vm, true)
+			service := newCaminoService(t, tt.camino, test.PhaseLast, nil)
 
 			request := GetBalanceRequest{
 				Addresses: []string{
@@ -116,9 +87,9 @@ func TestGetCaminoBalance(t *testing.T) {
 				outputOwners := secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
-					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+					Addrs:     []ids.ShortID{keys[0].Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.deposited, outputOwners, ids.GenerateTestID(), ids.Empty)
+				utxo := generate.UTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.deposited, outputOwners, ids.GenerateTestID(), ids.Empty, true)
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -127,9 +98,9 @@ func TestGetCaminoBalance(t *testing.T) {
 				outputOwners := secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
-					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+					Addrs:     []ids.ShortID{keys[0].Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.bonded, outputOwners, ids.Empty, ids.GenerateTestID())
+				utxo := generate.UTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.bonded, outputOwners, ids.Empty, ids.GenerateTestID(), true)
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -138,9 +109,9 @@ func TestGetCaminoBalance(t *testing.T) {
 				outputOwners := secp256k1fx.OutputOwners{
 					Locktime:  0,
 					Threshold: 1,
-					Addrs:     []ids.ShortID{keys[0].PublicKey().Address()},
+					Addrs:     []ids.ShortID{keys[0].Address()},
 				}
-				utxo := generateTestUTXO(ids.GenerateTestID(), avaxAssetID, tt.depositedBonded, outputOwners, ids.GenerateTestID(), ids.GenerateTestID())
+				utxo := generate.UTXO(ids.GenerateTestID(), service.vm.ctx.AVAXAssetID, tt.depositedBonded, outputOwners, ids.GenerateTestID(), ids.GenerateTestID(), true)
 				service.vm.state.AddUTXO(utxo)
 				require.NoError(t, service.vm.state.Commit())
 			}
@@ -152,21 +123,21 @@ func TestGetCaminoBalance(t *testing.T) {
 			if tt.expectedError != nil {
 				return
 			}
-			expectedBalance := json.Uint64(defaultCaminoValidatorWeight + defaultBalance + tt.bonded + tt.deposited + tt.depositedBonded)
 
 			if !tt.camino.LockModeBondDeposit {
 				response := responseWrapper.avax
-				require.Equal(t, json.Uint64(defaultBalance), response.Balance, "Wrong balance. Expected %d ; Returned %d", json.Uint64(defaultBalance), response.Balance)
+				require.Equal(t, json.Uint64(test.PreFundedBalance), response.Balance, "Wrong balance. Expected %d ; Returned %d", json.Uint64(test.PreFundedBalance), response.Balance)
 				require.Equal(t, json.Uint64(0), response.LockedStakeable, "Wrong locked stakeable balance. Expected %d ; Returned %d", 0, response.LockedStakeable)
 				require.Equal(t, json.Uint64(0), response.LockedNotStakeable, "Wrong locked not stakeable balance. Expected %d ; Returned %d", 0, response.LockedNotStakeable)
-				require.Equal(t, json.Uint64(defaultBalance), response.Unlocked, "Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, response.Unlocked)
+				require.Equal(t, json.Uint64(test.PreFundedBalance), response.Unlocked, "Wrong unlocked balance. Expected %d ; Returned %d", test.PreFundedBalance, response.Unlocked)
 			} else {
+				expectedBalance := json.Uint64(test.ValidatorWeight + test.PreFundedBalance + tt.bonded + tt.deposited + tt.depositedBonded)
 				response := responseWrapper.camino
-				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+defaultBalance+tt.bonded+tt.deposited+tt.depositedBonded), response.Balances[avaxAssetID], "Wrong balance. Expected %d ; Returned %d", expectedBalance, response.Balances[avaxAssetID])
-				require.Equal(t, json.Uint64(tt.deposited), response.DepositedOutputs[avaxAssetID], "Wrong deposited balance. Expected %d ; Returned %d", tt.deposited, response.DepositedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(defaultCaminoValidatorWeight+tt.bonded), response.BondedOutputs[avaxAssetID], "Wrong bonded balance. Expected %d ; Returned %d", tt.bonded, response.BondedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(tt.depositedBonded), response.DepositedBondedOutputs[avaxAssetID], "Wrong depositedBonded balance. Expected %d ; Returned %d", tt.depositedBonded, response.DepositedBondedOutputs[avaxAssetID])
-				require.Equal(t, json.Uint64(defaultBalance), response.UnlockedOutputs[avaxAssetID], "Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, response.UnlockedOutputs[avaxAssetID])
+				require.Equal(t, expectedBalance, response.Balances[service.vm.ctx.AVAXAssetID], "Wrong balance. Expected %d ; Returned %d", expectedBalance, response.Balances[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(tt.deposited), response.DepositedOutputs[service.vm.ctx.AVAXAssetID], "Wrong deposited balance. Expected %d ; Returned %d", tt.deposited, response.DepositedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(test.ValidatorWeight+tt.bonded), response.BondedOutputs[service.vm.ctx.AVAXAssetID], "Wrong bonded balance. Expected %d ; Returned %d", tt.bonded, response.BondedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(tt.depositedBonded), response.DepositedBondedOutputs[service.vm.ctx.AVAXAssetID], "Wrong depositedBonded balance. Expected %d ; Returned %d", tt.depositedBonded, response.DepositedBondedOutputs[service.vm.ctx.AVAXAssetID])
+				require.Equal(t, json.Uint64(test.PreFundedBalance), response.UnlockedOutputs[service.vm.ctx.AVAXAssetID], "Wrong unlocked balance. Expected %d ; Returned %d", test.PreFundedBalance, response.UnlockedOutputs[service.vm.ctx.AVAXAssetID])
 			}
 		})
 	}
@@ -240,8 +211,7 @@ func TestCaminoService_GetAllDepositOffers(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			s := defaultCaminoService(t, api.Camino{}, []api.UTXO{})
-			defer stopVM(t, s.vm, true)
+			s := newCaminoService(t, api.Camino{}, test.PhaseLast, []api.UTXO{})
 
 			tt.prepare(s)
 
@@ -254,6 +224,9 @@ func TestCaminoService_GetAllDepositOffers(t *testing.T) {
 
 func TestGetKeystoreKeys(t *testing.T) {
 	userPass := json_api.UserPass{Username: testUsername, Password: testPassword}
+
+	testAddressID, err := address.ParseToID(testAddress)
+	require.NoError(t, err)
 
 	tests := map[string]struct {
 		from          json_api.JSONFromAddrs
@@ -282,10 +255,10 @@ func TestGetKeystoreKeys(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			s, _ := defaultService(t)
-			defaultAddress(t, s) // Insert testAddress into keystore
+			s := newCaminoService(t, api.Camino{LockModeBondDeposit: true}, test.PhaseLast, nil)
+			defaultAddress(t, &s.Service) // Insert testAddress into keystore
 			s.vm.ctx.Lock.Lock()
-			defer stopVM(t, s.vm, false)
+			defer s.vm.ctx.Lock.Unlock()
 
 			keys, err := s.getKeystoreKeys(&userPass, &tt.from) //nolint:gosec
 			require.ErrorIs(t, err, tt.expectedError)
@@ -302,8 +275,7 @@ func TestGetKeystoreKeys(t *testing.T) {
 }
 
 func TestGetFakeKeys(t *testing.T) {
-	s, _ := defaultService(t)
-	defer stopVM(t, s.vm, true)
+	s := newCaminoService(t, api.Camino{LockModeBondDeposit: true}, test.PhaseLast, nil)
 
 	_, _, testAddressBytes, _ := address.Parse(testAddress)
 	testAddressID, _ := ids.ToShortID(testAddressBytes)
@@ -344,33 +316,29 @@ func TestGetFakeKeys(t *testing.T) {
 }
 
 func TestSpend(t *testing.T) {
-	id := keys[0].PublicKey().Address()
-	addr, err := address.FormatBech32(constants.UnitTestHRP, id.Bytes())
-	require.NoError(t, err)
-
-	service := defaultCaminoService(
+	service := newCaminoService(
 		t,
 		api.Camino{
 			LockModeBondDeposit: true,
 		},
+		test.PhaseLast,
 		[]api.UTXO{{
 			Locktime: 0,
 			Amount:   100,
-			Address:  addr,
+			Address:  test.FundedKeysBech32[0],
 			Message:  "",
 		}},
 	)
-	defer stopVM(t, service.vm, true)
 
 	spendArgs := SpendArgs{
 		JSONFromAddrs: json_api.JSONFromAddrs{
-			From: []string{"P-" + addr},
+			From: []string{"P-" + test.FundedKeysBech32[0]},
 		},
 		AmountToBurn: 50,
 		Encoding:     formatting.Hex,
 		To: api.Owner{
 			Threshold: 1,
-			Addresses: []string{"P-" + addr},
+			Addresses: []string{"P-" + test.FundedKeysBech32[0]},
 		},
 	}
 

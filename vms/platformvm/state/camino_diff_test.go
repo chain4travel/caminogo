@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -1753,17 +1754,17 @@ func TestDiffLockedUTXOs(t *testing.T) {
 	lockState := locked.StateBonded
 	testErr := errors.New("test err")
 
-	parentUTXO1 := generateTestUTXO(ids.ID{1}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO2 := generateTestUTXO(ids.ID{2}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO3 := generateTestUTXO(ids.ID{3}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO4 := generateTestUTXO(ids.ID{4}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO5 := generateTestUTXO(ids.ID{5}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO1 := generateTestUTXO(ids.ID{6}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO2 := generateTestUTXO(ids.ID{7}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO3 := generateTestUTXO(ids.ID{8}, assetID, 1, owner, ids.Empty, ids.Empty)
-	addedUTXO4 := generateTestUTXO(ids.ID{9}, assetID, 1, owner, ids.Empty, ids.Empty)
-	removedUTXO1 := generateTestUTXO(ids.ID{10}, assetID, 1, owner, ids.Empty, ids.Empty)
-	removedUTXO2 := generateTestUTXO(ids.ID{11}, assetID, 1, owner, ids.Empty, ids.Empty)
+	parentUTXO1 := generate.UTXO(ids.ID{1}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO2 := generate.UTXO(ids.ID{2}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO3 := generate.UTXO(ids.ID{3}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO4 := generate.UTXO(ids.ID{4}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO5 := generate.UTXO(ids.ID{5}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO1 := generate.UTXO(ids.ID{6}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO2 := generate.UTXO(ids.ID{7}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO3 := generate.UTXO(ids.ID{8}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	addedUTXO4 := generate.UTXO(ids.ID{9}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	removedUTXO1 := generate.UTXO(ids.ID{10}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	removedUTXO2 := generate.UTXO(ids.ID{11}, assetID, 1, owner, ids.Empty, ids.Empty, true)
 	parentUTXOs := []*avax.UTXO{parentUTXO1, parentUTXO2, parentUTXO3, parentUTXO4, parentUTXO5}
 
 	tests := map[string]struct {
