@@ -19,9 +19,9 @@ type msigAlias struct {
 	Nonce  uint64              `serialize:"true"`
 }
 
-func (cs *caminoState) SetMultisigAlias(ma *multisig.AliasWithNonce) {
-	cs.modifiedMultisigAliases[ma.ID] = ma
-	cs.multisigAliasesCache.Evict(ma.ID)
+func (cs *caminoState) SetMultisigAlias(id ids.ShortID, ma *multisig.AliasWithNonce) {
+	cs.modifiedMultisigAliases[id] = ma
+	cs.multisigAliasesCache.Evict(id)
 }
 
 func (cs *caminoState) GetMultisigAlias(id ids.ShortID) (*multisig.AliasWithNonce, error) {

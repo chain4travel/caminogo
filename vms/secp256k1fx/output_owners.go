@@ -118,6 +118,10 @@ func (out *OutputOwners) Equals(other *OutputOwners) bool {
 	return true
 }
 
+func (out *OutputOwners) IsZero() bool {
+	return out.Equals(&OutputOwners{})
+}
+
 func (out *OutputOwners) Verify() error {
 	switch {
 	case out == nil:

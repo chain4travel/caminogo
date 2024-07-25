@@ -13,20 +13,34 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 )
 
+var _ Owners = (*testOwners)(nil)
+
+type testOwners struct {
+	avax.TestState
+	isEmpty bool
+}
+
+func (o testOwners) IsZero() bool { return o.isEmpty }
+
 func TestVerify(t *testing.T) {
 	tests := map[string]struct {
 		alias       Alias
-		message     string
 		expectedErr error
 	}{
-		"MemoSizeShouldBeLowerThanMaxMemoSize": {
+		"Memo size should be lower than maxMemoSize": {
 			alias: Alias{
-				Owners: &avax.TestState{},
+				Owners: &testOwners{},
 				Memo:   make([]byte, avax.MaxMemoSize+1),
 				ID:     hashing.ComputeHash160Array(ids.Empty[:]),
 			},
-			message:     "memo size should be lower than max memo size",
-			expectedErr: errMemoIsToBig,
+			expectedErr: errMemoIsTooBig,
+		},
+		"Zero owners": {
+			alias: Alias{
+				ID:     ids.ShortEmpty,
+				Owners: &testOwners{isEmpty: true},
+			},
+			expectedErr: errEmptyAlias,
 		},
 	}
 	for name, tt := range tests {
