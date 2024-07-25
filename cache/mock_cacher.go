@@ -10,7 +10,7 @@ package cache
 import (
 	reflect "reflect"
 
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockCacher is a mock of Cacher interface.
@@ -60,6 +60,20 @@ func (mr *MockCacherMockRecorder[K, V]) Flush() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockCacher[K, V])(nil).Flush))
 }
 
+// Len mocks base method.
+func (m *MockCacher[K, V]) Len() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Len indicates an expected call of Len.
+func (mr *MockCacherMockRecorder[K, V]) Len() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockCacher[K, V])(nil).Len))
+}
+
 // Get mocks base method.
 func (m *MockCacher[K, V]) Get(arg0 K) (V, bool) {
 	m.ctrl.T.Helper()
@@ -85,4 +99,18 @@ func (m *MockCacher[K, V]) Put(arg0 K, arg1 V) {
 func (mr *MockCacherMockRecorder[K, V]) Put(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockCacher[K, V])(nil).Put), arg0, arg1)
+}
+
+// PortionFilled mocks base method.
+func (m *MockCacher[K, V]) PortionFilled() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PortionFilled")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// PortionFilled indicates an expected call of PortionFilled.
+func (mr *MockCacherMockRecorder[K, V]) PortionFilled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PortionFilled", reflect.TypeOf((*MockCacher[K, V])(nil).PortionFilled))
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/platformvm/caminoconfig"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 )
 
@@ -73,7 +74,8 @@ var (
 				SupplyCap:          720 * units.MegaAvax,
 			},
 			CaminoConfig: caminoconfig.Config{
-				DaoProposalBondAmount: 100 * units.Avax,
+				DACProposalBondAmount: 100 * units.Avax,
+				FeeDistribution:       [dac.FeeDistributionFractionsCount]uint64{30, 30, 40}, // 30% validators, 30% grant program, 40% burned
 			},
 		},
 	}
@@ -86,10 +88,9 @@ func init() {
 	ewoqBytes, err := cb58.Decode(EWOQKeyStr)
 	errs.Add(err)
 
-	factory := secp256k1.Factory{}
-	VMRQKey, err = factory.ToPrivateKey(vmrqBytes)
+	VMRQKey, err = secp256k1.ToPrivateKey(vmrqBytes)
 	errs.Add(err)
-	EWOQKey, err = factory.ToPrivateKey(ewoqBytes)
+	EWOQKey, err = secp256k1.ToPrivateKey(ewoqBytes)
 	errs.Add(err)
 
 	if errs.Err != nil {

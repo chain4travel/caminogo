@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -75,6 +75,29 @@ func (fx *CaminoFx) VerifyTransfer(txIntf, inIntf, credIntf, utxoIntf interface{
 	return fx.Fx.VerifyTransfer(txIntf, inIntf, credIntf, utxoIntf)
 }
 
+func (*Fx) IsNestedMultisig(ownerIntf interface{}, msigIntf interface{}) (bool, error) {
+	owner, ok := ownerIntf.(*OutputOwners)
+	if !ok {
+		return false, ErrWrongOwnerType
+	}
+	msig, ok := msigIntf.(AliasGetter)
+	if !ok {
+		return false, ErrNotAliasGetter
+	}
+
+	for _, addr := range owner.Addrs {
+		_, err := msig.GetMultisigAlias(addr)
+		switch {
+		case err == nil:
+			return true, nil
+		case err != database.ErrNotFound:
+			return false, err
+		}
+	}
+
+	return false, nil
+}
+
 func (fx *Fx) RecoverAddresses(msg []byte, verifies []verify.Verifiable) (RecoverMap, error) {
 	ret := make(RecoverMap, len(verifies))
 	visited := make(map[[secp256k1.SignatureLen]byte]bool)
@@ -89,7 +112,7 @@ func (fx *Fx) RecoverAddresses(msg []byte, verifies []verify.Verifiable) (Recove
 			if visited[sig] {
 				continue
 			}
-			pk, err := fx.SECPFactory.RecoverHashPublicKey(txHash, sig[:])
+			pk, err := fx.RecoverPublicKeyFromHash(txHash, sig[:])
 			if err != nil {
 				return nil, err
 			}
@@ -318,7 +341,7 @@ func ExtractFromAndSigners(keys []*secp256k1.PrivateKey) (set.Set[ids.ShortID], 
 	if splitIndex == len(keys) {
 		from := set.NewSet[ids.ShortID](len(keys))
 		for _, key := range keys {
-			from.Add(key.PublicKey().Address())
+			from.Add(key.Address())
 		}
 		return from, keys
 	}
@@ -326,7 +349,7 @@ func ExtractFromAndSigners(keys []*secp256k1.PrivateKey) (set.Set[ids.ShortID], 
 	// Addresses we get UTXOs for
 	from := set.NewSet[ids.ShortID](splitIndex)
 	for index := 0; index < splitIndex; index++ {
-		from.Add(keys[index].PublicKey().Address())
+		from.Add(keys[index].Address())
 	}
 
 	// Signers which will signe the Outputs

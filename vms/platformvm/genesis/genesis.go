@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -54,35 +54,4 @@ func Parse(genesisBytes []byte) (*Genesis, error) {
 		return nil, err
 	}
 	return gen, nil
-}
-
-// State represents the genesis state of the platform chain
-type State struct {
-	UTXOs         []*avax.UTXO
-	Validators    []*txs.Tx
-	Chains        []*txs.Tx
-	Camino        Camino
-	Timestamp     uint64
-	InitialSupply uint64
-}
-
-func ParseState(genesisBytes []byte) (*State, error) {
-	genesis, err := Parse(genesisBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	utxos := make([]*avax.UTXO, 0, len(genesis.UTXOs))
-	for _, utxo := range genesis.UTXOs {
-		utxos = append(utxos, &utxo.UTXO)
-	}
-
-	return &State{
-		UTXOs:         utxos,
-		Validators:    genesis.Validators,
-		Chains:        genesis.Chains,
-		Camino:        genesis.Camino,
-		Timestamp:     genesis.Timestamp,
-		InitialSupply: genesis.InitialSupply,
-	}, nil
 }

@@ -1,3 +1,13 @@
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
 // Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
@@ -38,9 +48,9 @@ func TestCompatibility(t *testing.T) {
 	require.Equal(t, v, compatibility.Version())
 
 	tests := []struct {
-		peer       *Application
-		time       time.Time
-		compatible bool
+		peer        *Application
+		time        time.Time
+		expectedErr error
 	}{
 		{
 			peer: &Application{
@@ -48,8 +58,7 @@ func TestCompatibility(t *testing.T) {
 				Minor: 5,
 				Patch: 0,
 			},
-			time:       minCompatableTime,
-			compatible: true,
+			time: minCompatableTime,
 		},
 		{
 			peer: &Application{
@@ -57,8 +66,7 @@ func TestCompatibility(t *testing.T) {
 				Minor: 3,
 				Patch: 5,
 			},
-			time:       time.Unix(8500, 0),
-			compatible: true,
+			time: time.Unix(8500, 0),
 		},
 		{
 			peer: &Application{
@@ -66,8 +74,8 @@ func TestCompatibility(t *testing.T) {
 				Minor: 1,
 				Patch: 0,
 			},
-			time:       minCompatableTime,
-			compatible: false,
+			time:        minCompatableTime,
+			expectedErr: errIncompatible,
 		},
 		{
 			peer: &Application{
@@ -75,8 +83,8 @@ func TestCompatibility(t *testing.T) {
 				Minor: 3,
 				Patch: 5,
 			},
-			time:       minCompatableTime,
-			compatible: false,
+			time:        minCompatableTime,
+			expectedErr: errIncompatible,
 		},
 		{
 			peer: &Application{
@@ -84,8 +92,8 @@ func TestCompatibility(t *testing.T) {
 				Minor: 2,
 				Patch: 5,
 			},
-			time:       time.Unix(8500, 0),
-			compatible: false,
+			time:        time.Unix(8500, 0),
+			expectedErr: errIncompatible,
 		},
 		{
 			peer: &Application{
@@ -93,19 +101,16 @@ func TestCompatibility(t *testing.T) {
 				Minor: 1,
 				Patch: 5,
 			},
-			time:       time.Unix(7500, 0),
-			compatible: false,
+			time:        time.Unix(7500, 0),
+			expectedErr: errIncompatible,
 		},
 	}
 	for _, test := range tests {
 		peer := test.peer
 		compatibility.clock.Set(test.time)
 		t.Run(fmt.Sprintf("%s-%s", peer, test.time), func(t *testing.T) {
-			if err := compatibility.Compatible(peer); test.compatible && err != nil {
-				t.Fatalf("incorrectly marked %s as incompatible with %s", peer, err)
-			} else if !test.compatible && err == nil {
-				t.Fatalf("incorrectly marked %s as compatible", peer)
-			}
+			err := compatibility.Compatible(peer)
+			require.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }

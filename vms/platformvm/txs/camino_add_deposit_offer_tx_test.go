@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -6,19 +6,20 @@ package txs
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
-	ctx := snow.DefaultContextTest()
-	ctx.AVAXAssetID = ids.GenerateTestID()
+	ctx := defaultContext()
 	owner1 := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{{0, 0, 1}}}
 	depositTxID := ids.ID{0, 1}
 	creatorAddress := ids.ShortID{1}
@@ -29,6 +30,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 		MinDuration:      1,
 		MaxDuration:      1,
 		MinAmount:        deposit.OfferMinDepositAmount,
+		TotalMaxAmount:   1,
 	}
 
 	baseTx := BaseTx{BaseTx: avax.BaseTx{
@@ -49,11 +51,43 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 			},
 			expectedErr: errEmptyDepositOfferCreatorAddress,
 		},
+		"Non-zero RewardedAmount": {
+			tx: &AddDepositOfferTx{
+				BaseTx:                     baseTx,
+				DepositOfferCreatorAddress: creatorAddress,
+				DepositOffer: &deposit.Offer{
+					UpgradeVersionID: codec.UpgradeVersion1,
+					RewardedAmount:   1,
+				},
+			},
+			expectedErr: errNotZeroDepositOfferAmounts,
+		},
+		"Non-zero DepositedAmount": {
+			tx: &AddDepositOfferTx{
+				BaseTx:                     baseTx,
+				DepositOfferCreatorAddress: creatorAddress,
+				DepositOffer: &deposit.Offer{
+					UpgradeVersionID: codec.UpgradeVersion1,
+					DepositedAmount:  1,
+				},
+			},
+			expectedErr: errNotZeroDepositOfferAmounts,
+		},
+		"Zero TotalMaxAmount and TotalMaxRewardAmount": {
+			tx: &AddDepositOfferTx{
+				BaseTx:                     baseTx,
+				DepositOfferCreatorAddress: creatorAddress,
+				DepositOffer: &deposit.Offer{
+					UpgradeVersionID: codec.UpgradeVersion1,
+				},
+			},
+			expectedErr: errZeroDepositOfferLimits,
+		},
 		"Bad deposit offer": {
 			tx: &AddDepositOfferTx{
 				BaseTx:                     baseTx,
 				DepositOfferCreatorAddress: creatorAddress,
-				DepositOffer:               &deposit.Offer{UpgradeVersionID: codec.UpgradeVersion1},
+				DepositOffer:               &deposit.Offer{UpgradeVersionID: codec.UpgradeVersion1, TotalMaxAmount: 1},
 			},
 			expectedErr: errBadDepositOffer,
 		},
@@ -85,7 +119,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
+						generate.In(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -100,7 +134,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -115,7 +149,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+						generate.StakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -130,7 +164,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+						generate.StakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
 					},
 				}},
 				DepositOfferCreatorAddress: creatorAddress,
@@ -139,7 +173,7 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 			},
 			expectedErr: locked.ErrWrongOutType,
 		},
-		"OK: v1": {
+		"OK: offer v1": {
 			tx: &AddDepositOfferTx{
 				BaseTx:                     baseTx,
 				DepositOfferCreatorAddress: creatorAddress,
@@ -150,7 +184,16 @@ func TestAddDepositOfferTxSyntacticVerify(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			require.ErrorIs(t, tt.tx.SyntacticVerify(ctx), tt.expectedErr)
+			err := tt.tx.SyntacticVerify(ctx)
+			require.ErrorIs(t, err, tt.expectedErr)
 		})
+	}
+}
+
+func defaultContext() *snow.Context {
+	return &snow.Context{
+		ChainID:     ids.GenerateTestID(),
+		NetworkID:   1337,
+		AVAXAssetID: ids.GenerateTestID(),
 	}
 }

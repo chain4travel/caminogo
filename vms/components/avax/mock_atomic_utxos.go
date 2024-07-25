@@ -12,7 +12,7 @@ import (
 
 	ids "github.com/ava-labs/avalanchego/ids"
 	set "github.com/ava-labs/avalanchego/utils/set"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAtomicUTXOManager is a mock of AtomicUTXOManager interface.

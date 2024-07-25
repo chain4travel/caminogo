@@ -9,11 +9,12 @@ package common
 
 import (
 	context "context"
+	reflect "reflect"
+
 	ids "github.com/ava-labs/avalanchego/ids"
 	snow "github.com/ava-labs/avalanchego/snow"
 	set "github.com/ava-labs/avalanchego/utils/set"
-	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockSender is a mock of Sender interface.
@@ -66,8 +67,7 @@ func (mr *MockSenderMockRecorder) SendAccepted(arg0, arg1, arg2, arg3 interface{
 }
 
 // SendAcceptedFrontier mocks base method.
-func (m *MockSender) SendAcceptedFrontier(arg0 context.Context, arg1 ids.NodeID, arg2 uint32,
-	arg3 []ids.ID) {
+func (m *MockSender) SendAcceptedFrontier(arg0 context.Context, arg1 ids.NodeID, arg2 uint32, arg3 []ids.ID) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SendAcceptedFrontier", arg0, arg1, arg2, arg3)
 }
@@ -159,7 +159,7 @@ func (mr *MockSenderMockRecorder) SendAppResponse(arg0, arg1, arg2, arg3 interfa
 }
 
 // SendChits mocks base method.
-func (m *MockSender) SendChits(arg0 context.Context, arg1 ids.NodeID, arg2 uint32, arg3, arg4 []ids.ID) {
+func (m *MockSender) SendChits(arg0 context.Context, arg1 ids.NodeID, arg2 uint32, arg3, arg4 ids.ID) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SendChits", arg0, arg1, arg2, arg3, arg4)
 }
@@ -171,8 +171,7 @@ func (mr *MockSenderMockRecorder) SendChits(arg0, arg1, arg2, arg3, arg4 interfa
 }
 
 // SendCrossChainAppRequest mocks base method.
-func (m *MockSender) SendCrossChainAppRequest(arg0 context.Context, arg1 ids.ID, arg2 uint32,
-	arg3 []byte) error {
+func (m *MockSender) SendCrossChainAppRequest(arg0 context.Context, arg1 ids.ID, arg2 uint32, arg3 []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendCrossChainAppRequest", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)

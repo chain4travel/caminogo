@@ -1,11 +1,12 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package utxo
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
@@ -16,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUTXOWithMsigVerify(t *testing.T) {
@@ -43,11 +43,11 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		aliases []verify.State
-		err     error
+		aliases     []verify.Verifiable
+		expectedErr error
 	}{
 		"Successful": {
-			aliases: []verify.State{
+			aliases: []verify.Verifiable{
 				&multisig.Alias{
 					ID: address,
 					Owners: &secp256k1fx.OutputOwners{
@@ -56,10 +56,9 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 					},
 				},
 			},
-			err: nil,
 		},
 		"Threshold exceeds Addrs length": {
-			aliases: []verify.State{
+			aliases: []verify.Verifiable{
 				&multisig.Alias{
 					ID: address,
 					Owners: &secp256k1fx.OutputOwners{
@@ -68,7 +67,7 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 					},
 				},
 			},
-			err: errors.New("output is unspendable"),
+			expectedErr: secp256k1fx.ErrOutputUnspendable,
 		},
 	}
 
@@ -76,10 +75,7 @@ func TestUTXOWithMsigVerify(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			utxoWithMSig.Aliases = test.aliases
 			err := utxoWithMSig.Verify()
-			if test.err != nil {
-				require.Error(t, err)
-				require.Equal(t, test.err, err)
-			}
+			require.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }
@@ -135,7 +131,7 @@ func TestUTXOWithMSigSerialized(t *testing.T) {
 	}
 	utxoWithMSig := avax.UTXOWithMSig{
 		UTXO:    utxo,
-		Aliases: []verify.State{alias},
+		Aliases: []verify.Verifiable{alias},
 	}
 
 	// Marshal the UTXOWithMSig object into a byte array using the codec manager

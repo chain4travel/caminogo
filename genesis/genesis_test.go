@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -15,8 +15,10 @@ package genesis
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -46,30 +48,34 @@ var (
 
 func TestValidateConfig(t *testing.T) {
 	tests := map[string]struct {
-		networkID uint32
-		config    *Config
-		err       string
+		networkID   uint32
+		config      *Config
+		expectedErr error
 	}{
 		"camino": {
-			networkID: 1000,
-			config:    &CaminoConfig,
+			networkID:   1000,
+			config:      &CaminoConfig,
+			expectedErr: nil,
 		},
 		"columbus": {
-			networkID: 1001,
-			config:    &ColumbusConfig,
+			networkID:   1001,
+			config:      &ColumbusConfig,
+			expectedErr: nil,
 		},
 		"kopernikus": {
-			networkID: 1002,
-			config:    &KopernikusConfig,
+			networkID:   1002,
+			config:      &KopernikusConfig,
+			expectedErr: nil,
 		},
 		"local": {
-			networkID: 12345,
-			config:    &LocalConfig,
+			networkID:   12345,
+			config:      &LocalConfig,
+			expectedErr: nil,
 		},
 		"camino (networkID mismatch)": {
-			networkID: 999,
-			config:    &CaminoConfig,
-			err:       "networkID 999 specified but genesis config contains networkID 1000",
+			networkID:   999,
+			config:      &CaminoConfig,
+			expectedErr: errConflictingNetworkIDs,
 		},
 		"invalid start time": {
 			networkID: 12345,
@@ -78,7 +84,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.StartTime = 999999999999999
 				return &thisConfig
 			}(),
-			err: "start time cannot be in the future",
+			expectedErr: errFutureStartTime,
 		},
 		"no initial supply": {
 			networkID: 12345,
@@ -87,7 +93,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.Allocations = []Allocation{}
 				return &thisConfig
 			}(),
-			err: errNoSupply.Error(),
+			expectedErr: errNoSupply,
 		},
 		"no initial stakers": {
 			networkID: 12345,
@@ -96,7 +102,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakers = []Staker{}
 				return &thisConfig
 			}(),
-			err: errNoStakers.Error(),
+			expectedErr: errNoStakers,
 		},
 		"invalid initial stake duration": {
 			networkID: 12345,
@@ -105,7 +111,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakeDuration = 0
 				return &thisConfig
 			}(),
-			err: errNoStakeDuration.Error(),
+			expectedErr: errNoStakeDuration,
 		},
 		"too large initial stake duration": {
 			networkID: 12345,
@@ -114,7 +120,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakeDuration = uint64(genesisStakingCfg.MaxStakeDuration+time.Second) / uint64(time.Second)
 				return &thisConfig
 			}(),
-			err: errStakeDurationTooHigh.Error(),
+			expectedErr: errStakeDurationTooHigh,
 		},
 		"invalid stake offset": {
 			networkID: 12345,
@@ -123,7 +129,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakeDurationOffset = 100000000
 				return &thisConfig
 			}(),
-			err: "initial stake duration is 31536000 but need at least 400000000 with offset of 100000000",
+			expectedErr: errInitialStakeDurationTooLow,
 		},
 		"empty initial staked funds": {
 			networkID: 12345,
@@ -132,7 +138,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakedFunds = []ids.ShortID(nil)
 				return &thisConfig
 			}(),
-			err: errNoInitiallyStakedFunds.Error(),
+			expectedErr: errNoInitiallyStakedFunds,
 		},
 		"duplicate initial staked funds": {
 			networkID: 12345,
@@ -141,7 +147,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakedFunds = append(thisConfig.InitialStakedFunds, thisConfig.InitialStakedFunds[0])
 				return &thisConfig
 			}(),
-			err: "duplicated in initial staked funds",
+			expectedErr: errDuplicateInitiallyStakedAddress,
 		},
 		"initial staked funds not in allocations": {
 			networkID: 12345,
@@ -150,7 +156,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.InitialStakedFunds = append(thisConfig.InitialStakedFunds, ids.GenerateTestShortID())
 				return &thisConfig
 			}(),
-			err: "does not have an allocation to stake",
+			expectedErr: errNoAllocationToStake,
 		},
 		"empty C-Chain genesis": {
 			networkID: 12345,
@@ -159,7 +165,7 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.CChainGenesis = ""
 				return &thisConfig
 			}(),
-			err: errNoCChainGenesis.Error(),
+			expectedErr: errNoCChainGenesis,
 		},
 		"empty message": {
 			networkID: 12345,
@@ -168,20 +174,14 @@ func TestValidateConfig(t *testing.T) {
 				thisConfig.Message = ""
 				return &thisConfig
 			}(),
+			expectedErr: nil,
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-
 			err := validateConfig(test.networkID, test.config, genesisStakingCfg)
-			if len(test.err) > 0 {
-				require.Error(err)
-				require.Contains(err.Error(), test.err)
-				return
-			}
-			require.NoError(err)
+			require.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }
@@ -191,61 +191,62 @@ func TestGenesisFromFile(t *testing.T) {
 		networkID       uint32
 		customConfig    []byte
 		missingFilepath string
-		err             string
-		expected        string
+		expectedErr     error
+		expectedHash    string
 	}{
 		"camino": {
 			networkID:    constants.CaminoID,
 			customConfig: customGenesisConfigJSON,
-			err:          "cannot override genesis config for standard network camino (1000)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"columbus": {
 			networkID:    constants.ColumbusID,
 			customConfig: customGenesisConfigJSON,
-			err:          "cannot override genesis config for standard network columbus (1001)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"columbus (with custom specified)": {
 			networkID:    constants.ColumbusID,
 			customConfig: localGenesisConfigJSON, // won't load
-			err:          "cannot override genesis config for standard network columbus (1001)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"local": {
 			networkID:    constants.LocalID,
 			customConfig: customGenesisConfigJSON,
-			err:          "cannot override genesis config for standard network local (12345)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"local (with custom specified)": {
 			networkID:    constants.LocalID,
 			customConfig: customGenesisConfigJSON,
-			err:          "cannot override genesis config for standard network local (12345)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "515619ced6ead0ebbdf4b565df264575915f63565701dbf7552d4061039babc8",
+			expectedErr:  nil,
+			expectedHash: "515619ced6ead0ebbdf4b565df264575915f63565701dbf7552d4061039babc8",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
 			customConfig: localGenesisConfigJSON,
-			err:          "networkID 9999 specified but genesis config contains networkID 12345",
+			expectedErr:  errConflictingNetworkIDs,
 		},
 		"custom (invalid format)": {
 			networkID:    9999,
 			customConfig: invalidGenesisConfigJSON,
-			err:          "unable to load provided genesis config",
+			expectedErr:  errInvalidGenesisJSON,
 		},
 		"custom (missing filepath)": {
 			networkID:       9999,
 			missingFilepath: "missing.json",
-			err:             "unable to load provided genesis config",
+			expectedErr:     os.ErrNotExist,
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// test loading of genesis from file
-
 			require := require.New(t)
+
+			// test loading of genesis from file
 			var customFile string
 			if len(test.customConfig) > 0 {
 				customFile = filepath.Join(t.TempDir(), "config.json")
@@ -257,18 +258,14 @@ func TestGenesisFromFile(t *testing.T) {
 			}
 
 			genesisBytes, _, err := FromFile(test.networkID, customFile, genesisStakingCfg)
-			if len(test.err) > 0 {
-				require.Error(err)
-				require.Contains(err.Error(), test.err)
-				return
+			require.ErrorIs(err, test.expectedErr)
+			if test.expectedErr == nil {
+				genesisHash := hex.EncodeToString(hashing.ComputeHash256(genesisBytes))
+				require.Equal(test.expectedHash, genesisHash, "genesis hash mismatch")
+
+				_, err = genesis.Parse(genesisBytes)
+				require.NoError(err)
 			}
-			require.NoError(err)
-
-			genesisHash := fmt.Sprintf("%x", hashing.ComputeHash256(genesisBytes))
-			require.Equal(test.expected, genesisHash, "genesis hash mismatch")
-
-			_, err = genesis.Parse(genesisBytes)
-			require.NoError(err)
 		})
 	}
 }
@@ -277,56 +274,57 @@ func TestGenesisFromFlag(t *testing.T) {
 	tests := map[string]struct {
 		networkID    uint32
 		customConfig []byte
-		err          string
-		expected     string
+		expectedErr  error
+		expectedHash string
 	}{
 		"camino": {
-			networkID: constants.CaminoID,
-			err:       "cannot override genesis config for standard network camino (1000)",
+			networkID:   constants.CaminoID,
+			expectedErr: errOverridesStandardNetworkConfig,
 		},
 		"columbus": {
-			networkID: constants.ColumbusID,
-			err:       "cannot override genesis config for standard network columbus (1001)",
+			networkID:   constants.ColumbusID,
+			expectedErr: errOverridesStandardNetworkConfig,
 		},
 		"kopernikus": {
-			networkID: constants.KopernikusID,
-			err:       "cannot override genesis config for standard network kopernikus (1002)",
+			networkID:   constants.KopernikusID,
+			expectedErr: errOverridesStandardNetworkConfig,
 		},
 		"local": {
-			networkID: constants.LocalID,
-			err:       "cannot override genesis config for standard network local (12345)",
+			networkID:   constants.LocalID,
+			expectedErr: errOverridesStandardNetworkConfig,
 		},
 		"local (with custom specified)": {
 			networkID:    constants.LocalID,
 			customConfig: customGenesisConfigJSON,
-			err:          "cannot override genesis config for standard network local (12345)",
+			expectedErr:  errOverridesStandardNetworkConfig,
 		},
 		"custom": {
 			networkID:    9999,
 			customConfig: customGenesisConfigJSON,
-			expected:     "515619ced6ead0ebbdf4b565df264575915f63565701dbf7552d4061039babc8",
+			expectedErr:  nil,
+			expectedHash: "515619ced6ead0ebbdf4b565df264575915f63565701dbf7552d4061039babc8",
 		},
 		"custom (networkID mismatch)": {
 			networkID:    9999,
 			customConfig: localGenesisConfigJSON,
-			err:          "networkID 9999 specified but genesis config contains networkID 12345",
+			expectedErr:  errConflictingNetworkIDs,
 		},
 		"custom (invalid format)": {
 			networkID:    9999,
 			customConfig: invalidGenesisConfigJSON,
-			err:          "unable to load genesis content from flag",
+			expectedErr:  errInvalidGenesisJSON,
 		},
 		"custom (missing content)": {
-			networkID: 9999,
-			err:       "unable to load genesis content from flag",
+			networkID:   9999,
+			expectedErr: errInvalidGenesisJSON,
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// test loading of genesis content from flag/env-var
-
 			require := require.New(t)
+
+			// test loading of genesis content from flag/env-var
 			var genBytes []byte
 			if len(test.customConfig) == 0 {
 				// try loading a default config
@@ -353,18 +351,14 @@ func TestGenesisFromFlag(t *testing.T) {
 			content := base64.StdEncoding.EncodeToString(genBytes)
 
 			genesisBytes, _, err := FromFlag(test.networkID, content, genesisStakingCfg)
-			if len(test.err) > 0 {
-				require.Error(err)
-				require.Contains(err.Error(), test.err)
-				return
+			require.ErrorIs(err, test.expectedErr)
+			if test.expectedErr == nil {
+				genesisHash := hex.EncodeToString(hashing.ComputeHash256(genesisBytes))
+				require.Equal(test.expectedHash, genesisHash, "genesis hash mismatch")
+
+				_, err = genesis.Parse(genesisBytes)
+				require.NoError(err)
 			}
-			require.NoError(err)
-
-			genesisHash := fmt.Sprintf("%x", hashing.ComputeHash256(genesisBytes))
-			require.Equal(test.expected, genesisHash, "genesis hash mismatch")
-
-			_, err = genesis.Parse(genesisBytes)
-			require.NoError(err)
 		})
 	}
 }
@@ -376,11 +370,11 @@ func TestGenesis(t *testing.T) {
 	}{
 		{
 			networkID:  constants.MainnetID,
-			expectedID: "2eP2teFA41Pb61nQyQYJY38onkCqkrJDPSVeQz8v9ahbEma18S",
+			expectedID: "2WBMfeyFnnSvdwfEjLWNKhwv9BmPufmbdN5PEKQmTRF8Xn686B",
 		},
 		{
 			networkID:  constants.FujiID,
-			expectedID: "2fAKF9ph6o4jxr12QVWmbww8dVfkNKepBt547QFEJ5eyD9x2Z9",
+			expectedID: "2nUFjo8qSqWtg5DaaD2foPCKPBZ9maeFUdnHJPAVD4VLwZD6ho",
 		},
 		{
 			networkID:  constants.CaminoID,
@@ -392,11 +386,11 @@ func TestGenesis(t *testing.T) {
 		},
 		{
 			networkID:  constants.KopernikusID,
-			expectedID: "FdXtXTE6qjfiLSovwsAmEtDwUPvkN3QPBqPe8Q8goGdnjMUNX",
+			expectedID: "qZbH8AtnUesiJpkngyZrfnehGxLmmEfJsxYG66QGKBkVc2HmK",
 		},
 		{
 			networkID:  constants.LocalID,
-			expectedID: "294HrmVEniYX2mrvLjww9AmpV9NZnFhEi6eRrCsAzxZ2PkvdVb",
+			expectedID: "uX3A2U7kvX72KdM2iQ1y5b55nwzHehbCixEY52LXUzUd2BHdp",
 		},
 	}
 	for _, test := range tests {

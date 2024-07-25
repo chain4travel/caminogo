@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -43,13 +43,19 @@ const (
 )
 
 var (
-	errStakeDurationTooHigh   = errors.New("initial stake duration larger than maximum configured")
-	errNoInitiallyStakedFunds = errors.New("initial staked funds cannot be empty")
-	errNoSupply               = errors.New("initial supply must be > 0")
-	errNoStakeDuration        = errors.New("initial stake duration must be > 0")
-	errNoStakers              = errors.New("initial stakers must be > 0")
-	errNoCChainGenesis        = errors.New("C-Chain genesis cannot be empty")
-	errNoTxs                  = errors.New("genesis creates no transactions")
+	errStakeDurationTooHigh            = errors.New("initial stake duration larger than maximum configured")
+	errNoInitiallyStakedFunds          = errors.New("initial staked funds cannot be empty")
+	errNoSupply                        = errors.New("initial supply must be > 0")
+	errNoStakeDuration                 = errors.New("initial stake duration must be > 0")
+	errNoStakers                       = errors.New("initial stakers must be > 0")
+	errNoCChainGenesis                 = errors.New("C-Chain genesis cannot be empty")
+	errNoTxs                           = errors.New("genesis creates no transactions")
+	errNoAllocationToStake             = errors.New("no allocation to stake")
+	errDuplicateInitiallyStakedAddress = errors.New("duplicate initially staked address")
+	errConflictingNetworkIDs           = errors.New("conflicting networkIDs")
+	errFutureStartTime                 = errors.New("startTime cannot be in the future")
+	errInitialStakeDurationTooLow      = errors.New("initial stake duration is too low")
+	errOverridesStandardNetworkConfig  = errors.New("overrides standard network genesis config")
 )
 
 // validateInitialStakedFunds ensures all staked
@@ -86,7 +92,8 @@ func validateInitialStakedFunds(config *Config) error {
 			}
 
 			return fmt.Errorf(
-				"address %s is duplicated in initial staked funds",
+				"%w: %s",
+				errDuplicateInitiallyStakedAddress,
 				avaxAddr,
 			)
 		}
@@ -106,7 +113,8 @@ func validateInitialStakedFunds(config *Config) error {
 			}
 
 			return fmt.Errorf(
-				"address %s does not have an allocation to stake",
+				"%w in address %s",
+				errNoAllocationToStake,
 				avaxAddr,
 			)
 		}
@@ -120,7 +128,8 @@ func validateInitialStakedFunds(config *Config) error {
 func validateConfig(networkID uint32, config *Config, stakingCfg *StakingConfig) error {
 	if networkID != config.NetworkID {
 		return fmt.Errorf(
-			"networkID %d specified but genesis config contains networkID %d",
+			"%w: expected %d but config contains %d",
+			errConflictingNetworkIDs,
 			networkID,
 			config.NetworkID,
 		)
@@ -137,7 +146,8 @@ func validateConfig(networkID uint32, config *Config, stakingCfg *StakingConfig)
 	startTime := time.Unix(int64(config.StartTime), 0)
 	if time.Since(startTime) < 0 {
 		return fmt.Errorf(
-			"start time cannot be in the future: %s",
+			"%w: %s",
+			errFutureStartTime,
 			startTime,
 		)
 	}
@@ -146,13 +156,15 @@ func validateConfig(networkID uint32, config *Config, stakingCfg *StakingConfig)
 		return errNoCChainGenesis
 	}
 
-	if err := validateCaminoConfig(config); err != nil {
-		return err
-	}
+	if config.Camino != nil {
+		if err := validateCaminoConfig(config); err != nil {
+			return err
+		}
 
-	// the rest of the checks are only for LockModeBondDeposit == false
-	if config.Camino.LockModeBondDeposit {
-		return nil
+		// the rest of the checks are only for LockModeBondDeposit == false
+		if config.Camino.LockModeBondDeposit {
+			return nil
+		}
 	}
 
 	// We don't impose any restrictions on the minimum
@@ -176,10 +188,9 @@ func validateConfig(networkID uint32, config *Config, stakingCfg *StakingConfig)
 	offsetTimeRequired := config.InitialStakeDurationOffset * uint64(len(config.InitialStakers)-1)
 	if offsetTimeRequired > config.InitialStakeDuration {
 		return fmt.Errorf(
-			"initial stake duration is %d but need at least %d with offset of %d",
-			config.InitialStakeDuration,
+			"%w must be at least %d",
+			errInitialStakeDurationTooLow,
 			offsetTimeRequired,
-			config.InitialStakeDurationOffset,
 		)
 	}
 
@@ -214,9 +225,9 @@ func FromFile(networkID uint32, filepath string, stakingCfg *StakingConfig) ([]b
 	switch networkID {
 	case constants.MainnetID, constants.CaminoID, constants.TestnetID, constants.LocalID:
 		return nil, ids.ID{}, fmt.Errorf(
-			"cannot override genesis config for standard network %s (%d)",
+			"%w: %s",
+			errOverridesStandardNetworkConfig,
 			constants.NetworkName(networkID),
-			networkID,
 		)
 	}
 
@@ -255,9 +266,9 @@ func FromFile(networkID uint32, filepath string, stakingCfg *StakingConfig) ([]b
 func FromFlag(networkID uint32, genesisContent string, stakingCfg *StakingConfig) ([]byte, ids.ID, error) {
 	if constants.IsActiveNetwork(networkID) || networkID == constants.LocalID {
 		return nil, ids.ID{}, fmt.Errorf(
-			"cannot override genesis config for standard network %s (%d)",
+			"%w: %s",
+			errOverridesStandardNetworkConfig,
 			constants.NetworkName(networkID),
-			networkID,
 		)
 	}
 
@@ -281,7 +292,7 @@ func FromFlag(networkID uint32, genesisContent string, stakingCfg *StakingConfig
 func FromConfig(config *Config) ([]byte, ids.ID, error) {
 	hrp := constants.GetHRP(config.NetworkID)
 
-	if config.Camino.LockModeBondDeposit {
+	if config.Camino != nil && config.Camino.LockModeBondDeposit {
 		return buildCaminoGenesis(config, hrp)
 	}
 
@@ -354,8 +365,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		return nil, ids.ID{}, fmt.Errorf("couldn't calculate the initial supply: %w", err)
 	}
 
-	initiallyStaked := set.Set[ids.ShortID]{}
-	initiallyStaked.Add(config.InitialStakedFunds...)
+	initiallyStaked := set.Of(config.InitialStakedFunds...)
 	skippedAllocations := []Allocation(nil)
 
 	// Specify the initial state of the Platform Chain
@@ -368,6 +378,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		Encoding:      defaultEncoding,
 		Camino:        caminoArgFromConfig(config),
 	}
+
 	for _, allocation := range config.Allocations {
 		if initiallyStaked.Contains(allocation.AVAXAddr) {
 			skippedAllocations = append(skippedAllocations, allocation)

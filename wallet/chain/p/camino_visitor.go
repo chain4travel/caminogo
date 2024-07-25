@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package p
@@ -34,16 +34,24 @@ func (*backendVisitor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return errUnsupportedTxType
 }
 
-func (b *backendVisitor) BaseTx(tx *txs.BaseTx) error {
-	return b.baseTx(tx)
-}
-
 func (b *backendVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {
 	return b.baseTx(&tx.BaseTx)
 }
 
 func (b *backendVisitor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) error {
 	return b.baseTx(&tx.BaseTx)
+}
+
+func (b *backendVisitor) AddProposalTx(tx *txs.AddProposalTx) error {
+	return b.baseTx(&tx.BaseTx)
+}
+
+func (b *backendVisitor) AddVoteTx(tx *txs.AddVoteTx) error {
+	return b.baseTx(&tx.BaseTx)
+}
+
+func (*backendVisitor) FinishProposalsTx(*txs.FinishProposalsTx) error {
+	return errUnsupportedTxType
 }
 
 // signer
@@ -92,14 +100,6 @@ func (*signerVisitor) RewardsImportTx(*txs.RewardsImportTx) error {
 	return errUnsupportedTxType
 }
 
-func (s *signerVisitor) BaseTx(tx *txs.BaseTx) error {
-	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
-	if err != nil {
-		return err
-	}
-	return sign(s.tx, false, txSigners)
-}
-
 func (s *signerVisitor) MultisigAliasTx(tx *txs.MultisigAliasTx) error {
 	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
 	if err != nil {
@@ -114,4 +114,24 @@ func (s *signerVisitor) AddDepositOfferTx(tx *txs.AddDepositOfferTx) error {
 		return err
 	}
 	return sign(s.tx, false, txSigners)
+}
+
+func (s *signerVisitor) AddProposalTx(tx *txs.AddProposalTx) error {
+	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
+	if err != nil {
+		return err
+	}
+	return sign(s.tx, false, txSigners)
+}
+
+func (s *signerVisitor) AddVoteTx(tx *txs.AddVoteTx) error {
+	txSigners, err := s.getSigners(constants.PlatformChainID, tx.Ins)
+	if err != nil {
+		return err
+	}
+	return sign(s.tx, false, txSigners)
+}
+
+func (*signerVisitor) FinishProposalsTx(*txs.FinishProposalsTx) error {
+	return errUnsupportedTxType
 }

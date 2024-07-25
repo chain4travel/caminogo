@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -7,19 +7,20 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	block "github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetClaimable(t *testing.T) {
 	claimableOwnerID := ids.ID{1}
 	claimable := &Claimable{Owner: &secp256k1fx.OutputOwners{Addrs: []ids.ShortID{}}}
-	claimableBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, claimable)
+	claimableBytes, err := block.GenesisCodec.Marshal(block.Version, claimable)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -174,9 +175,7 @@ func TestGetClaimable(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
 			claimable, err := actualCaminoState.GetClaimable(tt.claimableOwnerID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedClaimable, claimable)
@@ -222,9 +221,7 @@ func TestSetClaimable(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			caminoState := tt.caminoState(ctrl)
+			caminoState := tt.caminoState(gomock.NewController(t))
 			caminoState.SetClaimable(tt.claimableOwnerID, tt.claimable)
 			require.Equal(t, tt.expectedCaminoState(caminoState), caminoState)
 		})
@@ -252,8 +249,6 @@ func TestSetNotDistributedValidatorReward(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 			tt.caminoState.SetNotDistributedValidatorReward(tt.reward)
 			require.Equal(t, tt.expectedCaminoState(tt.reward), tt.caminoState)
 		})
@@ -305,9 +300,7 @@ func TestGetNotDistributedValidatorReward(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
 			notDistributedValidatorReward, err := actualCaminoState.GetNotDistributedValidatorReward()
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedNotDistributedValidatorReward, notDistributedValidatorReward)
@@ -321,7 +314,7 @@ func TestWriteClaimableAndValidatorRewards(t *testing.T) {
 	claimableOwnerID1 := ids.ID{1}
 	claimableOwnerID2 := ids.ID{2}
 	claimable1 := &Claimable{Owner: &secp256k1fx.OutputOwners{}, ValidatorReward: 1, ExpiredDepositReward: 2}
-	claimableBytes1, err := blocks.GenesisCodec.Marshal(blocks.Version, claimable1)
+	claimableBytes1, err := block.GenesisCodec.Marshal(block.Version, claimable1)
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -423,10 +416,9 @@ func TestWriteClaimableAndValidatorRewards(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
-			require.ErrorIs(t, actualCaminoState.writeClaimableAndValidatorRewards(), tt.expectedErr)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
+			err := actualCaminoState.writeClaimableAndValidatorRewards()
+			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedCaminoState(actualCaminoState), actualCaminoState)
 		})
 	}

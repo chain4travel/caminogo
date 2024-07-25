@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -6,6 +6,9 @@ package secp256k1fx
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/database"
@@ -15,8 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyMultisigCredentials(t *testing.T) {
@@ -42,7 +43,7 @@ func TestVerifyMultisigCredentials(t *testing.T) {
 		msig          func(c *gomock.Controller) AliasGetter
 		expectedError error
 	}{
-		"OK: 2 addrs, theshold 2": {
+		"OK: 2 addrs, threshold 2": {
 			in:      &Input{SigIndices: []uint32{0, 1}},
 			signers: []*secp256k1.PrivateKey{key1, key2},
 			owners: &OutputOwners{
@@ -210,8 +211,6 @@ func TestVerifyMultisigCredentials(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			fx := defaultFx(t)
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 
 			cred := &Credential{Sigs: make([][secp256k1.SignatureLen]byte, len(tt.signers))}
 			for i, key := range tt.signers {
@@ -220,7 +219,7 @@ func TestVerifyMultisigCredentials(t *testing.T) {
 				copy(cred.Sigs[i][:], sig)
 			}
 
-			err := fx.verifyMultisigCredentials(tx.Bytes(), tt.in, cred, tt.owners, tt.msig(ctrl))
+			err := fx.verifyMultisigCredentials(tx.Bytes(), tt.in, cred, tt.owners, tt.msig(gomock.NewController(t)))
 			require.ErrorIs(t, err, tt.expectedError)
 		})
 	}
@@ -304,10 +303,7 @@ func TestCollectMultisigAliases(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			aliases, err := collectMultisigAliases(tt.owners, tt.msig(ctrl))
+			aliases, err := collectMultisigAliases(tt.owners, tt.msig(gomock.NewController(t)))
 			require.ErrorIs(t, err, tt.expectedError)
 			require.Equal(t, len(aliases), tt.expectedAliases)
 		})
@@ -331,8 +327,7 @@ func defaultFx(t *testing.T) *Fx {
 
 func generateKey(t *testing.T) (*secp256k1.PrivateKey, ids.ShortID) {
 	require := require.New(t)
-	secpFactory := secp256k1.Factory{}
-	key, err := secpFactory.NewPrivateKey()
+	key, err := secp256k1.NewPrivateKey()
 	require.NoError(err)
 	return key, key.Address()
 }

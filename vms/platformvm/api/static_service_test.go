@@ -16,13 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 )
 
-const testNetworkID = 10 // To be used in tests
-
 func TestBuildGenesisInvalidUTXOBalance(t *testing.T) {
 	require := require.New(t)
 	nodeID := ids.NodeID{1, 2, 3}
-	hrp := constants.NetworkIDToHRP[testNetworkID]
-	addr, err := address.FormatBech32(hrp, nodeID.Bytes())
+	addr, err := address.FormatBech32(constants.UnitTestHRP, nodeID.Bytes())
 	require.NoError(err)
 
 	utxo := UTXO{
@@ -59,14 +56,14 @@ func TestBuildGenesisInvalidUTXOBalance(t *testing.T) {
 	reply := BuildGenesisReply{}
 
 	ss := StaticService{}
-	require.Error(ss.BuildGenesis(nil, &args, &reply), "should have errored due to an invalid balance")
+	err = ss.BuildGenesis(nil, &args, &reply)
+	require.ErrorIs(err, errUTXOHasNoValue)
 }
 
-func TestBuildGenesisInvalidAmount(t *testing.T) {
+func TestBuildGenesisInvalidStakeWeight(t *testing.T) {
 	require := require.New(t)
 	nodeID := ids.NodeID{1, 2, 3}
-	hrp := constants.NetworkIDToHRP[testNetworkID]
-	addr, err := address.FormatBech32(hrp, nodeID.Bytes())
+	addr, err := address.FormatBech32(constants.UnitTestHRP, nodeID.Bytes())
 	require.NoError(err)
 
 	utxo := UTXO{
@@ -103,14 +100,14 @@ func TestBuildGenesisInvalidAmount(t *testing.T) {
 	reply := BuildGenesisReply{}
 
 	ss := StaticService{}
-	require.Error(ss.BuildGenesis(nil, &args, &reply), "should have errored due to an invalid amount")
+	err = ss.BuildGenesis(nil, &args, &reply)
+	require.ErrorIs(err, errValidatorHasNoWeight)
 }
 
 func TestBuildGenesisInvalidEndtime(t *testing.T) {
 	require := require.New(t)
 	nodeID := ids.NodeID{1, 2, 3}
-	hrp := constants.NetworkIDToHRP[testNetworkID]
-	addr, err := address.FormatBech32(hrp, nodeID.Bytes())
+	addr, err := address.FormatBech32(constants.UnitTestHRP, nodeID.Bytes())
 	require.NoError(err)
 
 	utxo := UTXO{
@@ -148,14 +145,14 @@ func TestBuildGenesisInvalidEndtime(t *testing.T) {
 	reply := BuildGenesisReply{}
 
 	ss := StaticService{}
-	require.Error(ss.BuildGenesis(nil, &args, &reply), "should have errored due to an invalid end time")
+	err = ss.BuildGenesis(nil, &args, &reply)
+	require.ErrorIs(err, errValidatorAlreadyExited)
 }
 
 func TestBuildGenesisReturnsSortedValidators(t *testing.T) {
 	require := require.New(t)
 	nodeID := ids.NodeID{1}
-	hrp := constants.NetworkIDToHRP[testNetworkID]
-	addr, err := address.FormatBech32(hrp, nodeID.Bytes())
+	addr, err := address.FormatBech32(constants.UnitTestHRP, nodeID.Bytes())
 	require.NoError(err)
 
 	utxo := UTXO{
@@ -246,13 +243,10 @@ func TestUTXOLess(t *testing.T) {
 		largerAddr  = ids.ShortID{1}
 	)
 	smallerAddrStr, err := address.FormatBech32("avax", smallerAddr[:])
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 	largerAddrStr, err := address.FormatBech32("avax", largerAddr[:])
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+
 	type test struct {
 		name     string
 		utxo1    UTXO

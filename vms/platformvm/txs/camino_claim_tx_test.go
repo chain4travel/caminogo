@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -6,11 +6,13 @@ package txs
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestClaimTxSyntacticVerify(t *testing.T) {
@@ -100,7 +102,7 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestIn(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
+						generate.In(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{0}),
 					},
 				}},
 				Claimables: []ClaimAmount{{
@@ -117,7 +119,7 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestOut(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
+						generate.Out(ctx.AVAXAssetID, 1, owner1, depositTxID, ids.Empty),
 					},
 				}},
 				Claimables: []ClaimAmount{{
@@ -134,7 +136,7 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Ins: []*avax.TransferableInput{
-						generateTestStakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
+						generate.StakeableIn(ctx.AVAXAssetID, 1, 1, []uint32{0}),
 					},
 				}},
 				Claimables: []ClaimAmount{{
@@ -151,7 +153,7 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 					NetworkID:    ctx.NetworkID,
 					BlockchainID: ctx.ChainID,
 					Outs: []*avax.TransferableOutput{
-						generateTestStakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
+						generate.StakeableOut(ctx.AVAXAssetID, 1, 1, owner1),
 					},
 				}},
 				Claimables: []ClaimAmount{{
@@ -196,7 +198,8 @@ func TestClaimTxSyntacticVerify(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			require.ErrorIs(t, tt.tx.SyntacticVerify(ctx), tt.expectedErr)
+			err := tt.tx.SyntacticVerify(ctx)
+			require.ErrorIs(t, err, tt.expectedErr)
 		})
 	}
 }

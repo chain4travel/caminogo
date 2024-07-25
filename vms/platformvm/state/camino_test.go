@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -8,24 +8,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
-	"github.com/ava-labs/avalanchego/database/versiondb"
 	root_genesis "github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	pvm_genesis "github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/golang/mock/gomock"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/require"
-
-	db_manager "github.com/ava-labs/avalanchego/database/manager"
 )
 
 const (
@@ -82,7 +80,7 @@ func TestSupplyInState(t *testing.T) {
 
 			expectedSupply := getExpectedSupply(t, genesisConfig, tt.lockModeDepositBond, state.rewards)
 
-			require.EqualValues(expectedSupply, state.currentSupply)
+			require.Equal(expectedSupply, state.currentSupply)
 		})
 	}
 }
@@ -165,12 +163,9 @@ func getExpectedSupply(
 
 func TestSyncGenesis(t *testing.T) {
 	require := require.New(t)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	s, _ := newInitializedState(require)
-	baseDBManager := db_manager.NewMemDB(version.Semantic1_0_0)
-	baseDB := versiondb.New(baseDBManager.Current().Database)
-	validatorsDB := prefixdb.New(validatorsPrefix, baseDB)
+	db := memdb.New()
+	validatorsDB := prefixdb.New(validatorsPrefix, db)
 
 	var (
 		id           = ids.GenerateTestID()
@@ -234,7 +229,7 @@ func TestSyncGenesis(t *testing.T) {
 
 	type args struct {
 		s *state
-		g *pvm_genesis.State
+		g *pvm_genesis.Genesis
 	}
 	tests := map[string]struct {
 		cs   caminoState
@@ -248,17 +243,17 @@ func TestSyncGenesis(t *testing.T) {
 				g: defaultGenesisState([]pvm_genesis.AddressState{
 					{
 						Address: initialAdmin,
-						State:   txs.AddressStateRoleAdmin,
+						State:   as.AddressStateRoleAdmin,
 					},
 					{
 						Address: shortID,
-						State:   txs.AddressStateRoleKYC,
+						State:   as.AddressStateRoleKYCAdmin,
 					},
 				}, depositTxs, initialAdmin),
 			},
-			cs: *wrappers.IgnoreError(newCaminoState(baseDB, validatorsDB, prometheus.NewRegistry())).(*caminoState),
+			cs: *wrappers.IgnoreError(newCaminoState(db, validatorsDB, prometheus.NewRegistry())).(*caminoState),
 			want: caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]txs.AddressState{initialAdmin: txs.AddressStateRoleAdmin, shortID: txs.AddressStateRoleKYC},
+				modifiedAddressStates: map[ids.ShortID]as.AddressState{initialAdmin: as.AddressStateRoleAdmin, shortID: as.AddressStateRoleKYCAdmin},
 				modifiedDepositOffers: map[ids.ID]*deposit.Offer{
 					depositOffers[0].ID: depositOffers[0],
 					depositOffers[1].ID: depositOffers[1],
@@ -285,7 +280,7 @@ func TestSyncGenesis(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(tt.args.g.Camino.Init())
-			err := tt.cs.SyncGenesis(tt.args.s, tt.args.g)
+			err := tt.cs.syncGenesis(tt.args.s, tt.args.g)
 			require.ErrorIs(tt.err, err)
 
 			require.Len(tt.cs.modifiedDeposits, len(tt.want.modifiedDeposits))
@@ -383,7 +378,7 @@ func testGenesisConfig(lockModeBondDeposit bool, validator, deposit bool) *root_
 		InitialStakeDurationOffset: 10,
 		InitialStakedFunds:         avaxInitialStakerFunds,
 		InitialStakers:             avaxInitialStakers,
-		Camino: root_genesis.Camino{
+		Camino: &root_genesis.Camino{
 			VerifyNodeSignature: true,
 			LockModeBondDeposit: lockModeBondDeposit,
 			InitialAdmin:        initialAdmin,
@@ -393,16 +388,18 @@ func testGenesisConfig(lockModeBondDeposit bool, validator, deposit bool) *root_
 	}
 }
 
-func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.Tx, initialAdmin ids.ShortID) *pvm_genesis.State {
-	return &pvm_genesis.State{
-		UTXOs: []*avax.UTXO{{
-			UTXOID: avax.UTXOID{
-				TxID:        initialTxID,
-				OutputIndex: 0,
-			},
-			Asset: avax.Asset{ID: initialTxID},
-			Out: &secp256k1fx.TransferOutput{
-				Amt: units.Schmeckle,
+func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.Tx, initialAdmin ids.ShortID) *pvm_genesis.Genesis {
+	return &pvm_genesis.Genesis{
+		UTXOs: []*pvm_genesis.UTXO{{
+			UTXO: avax.UTXO{
+				UTXOID: avax.UTXOID{
+					TxID:        initialTxID,
+					OutputIndex: 0,
+				},
+				Asset: avax.Asset{ID: initialTxID},
+				Out: &secp256k1fx.TransferOutput{
+					Amt: units.Schmeckle,
+				},
 			},
 		}},
 		Chains:        []*txs.Tx{{}},
@@ -448,5 +445,48 @@ func defaultGenesisState(addresses []pvm_genesis.AddressState, deposits []*txs.T
 				},
 			},
 		},
+	}
+}
+
+func TestGetBaseFee(t *testing.T) {
+	tests := map[string]struct {
+		caminoState         *caminoState
+		expectedCaminoState *caminoState
+		expectedBaseFee     uint64
+		expectedErr         error
+	}{
+		"OK": {
+			caminoState:         &caminoState{baseFee: 123},
+			expectedCaminoState: &caminoState{baseFee: 123},
+			expectedBaseFee:     123,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			baseFee, err := tt.caminoState.GetBaseFee()
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedBaseFee, baseFee)
+			require.Equal(t, tt.expectedCaminoState, tt.caminoState)
+		})
+	}
+}
+
+func TestSetBaseFee(t *testing.T) {
+	tests := map[string]struct {
+		baseFee             uint64
+		caminoState         *caminoState
+		expectedCaminoState *caminoState
+	}{
+		"OK": {
+			baseFee:             123,
+			caminoState:         &caminoState{baseFee: 111},
+			expectedCaminoState: &caminoState{baseFee: 123},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.caminoState.SetBaseFee(tt.baseFee)
+			require.Equal(t, tt.expectedCaminoState, tt.caminoState)
+		})
 	}
 }

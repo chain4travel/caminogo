@@ -1,3 +1,13 @@
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
 // Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
@@ -8,6 +18,8 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+
+	"github.com/ava-labs/avalanchego/codec"
 )
 
 const (
@@ -16,6 +28,10 @@ const (
 
 	// TagValue is the value the tag must have to be serialized.
 	TagValue = "true"
+
+	// TagValue is the value the tag must have to be serialized, this variant
+	// includes the nullable option
+	TagWithNullableValue = "true,nullable"
 
 	UpgradeVersionIDFieldName = "UpgradeVersionID"
 	UpgradeVersionTagName     = "upgradeVersion"
@@ -26,6 +42,7 @@ var _ StructFielder = (*structFielder)(nil)
 type FieldDesc struct {
 	Index          int
 	MaxSliceLen    uint32
+	Nullable       bool
 	UpgradeVersion uint16
 }
 
@@ -98,10 +115,19 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) (*SerializedFields, 
 		// Multiple tags per fields can be specified.
 		// Serialize/Deserialize field if it has
 		// any tag with the right value
-		captureField := false
+		var (
+			captureField bool
+			nullable     bool
+		)
 		for _, tag := range s.tags {
-			if field.Tag.Get(tag) == TagValue {
+			switch field.Tag.Get(tag) {
+			case TagValue:
 				captureField = true
+			case TagWithNullableValue:
+				captureField = true
+				nullable = true
+			}
+			if captureField {
 				break
 			}
 		}
@@ -109,7 +135,10 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) (*SerializedFields, 
 			continue
 		}
 		if !field.IsExported() { // Can only marshal exported fields
-			return nil, fmt.Errorf("can't marshal un-exported field %s", field.Name)
+			return nil, fmt.Errorf("can not marshal %w: %s",
+				codec.ErrUnexportedField,
+				field.Name,
+			)
 		}
 
 		upgradeVersionTag := field.Tag.Get(UpgradeVersionTagName)
@@ -131,6 +160,7 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) (*SerializedFields, 
 		serializedFields.Fields = append(serializedFields.Fields, FieldDesc{
 			Index:          i,
 			MaxSliceLen:    maxSliceLen,
+			Nullable:       nullable,
 			UpgradeVersion: upgradeVersion,
 		})
 	}

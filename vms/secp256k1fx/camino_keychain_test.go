@@ -1,4 +1,4 @@
-/// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -6,12 +6,13 @@ package secp256k1fx
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
-	"github.com/stretchr/testify/require"
 )
 
 type TestGetter struct {
@@ -43,10 +44,10 @@ func TestSpendMultiSigNoMSig(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
-		addresses = append(addresses, sk.PublicKey().Address())
+		addresses = append(addresses, sk.Address())
 	}
 
 	transfer := TransferOutput{
@@ -77,10 +78,10 @@ func TestSpendMultiSigMSig(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
-		addresses = append(addresses, sk.PublicKey().Address())
+		addresses = append(addresses, sk.Address())
 	}
 
 	transfer := TransferOutput{
@@ -116,7 +117,7 @@ func TestSpendMultiSigFakeKeys(t *testing.T) {
 		sk := secp256k1.FakePrivateKey(addrBytes)
 		kc.Add(sk)
 
-		addresses = append(addresses, sk.PublicKey().Address())
+		addresses = append(addresses, sk.Address())
 	}
 
 	transfer := TransferOutput{
@@ -145,10 +146,10 @@ func TestSpendMultiSigCycle(t *testing.T) {
 	for _, keyStr := range keys {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		kc.Add(sk)
-		addresses = append(addresses, sk.PublicKey().Address())
+		addresses = append(addresses, sk.Address())
 	}
 
 	transfer := TransferOutput{
@@ -184,13 +185,13 @@ func TestUnverifiedNestedOwner(t *testing.T) {
 		skBytes, err := formatting.Decode(formatting.HexNC, keyStr)
 		require.NoError(err)
 
-		sk, err := kc.factory.ToPrivateKey(skBytes)
+		sk, err := secp256k1.ToPrivateKey(skBytes)
 		require.NoError(err)
 		// Only one signer for this test
 		if i == 1 {
 			kc.Add(sk)
 		}
-		addresses = append(addresses, sk.PublicKey().Address())
+		addresses = append(addresses, sk.Address())
 	}
 
 	transfer := TransferOutput{

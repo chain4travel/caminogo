@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/networking/tracker"
 	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils/compression"
 	"github.com/ava-labs/avalanchego/utils/ips"
 	"github.com/ava-labs/avalanchego/utils/set"
 )
@@ -25,7 +26,7 @@ type HealthConfig struct {
 	Enabled bool `json:"-"`
 
 	// MinConnectedPeers is the minimum number of peers that the network should
-	// be connected to to be considered healthy.
+	// be connected to be considered healthy.
 	MinConnectedPeers uint `json:"minConnectedPeers"`
 
 	// MaxTimeSinceMsgReceived is the maximum amount of time since the network
@@ -125,16 +126,16 @@ type Config struct {
 	PingFrequency      time.Duration     `json:"pingFrequency"`
 	AllowPrivateIPs    bool              `json:"allowPrivateIPs"`
 
-	// CompressionEnabled will compress available outbound messages when set to
-	// true.
-	CompressionEnabled bool `json:"compressionEnabled"`
+	// The compression type to use when compressing outbound messages.
+	// Assumes all peers support this compression type.
+	CompressionType compression.Type `json:"compressionType"`
 
 	// TLSKey is this node's TLS key that is used to sign IPs.
 	TLSKey crypto.Signer `json:"-"`
 
 	// TrackedSubnets of the node.
-	TrackedSubnets set.Set[ids.ID] `json:"-"`
-	Beacons        validators.Set  `json:"-"`
+	TrackedSubnets set.Set[ids.ID]    `json:"-"`
+	Beacons        validators.Manager `json:"-"`
 
 	// Validators are the current validators in the Avalanche network
 	Validators validators.Manager `json:"-"`

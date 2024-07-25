@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -15,7 +15,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
@@ -121,13 +120,13 @@ func (c *client) SetLoggerLevel(
 	if len(logLevel) > 0 {
 		logLevelArg, err = logging.ToLevel(logLevel)
 		if err != nil {
-			return fmt.Errorf("couldn't parse %q to log level", logLevel)
+			return err
 		}
 	}
 	if len(displayLevel) > 0 {
 		displayLevelArg, err = logging.ToLevel(displayLevel)
 		if err != nil {
-			return fmt.Errorf("couldn't parse %q to log level", displayLevel)
+			return err
 		}
 	}
 	return c.requester.SendRequest(ctx, "admin.setLoggerLevel", &SetLoggerLevelArgs{

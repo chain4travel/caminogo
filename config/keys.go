@@ -1,3 +1,13 @@
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
+//
+// This file is a derived work, based on ava-labs code whose
+// original notices appear below.
+//
+// It is distributed under the same license conditions as the
+// original code from which it is derived.
+//
+// Much love to the original authors for their work.
+// **********************************************************
 // Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
@@ -10,8 +20,8 @@ const (
 	ConfigContentKey                                   = "config-file-content"
 	ConfigContentTypeKey                               = "config-file-content-type"
 	VersionKey                                         = "version"
-	GenesisConfigFileKey                               = "genesis"
-	GenesisConfigContentKey                            = "genesis-content"
+	GenesisFileKey                                     = "genesis-file"
+	GenesisFileContentKey                              = "genesis-file-content"
 	NetworkNameKey                                     = "network-id"
 	TxFeeKey                                           = "tx-fee"
 	CreateAssetTxFeeKey                                = "create-asset-tx-fee"
@@ -40,10 +50,6 @@ const (
 	PublicIPKey                                        = "public-ip"
 	PublicIPResolutionFreqKey                          = "public-ip-resolution-frequency"
 	PublicIPResolutionServiceKey                       = "public-ip-resolution-service"
-	InboundConnUpgradeThrottlerCooldownKey             = "inbound-connection-throttling-cooldown"
-	InboundThrottlerMaxConnsPerSecKey                  = "inbound-connection-throttling-max-conns-per-sec"
-	OutboundConnectionThrottlingRpsKey                 = "outbound-connection-throttling-rps"
-	OutboundConnectionTimeoutKey                       = "outbound-connection-timeout"
 	HTTPHostKey                                        = "http-host"
 	HTTPPortKey                                        = "http-port"
 	HTTPSEnabledKey                                    = "http-tls-enabled"
@@ -52,6 +58,7 @@ const (
 	HTTPSCertFileKey                                   = "http-tls-cert-file"
 	HTTPSCertContentKey                                = "http-tls-cert-file-content"
 	HTTPAllowedOrigins                                 = "http-allowed-origins"
+	HTTPAllowedHostsKey                                = "http-allowed-hosts"
 	HTTPShutdownTimeoutKey                             = "http-shutdown-timeout"
 	HTTPShutdownWaitKey                                = "http-shutdown-wait"
 	HTTPReadTimeoutKey                                 = "http-read-timeout"
@@ -65,8 +72,8 @@ const (
 	StateSyncIDsKey                                    = "state-sync-ids"
 	BootstrapIPsKey                                    = "bootstrap-ips"
 	BootstrapIDsKey                                    = "bootstrap-ids"
+	StakingHostKey                                     = "staking-host"
 	StakingPortKey                                     = "staking-port"
-	StakingEnabledKey                                  = "staking-enabled"
 	StakingEphemeralCertEnabledKey                     = "staking-ephemeral-cert-enabled"
 	StakingTLSKeyPathKey                               = "staking-tls-key-file"
 	StakingTLSKeyContentKey                            = "staking-tls-key-file-content"
@@ -75,7 +82,8 @@ const (
 	StakingEphemeralSignerEnabledKey                   = "staking-ephemeral-signer-enabled"
 	StakingSignerKeyPathKey                            = "staking-signer-key-file"
 	StakingSignerKeyContentKey                         = "staking-signer-key-file-content"
-	StakingDisabledWeightKey                           = "staking-disabled-weight"
+	SybilProtectionEnabledKey                          = "sybil-protection-enabled"
+	SybilProtectionDisabledWeightKey                   = "sybil-protection-disabled-weight"
 	NetworkInitialTimeoutKey                           = "network-initial-timeout"
 	NetworkMinimumTimeoutKey                           = "network-minimum-timeout"
 	NetworkMaximumTimeoutKey                           = "network-maximum-timeout"
@@ -98,7 +106,7 @@ const (
 	NetworkPingTimeoutKey                              = "network-ping-timeout"
 	NetworkPingFrequencyKey                            = "network-ping-frequency"
 	NetworkMaxReconnectDelayKey                        = "network-max-reconnect-delay"
-	NetworkCompressionEnabledKey                       = "network-compression-enabled"
+	NetworkCompressionTypeKey                          = "network-compression-type"
 	NetworkMaxClockDifferenceKey                       = "network-max-clock-difference"
 	NetworkAllowPrivateIPsKey                          = "network-allow-private-ips"
 	NetworkRequireValidatorToConnectKey                = "network-require-validator-to-connect"
@@ -107,6 +115,10 @@ const (
 	NetworkTCPProxyEnabledKey                          = "network-tcp-proxy-enabled"
 	NetworkTCPProxyReadTimeoutKey                      = "network-tcp-proxy-read-timeout"
 	NetworkTLSKeyLogFileKey                            = "network-tls-key-log-file-unsafe"
+	NetworkInboundConnUpgradeThrottlerCooldownKey      = "network-inbound-connection-throttling-cooldown"
+	NetworkInboundThrottlerMaxConnsPerSecKey           = "network-inbound-connection-throttling-max-conns-per-sec"
+	NetworkOutboundConnectionThrottlingRpsKey          = "network-outbound-connection-throttling-rps"
+	NetworkOutboundConnectionTimeoutKey                = "network-outbound-connection-timeout"
 	BenchlistFailThresholdKey                          = "benchlist-fail-threshold"
 	BenchlistDurationKey                               = "benchlist-duration"
 	BenchlistMinFailingDurationKey                     = "benchlist-min-failing-duration"
@@ -121,16 +133,15 @@ const (
 	LogDisableDisplayPluginLogsKey                     = "log-disable-display-plugin-logs"
 	SnowSampleSizeKey                                  = "snow-sample-size"
 	SnowQuorumSizeKey                                  = "snow-quorum-size"
+	SnowPreferenceQuorumSizeKey                        = "snow-preference-quorum-size"
+	SnowConfidenceQuorumSizeKey                        = "snow-confidence-quorum-size"
 	SnowVirtuousCommitThresholdKey                     = "snow-virtuous-commit-threshold"
 	SnowRogueCommitThresholdKey                        = "snow-rogue-commit-threshold"
-	SnowAvalancheNumParentsKey                         = "snow-avalanche-num-parents"
-	SnowAvalancheBatchSizeKey                          = "snow-avalanche-batch-size"
 	SnowConcurrentRepollsKey                           = "snow-concurrent-repolls"
 	SnowOptimalProcessingKey                           = "snow-optimal-processing"
 	SnowMaxProcessingKey                               = "snow-max-processing"
 	SnowMaxTimeProcessingKey                           = "snow-max-time-processing"
-	SnowMixedQueryNumPushVdrKey                        = "snow-mixed-query-num-push-vdr"
-	SnowMixedQueryNumPushNonVdrKey                     = "snow-mixed-query-num-push-non-vdr"
+	PartialSyncPrimaryNetworkKey                       = "partial-sync-primary-network"
 	TrackSubnetsKey                                    = "track-subnets"
 	AdminAPIEnabledKey                                 = "api-admin-enabled-secret"
 	InfoAPIEnabledKey                                  = "api-info-enabled"
@@ -141,7 +152,8 @@ const (
 	IpcsChainIDsKey                                    = "ipcs-chain-ids"
 	IpcsPathKey                                        = "ipcs-path"
 	MeterVMsEnabledKey                                 = "meter-vms-enabled"
-	ConsensusGossipFrequencyKey                        = "consensus-gossip-frequency"
+	ConsensusAcceptedFrontierGossipFrequencyKey        = "consensus-accepted-frontier-gossip-frequency"
+	ConsensusAppConcurrencyKey                         = "consensus-app-concurrency"
 	ConsensusGossipAcceptedFrontierValidatorSizeKey    = "consensus-accepted-frontier-gossip-validator-size"
 	ConsensusGossipAcceptedFrontierNonValidatorSizeKey = "consensus-accepted-frontier-gossip-non-validator-size"
 	ConsensusGossipAcceptedFrontierPeerSizeKey         = "consensus-accepted-frontier-gossip-peer-size"
@@ -209,4 +221,6 @@ const (
 	TracingInsecureKey                                 = "tracing-insecure"
 	TracingSampleRateKey                               = "tracing-sample-rate"
 	TracingExporterTypeKey                             = "tracing-exporter-type"
+	TracingHeadersKey                                  = "tracing-headers"
+	ProcessContextFileKey                              = "process-context-file"
 )

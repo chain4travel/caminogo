@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -19,7 +19,7 @@ import (
 var (
 	_ UnsignedTx = (*DepositTx)(nil)
 
-	errTooBigDeposit         = errors.New("to big deposit")
+	errTooBigDeposit         = errors.New("too big deposit")
 	errInvalidRewardOwner    = errors.New("invalid reward owner")
 	errBadOfferOwnerAuth     = errors.New("bad offer owner auth")
 	errBadDepositCreatorAuth = errors.New("bad deposit creator auth")
@@ -81,7 +81,7 @@ func (tx *DepositTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("failed to verify BaseTx: %w", err)
 	}
 	if err := tx.RewardsOwner.Verify(); err != nil {
-		return fmt.Errorf("%w: %s", errInvalidRewardOwner, err)
+		return fmt.Errorf("%w: %w", errInvalidRewardOwner, err)
 	}
 
 	depositAmount := uint64(0)
@@ -89,7 +89,7 @@ func (tx *DepositTx) SyntacticVerify(ctx *snow.Context) error {
 		if lockedOut, ok := out.Out.(*locked.Out); ok && lockedOut.IsNewlyLockedWith(locked.StateDeposited) {
 			newDepositAmount, err := math.Add64(depositAmount, lockedOut.Amount())
 			if err != nil {
-				return fmt.Errorf("%w: %s", errTooBigDeposit, err)
+				return fmt.Errorf("%w: %w", errTooBigDeposit, err)
 			}
 			depositAmount = newDepositAmount
 		}
@@ -98,7 +98,7 @@ func (tx *DepositTx) SyntacticVerify(ctx *snow.Context) error {
 
 	if tx.UpgradeVersionID.Version() > 0 {
 		if err := tx.DepositCreatorAuth.Verify(); err != nil {
-			return fmt.Errorf("%w: %s", errBadDepositCreatorAuth, err)
+			return fmt.Errorf("%w: %w", errBadDepositCreatorAuth, err)
 		}
 		if err := tx.DepositOfferOwnerAuth.Verify(); err != nil {
 			return errBadOfferOwnerAuth

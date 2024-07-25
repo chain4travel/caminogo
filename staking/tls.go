@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -21,20 +21,17 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+
 	utilsSecp256k1 "github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/perms"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
-
-var errDuplicateExtension = errors.New("duplicate certificate extension")
 
 // InitNodeStakingKeyPair generates a self-signed TLS key/cert pair to use in
 // staking. The key and files will be placed at [keyPath] and [certPath],
@@ -100,7 +97,7 @@ func LoadTLSCertFromBytes(keyBytes, certBytes []byte) (*tls.Certificate, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing cert: %w", err)
 	}
-	return &cert, VerifyCertificate(cert.Leaf)
+	return &cert, nil
 }
 
 func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
@@ -112,7 +109,7 @@ func LoadTLSCertFromFiles(keyPath, certPath string) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing cert: %w", err)
 	}
-	return &cert, VerifyCertificate(cert.Leaf)
+	return &cert, nil
 }
 
 func NewTLSCert() (*tls.Certificate, error) {
@@ -174,16 +171,4 @@ func NewCertAndKeyBytesWithSecpKey(secpKey *secp256k1.PrivateKey) ([]byte, []byt
 		return nil, nil, fmt.Errorf("couldn't write private key: %w", err)
 	}
 	return certBuff.Bytes(), keyBuff.Bytes(), nil
-}
-
-func VerifyCertificate(cert *x509.Certificate) error {
-	extensionSet := set.NewSet[string](len(cert.Extensions))
-	for _, extension := range cert.Extensions {
-		idStr := extension.Id.String()
-		if extensionSet.Contains(idStr) {
-			return errDuplicateExtension
-		}
-		extensionSet.Add(idStr)
-	}
-	return nil
 }

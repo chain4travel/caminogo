@@ -9,6 +9,9 @@ package router
 
 import (
 	context "context"
+	reflect "reflect"
+	time "time"
+
 	ids "github.com/ava-labs/avalanchego/ids"
 	message "github.com/ava-labs/avalanchego/message"
 	p2p "github.com/ava-labs/avalanchego/proto/pb/p2p"
@@ -17,10 +20,8 @@ import (
 	logging "github.com/ava-labs/avalanchego/utils/logging"
 	set "github.com/ava-labs/avalanchego/utils/set"
 	version "github.com/ava-labs/avalanchego/version"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 	prometheus "github.com/prometheus/client_golang/prometheus"
-	reflect "reflect"
-	time "time"
 )
 
 // MockRouter is a mock of Router interface.

@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -7,14 +7,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetMultisigAlias(t *testing.T) {
@@ -25,7 +26,7 @@ func TestGetMultisigAlias(t *testing.T) {
 			Memo:   []byte("multisigAlias memo"),
 		},
 	}
-	multisigAliasBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, &msigAlias{
+	multisigAliasBytes, err := block.GenesisCodec.Marshal(block.Version, &msigAlias{
 		Owners: multisigAlias.Owners,
 		Memo:   multisigAlias.Memo,
 	})
@@ -182,9 +183,7 @@ func TestGetMultisigAlias(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			caminoState := tt.caminoState(ctrl)
+			caminoState := tt.caminoState(gomock.NewController(t))
 			multisigAlias, err := caminoState.GetMultisigAlias(tt.multisigAliasID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedMultisigAlias, multisigAlias)
@@ -223,10 +222,8 @@ func TestSetMultisigAlias(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			caminoState := tt.caminoState(ctrl)
-			caminoState.SetMultisigAlias(tt.multisigAlias)
+			caminoState := tt.caminoState(gomock.NewController(t))
+			caminoState.SetMultisigAlias(tt.multisigAlias.ID, tt.multisigAlias)
 			require.Equal(t, tt.expectedCaminoState(caminoState), caminoState)
 		})
 	}
@@ -235,7 +232,7 @@ func TestSetMultisigAlias(t *testing.T) {
 func TestWriteMultisigAliases(t *testing.T) {
 	multisigAlias1 := &multisig.AliasWithNonce{Alias: multisig.Alias{ID: ids.ShortID{1}, Owners: &secp256k1fx.OutputOwners{}}}
 	multisigAlias2 := &multisig.AliasWithNonce{Alias: multisig.Alias{ID: ids.ShortID{2}, Owners: &secp256k1fx.OutputOwners{}}}
-	multisigAliasBytes1, err := blocks.GenesisCodec.Marshal(blocks.Version, &msigAlias{Owners: multisigAlias1.Owners})
+	multisigAliasBytes1, err := block.GenesisCodec.Marshal(block.Version, &msigAlias{Owners: multisigAlias1.Owners})
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -317,10 +314,9 @@ func TestWriteMultisigAliases(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
-			require.ErrorIs(t, actualCaminoState.writeMultisigAliases(), tt.expectedErr)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
+			err := actualCaminoState.writeMultisigAliases()
+			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedCaminoState(actualCaminoState), actualCaminoState)
 		})
 	}

@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package api
@@ -48,7 +48,10 @@ type Camino struct {
 	MultisigAliases            []*multisig.Alias      `json:"multisigAliases"`
 }
 
-func (c Camino) ParseToGenesis() genesis.Camino {
+func (c *Camino) ParseToGenesis() genesis.Camino {
+	if c == nil {
+		return genesis.Camino{}
+	}
 	return genesis.Camino{
 		VerifyNodeSignature: c.VerifyNodeSignature,
 		LockModeBondDeposit: c.LockModeBondDeposit,
@@ -230,7 +233,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 			GenesisData: genesisBytes,
 			SubnetAuth:  &secp256k1fx.Input{},
 		}}
-		if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+		if err := tx.Initialize(txs.GenesisCodec); err != nil {
 			return err
 		}
 
@@ -243,7 +246,7 @@ func buildCaminoGenesis(args *BuildGenesisArgs, reply *BuildGenesisReply) error 
 	for _, genesisBlock := range genesisBlocks {
 		if len(genesisBlock.UnlockedUTXOsTxs) != 0 {
 			tx := genesisBlock.UnlockedUTXOsTxs[0]
-			if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+			if err := tx.Initialize(txs.GenesisCodec); err != nil {
 				return err
 			}
 
@@ -320,10 +323,10 @@ func makeValidator(
 	}
 
 	if weight == 0 {
-		return nil, errValidatorAddsNoValue
+		return nil, errValidatorHasNoWeight
 	}
 	if vdr.EndTime <= vdr.StartTime {
-		return nil, errValidatorAddsNoValue
+		return nil, errValidatorAlreadyExited
 	}
 
 	rewardsOwner, err := getSecpOwner(vdr.RewardOwner)
@@ -348,7 +351,7 @@ func makeValidator(
 		},
 		NodeOwnerAuth: &secp256k1fx.Input{},
 	}}
-	if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+	if err := tx.Initialize(txs.GenesisCodec); err != nil {
 		return nil, err
 	}
 
@@ -425,7 +428,7 @@ func makeUTXOAndDeposit(
 			DepositDuration: uint32(deposit.Duration),
 			RewardsOwner:    &owner,
 		}}
-		if err := depositTx.Sign(txs.GenesisCodec, nil); err != nil {
+		if err := depositTx.Initialize(txs.GenesisCodec); err != nil {
 			return nil, nil, err
 		}
 

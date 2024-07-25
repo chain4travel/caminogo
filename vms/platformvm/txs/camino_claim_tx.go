@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -77,7 +77,7 @@ func (tx *ClaimTx) SyntacticVerify(ctx *snow.Context) error {
 			return errNonUniqueClaimableID
 		}
 		if err := claimable.OwnerAuth.Verify(); err != nil {
-			return fmt.Errorf("%w (claimable[%d].OwnerAuth): %s", errBadClaimableAuth, i, err)
+			return fmt.Errorf("%w (claimable[%d].OwnerAuth): %w", errBadClaimableAuth, i, err)
 		}
 		uniqueIDs.Add(claimable.ID)
 	}

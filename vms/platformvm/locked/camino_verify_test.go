@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package locked
@@ -6,10 +6,11 @@ package locked
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyLockMode(t *testing.T) {
@@ -21,31 +22,31 @@ func TestVerifyLockMode(t *testing.T) {
 	}{
 		"OK (lockModeDepositBonding false)": {
 			ins: []*avax.TransferableInput{
-				generateTestIn(),
-				generateTestStakeableIn(),
+				unlockedIn(),
+				stakeableIn(),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(),
-				generateTestStakeableOut(),
+				unlockedOut(),
+				stakeableOut(),
 			},
 			lockModeDepositBonding: false,
 			expectedErr:            nil,
 		},
 		"OK (lockModeDepositBonding true)": {
 			ins: []*avax.TransferableInput{
-				generateTestIn(),
-				generateTestLockedIn(),
+				unlockedIn(),
+				lockedIn(),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(),
-				generateTestLockedOut(),
+				unlockedOut(),
+				lockedOut(),
 			},
 			lockModeDepositBonding: true,
 			expectedErr:            nil,
 		},
 		"fail (lockModeDepositBonding false): wrong input type": {
 			ins: []*avax.TransferableInput{
-				generateTestLockedIn(),
+				lockedIn(),
 			},
 			outs:                   []*avax.TransferableOutput{},
 			lockModeDepositBonding: false,
@@ -54,14 +55,14 @@ func TestVerifyLockMode(t *testing.T) {
 		"fail (lockModeDepositBonding false): wrong output type": {
 			ins: []*avax.TransferableInput{},
 			outs: []*avax.TransferableOutput{
-				generateTestLockedOut(),
+				lockedOut(),
 			},
 			lockModeDepositBonding: false,
 			expectedErr:            ErrWrongOutType,
 		},
 		"fail (lockModeDepositBonding true): wrong input type": {
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(),
+				stakeableIn(),
 			},
 			outs:                   []*avax.TransferableOutput{},
 			lockModeDepositBonding: true,
@@ -70,7 +71,7 @@ func TestVerifyLockMode(t *testing.T) {
 		"fail (lockModeDepositBonding true): wrong output type": {
 			ins: []*avax.TransferableInput{},
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(),
+				stakeableOut(),
 			},
 			lockModeDepositBonding: true,
 			expectedErr:            ErrWrongOutType,
@@ -97,16 +98,16 @@ func TestVerifyNoLocks(t *testing.T) {
 	}{
 		"OK": {
 			ins: []*avax.TransferableInput{
-				generateTestIn(),
+				unlockedIn(),
 			},
 			outs: []*avax.TransferableOutput{
-				generateTestOut(),
+				unlockedOut(),
 			},
 			expectedErr: nil,
 		},
 		"fail: locked.In": {
 			ins: []*avax.TransferableInput{
-				generateTestLockedIn(),
+				lockedIn(),
 			},
 			outs:        []*avax.TransferableOutput{},
 			expectedErr: ErrWrongInType,
@@ -114,13 +115,13 @@ func TestVerifyNoLocks(t *testing.T) {
 		"fail: locked.Out": {
 			ins: []*avax.TransferableInput{},
 			outs: []*avax.TransferableOutput{
-				generateTestLockedOut(),
+				lockedOut(),
 			},
 			expectedErr: ErrWrongOutType,
 		},
 		"fail: stakeable.LockIn": {
 			ins: []*avax.TransferableInput{
-				generateTestStakeableIn(),
+				stakeableIn(),
 			},
 			outs:        []*avax.TransferableOutput{},
 			expectedErr: ErrWrongInType,
@@ -128,7 +129,7 @@ func TestVerifyNoLocks(t *testing.T) {
 		"fail: stakeable.LockOut": {
 			ins: []*avax.TransferableInput{},
 			outs: []*avax.TransferableOutput{
-				generateTestStakeableOut(),
+				stakeableOut(),
 			},
 			expectedErr: ErrWrongOutType,
 		},
@@ -145,37 +146,37 @@ func TestVerifyNoLocks(t *testing.T) {
 	}
 }
 
-func generateTestIn() *avax.TransferableInput {
+func unlockedIn() *avax.TransferableInput {
 	return &avax.TransferableInput{
 		In: &secp256k1fx.TransferInput{},
 	}
 }
 
-func generateTestLockedIn() *avax.TransferableInput {
+func lockedIn() *avax.TransferableInput {
 	return &avax.TransferableInput{
 		In: &In{TransferableIn: &secp256k1fx.TransferInput{}},
 	}
 }
 
-func generateTestStakeableIn() *avax.TransferableInput {
+func stakeableIn() *avax.TransferableInput {
 	return &avax.TransferableInput{
 		In: &stakeable.LockIn{TransferableIn: &secp256k1fx.TransferInput{}},
 	}
 }
 
-func generateTestOut() *avax.TransferableOutput {
+func unlockedOut() *avax.TransferableOutput {
 	return &avax.TransferableOutput{
 		Out: &secp256k1fx.TransferOutput{},
 	}
 }
 
-func generateTestLockedOut() *avax.TransferableOutput {
+func lockedOut() *avax.TransferableOutput {
 	return &avax.TransferableOutput{
 		Out: &Out{TransferableOut: &secp256k1fx.TransferOutput{}},
 	}
 }
 
-func generateTestStakeableOut() *avax.TransferableOutput {
+func stakeableOut() *avax.TransferableOutput {
 	return &avax.TransferableOutput{
 		Out: &stakeable.LockOut{TransferableOut: &secp256k1fx.TransferOutput{}},
 	}

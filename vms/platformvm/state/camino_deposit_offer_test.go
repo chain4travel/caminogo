@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -7,13 +7,14 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetDepositOffer(t *testing.T) {
@@ -160,9 +161,7 @@ func TestGetDepositOffer(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			caminoState := tt.caminoState(ctrl)
+			caminoState := tt.caminoState(gomock.NewController(t))
 			actualDepositOffer, err := caminoState.GetDepositOffer(tt.depositOfferID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedDepositOffer, actualDepositOffer)
@@ -268,9 +267,7 @@ func TestGetAllDepositOffers(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			caminoState := tt.caminoState(ctrl)
+			caminoState := tt.caminoState(gomock.NewController(t))
 			depositOffers, err := caminoState.GetAllDepositOffers()
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.ElementsMatch(t, tt.expectedDepositOffers, depositOffers)
@@ -286,13 +283,13 @@ func TestWriteDepositOffers(t *testing.T) {
 	depositOffer0_3 := &deposit.Offer{ID: ids.ID{3}}
 	depositOffer0_4 := &deposit.Offer{ID: ids.ID{4}}
 	depositOffer1_5 := &deposit.Offer{ID: ids.ID{5}, UpgradeVersionID: codec.UpgradeVersion1}
-	depositOffer2modifiedBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_2modified)
+	depositOffer2modifiedBytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2modified)
 	require.NoError(t, err)
-	depositOffer2Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_2)
+	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2)
 	require.NoError(t, err)
-	depositOffer3Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_3)
+	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_3)
 	require.NoError(t, err)
-	depositOffer5Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer1_5)
+	depositOffer5Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer1_5)
 	require.NoError(t, err)
 	testError := errors.New("test error")
 
@@ -392,10 +389,9 @@ func TestWriteDepositOffers(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
-			require.ErrorIs(t, actualCaminoState.writeDepositOffers(), tt.expectedErr)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
+			err := actualCaminoState.writeDepositOffers()
+			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedCaminoState(actualCaminoState), actualCaminoState)
 		})
 	}
@@ -408,13 +404,13 @@ func TestLoadDepositOffers(t *testing.T) {
 	depositOffer1_4 := &deposit.Offer{
 		UpgradeVersionID: codec.UpgradeVersion1, ID: ids.ID{4}, Memo: []byte("4"),
 	}
-	depositOffer1Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_1)
+	depositOffer1Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_1)
 	require.NoError(t, err)
-	depositOffer2Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_2)
+	depositOffer2Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_2)
 	require.NoError(t, err)
-	depositOffer3Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer0_3)
+	depositOffer3Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer0_3)
 	require.NoError(t, err)
-	depositOffer4Bytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositOffer1_4)
+	depositOffer4Bytes, err := block.GenesisCodec.Marshal(block.Version, depositOffer1_4)
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -479,10 +475,9 @@ func TestLoadDepositOffers(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualCaminoState := tt.caminoState(ctrl)
-			require.ErrorIs(t, actualCaminoState.loadDepositOffers(), tt.expectedErr)
+			actualCaminoState := tt.caminoState(gomock.NewController(t))
+			err := actualCaminoState.loadDepositOffers()
+			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedCaminoState(actualCaminoState), actualCaminoState)
 		})
 	}

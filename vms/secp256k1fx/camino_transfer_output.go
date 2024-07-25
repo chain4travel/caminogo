@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -54,4 +54,10 @@ func (out *CrossTransferOutput) Verify() error {
 	}
 
 	return nil
+}
+
+// Used in vms/platformvm/txs/executor/camino_tx_executor.go func outputsAreEqual
+func (out *TransferOutput) Equal(to any) bool {
+	toOut, ok := to.(*TransferOutput)
+	return ok && out.Amt == toOut.Amt && out.OutputOwners.Equals(&toOut.OutputOwners)
 }

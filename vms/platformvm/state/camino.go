@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -8,27 +8,29 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/cache/metercacher"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/linkeddb"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/ids"
-	choices "github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -37,19 +39,23 @@ const (
 	shortLinksCacheSize   = 1024
 	msigOwnersCacheSize   = 16_384
 	claimablesCacheSize   = 1024
+	proposalsCacheSize    = 1024
 )
 
 var (
 	_ CaminoState = (*caminoState)(nil)
 
-	caminoPrefix              = []byte("camino")
-	addressStatePrefix        = []byte("addressState")
-	depositOffersPrefix       = []byte("depositOffers")
-	depositsPrefix            = []byte("deposits")
-	depositIDsByEndtimePrefix = []byte("depositIDsByEndtime")
-	multisigOwnersPrefix      = []byte("multisigOwners")
-	shortLinksPrefix          = []byte("shortLinks")
-	claimablesPrefix          = []byte("claimables")
+	caminoPrefix               = []byte("camino")
+	addressStatePrefix         = []byte("addressState")
+	depositOffersPrefix        = []byte("depositOffers")
+	depositsPrefix             = []byte("deposits")
+	depositIDsByEndtimePrefix  = []byte("depositIDsByEndtime")
+	multisigOwnersPrefix       = []byte("multisigOwners")
+	shortLinksPrefix           = []byte("shortLinks")
+	claimablesPrefix           = []byte("claimables")
+	proposalsPrefix            = []byte("proposals")
+	proposalIDsByEndtimePrefix = []byte("proposalIDsByEndtime")
+	proposalIDsToFinishPrefix  = []byte("proposalIDsToFinish")
 
 	// Used for prefixing the validatorsDB
 	deferredPrefix = []byte("deferred")
@@ -57,6 +63,8 @@ var (
 	nodeSignatureKey                 = []byte("nodeSignature")
 	depositBondModeKey               = []byte("depositBondMode")
 	notDistributedValidatorRewardKey = []byte("notDistributedValidatorReward")
+	baseFeeKey                       = []byte("baseFee")
+	feeDistributionKey               = []byte("feeDistribution")
 
 	errWrongTxType      = errors.New("unexpected tx type")
 	errNonExistingOffer = errors.New("deposit offer doesn't exist")
@@ -64,14 +72,20 @@ var (
 )
 
 type CaminoApply interface {
-	ApplyCaminoState(State)
+	ApplyCaminoState(State) error
 }
 
 type CaminoDiff interface {
+	// Singletones
+	GetBaseFee() (uint64, error)
+	SetBaseFee(uint64)
+	GetFeeDistribution() ([dac.FeeDistributionFractionsCount]uint64, error)
+	SetFeeDistribution([dac.FeeDistributionFractionsCount]uint64)
+
 	// Address State
 
-	SetAddressStates(ids.ShortID, txs.AddressState)
-	GetAddressStates(ids.ShortID) (txs.AddressState, error)
+	SetAddressStates(ids.ShortID, as.AddressState)
+	GetAddressStates(ids.ShortID) (as.AddressState, error)
 
 	// Deposit offers
 
@@ -94,7 +108,7 @@ type CaminoDiff interface {
 	// Multisig Owners
 
 	GetMultisigAlias(ids.ShortID) (*multisig.AliasWithNonce, error)
-	SetMultisigAlias(*multisig.AliasWithNonce)
+	SetMultisigAlias(ids.ShortID, *multisig.AliasWithNonce)
 
 	// ShortIDsLink
 
@@ -114,6 +128,22 @@ type CaminoDiff interface {
 	PutDeferredValidator(staker *Staker)
 	DeleteDeferredValidator(staker *Staker)
 	GetDeferredStakerIterator() (StakerIterator, error)
+
+	// DAC proposals and votes
+
+	// proposal should never be nil
+	AddProposal(proposalID ids.ID, proposal dac.ProposalState)
+	// proposal start and end time should never be modified, proposal should never be nil
+	ModifyProposal(proposalID ids.ID, proposal dac.ProposalState)
+	// proposal start and end time should never be modified, proposal should never be nil
+	RemoveProposal(proposalID ids.ID, proposal dac.ProposalState)
+	GetProposal(proposalID ids.ID) (dac.ProposalState, error)
+	GetProposalIterator() (ProposalsIterator, error)
+	AddProposalIDToFinish(proposalID ids.ID)
+	GetProposalIDsToFinish() ([]ids.ID, error)
+	RemoveProposalIDToFinish(ids.ID)
+	GetNextProposalExpirationTime(removedProposalIDs set.Set[ids.ID]) (time.Time, error)
+	GetNextToExpireProposalIDsAndTime(removedProposalIDs set.Set[ids.ID]) ([]ids.ID, time.Time, error)
 }
 
 // For state and diff
@@ -130,10 +160,11 @@ type CaminoState interface {
 	CaminoDiff
 
 	CaminoConfig() *CaminoConfig
-	SyncGenesis(*state, *genesis.State) error
 	Load(*state) error
 	Write() error
 	Close() error
+
+	syncGenesis(*state, *genesis.Genesis) error
 }
 
 type CaminoConfig struct {
@@ -143,13 +174,17 @@ type CaminoConfig struct {
 
 type caminoDiff struct {
 	deferredStakerDiffs                   diffStakers
-	modifiedAddressStates                 map[ids.ShortID]txs.AddressState
+	modifiedAddressStates                 map[ids.ShortID]as.AddressState
 	modifiedDepositOffers                 map[ids.ID]*deposit.Offer
 	modifiedDeposits                      map[ids.ID]*depositDiff
 	modifiedMultisigAliases               map[ids.ShortID]*multisig.AliasWithNonce
 	modifiedShortLinks                    map[ids.ID]*ids.ShortID
 	modifiedClaimables                    map[ids.ID]*Claimable
+	modifiedProposals                     map[ids.ID]*proposalDiff
+	modifiedProposalIDsToFinish           map[ids.ID]bool
 	modifiedNotDistributedValidatorReward *uint64
+	modifiedBaseFee                       *uint64
+	modifiedFeeDistribution               *[dac.FeeDistributionFractionsCount]uint64
 }
 
 type caminoState struct {
@@ -159,6 +194,8 @@ type caminoState struct {
 	genesisSynced       bool
 	verifyNodeSignature bool
 	lockModeBondDeposit bool
+	baseFee             uint64
+	feeDistribution     [dac.FeeDistributionFractionsCount]uint64
 
 	// Deferred Stakers
 	deferredStakers       *baseStakers
@@ -166,7 +203,7 @@ type caminoState struct {
 	deferredValidatorList linkeddb.LinkedDB
 
 	// Address State
-	addressStateCache cache.Cacher[ids.ShortID, txs.AddressState]
+	addressStateCache cache.Cacher[ids.ShortID, as.AddressState]
 	addressStateDB    database.Database
 
 	// Deposit offers
@@ -192,24 +229,34 @@ type caminoState struct {
 	notDistributedValidatorReward uint64
 	claimablesDB                  database.Database
 	claimablesCache               cache.Cacher[ids.ID, *Claimable]
+
+	proposalsNextExpirationTime *time.Time
+	proposalsNextToExpireIDs    []ids.ID
+	proposalIDsToFinish         []ids.ID
+	proposalsCache              cache.Cacher[ids.ID, dac.ProposalState]
+	proposalsDB                 database.Database
+	proposalIDsByEndtimeDB      database.Database
+	proposalIDsToFinishDB       database.Database
 }
 
 func newCaminoDiff() *caminoDiff {
 	return &caminoDiff{
-		modifiedAddressStates:   make(map[ids.ShortID]txs.AddressState),
-		modifiedDepositOffers:   make(map[ids.ID]*deposit.Offer),
-		modifiedDeposits:        make(map[ids.ID]*depositDiff),
-		modifiedMultisigAliases: make(map[ids.ShortID]*multisig.AliasWithNonce),
-		modifiedShortLinks:      make(map[ids.ID]*ids.ShortID),
-		modifiedClaimables:      make(map[ids.ID]*Claimable),
+		modifiedAddressStates:       make(map[ids.ShortID]as.AddressState),
+		modifiedDepositOffers:       make(map[ids.ID]*deposit.Offer),
+		modifiedDeposits:            make(map[ids.ID]*depositDiff),
+		modifiedMultisigAliases:     make(map[ids.ShortID]*multisig.AliasWithNonce),
+		modifiedShortLinks:          make(map[ids.ID]*ids.ShortID),
+		modifiedClaimables:          make(map[ids.ID]*Claimable),
+		modifiedProposals:           make(map[ids.ID]*proposalDiff),
+		modifiedProposalIDsToFinish: make(map[ids.ID]bool),
 	}
 }
 
 func newCaminoState(baseDB, validatorsDB database.Database, metricsReg prometheus.Registerer) (*caminoState, error) {
-	addressStateCache, err := metercacher.New[ids.ShortID, txs.AddressState](
+	addressStateCache, err := metercacher.New[ids.ShortID, as.AddressState](
 		"address_state_cache",
 		metricsReg,
-		&cache.LRU[ids.ShortID, txs.AddressState]{Size: addressStateCacheSize},
+		&cache.LRU[ids.ShortID, as.AddressState]{Size: addressStateCacheSize},
 	)
 	if err != nil {
 		return nil, err
@@ -251,6 +298,15 @@ func newCaminoState(baseDB, validatorsDB database.Database, metricsReg prometheu
 		return nil, err
 	}
 
+	proposalsCache, err := metercacher.New[ids.ID, dac.ProposalState](
+		"proposals_cache",
+		metricsReg,
+		&cache.LRU[ids.ID, dac.ProposalState]{Size: proposalsCacheSize},
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	deferredValidatorsDB := prefixdb.New(deferredPrefix, validatorsDB)
 
 	return &caminoState{
@@ -284,6 +340,11 @@ func newCaminoState(baseDB, validatorsDB database.Database, metricsReg prometheu
 		deferredValidatorsDB:  deferredValidatorsDB,
 		deferredValidatorList: linkeddb.NewDefault(deferredValidatorsDB),
 
+		proposalsCache:         proposalsCache,
+		proposalsDB:            prefixdb.New(proposalsPrefix, baseDB),
+		proposalIDsByEndtimeDB: prefixdb.New(proposalIDsByEndtimePrefix, baseDB),
+		proposalIDsToFinishDB:  prefixdb.New(proposalIDsToFinishPrefix, baseDB),
+
 		caminoDB:   prefixdb.New(caminoPrefix, baseDB),
 		caminoDiff: newCaminoDiff(),
 	}, nil
@@ -298,7 +359,7 @@ func (cs *caminoState) CaminoConfig() *CaminoConfig {
 }
 
 // Extract camino tag from genesis
-func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
+func (cs *caminoState) syncGenesis(s *state, g *genesis.Genesis) error {
 	cs.genesisSynced = true
 	cs.lockModeBondDeposit = g.Camino.LockModeBondDeposit
 	cs.verifyNodeSignature = g.Camino.VerifyNodeSignature
@@ -322,12 +383,12 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 		return err
 	}
 	cs.SetAddressStates(g.Camino.InitialAdmin,
-		initalAdminAddressState|txs.AddressStateRoleAdmin)
+		initalAdminAddressState|as.AddressStateRoleAdmin)
 
 	addrStateTx, err := txs.NewSigned(&txs.AddressStateTx{
-		Address: g.Camino.InitialAdmin,
-		State:   txs.AddressStateBitRoleAdmin,
-		Remove:  false,
+		Address:  g.Camino.InitialAdmin,
+		StateBit: as.AddressStateBitRoleAdmin,
+		Remove:   false,
 	}, txs.Codec, nil)
 	if err != nil {
 		return err
@@ -364,14 +425,14 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 	// adding msig aliases
 
 	for _, multisigAlias := range g.Camino.MultisigAliases {
-		cs.SetMultisigAlias(&multisig.AliasWithNonce{Alias: *multisigAlias})
+		cs.SetMultisigAlias(multisigAlias.ID, &multisig.AliasWithNonce{Alias: *multisigAlias})
 	}
 
 	// adding blocks (validators and deposits)
 
-	for blockIndex, block := range g.Camino.Blocks {
+	for blockIndex, blk := range g.Camino.Blocks {
 		// add unlocked utxos txs
-		for _, tx := range block.UnlockedUTXOsTxs {
+		for _, tx := range blk.UnlockedUTXOsTxs {
 			if txIDs.Contains(tx.ID()) {
 				return errNotUniqueTx
 			}
@@ -381,7 +442,7 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 		}
 
 		// add validators
-		for _, tx := range block.Validators {
+		for _, tx := range blk.Validators {
 			if txIDs.Contains(tx.ID()) {
 				return errNotUniqueTx
 			}
@@ -402,7 +463,7 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 		}
 
 		// add deposits
-		for _, tx := range block.Deposits {
+		for _, tx := range blk.Deposits {
 			depositTxID := tx.ID()
 			if txIDs.Contains(depositTxID) {
 				return errNotUniqueTx
@@ -424,7 +485,7 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 
 			deposit := &deposit.Deposit{
 				DepositOfferID: depositTx.DepositOfferID,
-				Start:          block.Timestamp,
+				Start:          blk.Timestamp,
 				Duration:       depositTx.DepositDuration,
 				Amount:         depositAmount,
 				RewardOwner:    depositTx.RewardsOwner,
@@ -451,17 +512,17 @@ func (cs *caminoState) SyncGenesis(s *state, g *genesis.State) error {
 		}
 
 		height := uint64(blockIndex) + 1 // +1 because 0-block is commit block from avax syncGenesis
-		genesisBlock, err := blocks.NewBanffStandardBlock(
-			block.Time(),
+		genesisBlock, err := block.NewBanffStandardBlock(
+			blk.Time(),
 			s.GetLastAccepted(), // must be not empty
 			height,
-			block.Txs(),
+			blk.Txs(),
 		)
 		if err != nil {
 			return err
 		}
 
-		s.AddStatelessBlock(genesisBlock, choices.Accepted)
+		s.AddStatelessBlock(genesisBlock)
 		s.SetLastAccepted(genesisBlock.ID())
 		s.SetHeight(height)
 
@@ -487,12 +548,37 @@ func (cs *caminoState) Load(s *state) error {
 	}
 	cs.lockModeBondDeposit = mode
 
+	baseFee, err := database.GetUInt64(cs.caminoDB, baseFeeKey)
+	if err == database.ErrNotFound {
+		// if baseFee is not in db yet, than its first time when we access it
+		// and it should be equal to config base fee
+		config, err := s.Config()
+		if err != nil {
+			return err
+		}
+		baseFee = config.TxFee
+	} else if err != nil {
+		return err
+	}
+	cs.baseFee = baseFee
+
+	feeDistribution, err := database.GetUInt64Slice(cs.caminoDB, feeDistributionKey)
+	if err == database.ErrNotFound {
+		// if fee distribution is not in db yet, than its first time when we access it
+		// and it should be equal to hardcoded fee distribution
+		feeDistribution = s.cfg.CaminoConfig.FeeDistribution[:]
+	} else if err != nil {
+		return err
+	}
+	cs.feeDistribution = *(*[dac.FeeDistributionFractionsCount]uint64)(feeDistribution) // TODO @evlekht change when mod go is >= 1.20
+
 	errs := wrappers.Errs{}
 	errs.Add(
 		cs.loadDepositOffers(),
 		cs.loadDeposits(),
 		cs.loadValidatorRewards(),
 		cs.loadDeferredValidators(s),
+		cs.loadProposals(),
 	)
 	return errs.Err
 }
@@ -507,6 +593,8 @@ func (cs *caminoState) Write() error {
 		)
 	}
 	errs.Add(
+		database.PutUInt64(cs.caminoDB, baseFeeKey, cs.baseFee),
+		database.PutUInt64Slice(cs.caminoDB, feeDistributionKey, cs.feeDistribution[:]),
 		cs.writeAddressStates(),
 		cs.writeDepositOffers(),
 		cs.writeDeposits(),
@@ -514,6 +602,7 @@ func (cs *caminoState) Write() error {
 		cs.writeShortLinks(),
 		cs.writeClaimableAndValidatorRewards(),
 		cs.writeDeferredStakers(),
+		cs.writeProposals(),
 	)
 	return errs.Err
 }
@@ -530,6 +619,25 @@ func (cs *caminoState) Close() error {
 		cs.shortLinksDB.Close(),
 		cs.claimablesDB.Close(),
 		cs.deferredValidatorsDB.Close(),
+		cs.proposalsDB.Close(),
+		cs.proposalIDsByEndtimeDB.Close(),
+		cs.proposalIDsToFinishDB.Close(),
 	)
 	return errs.Err
+}
+
+func (cs *caminoState) GetBaseFee() (uint64, error) {
+	return cs.baseFee, nil
+}
+
+func (cs *caminoState) SetBaseFee(baseFee uint64) {
+	cs.baseFee = baseFee
+}
+
+func (cs *caminoState) GetFeeDistribution() ([dac.FeeDistributionFractionsCount]uint64, error) {
+	return cs.feeDistribution, nil
+}
+
+func (cs *caminoState) SetFeeDistribution(feeDistribution [dac.FeeDistributionFractionsCount]uint64) {
+	cs.feeDistribution = feeDistribution
 }

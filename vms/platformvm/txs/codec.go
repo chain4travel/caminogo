@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/signer"
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
@@ -53,6 +54,10 @@ func init() {
 		c.SkipRegistrations(5)
 
 		errs.Add(RegisterUnsignedTxsTypes(c))
+
+		c.SkipRegistrations(4)
+
+		errs.Add(RegisterDUnsignedTxsTypes(c))
 	}
 	errs.Add(
 		Codec.RegisterCodec(Version, c),
@@ -65,19 +70,22 @@ func init() {
 
 // RegisterUnsignedTxsTypes allows registering relevant type of unsigned package
 // in the right sequence. Following repackaging of platformvm package, a few
-// subpackage-level codecs were introduced, each handling serialization of specific types.
+// subpackage-level codecs were introduced, each handling serialization of
+// specific types.
+//
 // RegisterUnsignedTxsTypes is made exportable so to guarantee that other codecs
 // are coherent with components one.
-func RegisterUnsignedTxsTypes(targetCodec codec.CaminoRegistry) error {
+func RegisterUnsignedTxsTypes(targetCodec linearcodec.CaminoCodec) error {
 	errs := wrappers.Errs{}
+
+	// The secp256k1fx is registered here because this is the same place it is
+	// registered in the AVM. This ensures that the typeIDs match up for utxos
+	// in shared memory.
+	errs.Add(targetCodec.RegisterType(&secp256k1fx.TransferInput{}))
+	targetCodec.SkipRegistrations(1)
+	errs.Add(targetCodec.RegisterType(&secp256k1fx.TransferOutput{}))
+	targetCodec.SkipRegistrations(1)
 	errs.Add(
-		// The Fx is registered here because this is the same place it is
-		// registered in the AVM. This ensures that the typeIDs match up for
-		// utxos in shared memory.
-		targetCodec.RegisterType(&secp256k1fx.TransferInput{}),
-		targetCodec.RegisterType(&secp256k1fx.MintOutput{}),
-		targetCodec.RegisterType(&secp256k1fx.TransferOutput{}),
-		targetCodec.RegisterType(&secp256k1fx.MintOperation{}),
 		targetCodec.RegisterType(&secp256k1fx.Credential{}),
 		targetCodec.RegisterType(&secp256k1fx.Input{}),
 		targetCodec.RegisterType(&secp256k1fx.OutputOwners{}),
@@ -122,6 +130,21 @@ func RegisterUnsignedTxsTypes(targetCodec codec.CaminoRegistry) error {
 		targetCodec.RegisterCustomType(&multisig.AliasWithNonce{}),
 		targetCodec.RegisterCustomType(&secp256k1fx.CrossTransferOutput{}),
 		targetCodec.RegisterCustomType(&AddDepositOfferTx{}),
+		targetCodec.RegisterCustomType(&AddProposalTx{}),
+		targetCodec.RegisterCustomType(&AddVoteTx{}),
+		targetCodec.RegisterCustomType(&FinishProposalsTx{}),
+		targetCodec.RegisterCustomType(&dac.BaseFeeProposal{}),
+		targetCodec.RegisterCustomType(&dac.DummyVote{}),
+		targetCodec.RegisterCustomType(&dac.SimpleVote{}),
+		targetCodec.RegisterCustomType(&dac.AddMemberProposal{}),
+		targetCodec.RegisterCustomType(&dac.AdminProposal{}),
+		targetCodec.RegisterCustomType(&dac.ExcludeMemberProposal{}),
+		targetCodec.RegisterCustomType(&dac.GeneralProposal{}),
+		targetCodec.RegisterCustomType(&dac.FeeDistributionProposal{}),
 	)
 	return errs.Err
+}
+
+func RegisterDUnsignedTxsTypes(targetCodec linearcodec.Codec) error {
+	return targetCodec.RegisterType(&TransferSubnetOwnershipTx{})
 }

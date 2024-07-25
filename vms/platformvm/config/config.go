@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -44,7 +44,10 @@ type Config struct {
 	UptimeLockedCalculator uptime.LockedCalculator
 
 	// True if the node is being run with staking enabled
-	StakingEnabled bool
+	SybilProtectionEnabled bool
+
+	// If true, only the P-chain will be instantiated on the primary network.
+	PartialSyncPrimaryNetwork bool
 
 	// Set of subnets that this node is validating
 	TrackedSubnets set.Set[ids.ID]
@@ -109,17 +112,20 @@ type Config struct {
 	// Time of the Banff network upgrade
 	BanffTime time.Time
 
+	// Time of the Cortina network upgrade
+	CortinaTime time.Time
+
+	// Time of the D network upgrade
+	DTime time.Time
+
 	// Time of the Athens Phase network upgrade
 	AthensPhaseTime time.Time
 
-	// Subnet ID --> Minimum portion of the subnet's stake this node must be
-	// connected to in order to report healthy.
-	// [constants.PrimaryNetworkID] is always a key in this map.
-	// If a subnet is in this map, but it isn't tracked, its corresponding value
-	// isn't used.
-	// If a subnet is tracked but not in this map, we use the value for the
-	// Primary Network.
-	MinPercentConnectedStakeHealthy map[ids.ID]float64
+	// Time of the BerlinPhase network upgrade
+	BerlinPhaseTime time.Time
+
+	// Time of the CairoPhase network upgrade
+	CairoPhaseTime time.Time
 
 	// Camino relevant configuration
 	CaminoConfig caminoconfig.Config
@@ -145,8 +151,25 @@ func (c *Config) IsBanffActivated(timestamp time.Time) bool {
 	return !timestamp.Before(c.BanffTime)
 }
 
+func (c *Config) IsCortinaActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.CortinaTime)
+}
+
+// TODO: Rename
+func (c *Config) IsDActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.DTime)
+}
+
 func (c *Config) IsAthensPhaseActivated(timestamp time.Time) bool {
 	return !timestamp.Before(c.AthensPhaseTime)
+}
+
+func (c *Config) IsBerlinPhaseActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.BerlinPhaseTime)
+}
+
+func (c *Config) IsCairoPhaseActivated(timestamp time.Time) bool {
+	return !timestamp.Before(c.CairoPhaseTime)
 }
 
 func (c *Config) GetCreateBlockchainTxFee(timestamp time.Time) uint64 {
@@ -166,7 +189,7 @@ func (c *Config) GetCreateSubnetTxFee(timestamp time.Time) uint64 {
 // Create the blockchain described in [tx], but only if this node is a member of
 // the subnet that validates the chain
 func (c *Config) CreateChain(chainID ids.ID, tx *txs.CreateChainTx) {
-	if c.StakingEnabled && // Staking is enabled, so nodes might not validate all chains
+	if c.SybilProtectionEnabled && // Sybil protection is enabled, so nodes might not validate all chains
 		constants.PrimaryNetworkID != tx.SubnetID && // All nodes must validate the primary network
 		!c.TrackedSubnets.Contains(tx.SubnetID) { // This node doesn't validate this blockchain
 		return

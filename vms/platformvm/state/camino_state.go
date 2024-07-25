@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -11,10 +11,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
 func (s *state) LockedUTXOs(txIDs set.Set[ids.ID], addresses set.Set[ids.ShortID], lockState locked.State) ([]*avax.UTXO, error) {
@@ -49,11 +50,11 @@ func (s *state) CaminoConfig() (*CaminoConfig, error) {
 	return s.caminoState.CaminoConfig(), nil
 }
 
-func (s *state) SetAddressStates(address ids.ShortID, states txs.AddressState) {
+func (s *state) SetAddressStates(address ids.ShortID, states as.AddressState) {
 	s.caminoState.SetAddressStates(address, states)
 }
 
-func (s *state) GetAddressStates(address ids.ShortID) (txs.AddressState, error) {
+func (s *state) GetAddressStates(address ids.ShortID) (as.AddressState, error) {
 	return s.caminoState.GetAddressStates(address)
 }
 
@@ -93,8 +94,8 @@ func (s *state) GetNextToUnlockDepositIDsAndTime(removedDepositIDs set.Set[ids.I
 	return s.caminoState.GetNextToUnlockDepositIDsAndTime(removedDepositIDs)
 }
 
-func (s *state) SetMultisigAlias(owner *multisig.AliasWithNonce) {
-	s.caminoState.SetMultisigAlias(owner)
+func (s *state) SetMultisigAlias(id ids.ShortID, owner *multisig.AliasWithNonce) {
+	s.caminoState.SetMultisigAlias(id, owner)
 }
 
 func (s *state) GetMultisigAlias(alias ids.ShortID) (*multisig.AliasWithNonce, error) {
@@ -139,4 +140,60 @@ func (s *state) DeleteDeferredValidator(staker *Staker) {
 
 func (s *state) GetDeferredStakerIterator() (StakerIterator, error) {
 	return s.caminoState.GetDeferredStakerIterator()
+}
+
+func (s *state) AddProposal(proposalID ids.ID, proposal dac.ProposalState) {
+	s.caminoState.AddProposal(proposalID, proposal)
+}
+
+func (s *state) ModifyProposal(proposalID ids.ID, proposal dac.ProposalState) {
+	s.caminoState.ModifyProposal(proposalID, proposal)
+}
+
+func (s *state) RemoveProposal(proposalID ids.ID, proposal dac.ProposalState) {
+	s.caminoState.RemoveProposal(proposalID, proposal)
+}
+
+func (s *state) GetProposal(proposalID ids.ID) (dac.ProposalState, error) {
+	return s.caminoState.GetProposal(proposalID)
+}
+
+func (s *state) AddProposalIDToFinish(proposalID ids.ID) {
+	s.caminoState.AddProposalIDToFinish(proposalID)
+}
+
+func (s *state) GetProposalIDsToFinish() ([]ids.ID, error) {
+	return s.caminoState.GetProposalIDsToFinish()
+}
+
+func (s *state) RemoveProposalIDToFinish(proposalID ids.ID) {
+	s.caminoState.RemoveProposalIDToFinish(proposalID)
+}
+
+func (s *state) GetNextToExpireProposalIDsAndTime(removedProposalIDs set.Set[ids.ID]) ([]ids.ID, time.Time, error) {
+	return s.caminoState.GetNextToExpireProposalIDsAndTime(removedProposalIDs)
+}
+
+func (s *state) GetNextProposalExpirationTime(removedProposalIDs set.Set[ids.ID]) (time.Time, error) {
+	return s.caminoState.GetNextProposalExpirationTime(removedProposalIDs)
+}
+
+func (s *state) GetProposalIterator() (ProposalsIterator, error) {
+	return s.caminoState.GetProposalIterator()
+}
+
+func (s *state) GetBaseFee() (uint64, error) {
+	return s.caminoState.GetBaseFee()
+}
+
+func (s *state) SetBaseFee(baseFee uint64) {
+	s.caminoState.SetBaseFee(baseFee)
+}
+
+func (s *state) GetFeeDistribution() ([dac.FeeDistributionFractionsCount]uint64, error) {
+	return s.caminoState.GetFeeDistribution()
+}
+
+func (s *state) SetFeeDistribution(feeDistribution [dac.FeeDistributionFractionsCount]uint64) {
+	s.caminoState.SetFeeDistribution(feeDistribution)
 }

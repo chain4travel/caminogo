@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package linearcodec
@@ -18,7 +18,7 @@ func TestVectorsCamino(t *testing.T) {
 
 func TestMultipleTagsCamino(t *testing.T) {
 	for _, test := range codec.MultipleTagsTests {
-		c := NewCamino([]string{"tag1", "tag2"}, defaultMaxSliceLength)
+		c := NewCamino([]string{"tag1", "tag2"}, DefaultMaxSliceLength)
 		test(c, t)
 	}
 }

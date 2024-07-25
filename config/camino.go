@@ -1,28 +1,28 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package config
 
 import (
-	"flag"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/vms/platformvm/caminoconfig"
-	"github.com/spf13/viper"
 )
 
 const (
-	DaoProposalBondAmountKey = "dao-proposal-bond-amount"
+	DACProposalBondAmountKey = "dac-proposal-bond-amount"
 )
 
-func addCaminoFlags(fs *flag.FlagSet) {
-	// Bond amount required to place a DAO proposal on the Primary Network
-	fs.Uint64(DaoProposalBondAmountKey, genesis.LocalParams.CaminoConfig.DaoProposalBondAmount, "Amount, in nAVAX, required to place a DAO proposal")
+func addCaminoFlags(fs *pflag.FlagSet) {
+	// Bond amount required to place a DAC proposal on the Primary Network
+	fs.Uint64(DACProposalBondAmountKey, genesis.LocalParams.CaminoConfig.DACProposalBondAmount, "Amount, in nAVAX, required to place a DAC proposal")
 }
 
 func getCaminoPlatformConfig(v *viper.Viper) caminoconfig.Config {
 	conf := caminoconfig.Config{
-		DaoProposalBondAmount: v.GetUint64(DaoProposalBondAmountKey),
+		DACProposalBondAmount: v.GetUint64(DACProposalBondAmountKey),
 	}
 	return conf
 }

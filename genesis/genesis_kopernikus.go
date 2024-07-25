@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 // PrivateKey-vmRQiZeXEXYMyJhEiqdC2z5JhuDbxL8ix9UVvjgMu2Er1NepE => X-kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3
@@ -16,6 +16,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/caminoconfig"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 )
 
@@ -37,8 +38,8 @@ var (
 			MaxValidatorStake: 2 * units.KiloAvax,
 			MinDelegatorStake: 0 * units.Avax,
 			MinDelegationFee:  0, // 0%
-			MinStakeDuration:  24 * time.Hour,
-			MaxStakeDuration:  365 * 24 * time.Hour,
+			MinStakeDuration:  5 * time.Minute,
+			MaxStakeDuration:  5 * 365 * 24 * time.Hour,
 			RewardConfig: reward.Config{
 				MaxConsumptionRate: 0,
 				MinConsumptionRate: 0,
@@ -46,7 +47,8 @@ var (
 				SupplyCap:          1000 * units.MegaAvax,
 			},
 			CaminoConfig: caminoconfig.Config{
-				DaoProposalBondAmount: 100 * units.Avax,
+				DACProposalBondAmount: 100 * units.Avax,
+				FeeDistribution:       [dac.FeeDistributionFractionsCount]uint64{30, 30, 40}, // 30% validators, 30% grant program, 40% burned
 			},
 		},
 	}

@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -18,6 +18,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/peer"
 	"github.com/ava-labs/avalanchego/staking"
@@ -35,20 +37,16 @@ func getTLS(t *testing.T, index int) (ids.NodeID, *tls.Certificate, *tls.Config)
 
 	for len(tlsCerts) <= index {
 		cert, err := staking.NewTLSCert()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		tlsConfig := peer.TLSConfig(*cert, nil)
 
 		tlsCerts = append(tlsCerts, cert)
 		tlsConfigs = append(tlsConfigs, tlsConfig)
 	}
 
-	cert := tlsCerts[index]
-	nodeID, err := peer.CertToID(cert.Leaf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tlsCert := tlsCerts[index]
+	nodeID, err := peer.CertToID(tlsCert.Leaf)
+	require.NoError(t, err)
 
-	return nodeID, cert, tlsConfigs[index]
+	return nodeID, tlsCert, tlsConfigs[index]
 }

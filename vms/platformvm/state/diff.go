@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
@@ -34,7 +35,7 @@ var (
 type Diff interface {
 	Chain
 
-	Apply(State)
+	Apply(State) error
 	CaminoApply
 }
 
@@ -48,9 +49,13 @@ type diff struct {
 	currentSupply map[ids.ID]uint64
 
 	currentStakerDiffs diffStakers
-	pendingStakerDiffs diffStakers
+	// map of subnetID -> nodeID -> total accrued delegatee rewards
+	modifiedDelegateeRewards map[ids.ID]map[ids.NodeID]uint64
+	pendingStakerDiffs       diffStakers
 
 	addedSubnets []*txs.Tx
+	// Subnet ID --> Owner of the subnet
+	subnetOwners map[ids.ID]fx.Owner
 	// Subnet ID --> Tx that transforms the subnet
 	transformedSubnets map[ids.ID]*txs.Tx
 	cachedSubnets      []*txs.Tx
@@ -81,6 +86,7 @@ func NewDiff(
 		parentID:      parentID,
 		stateVersions: stateVersions,
 		timestamp:     parentState.GetTimestamp(),
+		subnetOwners:  make(map[ids.ID]fx.Owner),
 		caminoDiff:    newCaminoDiff(),
 	}, nil
 }
@@ -134,6 +140,31 @@ func (d *diff) GetCurrentValidator(subnetID ids.ID, nodeID ids.NodeID) (*Staker,
 		}
 		return parentState.GetCurrentValidator(subnetID, nodeID)
 	}
+}
+
+func (d *diff) SetDelegateeReward(subnetID ids.ID, nodeID ids.NodeID, amount uint64) error {
+	if d.modifiedDelegateeRewards == nil {
+		d.modifiedDelegateeRewards = make(map[ids.ID]map[ids.NodeID]uint64)
+	}
+	nodes, ok := d.modifiedDelegateeRewards[subnetID]
+	if !ok {
+		nodes = make(map[ids.NodeID]uint64)
+		d.modifiedDelegateeRewards[subnetID] = nodes
+	}
+	nodes[nodeID] = amount
+	return nil
+}
+
+func (d *diff) GetDelegateeReward(subnetID ids.ID, nodeID ids.NodeID) (uint64, error) {
+	amount, modified := d.modifiedDelegateeRewards[subnetID][nodeID]
+	if modified {
+		return amount, nil
+	}
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", ErrMissingParentState, d.parentID)
+	}
+	return parentState.GetDelegateeReward(subnetID, nodeID)
 }
 
 func (d *diff) PutCurrentValidator(staker *Staker) {
@@ -278,6 +309,24 @@ func (d *diff) AddSubnet(createSubnetTx *txs.Tx) {
 	if d.cachedSubnets != nil {
 		d.cachedSubnets = append(d.cachedSubnets, createSubnetTx)
 	}
+}
+
+func (d *diff) GetSubnetOwner(subnetID ids.ID) (fx.Owner, error) {
+	owner, exists := d.subnetOwners[subnetID]
+	if exists {
+		return owner, nil
+	}
+
+	// If the subnet owner was not assigned in this diff, ask the parent state.
+	parentState, ok := d.stateVersions.GetState(d.parentID)
+	if !ok {
+		return nil, ErrMissingParentState
+	}
+	return parentState.GetSubnetOwner(subnetID)
+}
+
+func (d *diff) SetSubnetOwner(subnetID ids.ID, owner fx.Owner) {
+	d.subnetOwners[subnetID] = owner
 }
 
 func (d *diff) GetSubnetTransformation(subnetID ids.ID) (*txs.Tx, error) {
@@ -445,7 +494,7 @@ func (d *diff) DeleteUTXO(utxoID ids.ID) {
 	}
 }
 
-func (d *diff) Apply(baseState State) {
+func (d *diff) Apply(baseState State) error {
 	baseState.SetTimestamp(d.timestamp)
 	for subnetID, supply := range d.currentSupply {
 		baseState.SetCurrentSupply(subnetID, supply)
@@ -467,6 +516,13 @@ func (d *diff) Apply(baseState State) {
 
 			for _, delegator := range validatorDiff.deletedDelegators {
 				baseState.DeleteCurrentDelegator(delegator)
+			}
+		}
+	}
+	for subnetID, nodes := range d.modifiedDelegateeRewards {
+		for nodeID, amount := range nodes {
+			if err := baseState.SetDelegateeReward(subnetID, nodeID, amount); err != nil {
+				return err
 			}
 		}
 	}
@@ -516,5 +572,8 @@ func (d *diff) Apply(baseState State) {
 			baseState.DeleteUTXO(utxoID)
 		}
 	}
-	d.ApplyCaminoState(baseState)
+	for subnetID, owner := range d.subnetOwners {
+		baseState.SetSubnetOwner(subnetID, owner)
+	}
+	return d.ApplyCaminoState(baseState)
 }

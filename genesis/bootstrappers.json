@@ -1,0 +1,22 @@
+{
+    "camino": [
+        {
+            "ip": "34.79.120.198:9651",
+            "id": "NodeID-MUTNPmSqwWtchZhVvkWRfF8SUK8FtfnwP"
+        },
+        {
+            "ip": "34.147.107.229:9651",
+            "id": "NodeID-KumZcRwRSAE7CUkFE18ZLMnPsCVDpQXz8"
+        }
+    ],
+    "columbus": [
+        {
+            "ip": "34.91.158.85:9651",
+            "id": "NodeID-6XD16eZ22fadTKq3qsxro9TPFZyxTiFv3"
+        },
+        {
+            "ip": "35.205.189.109:9651",
+            "id": "NodeID-6rsqgkg4F1i3SBjzj4tS5ucQWH7JMEouj"
+        }
+    ]
+}

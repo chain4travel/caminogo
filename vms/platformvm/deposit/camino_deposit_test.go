@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 package deposit
 
@@ -34,14 +34,14 @@ func TestTotalReward(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			rewardsPeriodDuration := tt.DepositDuration - uint64(tt.NoRewardsPeriodDuration)
-			expectedRewardAmount := (tt.Amount * tt.InterestRateNominator * rewardsPeriodDuration) / uint64(interestRateDenominator)
+			expectedRewardAmount := tt.Amount * tt.InterestRateNominator * rewardsPeriodDuration / InterestRateDenominator
 
 			dep := Deposit{
 				Amount:   tt.Amount,
 				Duration: uint32(tt.DepositDuration),
 			}
 
-			require.EqualValues(expectedRewardAmount, dep.TotalReward(&Offer{
+			require.Equal(expectedRewardAmount, dep.TotalReward(&Offer{
 				InterestRateNominator:   tt.InterestRateNominator,
 				NoRewardsPeriodDuration: tt.NoRewardsPeriodDuration,
 			}))

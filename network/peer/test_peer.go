@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/network/throttling"
 	"github.com/ava-labs/avalanchego/snow/networking/router"
 	"github.com/ava-labs/avalanchego/snow/networking/tracker"
+	"github.com/ava-labs/avalanchego/snow/uptime"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/staking"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -61,7 +62,10 @@ func StartTestPeer(
 	}
 
 	tlsConfg := TLSConfig(*tlsCert, nil)
-	clientUpgrader := NewTLSClientUpgrader(tlsConfg)
+	clientUpgrader := NewTLSClientUpgrader(
+		tlsConfg,
+		prometheus.NewCounter(prometheus.CounterOpts{}),
+	)
 
 	peerID, conn, cert, err := clientUpgrader.Upgrade(conn)
 	if err != nil {
@@ -69,9 +73,10 @@ func StartTestPeer(
 	}
 
 	mc, err := message.NewCreator(
+		logging.NoLog{},
 		prometheus.NewRegistry(),
 		"",
-		true,
+		constants.DefaultNetworkCompressionType,
 		10*time.Second,
 	)
 	if err != nil {
@@ -110,12 +115,13 @@ func StartTestPeer(
 			Router:               router,
 			VersionCompatibility: version.GetCompatibility(networkID),
 			MySubnets:            set.Set[ids.ID]{},
-			Beacons:              validators.NewSet(),
+			Beacons:              validators.NewManager(),
 			NetworkID:            networkID,
 			PingFrequency:        constants.DefaultPingFrequency,
 			PongTimeout:          constants.DefaultPingPongTimeout,
 			MaxClockDifference:   time.Minute,
 			ResourceTracker:      resourceTracker,
+			UptimeCalculator:     uptime.NoOpCalculator,
 			IPSigner:             NewIPSigner(signerIP, tls),
 		},
 		conn,

@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	_                            UnsignedTx = (*MultisigAliasTx)(nil)
-	errFailedToVerifyAliasOrAuth            = errors.New("failed to verify alias or auth")
+	_ UnsignedTx = (*MultisigAliasTx)(nil)
+
+	errFailedToVerifyAliasOrAuth = errors.New("failed to verify alias or auth")
 )
 
 // MultisigAliasTx is an unsigned multisig alias tx
@@ -49,7 +50,7 @@ func (tx *MultisigAliasTx) SyntacticVerify(ctx *snow.Context) error {
 		return fmt.Errorf("failed to verify BaseTx: %w", err)
 	}
 	if err := verify.All(&tx.MultisigAlias, tx.Auth); err != nil {
-		return fmt.Errorf("%w: %s", errFailedToVerifyAliasOrAuth, err.Error())
+		return fmt.Errorf("%w: %w", errFailedToVerifyAliasOrAuth, err)
 	}
 
 	if err := locked.VerifyNoLocks(tx.Ins, tx.Outs); err != nil {

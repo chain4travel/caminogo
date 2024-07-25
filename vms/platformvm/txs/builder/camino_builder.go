@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package builder
@@ -8,17 +8,21 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/chains/atomic"
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/treasury"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs/executor/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/utxo"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
@@ -29,12 +33,14 @@ var (
 	fakeTreasuryKey      = secp256k1.FakePrivateKey(treasury.Addr)
 	fakeTreasuryKeychain = secp256k1fx.NewKeychain(fakeTreasuryKey)
 
-	errKeyMissing       = errors.New("couldn't find key matching address")
-	errWrongNodeKeyType = errors.New("node key type isn't *secp256k1.PrivateKey")
-	errNotSECPOwner     = errors.New("owner is not *secp256k1fx.OutputOwners")
-	errWrongLockMode    = errors.New("this tx can't be used with this caminoGenesis.LockModeBondDeposit")
-	errNoUTXOsForImport = errors.New("no utxos for import")
-	errWrongOutType     = errors.New("wrong output type")
+	errKeyMissing           = errors.New("couldn't find key matching address")
+	errWrongNodeKeyType     = errors.New("node key type isn't *secp256k1.PrivateKey")
+	errNotSECPOwner         = errors.New("owner is not *secp256k1fx.OutputOwners")
+	errWrongLockMode        = errors.New("this tx can't be used with this caminoGenesis.LockModeBondDeposit")
+	errNoUTXOsForImport     = errors.New("no utxos for import")
+	errWrongOutType         = errors.New("wrong output type")
+	errEmptyAddress         = errors.New("address is empty")
+	errEmptyExecutorAddress = errors.New("executor address is empty")
 )
 
 type CaminoBuilder interface {
@@ -59,7 +65,8 @@ type CaminoTxBuilder interface {
 	NewAddressStateTx(
 		address ids.ShortID,
 		remove bool,
-		state txs.AddressStateBit,
+		state as.AddressStateBit,
+		executor ids.ShortID,
 		keys []*secp256k1.PrivateKey,
 		change *secp256k1fx.OutputOwners,
 	) (*txs.Tx, error)
@@ -94,17 +101,16 @@ type CaminoTxBuilder interface {
 		change *secp256k1fx.OutputOwners,
 	) (*txs.Tx, error)
 
-	NewBaseTx(
-		amount uint64,
-		transferTo *secp256k1fx.OutputOwners,
-		keys []*secp256k1.PrivateKey,
-		change *secp256k1fx.OutputOwners,
-	) (*txs.Tx, error)
-
 	NewRewardsImportTx() (*txs.Tx, error)
 
 	NewSystemUnlockDepositTx(
 		depositTxIDs []ids.ID,
+	) (*txs.Tx, error)
+
+	FinishProposalsTx(
+		state state.Chain,
+		earlyFinishedProposalIDs []ids.ID,
+		expiredProposalIDs []ids.ID,
 	) (*txs.Tx, error)
 }
 
@@ -277,13 +283,12 @@ func (b *caminoBuilder) NewRewardValidatorTx(txID ids.ID) (*txs.Tx, error) {
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	utx := &txs.CaminoRewardValidatorTx{
+	tx := &txs.Tx{Unsigned: &txs.CaminoRewardValidatorTx{
 		RewardValidatorTx: txs.RewardValidatorTx{TxID: txID},
 		Ins:               ins,
 		Outs:              outs,
-	}
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 
@@ -293,7 +298,8 @@ func (b *caminoBuilder) NewRewardValidatorTx(txID ids.ID) (*txs.Tx, error) {
 func (b *caminoBuilder) NewAddressStateTx(
 	address ids.ShortID,
 	remove bool,
-	state txs.AddressStateBit,
+	stateBit as.AddressStateBit,
+	executor ids.ShortID,
 	keys []*secp256k1.PrivateKey,
 	change *secp256k1fx.OutputOwners,
 ) (*txs.Tx, error) {
@@ -302,18 +308,50 @@ func (b *caminoBuilder) NewAddressStateTx(
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	// Create the tx
-	utx := &txs.AddressStateTx{
-		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    b.ctx.NetworkID,
-			BlockchainID: b.ctx.ChainID,
-			Ins:          ins,
-			Outs:         outs,
-		}},
-		Address: address,
-		Remove:  remove,
-		State:   state,
+	isBerlin := b.cfg.IsBerlinPhaseActivated(b.state.GetTimestamp())
+
+	switch {
+	case address == ids.ShortEmpty:
+		return nil, errEmptyAddress
+	case isBerlin && executor == ids.ShortEmpty:
+		return nil, errEmptyExecutorAddress
 	}
+
+	var utx *txs.AddressStateTx
+	if isBerlin {
+		executorSigner, err := getSigner(keys, executor)
+		if err != nil {
+			return nil, err
+		}
+		utx = &txs.AddressStateTx{
+			UpgradeVersionID: codec.UpgradeVersion1,
+			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    b.ctx.NetworkID,
+				BlockchainID: b.ctx.ChainID,
+				Ins:          ins,
+				Outs:         outs,
+			}},
+			Address:      address,
+			Remove:       remove,
+			StateBit:     stateBit,
+			Executor:     executor,
+			ExecutorAuth: &secp256k1fx.Input{SigIndices: []uint32{0}},
+		}
+		signers = append(signers, executorSigner)
+	} else {
+		utx = &txs.AddressStateTx{
+			BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    b.ctx.NetworkID,
+				BlockchainID: b.ctx.ChainID,
+				Ins:          ins,
+				Outs:         outs,
+			}},
+			Address:  address,
+			Remove:   remove,
+			StateBit: stateBit,
+		}
+	}
+
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
 	if err != nil {
 		return nil, err
@@ -465,7 +503,7 @@ func (b *caminoBuilder) NewClaimTx(
 			b.state,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s", errKeyMissing, err)
+			return nil, fmt.Errorf("%w: %w", errKeyMissing, err)
 		}
 
 		signers = append(signers, claimableSigners)
@@ -561,31 +599,6 @@ func (b *caminoBuilder) NewRegisterNodeTx(
 	return tx, tx.SyntacticVerify(b.ctx)
 }
 
-func (b *caminoBuilder) NewBaseTx(
-	amount uint64,
-	transferTo *secp256k1fx.OutputOwners,
-	keys []*secp256k1.PrivateKey,
-	change *secp256k1fx.OutputOwners,
-) (*txs.Tx, error) {
-	ins, outs, signers, _, err := b.Lock(b.state, keys, amount, b.cfg.TxFee, locked.StateUnlocked, transferTo, change, 0)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
-	utx := &txs.BaseTx{BaseTx: avax.BaseTx{
-		NetworkID:    b.ctx.NetworkID,
-		BlockchainID: b.ctx.ChainID,
-		Ins:          ins,
-		Outs:         outs,
-	}}
-
-	tx, err := txs.NewSigned(utx, txs.Codec, signers)
-	if err != nil {
-		return nil, err
-	}
-	return tx, tx.SyntacticVerify(b.ctx)
-}
-
 func (b *caminoBuilder) NewRewardsImportTx() (*txs.Tx, error) {
 	caminoGenesis, err := b.state.CaminoConfig()
 	if err != nil {
@@ -644,15 +657,14 @@ func (b *caminoBuilder) NewRewardsImportTx() (*txs.Tx, error) {
 
 	avax.SortTransferableInputs(ins)
 
-	utx := &txs.RewardsImportTx{
+	tx := &txs.Tx{Unsigned: &txs.RewardsImportTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    b.ctx.NetworkID,
 			BlockchainID: b.ctx.ChainID,
 			Ins:          ins,
 		}},
-	}
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
-	if err != nil {
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 
@@ -667,17 +679,77 @@ func (b *caminoBuilder) NewSystemUnlockDepositTx(
 		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
 	}
 
-	utx := &txs.UnlockDepositTx{
+	tx := &txs.Tx{Unsigned: &txs.UnlockDepositTx{
 		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 			NetworkID:    b.ctx.NetworkID,
 			BlockchainID: b.ctx.ChainID,
 			Ins:          ins,
 			Outs:         outs,
 		}},
+	}}
+	if err := tx.Initialize(txs.Codec); err != nil {
+		return nil, err
+	}
+	return tx, tx.SyntacticVerify(b.ctx)
+}
+
+func (b *caminoBuilder) FinishProposalsTx(
+	state state.Chain,
+	earlyFinishedProposalIDs []ids.ID,
+	expiredProposalIDs []ids.ID,
+) (*txs.Tx, error) {
+	utx := &txs.FinishProposalsTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
+		NetworkID:    b.ctx.NetworkID,
+		BlockchainID: b.ctx.ChainID,
+	}}}
+
+	var err error
+	sortOutProposals := func(proposalIDs []ids.ID) (successfulProposalIDs []ids.ID, failedProposalIDs []ids.ID, err error) {
+		for _, proposalID := range proposalIDs {
+			proposal, err := state.GetProposal(proposalID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("couldn't get proposal from state: %w", err)
+			}
+			if proposal.IsSuccessful() {
+				successfulProposalIDs = append(successfulProposalIDs, proposalID)
+			} else {
+				failedProposalIDs = append(failedProposalIDs, proposalID)
+			}
+		}
+		return successfulProposalIDs, failedProposalIDs, nil
+	}
+	utx.EarlyFinishedSuccessfulProposalIDs, utx.EarlyFinishedFailedProposalIDs, err = sortOutProposals(earlyFinishedProposalIDs)
+	if err != nil {
+		return nil, err
+	}
+	utx.ExpiredSuccessfulProposalIDs, utx.ExpiredFailedProposalIDs, err = sortOutProposals(expiredProposalIDs)
+	if err != nil {
+		return nil, err
 	}
 
-	tx, err := txs.NewSigned(utx, txs.Codec, nil)
+	utils.Sort(utx.EarlyFinishedSuccessfulProposalIDs)
+	utils.Sort(utx.EarlyFinishedFailedProposalIDs)
+	utils.Sort(utx.ExpiredSuccessfulProposalIDs)
+	utils.Sort(utx.ExpiredFailedProposalIDs)
+
+	lockTxIDs, err := dac.GetBondTxIDs(state, utx)
 	if err != nil {
+		return nil, err
+	}
+
+	ins, outs, err := b.Unlock(
+		state,
+		lockTxIDs,
+		locked.StateBonded,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
+	}
+	utx.Ins = ins
+	utx.Outs = outs
+
+	tx := &txs.Tx{Unsigned: utx}
+	if err := tx.Initialize(txs.Codec); err != nil {
 		return nil, err
 	}
 	return tx, tx.SyntacticVerify(b.ctx)

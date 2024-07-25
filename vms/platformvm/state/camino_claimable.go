@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -47,7 +47,7 @@ func (cs *caminoState) GetClaimable(ownerID ids.ID) (*Claimable, error) {
 	}
 
 	claimable := &Claimable{}
-	if _, err := blocks.GenesisCodec.Unmarshal(claimableBytes, claimable); err != nil {
+	if _, err := block.GenesisCodec.Unmarshal(claimableBytes, claimable); err != nil {
 		return nil, err
 	}
 
@@ -88,7 +88,7 @@ func (cs *caminoState) writeClaimableAndValidatorRewards() error {
 				return err
 			}
 		} else {
-			claimableBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, claimable)
+			claimableBytes, err := block.GenesisCodec.Marshal(block.Version, claimable)
 			if err != nil {
 				return fmt.Errorf("failed to serialize claimable: %w", err)
 			}

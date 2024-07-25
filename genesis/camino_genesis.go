@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -20,8 +20,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/genesis"
 	pchaintxs "github.com/ava-labs/avalanchego/vms/platformvm/txs"
@@ -36,7 +37,7 @@ var (
 	errWrongMisgAliasAddr = errors.New("wrong msig alias addr")
 )
 
-// ValidateConfig validates the generated config. Exposed for camino-node/tools/genesis generator
+// ValidateConfig validates the generated config. Exposed for caminogo/tools/genesis generator
 // It's not used in caminogo itself. Please don't delete.
 func ValidateConfig(config *Config, stakingCfg *StakingConfig) error {
 	return validateConfig(config.NetworkID, config, stakingCfg)
@@ -225,8 +226,11 @@ func validateCaminoConfig(config *Config) error {
 	return nil
 }
 
-func caminoArgFromConfig(config *Config) api.Camino {
-	return api.Camino{
+func caminoArgFromConfig(config *Config) *api.Camino {
+	if config.Camino == nil {
+		return nil
+	}
+	return &api.Camino{
 		VerifyNodeSignature: config.Camino.VerifyNodeSignature,
 		LockModeBondDeposit: config.Camino.LockModeBondDeposit,
 		InitialAdmin:        config.Camino.InitialAdmin,
@@ -364,12 +368,12 @@ func buildPGenesis(config *Config, hrp string, xGenesisBytes []byte, xGenesisDat
 	// Getting args from allocations
 
 	for _, allocation := range config.Camino.Allocations {
-		var addrState pchaintxs.AddressState
+		var addrState as.AddressState
 		if allocation.AddressStates.ConsortiumMember {
-			addrState |= pchaintxs.AddressStateConsortiumMember
+			addrState |= as.AddressStateConsortium
 		}
 		if allocation.AddressStates.KYCVerified {
-			addrState |= pchaintxs.AddressStateKYCVerified
+			addrState |= as.AddressStateKYCVerified
 		}
 		if addrState != 0 {
 			platformvmArgs.Camino.AddressStates = append(platformvmArgs.Camino.AddressStates, genesis.AddressState{
@@ -532,7 +536,7 @@ func GenesisChainData(genesisBytes []byte, vmIDs []ids.ID) ([]*pchaintxs.Tx, boo
 
 func GetGenesisBlocksIDs(genesisBytes []byte, genesis *genesis.Genesis) ([]ids.ID, error) {
 	genesisID := hashing.ComputeHash256Array(genesisBytes)
-	zeroBlock, err := blocks.NewApricotCommitBlock(genesisID, 0 /*height*/)
+	zeroBlock, err := block.NewApricotCommitBlock(genesisID, 0 /*height*/)
 	if err != nil {
 		return nil, err
 	}
@@ -540,12 +544,12 @@ func GetGenesisBlocksIDs(genesisBytes []byte, genesis *genesis.Genesis) ([]ids.I
 	parentID := zeroBlock.ID()
 	blockIDs := make([]ids.ID, len(genesis.Camino.Blocks))
 
-	for i, block := range genesis.Camino.Blocks {
-		genesisBlock, err := blocks.NewBanffStandardBlock(
-			block.Time(),
+	for i, blk := range genesis.Camino.Blocks {
+		genesisBlock, err := block.NewBanffStandardBlock(
+			blk.Time(),
 			parentID,
 			uint64(i)+1,
-			block.Txs(),
+			blk.Txs(),
 		)
 		if err != nil {
 			return nil, err

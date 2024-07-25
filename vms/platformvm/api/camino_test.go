@@ -1,10 +1,12 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package api
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -19,14 +21,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBuildCaminoGenesis(t *testing.T) {
-	hrp := constants.NetworkIDToHRP[testNetworkID]
 	nodeID := ids.NodeID{1}
 	addr := ids.ShortID(nodeID)
-	addrStr, err := address.FormatBech32(hrp, addr.Bytes())
+	addrStr, err := address.FormatBech32(constants.UnitTestHRP, addr.Bytes())
 	require.NoError(t, err)
 
 	avaxAssetID := ids.ID{}
@@ -78,7 +78,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					}},
 				}},
 				Chains: []Chain{},
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature:        true,
 					LockModeBondDeposit:        true,
 					ValidatorConsortiumMembers: []ids.ShortID{addr},
@@ -154,7 +154,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 					Creds: []verify.Verifiable{},
 				}
-				require.NoError(t, validatorTx.Sign(txs.GenesisCodec, nil))
+				require.NoError(t, validatorTx.Initialize(txs.GenesisCodec))
 
 				validatorDepositTx := &txs.Tx{
 					Unsigned: &txs.DepositTx{
@@ -207,7 +207,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 					Creds: []verify.Verifiable{},
 				}
-				require.NoError(t, validatorDepositTx.Sign(txs.GenesisCodec, nil))
+				require.NoError(t, validatorDepositTx.Initialize(txs.GenesisCodec))
 
 				depositTx := &txs.Tx{
 					Unsigned: &txs.DepositTx{
@@ -244,7 +244,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 					Creds: []verify.Verifiable{},
 				}
-				require.NoError(t, depositTx.Sign(txs.GenesisCodec, nil))
+				require.NoError(t, depositTx.Initialize(txs.GenesisCodec))
 
 				return &genesis.Genesis{
 					Timestamp:     5,
@@ -365,7 +365,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 				},
 				Chains: []Chain{},
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature: true,
 					LockModeBondDeposit: false,
 					ValidatorConsortiumMembers: []ids.ShortID{
@@ -410,7 +410,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				Validators: []PermissionlessValidator{},
 				Time:       5,
 				Encoding:   formatting.Hex,
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature: true,
 					LockModeBondDeposit: true,
 					UTXODeposits: []UTXODeposit{
@@ -454,7 +454,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				},
 				Time:     5,
 				Encoding: formatting.Hex,
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature: true,
 					LockModeBondDeposit: true,
 					ValidatorDeposits: [][]UTXODeposit{
@@ -499,7 +499,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 				},
 				Time:     5,
 				Encoding: formatting.Hex,
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature: true,
 					LockModeBondDeposit: true,
 					ValidatorConsortiumMembers: []ids.ShortID{
@@ -548,7 +548,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 					},
 				},
 				Chains: []Chain{},
-				Camino: Camino{
+				Camino: &Camino{
 					VerifyNodeSignature: true,
 					LockModeBondDeposit: true,
 					ValidatorConsortiumMembers: []ids.ShortID{
@@ -588,7 +588,7 @@ func TestBuildCaminoGenesis(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actualReply := &BuildGenesisReply{}
 
-			err := buildCaminoGenesis(&tt.args, actualReply)
+			err := buildCaminoGenesis(&tt.args, actualReply) //nolint:gosec
 			require.ErrorIs(t, err, tt.expectedErr)
 
 			if tt.expectedGenesis != nil {

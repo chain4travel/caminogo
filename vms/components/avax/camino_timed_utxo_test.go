@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -6,12 +6,13 @@ package avax
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRewardUTXOSerializeC(t *testing.T) {
@@ -27,9 +28,7 @@ func TestRewardUTXOSerializeC(t *testing.T) {
 		c.RegisterType(&secp256k1fx.Credential{}),
 		manager.RegisterCodec(codecVersion, c),
 	)
-	if errs.Errored() {
-		t.Fatal(errs.Err)
-	}
+	require.False(t, errs.Errored())
 
 	expected := []byte{
 		// Codec version
@@ -108,7 +107,7 @@ func TestRewardUTXOSerializeC(t *testing.T) {
 
 	utxo := UTXO{}
 	_, err = manager.Unmarshal(utxoBytes, &utxo)
-	require.Error(t, err, "should not deserialize into UTXO")
+	require.ErrorIs(t, err, codec.ErrExtraSpace)
 
 	_, err = manager.Unmarshal(utxoBytes, tutxo)
 	require.NoError(t, err)

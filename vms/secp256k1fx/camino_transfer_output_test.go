@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -48,7 +48,8 @@ func TestCrossOutputVerifyEmpty(t *testing.T) {
 		},
 		Recipient: ids.ShortEmpty,
 	}
-	require.ErrorIs(out.Verify(), ErrEmptyRecipient)
+	err := out.Verify()
+	require.ErrorIs(err, ErrEmptyRecipient)
 }
 
 func TestCrossOutputSerialize(t *testing.T) {

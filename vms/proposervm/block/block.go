@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -16,6 +16,7 @@ package block
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -30,6 +31,7 @@ var (
 
 	errUnexpectedProposer = errors.New("expected no proposer but one was provided")
 	errMissingProposer    = errors.New("expected proposer but none was provided")
+	errInvalidCertificate = errors.New("invalid certificate")
 )
 
 type Block interface {
@@ -65,7 +67,7 @@ type statelessBlock struct {
 
 	id        ids.ID
 	timestamp time.Time
-	cert      *x509.Certificate
+	cert      *staking.Certificate
 	proposer  ids.NodeID
 	bytes     []byte
 }
@@ -101,18 +103,15 @@ func (b *statelessBlock) initialize(bytes []byte) error {
 		return nil
 	}
 
-	cert, err := x509.ParseCertificate(b.StatelessBlock.Certificate)
+	tlsCert, err := x509.ParseCertificate(b.StatelessBlock.Certificate)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errInvalidCertificate, err)
 	}
 
-	if err := staking.VerifyCertificate(cert); err != nil {
-		return err
-	}
-
+	cert := staking.CertificateFromX509(tlsCert)
 	b.cert = cert
 
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(cert)
+	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert)
 	if err != nil {
 		return err
 	}
@@ -152,5 +151,9 @@ func (b *statelessBlock) Verify(shouldHaveProposer bool, chainID ids.ID) error {
 	}
 
 	headerBytes := header.Bytes()
-	return b.cert.CheckSignature(b.cert.SignatureAlgorithm, headerBytes, b.Signature)
+	return staking.CheckSignature(
+		b.cert,
+		headerBytes,
+		b.Signature,
+	)
 }

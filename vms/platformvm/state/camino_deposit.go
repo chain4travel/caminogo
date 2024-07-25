@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
-	"github.com/ava-labs/avalanchego/vms/platformvm/blocks"
+	"github.com/ava-labs/avalanchego/vms/platformvm/block"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
 
@@ -61,7 +61,7 @@ func (cs *caminoState) GetDeposit(depositTxID ids.ID) (*deposit.Deposit, error) 
 	}
 
 	d := &deposit.Deposit{}
-	if _, err := blocks.GenesisCodec.Unmarshal(depositBytes, d); err != nil {
+	if _, err := block.GenesisCodec.Unmarshal(depositBytes, d); err != nil {
 		return nil, err
 	}
 
@@ -157,7 +157,7 @@ func (cs *caminoState) writeDeposits() error {
 				return err
 			}
 		} else {
-			depositBytes, err := blocks.GenesisCodec.Marshal(blocks.Version, depositDiff.Deposit)
+			depositBytes, err := block.GenesisCodec.Marshal(block.Version, depositDiff.Deposit)
 			if err != nil {
 				return fmt.Errorf("failed to serialize deposit: %w", err)
 			}

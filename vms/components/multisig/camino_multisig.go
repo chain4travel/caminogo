@@ -1,9 +1,10 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package multisig
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,10 +17,27 @@ import (
 // MaxMemoSize is the maximum number of bytes in the memo field
 const MaxMemoSize = 256
 
+var (
+	_ snow.ContextInitializable = (*Alias)(nil)
+	_ verify.Verifiable         = (*Alias)(nil)
+
+	errMemoIsTooBig = errors.New("msig alias memo is too big")
+	errEmptyAlias   = errors.New("alias id and alias owners cannot be empty both at the same time")
+)
+
+type Owners interface {
+	snow.ContextInitializable
+	verify.Verifiable
+
+	IsZero() bool
+}
+
 type Alias struct {
+	verify.IsNotState `json:"-"`
+
 	ID     ids.ShortID         `serialize:"true" json:"id"`
 	Memo   types.JSONByteSlice `serialize:"true" json:"memo"`
-	Owners verify.State        `serialize:"true" json:"owners"`
+	Owners Owners              `serialize:"true" json:"owners"`
 }
 
 type AliasWithNonce struct {
@@ -34,15 +52,14 @@ func (ma *Alias) InitCtx(ctx *snow.Context) {
 }
 
 func (ma *Alias) Verify() error {
-	if len(ma.Memo) > MaxMemoSize {
-		return fmt.Errorf("msig alias memo is larger (%d bytes) than max of %d bytes", len(ma.Memo), MaxMemoSize)
+	switch {
+	case len(ma.Memo) > MaxMemoSize:
+		return fmt.Errorf("%w: expected not greater than %d bytes, got %d bytes", errMemoIsTooBig, MaxMemoSize, len(ma.Memo))
+	case ma.Owners.IsZero() && ma.ID == ids.ShortEmpty:
+		return errEmptyAlias
 	}
 
 	return ma.Owners.Verify()
-}
-
-func (ma *Alias) VerifyState() error {
-	return ma.Verify()
 }
 
 func ComputeAliasID(txID ids.ID) ids.ShortID {

@@ -1,0 +1,22 @@
+// TODO @evlekht
+
+// add this to 'scripts/mocks.mockgen.txt' when mockgen will
+// be able to process this files correctly (some generics issues)
+
+github.com/ava-labs/avalanchego/cache=Cacher=cache/mock_cacher.go
+github.com/ava-labs/avalanchego/vms/components/avax=AtomicUTXOManager=vms/components/avax/mock_atomic_utxos.go
+github.com/ava-labs/avalanchego/vms/platformvm/state=Chain=vms/platformvm/state/mock_chain.go
+github.com/ava-labs/avalanchego/vms/platformvm/state=Diff=vms/platformvm/state/mock_diff.go
+github.com/ava-labs/avalanchego/vms/platformvm/state=State=vms/platformvm/state/mock_state.go
+
+
+// avax also have their own mocks excluded from list,
+// though there is no comment about not forgetting
+// to add them back or why they were excluded:
+
+github.com/ava-labs/avalanchego/snow/networking/router=Router=snow/networking/router/mock_router.go
+github.com/ava-labs/avalanchego/snow/networking/sender=ExternalSender=snow/networking/sender/mock_external_sender.go
+github.com/ava-labs/avalanchego/snow/validators=Set=snow/validators/mock_set.go
+github.com/ava-labs/avalanchego/snow/validators=Manager=snow/validators/mock_manager.go
+github.com/ava-labs/avalanchego/vms/platformvm/txs=Staker=vms/platformvm/txs/mock_staker.go
+github.com/ava-labs/avalanchego/vms/platformvm/txs=UnsignedTx=vms/platformvm/txs/mock_unsigned_tx.go

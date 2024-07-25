@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -23,7 +23,8 @@ func TestMultisigCredentialUnordered(t *testing.T) {
 	require := require.New(t)
 	cred := MultisigCredential{}
 	cred.SigIdxs = []uint32{0, 0}
-	require.ErrorIs(cred.Verify(), errSigIdxsNotUniqueOrSorted)
+	err := cred.Verify()
+	require.ErrorIs(err, errSigIdxsNotUniqueOrSorted)
 }
 
 func TestMultisigCredentialSerialize(t *testing.T) {

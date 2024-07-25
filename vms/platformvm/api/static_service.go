@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -40,9 +40,10 @@ import (
 // state of the network.
 
 var (
-	errUTXOHasNoValue       = errors.New("genesis UTXO has no value")
-	errValidatorAddsNoValue = errors.New("validator would have already unstaked")
-	errStakeOverflow        = errors.New("validator stake exceeds limit")
+	errUTXOHasNoValue         = errors.New("genesis UTXO has no value")
+	errValidatorHasNoWeight   = errors.New("validator has not weight")
+	errValidatorAlreadyExited = errors.New("validator would have already unstaked")
+	errStakeOverflow          = errors.New("validator stake exceeds limit")
 
 	_ utils.Sortable[UTXO] = UTXO{}
 )
@@ -125,14 +126,15 @@ type PermissionlessValidator struct {
 	ValidationRewardOwner *Owner `json:"validationRewardOwner,omitempty"`
 	// The owner of the rewards from delegations during the validation period,
 	// if applicable.
-	DelegationRewardOwner *Owner                    `json:"delegationRewardOwner,omitempty"`
-	PotentialReward       *json.Uint64              `json:"potentialReward,omitempty"`
-	DelegationFee         json.Float32              `json:"delegationFee"`
-	ExactDelegationFee    *json.Uint32              `json:"exactDelegationFee,omitempty"`
-	Uptime                *json.Float32             `json:"uptime,omitempty"`
-	Connected             bool                      `json:"connected"`
-	Staked                []UTXO                    `json:"staked,omitempty"`
-	Signer                *signer.ProofOfPossession `json:"signer,omitempty"`
+	DelegationRewardOwner  *Owner                    `json:"delegationRewardOwner,omitempty"`
+	PotentialReward        *json.Uint64              `json:"potentialReward,omitempty"`
+	AccruedDelegateeReward *json.Uint64              `json:"accruedDelegateeReward,omitempty"`
+	DelegationFee          json.Float32              `json:"delegationFee"`
+	ExactDelegationFee     *json.Uint32              `json:"exactDelegationFee,omitempty"`
+	Uptime                 *json.Float32             `json:"uptime,omitempty"`
+	Connected              bool                      `json:"connected"`
+	Staked                 []UTXO                    `json:"staked,omitempty"`
+	Signer                 *signer.ProofOfPossession `json:"signer,omitempty"`
 
 	// The delegators delegating to this validator
 	DelegatorCount  *json.Uint64        `json:"delegatorCount,omitempty"`
@@ -184,7 +186,7 @@ type BuildGenesisArgs struct {
 	UTXOs         []UTXO                    `json:"utxos"`
 	Validators    []PermissionlessValidator `json:"validators"`
 	Chains        []Chain                   `json:"chains"`
-	Camino        Camino                    `json:"camino"`
+	Camino        *Camino                   `json:"camino"`
 	Time          json.Uint64               `json:"time"`
 	InitialSupply json.Uint64               `json:"initialSupply"`
 	Message       string                    `json:"message"`
@@ -209,8 +211,7 @@ func bech32ToID(addrStr string) (ids.ShortID, error) {
 // BuildGenesis build the genesis state of the Platform Chain (and thereby the Avalanche network.)
 func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, reply *BuildGenesisReply) error {
 	// Specify the UTXOs on the Platform chain that exist at genesis.
-	var vdrs txheap.TimedHeap
-	if args.Camino.LockModeBondDeposit {
+	if args.Camino != nil && args.Camino.LockModeBondDeposit {
 		return buildCaminoGenesis(args, reply)
 	}
 
@@ -256,7 +257,7 @@ func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, repl
 	}
 
 	// Specify the validators that are validating the primary network at genesis.
-	vdrs = txheap.NewByEndTime()
+	vdrs := txheap.NewByEndTime()
 	for _, vdr := range args.Validators {
 		weight := uint64(0)
 		stake := make([]*avax.TransferableOutput, len(vdr.Staked))
@@ -294,10 +295,10 @@ func (*StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, repl
 		}
 
 		if weight == 0 {
-			return errValidatorAddsNoValue
+			return errValidatorHasNoWeight
 		}
 		if uint64(vdr.EndTime) <= uint64(args.Time) {
-			return errValidatorAddsNoValue
+			return errValidatorAlreadyExited
 		}
 
 		owner := &secp256k1fx.OutputOwners{

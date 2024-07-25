@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -8,19 +8,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/config"
+	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
-	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDiffGetDeposit(t *testing.T) {
@@ -151,9 +154,7 @@ func TestDiffGetDeposit(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			actualDeposit, err := actualDiff.GetDeposit(depositTxID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedDeposit, actualDeposit)
@@ -928,9 +929,7 @@ func TestDiffGetNextToUnlockDepositTime(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl, tt.removedDepositIDs)
+			actualDiff := tt.diff(gomock.NewController(t), tt.removedDepositIDs)
 			nextUnlockTime, err := actualDiff.GetNextToUnlockDepositTime(tt.removedDepositIDs)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedNextUnlockTime, nextUnlockTime)
@@ -1735,9 +1734,7 @@ func TestDiffGetNextToUnlockDepositIDsAndTime(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl, tt.removedDepositIDs)
+			actualDiff := tt.diff(gomock.NewController(t), tt.removedDepositIDs)
 			nextUnlockIDs, nextUnlockTime, err := actualDiff.GetNextToUnlockDepositIDsAndTime(tt.removedDepositIDs)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedNextUnlockTime, nextUnlockTime)
@@ -1757,17 +1754,17 @@ func TestDiffLockedUTXOs(t *testing.T) {
 	lockState := locked.StateBonded
 	testErr := errors.New("test err")
 
-	parentUTXO1 := generateTestUTXO(ids.ID{1}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO2 := generateTestUTXO(ids.ID{2}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO3 := generateTestUTXO(ids.ID{3}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO4 := generateTestUTXO(ids.ID{4}, assetID, 1, owner, ids.Empty, bondTxID)
-	parentUTXO5 := generateTestUTXO(ids.ID{5}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO1 := generateTestUTXO(ids.ID{6}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO2 := generateTestUTXO(ids.ID{7}, assetID, 1, owner, ids.Empty, bondTxID)
-	addedUTXO3 := generateTestUTXO(ids.ID{8}, assetID, 1, owner, ids.Empty, ids.Empty)
-	addedUTXO4 := generateTestUTXO(ids.ID{9}, assetID, 1, owner, ids.Empty, ids.Empty)
-	removedUTXO1 := generateTestUTXO(ids.ID{10}, assetID, 1, owner, ids.Empty, ids.Empty)
-	removedUTXO2 := generateTestUTXO(ids.ID{11}, assetID, 1, owner, ids.Empty, ids.Empty)
+	parentUTXO1 := generate.UTXO(ids.ID{1}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO2 := generate.UTXO(ids.ID{2}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO3 := generate.UTXO(ids.ID{3}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO4 := generate.UTXO(ids.ID{4}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	parentUTXO5 := generate.UTXO(ids.ID{5}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO1 := generate.UTXO(ids.ID{6}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO2 := generate.UTXO(ids.ID{7}, assetID, 1, owner, ids.Empty, bondTxID, true)
+	addedUTXO3 := generate.UTXO(ids.ID{8}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	addedUTXO4 := generate.UTXO(ids.ID{9}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	removedUTXO1 := generate.UTXO(ids.ID{10}, assetID, 1, owner, ids.Empty, ids.Empty, true)
+	removedUTXO2 := generate.UTXO(ids.ID{11}, assetID, 1, owner, ids.Empty, ids.Empty, true)
 	parentUTXOs := []*avax.UTXO{parentUTXO1, parentUTXO2, parentUTXO3, parentUTXO4, parentUTXO5}
 
 	tests := map[string]struct {
@@ -1890,9 +1887,7 @@ func TestDiffLockedUTXOs(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(t, ctrl)
+			actualDiff := tt.diff(t, gomock.NewController(t))
 			utxos, err := actualDiff.LockedUTXOs(lockTxIDs, addresses, locked.StateBonded)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.ElementsMatch(t, tt.expectedUTXOs, utxos)
@@ -1948,9 +1943,7 @@ func TestDiffConfig(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			config, err := actualDiff.Config()
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedConfig, config)
@@ -2006,9 +1999,7 @@ func TestDiffCaminoConfig(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			caminoConfig, err := actualDiff.CaminoConfig()
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedCaminoConfig, caminoConfig)
@@ -2023,15 +2014,15 @@ func TestDiffSetAddressStates(t *testing.T) {
 	tests := map[string]struct {
 		diff         *diff
 		address      ids.ShortID
-		states       txs.AddressState
+		states       as.AddressState
 		expectedDiff *diff
 	}{
 		"OK": {
-			diff:    &diff{caminoDiff: &caminoDiff{modifiedAddressStates: map[ids.ShortID]txs.AddressState{}}},
+			diff:    &diff{caminoDiff: &caminoDiff{modifiedAddressStates: map[ids.ShortID]as.AddressState{}}},
 			address: addr1,
 			states:  111,
 			expectedDiff: &diff{caminoDiff: &caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+				modifiedAddressStates: map[ids.ShortID]as.AddressState{
 					addr1: 111,
 				},
 			}},
@@ -2054,13 +2045,13 @@ func TestDiffGetAddressStates(t *testing.T) {
 		diff                 func(*gomock.Controller) *diff
 		address              ids.ShortID
 		expectedDiff         func(actualDiff *diff) *diff
-		expectedAddresStates txs.AddressState
+		expectedAddresStates as.AddressState
 		expectedErr          error
 	}{
 		"OK: modified": {
 			diff: func(c *gomock.Controller) *diff {
 				return &diff{caminoDiff: &caminoDiff{
-					modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+					modifiedAddressStates: map[ids.ShortID]as.AddressState{
 						addr1: 111,
 					},
 				}}
@@ -2068,7 +2059,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 			address: addr1,
 			expectedDiff: func(actualDiff *diff) *diff {
 				return &diff{caminoDiff: &caminoDiff{
-					modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+					modifiedAddressStates: map[ids.ShortID]as.AddressState{
 						addr1: 111,
 					},
 				}}
@@ -2078,7 +2069,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 		"OK: removed": {
 			diff: func(c *gomock.Controller) *diff {
 				return &diff{caminoDiff: &caminoDiff{
-					modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+					modifiedAddressStates: map[ids.ShortID]as.AddressState{
 						addr1: 0,
 					},
 				}}
@@ -2086,7 +2077,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 			address: addr1,
 			expectedDiff: func(actualDiff *diff) *diff {
 				return &diff{caminoDiff: &caminoDiff{
-					modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+					modifiedAddressStates: map[ids.ShortID]as.AddressState{
 						addr1: 0,
 					},
 				}}
@@ -2096,7 +2087,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 		"OK: in parent": {
 			diff: func(c *gomock.Controller) *diff {
 				parentState := NewMockChain(c)
-				parentState.EXPECT().GetAddressStates(addr1).Return(txs.AddressState(111), nil)
+				parentState.EXPECT().GetAddressStates(addr1).Return(as.AddressState(111), nil)
 				return &diff{
 					stateVersions: newMockStateVersions(c, parentStateID, parentState),
 					parentID:      parentStateID,
@@ -2116,7 +2107,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 		"Fail: parent errored": {
 			diff: func(c *gomock.Controller) *diff {
 				parentState := NewMockChain(c)
-				parentState.EXPECT().GetAddressStates(addr1).Return(txs.AddressStateEmpty, testErr)
+				parentState.EXPECT().GetAddressStates(addr1).Return(as.AddressStateEmpty, testErr)
 				return &diff{
 					stateVersions: newMockStateVersions(c, parentStateID, parentState),
 					parentID:      parentStateID,
@@ -2136,9 +2127,7 @@ func TestDiffGetAddressStates(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			addressStates, err := actualDiff.GetAddressStates(tt.address)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedAddresStates, addressStates)
@@ -2265,9 +2254,7 @@ func TestDiffGetDepositOffer(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			offer, err := actualDiff.GetDepositOffer(tt.offerID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedOffer, offer)
@@ -2359,9 +2346,7 @@ func TestDiffGetAllDepositOffers(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			offers, err := actualDiff.GetAllDepositOffers()
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.ElementsMatch(t, tt.expectedOffers, offers)
@@ -2390,7 +2375,7 @@ func TestDiffSetMultisigAlias(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			tt.diff.SetMultisigAlias(tt.alias)
+			tt.diff.SetMultisigAlias(tt.alias.ID, tt.alias)
 			require.Equal(t, tt.expectedDiff, tt.diff)
 		})
 	}
@@ -2487,9 +2472,7 @@ func TestDiffGetMultisigAlias(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			alias, err := actualDiff.GetMultisigAlias(tt.aliasID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedAlias, alias)
@@ -2636,9 +2619,7 @@ func TestDiffGetShortIDLink(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			linkedID, err := actualDiff.GetShortIDLink(tt.id, tt.key)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedLinkedID, linkedID)
@@ -2777,9 +2758,7 @@ func TestDiffGetClaimable(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			claimable, err := actualDiff.GetClaimable(tt.ownerID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedClaimable, claimable)
@@ -2877,9 +2856,7 @@ func TestDiffGetNotDistributedValidatorReward(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			reward, err := actualDiff.GetNotDistributedValidatorReward()
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedReward, reward)
@@ -2990,9 +2967,7 @@ func TestDiffGetDeferredValidator(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			reward, err := actualDiff.GetDeferredValidator(tt.subnetID, tt.nodeID)
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedValidator, reward)
@@ -3035,9 +3010,7 @@ func TestDiffGetDeferredStakerIterator(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			actualDiff := tt.diff(ctrl)
+			actualDiff := tt.diff(gomock.NewController(t))
 			_, err := actualDiff.GetDeferredStakerIterator()
 			require.ErrorIs(t, err, tt.expectedErr)
 			// require.Equal(t, tt.expectedStakerIterator, stakerIterator)
@@ -3046,16 +3019,2083 @@ func TestDiffGetDeferredStakerIterator(t *testing.T) {
 	}
 }
 
-func TestDiffApplyCaminoState(t *testing.T) {
-	reward := uint64(12345)
+func TestDiffGetProposal(t *testing.T) {
+	parentStateID := ids.ID{1}
+	proposalID := ids.ID{1, 1}
+	proposal := &dac.BaseFeeProposalState{}
+	testErr := errors.New("test err")
+
+	tests := map[string]struct {
+		diff             func(*gomock.Controller) *diff
+		proposalID       ids.ID
+		expectedDiff     func(*diff) *diff
+		expectedProposal dac.ProposalState
+		expectedErr      error
+	}{
+		"Fail: proposal removed": {
+			diff: func(c *gomock.Controller) *diff {
+				return &diff{
+					stateVersions: NewMockVersions(c),
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal, removed: true},
+						},
+					},
+				}
+			},
+			proposalID: proposalID,
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedErr: database.ErrNotFound,
+		},
+		"OK: proposal modified": {
+			diff: func(c *gomock.Controller) *diff {
+				return &diff{
+					stateVersions: NewMockVersions(c),
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal},
+						},
+					},
+				}
+			},
+			proposalID: proposalID,
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal},
+						},
+					},
+				}
+			},
+			expectedProposal: proposal,
+		},
+		"OK: proposal added": {
+			diff: func(c *gomock.Controller) *diff {
+				return &diff{
+					stateVersions: NewMockVersions(c),
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal, added: true},
+						},
+					},
+				}
+			},
+			proposalID: proposalID,
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							proposalID: {Proposal: proposal, added: true},
+						},
+					},
+				}
+			},
+			expectedProposal: proposal,
+		},
+		"OK: proposal in parent state": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposal(proposalID).Return(proposal, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			proposalID: proposalID,
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedProposal: proposal,
+		},
+		"Fail: parent errored": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposal(proposalID).Return(nil, testErr)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			proposalID: proposalID,
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedErr: testErr,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualDiff := tt.diff(gomock.NewController(t))
+			actualProposal, err := actualDiff.GetProposal(proposalID)
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedProposal, actualProposal)
+			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
+		})
+	}
+}
+
+func TestDiffAddProposal(t *testing.T) {
+	proposalID := ids.ID{1}
+	proposal := &dac.BaseFeeProposalState{}
+
 	tests := map[string]struct {
 		diff         *diff
-		state        func(*gomock.Controller, *diff) *MockState
+		proposalID   ids.ID
+		proposal     dac.ProposalState
 		expectedDiff *diff
 	}{
 		"OK": {
 			diff: &diff{caminoDiff: &caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+				modifiedProposals: map[ids.ID]*proposalDiff{},
+			}},
+			proposalID: proposalID,
+			proposal:   proposal,
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposals: map[ids.ID]*proposalDiff{
+					proposalID: {Proposal: proposal, added: true},
+				},
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.AddProposal(tt.proposalID, tt.proposal)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffModifyProposal(t *testing.T) {
+	proposalID := ids.ID{1}
+	proposal := &dac.BaseFeeProposalState{}
+
+	tests := map[string]struct {
+		diff         *diff
+		proposalID   ids.ID
+		proposal     dac.ProposalState
+		expectedDiff *diff
+	}{
+		"OK": {
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposals: map[ids.ID]*proposalDiff{},
+			}},
+			proposalID: proposalID,
+			proposal:   proposal,
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposals: map[ids.ID]*proposalDiff{
+					proposalID: {Proposal: proposal},
+				},
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.ModifyProposal(tt.proposalID, tt.proposal)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffRemoveProposal(t *testing.T) {
+	proposalID := ids.ID{1}
+	proposal := &dac.BaseFeeProposalState{}
+
+	tests := map[string]struct {
+		diff         *diff
+		proposalID   ids.ID
+		proposal     dac.ProposalState
+		expectedDiff *diff
+	}{
+		"OK": {
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposals: map[ids.ID]*proposalDiff{},
+			}},
+			proposalID: proposalID,
+			proposal:   proposal,
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposals: map[ids.ID]*proposalDiff{
+					proposalID: {Proposal: proposal, removed: true},
+				},
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.RemoveProposal(tt.proposalID, tt.proposal)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffAddProposalIDToFinish(t *testing.T) {
+	proposalID1 := ids.ID{1}
+	proposalID2 := ids.ID{2}
+	proposalID3 := ids.ID{3}
+
+	tests := map[string]struct {
+		diff         *diff
+		proposalID   ids.ID
+		expectedDiff *diff
+	}{
+		"OK": {
+			proposalID: proposalID3,
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: true,
+					proposalID2: true,
+				},
+			}},
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: true,
+					proposalID2: true,
+					proposalID3: true,
+				},
+			}},
+		},
+		"OK: already exist": {
+			proposalID: proposalID2,
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: true,
+					proposalID2: true,
+				},
+			}},
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: true,
+					proposalID2: true,
+				},
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.AddProposalIDToFinish(tt.proposalID)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffRemoveProposalIDToFinish(t *testing.T) {
+	proposalID1 := ids.ID{1}
+	proposalID2 := ids.ID{2}
+	proposalID3 := ids.ID{3}
+
+	tests := map[string]struct {
+		diff         *diff
+		proposalID   ids.ID
+		expectedDiff *diff
+	}{
+		"OK": {
+			proposalID: proposalID3,
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: false,
+					proposalID2: false,
+				},
+			}},
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: false,
+					proposalID2: false,
+					proposalID3: false,
+				},
+			}},
+		},
+		"OK: not exist": {
+			proposalID: proposalID2,
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: false,
+					proposalID2: false,
+				},
+			}},
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					proposalID1: false,
+					proposalID2: false,
+				},
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.RemoveProposalIDToFinish(tt.proposalID)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffGetProposalIDsToFinish(t *testing.T) {
+	parentStateID := ids.ID{1, 1}
+	proposalID1 := ids.ID{1}
+	proposalID2 := ids.ID{2}
+	proposalID3 := ids.ID{3}
+	proposalID4 := ids.ID{4}
+	proposalID5 := ids.ID{5}
+	proposalID6 := ids.ID{6}
+	testErr := errors.New("test err")
+
+	tests := map[string]struct {
+		diff                        func(*gomock.Controller) *diff
+		expectedDiff                func(actualDiff *diff) *diff
+		expectedProposalIDsToFinish []ids.ID
+		expectedErr                 error
+	}{
+		"Parent errored": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposalIDsToFinish().Return(nil, testErr)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedErr: testErr,
+		},
+		"OK: no proposals to finish": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposalIDsToFinish().Return(nil, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedProposalIDsToFinish: nil,
+		},
+		"OK: only parent proposals to finish": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{proposalID1, proposalID2}, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedProposalIDsToFinish: []ids.ID{proposalID1, proposalID2},
+		},
+		"OK: only diff proposals to finish": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposalIDsToFinish().Return(nil, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposalIDsToFinish: map[ids.ID]bool{
+							proposalID1: true,
+							proposalID2: false,
+							proposalID3: true,
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposalIDsToFinish: map[ids.ID]bool{
+							proposalID1: true,
+							proposalID2: false,
+							proposalID3: true,
+						},
+					},
+				}
+			},
+			expectedProposalIDsToFinish: []ids.ID{proposalID1, proposalID3},
+		},
+		"OK": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetProposalIDsToFinish().Return([]ids.ID{proposalID1, proposalID2, proposalID3}, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposalIDsToFinish: map[ids.ID]bool{
+							proposalID2: false,
+							proposalID4: true,
+							proposalID5: false,
+							proposalID6: true,
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposalIDsToFinish: map[ids.ID]bool{
+							proposalID2: false,
+							proposalID4: true,
+							proposalID5: false,
+							proposalID6: true,
+						},
+					},
+				}
+			},
+			expectedProposalIDsToFinish: []ids.ID{proposalID1, proposalID3, proposalID4, proposalID6},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			diff := tt.diff(gomock.NewController(t))
+			proposalIDsToFinish, err := diff.GetProposalIDsToFinish()
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedProposalIDsToFinish, proposalIDsToFinish)
+			require.Equal(t, tt.expectedDiff(diff), diff)
+		})
+	}
+}
+
+func TestDiffGetNextProposalExpirationTime(t *testing.T) {
+	parentStateID := ids.ID{1}
+	earlyProposalTxID1 := ids.ID{1, 1}
+	earlyProposalTxID2 := ids.ID{1, 2}
+	midProposalTxID := ids.ID{1, 11}
+	lateProposalTxID1 := ids.ID{1, 101}
+	lateProposalTxID2 := ids.ID{1, 102}
+	earlyProposal := &dac.BaseFeeProposalState{End: 101}
+	midProposal := &dac.BaseFeeProposalState{End: 102}
+	lateProposal := &dac.BaseFeeProposalState{End: 103}
+	testErr := errors.New("test err")
+
+	tests := map[string]struct {
+		diff                       func(*gomock.Controller, set.Set[ids.ID]) *diff
+		removedProposalIDs         set.Set[ids.ID]
+		expectedNextExpirationTime time.Time
+		expectedDiff               func(*diff) *diff
+		expectedErr                error
+	}{
+		"Fail: parent errored": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(nil).Return(time.Time{}, testErr)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: time.Time{},
+			expectedErr:                testErr,
+		},
+		"Fail: no proposals": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(nil).Return(mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"Fail: proposals in parent state only, but all removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1, earlyProposalTxID2)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"OK: proposals in parent state only, but one removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but one parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but one removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added only": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in parent state only": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early, mid) and parent state (late)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							midProposalTxID:    {Proposal: midProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							midProposalTxID:    {Proposal: midProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"Fail: proposals in parent state only, but all removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"Fail: proposals in parent state only, but all removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but some parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but some parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but some removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but some removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextProposalExpirationTime(removedProposalIDs).
+					Return(lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualDiff := tt.diff(gomock.NewController(t), tt.removedProposalIDs)
+			nextExpirationTime, err := actualDiff.GetNextProposalExpirationTime(tt.removedProposalIDs)
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedNextExpirationTime, nextExpirationTime)
+			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
+		})
+	}
+}
+
+func TestDiffGetNextToExpireProposalIDsAndTime(t *testing.T) {
+	parentStateID := ids.ID{1}
+	earlyProposalTxID1 := ids.ID{1, 1}
+	earlyProposalTxID2 := ids.ID{1, 2}
+	earlyProposalTxID3 := ids.ID{1, 3}
+	midProposalTxID := ids.ID{1, 10}
+	lateProposalTxID1 := ids.ID{1, 101}
+	lateProposalTxID2 := ids.ID{1, 102}
+	lateProposalTxID3 := ids.ID{1, 103}
+	earlyProposal := &dac.BaseFeeProposalState{End: 101}
+	midProposal := &dac.BaseFeeProposalState{End: 102}
+	lateProposal := &dac.BaseFeeProposalState{End: 103}
+	testErr := errors.New("test err")
+
+	tests := map[string]struct {
+		diff                       func(*gomock.Controller, set.Set[ids.ID]) *diff
+		removedProposalIDs         set.Set[ids.ID]
+		expectedDiff               func(*diff) *diff
+		expectedNextToExpireIDs    []ids.ID
+		expectedNextExpirationTime time.Time
+		expectedErr                error
+	}{
+		"Fail: parent errored": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(nil).Return(nil, time.Time{}, testErr)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: time.Time{},
+			expectedErr:                testErr,
+		},
+		"Fail: no proposals": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(nil).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"Fail: proposals in parent state only, but all removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1, earlyProposalTxID2)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"OK: proposals in parent state only, but one removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID2}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+			expectedNextToExpireIDs:    []ids.ID{earlyProposalTxID2},
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1, earlyProposalTxID2)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{lateProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+							earlyProposalTxID2: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but one parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID2}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID2},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1, lateProposalTxID2)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+							lateProposalTxID2:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+							lateProposalTxID2:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but one parent removed": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{lateProposalTxID2}, lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added only (early, late)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in parent state only": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).Return(
+					[]ids.ID{earlyProposalTxID1, earlyProposalTxID2},
+					earlyProposal.EndTime(),
+					nil,
+				)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1, earlyProposalTxID2},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).Return(
+					[]ids.ID{earlyProposalTxID1},
+					earlyProposal.EndTime(),
+					nil,
+				)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early, mid) and parent state (late)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).Return(
+					[]ids.ID{lateProposalTxID1},
+					lateProposal.EndTime(),
+					nil,
+				)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							midProposalTxID:    {Proposal: midProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							midProposalTxID:    {Proposal: midProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early1, late) and parent state (early2)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).Return(
+					[]ids.ID{earlyProposalTxID2},
+					earlyProposal.EndTime(),
+					nil,
+				)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1, earlyProposalTxID2},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"Fail: proposals in parent state only, but all removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"OK: proposals in parent state only, but one removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID2}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+			expectedNextToExpireIDs:    []ids.ID{earlyProposalTxID2},
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{lateProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but one parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID2}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID1: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID2},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1: {Proposal: lateProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID1: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but one parent removed in arg": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{lateProposalTxID2}, lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID1: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"Fail: proposals in parent state only, but all removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: mockable.MaxTime,
+			expectedErr:                database.ErrNotFound,
+		},
+		"OK: proposals in parent state only, but some removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID3}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+			expectedNextToExpireIDs:    []ids.ID{earlyProposalTxID3},
+		},
+		"OK: proposals in added (late) and parent state (early), but all parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, database.ErrNotFound)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{lateProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: lateProposal.EndTime(),
+		},
+		"OK: proposals in added (late) and parent state (early), but some parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(earlyProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{earlyProposalTxID3}, earlyProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				earlyProposalTxID2: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID3},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							lateProposalTxID1:  {Proposal: lateProposal, added: true},
+							earlyProposalTxID1: {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but all parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return(nil, mockable.MaxTime, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID2: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+		"OK: proposals in added (early) and parent state (late), but some parent removed (one in arg, one in diff)": {
+			diff: func(c *gomock.Controller, removedProposalIDs set.Set[ids.ID]) *diff {
+				removedProposalIDs.Add(lateProposalTxID1)
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetNextToExpireProposalIDsAndTime(removedProposalIDs).
+					Return([]ids.ID{lateProposalTxID3}, lateProposal.EndTime(), nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			removedProposalIDs: set.Set[ids.ID]{
+				lateProposalTxID2: struct{}{},
+			},
+			expectedNextToExpireIDs: []ids.ID{earlyProposalTxID1},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff: &caminoDiff{
+						modifiedProposals: map[ids.ID]*proposalDiff{
+							earlyProposalTxID1: {Proposal: earlyProposal, added: true},
+							lateProposalTxID1:  {Proposal: lateProposal, removed: true},
+						},
+					},
+				}
+			},
+			expectedNextExpirationTime: earlyProposal.EndTime(),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualDiff := tt.diff(gomock.NewController(t), tt.removedProposalIDs)
+			nextToExpireIDs, nextExpirationTime, err := actualDiff.GetNextToExpireProposalIDsAndTime(tt.removedProposalIDs)
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedNextExpirationTime, nextExpirationTime)
+			require.Equal(t, tt.expectedNextToExpireIDs, nextToExpireIDs)
+			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
+		})
+	}
+}
+
+func TestDiffGetBaseFee(t *testing.T) {
+	parentStateID := ids.ID{123}
+	baseFee := uint64(123)
+	testErr := errors.New("test err")
+
+	tests := map[string]struct {
+		diff            func(*gomock.Controller) *diff
+		expectedDiff    func(actualDiff *diff) *diff
+		expectedBaseFee uint64
+		expectedErr     error
+	}{
+		"OK: modified": {
+			diff: func(c *gomock.Controller) *diff {
+				return &diff{caminoDiff: &caminoDiff{
+					modifiedBaseFee: &baseFee,
+				}}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{caminoDiff: &caminoDiff{
+					modifiedBaseFee: &baseFee,
+				}}
+			},
+			expectedBaseFee: baseFee,
+		},
+		"OK: in parent": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetBaseFee().Return(baseFee, nil)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					caminoDiff:    &caminoDiff{},
+					parentID:      parentStateID,
+					stateVersions: actualDiff.stateVersions,
+				}
+			},
+			expectedBaseFee: baseFee,
+		},
+		"Fail: parent errored": {
+			diff: func(c *gomock.Controller) *diff {
+				parentState := NewMockChain(c)
+				parentState.EXPECT().GetBaseFee().Return(uint64(0), testErr)
+				return &diff{
+					stateVersions: newMockStateVersions(c, parentStateID, parentState),
+					parentID:      parentStateID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedDiff: func(actualDiff *diff) *diff {
+				return &diff{
+					stateVersions: actualDiff.stateVersions,
+					parentID:      actualDiff.parentID,
+					caminoDiff:    &caminoDiff{},
+				}
+			},
+			expectedErr: testErr,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualDiff := tt.diff(gomock.NewController(t))
+			baseFee, err := actualDiff.GetBaseFee()
+			require.ErrorIs(t, err, tt.expectedErr)
+			require.Equal(t, tt.expectedBaseFee, baseFee)
+			require.Equal(t, tt.expectedDiff(actualDiff), actualDiff)
+		})
+	}
+}
+
+func TestDiffSetBaseFee(t *testing.T) {
+	baseFee := uint64(123)
+
+	tests := map[string]struct {
+		diff         *diff
+		baseFee      uint64
+		expectedDiff *diff
+	}{
+		"OK": {
+			diff:    &diff{caminoDiff: &caminoDiff{}},
+			baseFee: baseFee,
+			expectedDiff: &diff{caminoDiff: &caminoDiff{
+				modifiedBaseFee: &baseFee,
+			}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.diff.SetBaseFee(tt.baseFee)
+			require.Equal(t, tt.expectedDiff, tt.diff)
+		})
+	}
+}
+
+func TestDiffApplyCaminoState(t *testing.T) {
+	reward := uint64(12345)
+	baseFee := uint64(6789)
+	tests := map[string]struct {
+		diff         *diff
+		state        func(*gomock.Controller, *diff) *MockState
+		expectedDiff *diff
+		expectedErr  error
+	}{
+		"OK": {
+			diff: &diff{caminoDiff: &caminoDiff{
+				modifiedAddressStates: map[ids.ShortID]as.AddressState{
 					{1}: 101,
 					{2}: 0,
 				},
@@ -3080,12 +5120,36 @@ func TestDiffApplyCaminoState(t *testing.T) {
 					{12}: {ValidatorReward: 112},
 					{13}: nil,
 				},
+				modifiedProposals: map[ids.ID]*proposalDiff{
+					{14}: {Proposal: &dac.BaseFeeProposalState{
+						AllowedVoters: []ids.ShortID{},
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 1, Weight: 1}},
+						},
+					}},
+					{15}: {Proposal: &dac.BaseFeeProposalState{
+						AllowedVoters: []ids.ShortID{{115}},
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 2}},
+						},
+					}, added: true},
+					{16}: {Proposal: &dac.BaseFeeProposalState{
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 3}},
+						},
+					}, removed: true},
+				},
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					{17}: true, {18}: false, {19}: true, {20}: false,
+				},
 				modifiedNotDistributedValidatorReward: &reward,
+				modifiedBaseFee:                       &baseFee,
 				deferredStakerDiffs:                   diffStakers{},
 			}},
 			state: func(c *gomock.Controller, d *diff) *MockState {
 				s := NewMockState(c)
 				s.EXPECT().SetNotDistributedValidatorReward(*d.caminoDiff.modifiedNotDistributedValidatorReward)
+				s.EXPECT().SetBaseFee(*d.caminoDiff.modifiedBaseFee)
 				for k, v := range d.caminoDiff.modifiedAddressStates {
 					s.EXPECT().SetAddressStates(k, v)
 				}
@@ -3102,8 +5166,8 @@ func TestDiffApplyCaminoState(t *testing.T) {
 						s.EXPECT().ModifyDeposit(depositTxID, depositDiff.Deposit)
 					}
 				}
-				for _, v := range d.caminoDiff.modifiedMultisigAliases {
-					s.EXPECT().SetMultisigAlias(v)
+				for multisigAliasID, multisigAlias := range d.caminoDiff.modifiedMultisigAliases {
+					s.EXPECT().SetMultisigAlias(multisigAliasID, multisigAlias)
 				}
 				for fullKey, link := range d.caminoDiff.modifiedShortLinks {
 					id, key := fromShortLinkKey(fullKey)
@@ -3111,6 +5175,23 @@ func TestDiffApplyCaminoState(t *testing.T) {
 				}
 				for ownerID, claimable := range d.caminoDiff.modifiedClaimables {
 					s.EXPECT().SetClaimable(ownerID, claimable)
+				}
+				for proposalID, proposalDiff := range d.caminoDiff.modifiedProposals {
+					switch {
+					case proposalDiff.added:
+						s.EXPECT().AddProposal(proposalID, proposalDiff.Proposal)
+					case proposalDiff.removed:
+						s.EXPECT().RemoveProposal(proposalID, proposalDiff.Proposal)
+					default:
+						s.EXPECT().ModifyProposal(proposalID, proposalDiff.Proposal)
+					}
+				}
+				for proposalID, added := range d.caminoDiff.modifiedProposalIDsToFinish {
+					if added {
+						s.EXPECT().AddProposalIDToFinish(proposalID)
+					} else {
+						s.EXPECT().RemoveProposalIDToFinish(proposalID)
+					}
 				}
 				for _, validatorDiffs := range d.caminoDiff.deferredStakerDiffs.validatorDiffs {
 					for _, validatorDiff := range validatorDiffs {
@@ -3125,7 +5206,7 @@ func TestDiffApplyCaminoState(t *testing.T) {
 				return s
 			},
 			expectedDiff: &diff{caminoDiff: &caminoDiff{
-				modifiedAddressStates: map[ids.ShortID]txs.AddressState{
+				modifiedAddressStates: map[ids.ShortID]as.AddressState{
 					{1}: 101,
 					{2}: 0,
 				},
@@ -3150,16 +5231,38 @@ func TestDiffApplyCaminoState(t *testing.T) {
 					{12}: {ValidatorReward: 112},
 					{13}: nil,
 				},
+				modifiedProposals: map[ids.ID]*proposalDiff{
+					{14}: {Proposal: &dac.BaseFeeProposalState{
+						AllowedVoters: []ids.ShortID{},
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 1, Weight: 1}},
+						},
+					}},
+					{15}: {Proposal: &dac.BaseFeeProposalState{
+						AllowedVoters: []ids.ShortID{{115}},
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 2}},
+						},
+					}, added: true},
+					{16}: {Proposal: &dac.BaseFeeProposalState{
+						SimpleVoteOptions: dac.SimpleVoteOptions[uint64]{
+							Options: []dac.SimpleVoteOption[uint64]{{Value: 3}},
+						},
+					}, removed: true},
+				},
+				modifiedProposalIDsToFinish: map[ids.ID]bool{
+					{17}: true, {18}: false, {19}: true, {20}: false,
+				},
 				deferredStakerDiffs:                   diffStakers{},
 				modifiedNotDistributedValidatorReward: &reward,
+				modifiedBaseFee:                       &baseFee,
 			}},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			tt.diff.ApplyCaminoState(tt.state(ctrl, tt.diff))
+			err := tt.diff.ApplyCaminoState(tt.state(gomock.NewController(t), tt.diff))
+			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedDiff, tt.diff)
 		})
 	}

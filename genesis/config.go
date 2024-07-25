@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -17,6 +17,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,10 +27,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
 
-var _ utils.Sortable[Allocation] = Allocation{}
+var (
+	_ utils.Sortable[Allocation] = Allocation{}
+
+	errInvalidGenesisJSON = errors.New("could not unmarshal genesis JSON")
+)
 
 type LockedAmount struct {
 	Amount   uint64 `json:"amount"`
@@ -93,7 +97,7 @@ type Config struct {
 	InitialStakeDurationOffset uint64        `json:"initialStakeDurationOffset"`
 	InitialStakedFunds         []ids.ShortID `json:"initialStakedFunds"`
 	InitialStakers             []Staker      `json:"initialStakers"`
-	Camino                     Camino        `json:"camino"`
+	Camino                     *Camino       `json:"camino"`
 
 	CChainGenesis string `json:"cChainGenesis"`
 
@@ -137,10 +141,12 @@ func (c Config) Unparse() (UnparsedConfig, error) {
 		}
 		uc.InitialStakers[i] = uis
 	}
-	var err error
-	uc.Camino, err = c.Camino.Unparse(c.NetworkID, c.StartTime)
-	if err != nil {
-		return uc, err
+	if c.Camino != nil {
+		caminoUnparsedConfig, err := c.Camino.Unparse(c.NetworkID, c.StartTime)
+		if err != nil {
+			return uc, err
+		}
+		uc.Camino = &caminoUnparsedConfig
 	}
 
 	return uc, nil
@@ -162,14 +168,16 @@ func (c *Config) InitialSupply() (uint64, error) {
 		initialSupply = newInitialSupply
 	}
 
-	caminoInitialSupply, err := c.Camino.InitialSupply()
-	if err != nil {
-		return 0, err
-	}
+	if c.Camino != nil {
+		caminoInitialSupply, err := c.Camino.InitialSupply()
+		if err != nil {
+			return 0, err
+		}
 
-	initialSupply, err = math.Add64(initialSupply, caminoInitialSupply)
-	if err != nil {
-		return 0, err
+		initialSupply, err = math.Add64(initialSupply, caminoInitialSupply)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return initialSupply, nil
@@ -199,35 +207,34 @@ func init() {
 	unparsedKopernikusConfig := UnparsedConfig{}
 	unparsedLocalConfig := UnparsedConfig{}
 
-	errs := wrappers.Errs{}
-	errs.Add(
+	err := utils.Err(
 		json.Unmarshal(caminoGenesisConfigJSON, &unparsedCaminoConfig),
 		json.Unmarshal(columbusGenesisConfigJSON, &unparsedColumbusConfig),
 		json.Unmarshal(kopernikusGenesisConfigJSON, &unparsedKopernikusConfig),
 		json.Unmarshal(localGenesisConfigJSON, &unparsedLocalConfig),
 	)
-	if errs.Errored() {
-		panic(errs.Err)
+	if err != nil {
+		panic(err)
 	}
 
-	caminoConfig, err := unparsedCaminoConfig.Parse()
-	errs.Add(err)
-	CaminoConfig = caminoConfig
+	CaminoConfig, err = unparsedCaminoConfig.Parse()
+	if err != nil {
+		panic(err)
+	}
 
-	columbusConfig, err := unparsedColumbusConfig.Parse()
-	errs.Add(err)
-	ColumbusConfig = columbusConfig
+	ColumbusConfig, err = unparsedColumbusConfig.Parse()
+	if err != nil {
+		panic(err)
+	}
 
-	kopernikusConfig, err := unparsedKopernikusConfig.Parse()
-	errs.Add(err)
-	KopernikusConfig = kopernikusConfig
+	KopernikusConfig, err = unparsedKopernikusConfig.Parse()
+	if err != nil {
+		panic(err)
+	}
 
-	localConfig, err := unparsedLocalConfig.Parse()
-	errs.Add(err)
-	LocalConfig = localConfig
-
-	if errs.Errored() {
-		panic(errs.Err)
+	LocalConfig, err = unparsedLocalConfig.Parse()
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -269,7 +276,7 @@ func GetConfigContent(genesisContent string) (*Config, error) {
 func parseGenesisJSONBytesToConfig(bytes []byte) (*Config, error) {
 	var unparsedConfig UnparsedConfig
 	if err := json.Unmarshal(bytes, &unparsedConfig); err != nil {
-		return nil, fmt.Errorf("could not unmarshal JSON: %w", err)
+		return nil, fmt.Errorf("%w: %w", errInvalidGenesisJSON, err)
 	}
 
 	config, err := unparsedConfig.Parse()

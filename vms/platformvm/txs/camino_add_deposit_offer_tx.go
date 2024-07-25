@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -21,6 +21,8 @@ var (
 	errBadDepositOfferCreatorAuth      = errors.New("bad deposit offer creator auth")
 	errEmptyDepositOfferCreatorAddress = errors.New("deposit offer creator address is empty")
 	errWrongDepositOfferVersion        = errors.New("wrong deposit offer version")
+	errNotZeroDepositOfferAmounts      = errors.New("deposit offer rewardedAmount or depositedAmount isn't zero")
+	errZeroDepositOfferLimits          = errors.New("deposit offer TotalMaxAmount and TotalMaxRewardAmount are zero")
 )
 
 // AddDepositOfferTx is an unsigned depositTx
@@ -46,6 +48,10 @@ func (tx *AddDepositOfferTx) SyntacticVerify(ctx *snow.Context) error {
 		return errEmptyDepositOfferCreatorAddress
 	case tx.DepositOffer.UpgradeVersionID.Version() == 0:
 		return errWrongDepositOfferVersion
+	case tx.DepositOffer.RewardedAmount > 0 || tx.DepositOffer.DepositedAmount > 0:
+		return errNotZeroDepositOfferAmounts
+	case tx.DepositOffer.TotalMaxAmount == 0 && tx.DepositOffer.TotalMaxRewardAmount == 0:
+		return errZeroDepositOfferLimits
 	}
 
 	if err := tx.BaseTx.SyntacticVerify(ctx); err != nil {
@@ -53,11 +59,11 @@ func (tx *AddDepositOfferTx) SyntacticVerify(ctx *snow.Context) error {
 	}
 
 	if err := tx.DepositOffer.Verify(); err != nil {
-		return fmt.Errorf("%w: %s", errBadDepositOffer, err)
+		return fmt.Errorf("%w: %w", errBadDepositOffer, err)
 	}
 
 	if err := tx.DepositOfferCreatorAuth.Verify(); err != nil {
-		return fmt.Errorf("%w: %s", errBadDepositOfferCreatorAuth, err)
+		return fmt.Errorf("%w: %w", errBadDepositOfferCreatorAuth, err)
 	}
 
 	if err := locked.VerifyNoLocks(tx.Ins, tx.Outs); err != nil {

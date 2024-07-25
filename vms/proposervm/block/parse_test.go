@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/staking"
 )
@@ -39,10 +40,10 @@ func TestParse(t *testing.T) {
 	tlsCert, err := staking.NewTLSCert()
 	require.NoError(err)
 
-	cert := tlsCert.Leaf
+	cert := staking.CertificateFromX509(tlsCert.Leaf)
 	key := tlsCert.PrivateKey.(crypto.Signer)
 
-	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(cert)
+	nodeIDBytes, err := secp256k1.RecoverSecp256PublicKey(tlsCert.Leaf)
 	require.NoError(err)
 
 	nodeID, err := ids.ToNodeID(nodeIDBytes)
@@ -79,7 +80,7 @@ func TestParseDuplicateExtension(t *testing.T) {
 	require.NoError(err)
 
 	_, err = Parse(blockBytes)
-	require.Error(err) // Do not check for errDuplicateExtension to support g1.19
+	require.ErrorIs(err, errInvalidCertificate)
 }
 
 func TestParseHeader(t *testing.T) {
@@ -149,5 +150,5 @@ func TestParseGibberish(t *testing.T) {
 	bytes := []byte{0, 1, 2, 3, 4, 5}
 
 	_, err := Parse(bytes)
-	require.Error(err)
+	require.ErrorIs(err, codec.ErrUnknownVersion)
 }

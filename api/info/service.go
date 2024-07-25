@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -26,9 +26,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network"
 	"github.com/ava-labs/avalanchego/network/peer"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/networking/benchlist"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/ips"
 	"github.com/ava-labs/avalanchego/utils/json"
@@ -48,7 +46,6 @@ type Info struct {
 	networking   network.Network
 	chainManager chains.Manager
 	vmManager    vms.Manager
-	validators   validators.Set
 	benchlist    benchlist.Manager
 }
 
@@ -72,7 +69,6 @@ type Parameters struct {
 	GenesisBytes                  []byte
 }
 
-// NewService returns a new admin API service
 func NewService(
 	parameters Parameters,
 	log logging.Logger,
@@ -80,29 +76,24 @@ func NewService(
 	vmManager vms.Manager,
 	myIP ips.DynamicIPPort,
 	network network.Network,
-	validators validators.Set,
 	benchlist benchlist.Manager,
-) (*common.HTTPHandler, error) {
-	newServer := rpc.NewServer()
+) (http.Handler, error) {
+	server := rpc.NewServer()
 	codec := json.NewCodec()
-	newServer.RegisterCodec(codec, "application/json")
-	newServer.RegisterCodec(codec, "application/json;charset=UTF-8")
-	if err := newServer.RegisterService(&Info{
-		Parameters:   parameters,
-		log:          log,
-		chainManager: chainManager,
-		vmManager:    vmManager,
-		myIP:         myIP,
-		networking:   network,
-		validators:   validators,
-		benchlist:    benchlist,
-	}, "info"); err != nil {
-		return nil, err
-	}
-	return &common.HTTPHandler{
-		LockOptions: common.NoLock,
-		Handler:     newServer,
-	}, nil
+	server.RegisterCodec(codec, "application/json")
+	server.RegisterCodec(codec, "application/json;charset=UTF-8")
+	return server, server.RegisterService(
+		&Info{
+			Parameters:   parameters,
+			log:          log,
+			chainManager: chainManager,
+			vmManager:    vmManager,
+			myIP:         myIP,
+			networking:   network,
+			benchlist:    benchlist,
+		},
+		"info",
+	)
 }
 
 // GetNodeVersionReply are the results from calling GetNodeVersion
@@ -110,8 +101,6 @@ type GetNodeVersionReply struct {
 	Version            string            `json:"version"`
 	DatabaseVersion    string            `json:"databaseVersion"`
 	RPCProtocolVersion json.Uint32       `json:"rpcProtocolVersion"`
-	SdkGitCommit       string            `json:"sdkGitCommit"`
-	SdkGitVersion      string            `json:"sdkGitVersion"`
 	GitCommit          string            `json:"gitCommit"`
 	GitVersion         string            `json:"gitVersion"`
 	VMVersions         map[string]string `json:"vmVersions"`
@@ -132,10 +121,8 @@ func (i *Info) GetNodeVersion(_ *http.Request, _ *struct{}, reply *GetNodeVersio
 	reply.Version = i.Version.String()
 	reply.DatabaseVersion = version.CurrentDatabase.String()
 	reply.RPCProtocolVersion = json.Uint32(version.RPCChainVMProtocol)
-	reply.SdkGitCommit = version.GitCommit
-	reply.SdkGitVersion = version.GitVersion
-	reply.GitCommit = i.Parameters.GitCommit
-	reply.GitVersion = i.Parameters.GitVersion
+	reply.GitCommit = i.GitCommit
+	reply.GitVersion = i.GitVersion
 	reply.VMVersions = vmVersions
 	return nil
 }

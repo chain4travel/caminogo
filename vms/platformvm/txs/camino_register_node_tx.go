@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package txs
@@ -65,7 +65,7 @@ func (tx *RegisterNodeTx) SyntacticVerify(ctx *snow.Context) error {
 	}
 
 	if err := tx.NodeOwnerAuth.Verify(); err != nil {
-		return fmt.Errorf("%w: %s", errBadConsortiumMemberAuth, err)
+		return fmt.Errorf("%w: %w", errBadConsortiumMemberAuth, err)
 	}
 
 	// cache that this is valid

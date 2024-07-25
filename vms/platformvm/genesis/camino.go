@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/multisig"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
@@ -45,8 +46,8 @@ type ConsortiumMemberNodeID struct {
 }
 
 type AddressState struct {
-	Address ids.ShortID      `serialize:"true"`
-	State   txs.AddressState `serialize:"true"`
+	Address ids.ShortID     `serialize:"true"`
+	State   as.AddressState `serialize:"true"`
 }
 
 type Block struct {
@@ -58,17 +59,17 @@ type Block struct {
 
 func (b *Block) Init() error {
 	for _, tx := range b.Validators {
-		if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+		if err := tx.Initialize(txs.GenesisCodec); err != nil {
 			return err
 		}
 	}
 	for _, tx := range b.Deposits {
-		if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+		if err := tx.Initialize(txs.GenesisCodec); err != nil {
 			return err
 		}
 	}
 	for _, tx := range b.UnlockedUTXOsTxs {
-		if err := tx.Sign(txs.GenesisCodec, nil); err != nil {
+		if err := tx.Initialize(txs.GenesisCodec); err != nil {
 			return err
 		}
 	}

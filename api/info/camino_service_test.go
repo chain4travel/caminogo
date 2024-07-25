@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package info
@@ -6,23 +6,21 @@ package info
 import (
 	"testing"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 func TestGetGenesisBytes(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockLog := logging.NewMockLogger(ctrl)
+	mockLog := logging.NewMockLogger(gomock.NewController(t))
 	service := Info{log: mockLog}
-	defer ctrl.Finish()
 
 	mockLog.EXPECT().Debug(gomock.Any()).Times(1)
 
 	service.GenesisBytes = []byte("some random bytes")
 
 	reply := GetGenesisBytesReply{}
-	err := service.GetGenesisBytes(nil, nil, &reply)
-	require.NoError(t, err)
+	require.NoError(t, service.GetGenesisBytes(nil, nil, &reply))
 	require.Equal(t, GetGenesisBytesReply{GenesisBytes: service.GenesisBytes}, reply)
 }

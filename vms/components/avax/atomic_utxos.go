@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -103,12 +103,12 @@ func (a *atomicUTXOManager) GetAtomicUTXOs(
 	return utxos, lastAddrID, lastUTXOID, nil
 }
 
-func UnmarshalUTXO(codec codec.Manager, utxoBytes []byte) (*UTXO, []verify.State, error) {
+func UnmarshalUTXO(codec codec.Manager, utxoBytes []byte) (*UTXO, []verify.Verifiable, error) {
 	var err error
 
 	utxo := &UTXO{}
 	if _, err := codec.Unmarshal(utxoBytes, utxo); err == nil {
-		return utxo, []verify.State{}, nil
+		return utxo, []verify.Verifiable{}, nil
 	}
 
 	wrappedUTXO := &UTXOWithMSig{}

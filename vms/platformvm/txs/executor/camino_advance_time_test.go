@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package executor
@@ -9,15 +9,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
-	"github.com/ava-labs/avalanchego/utils/nodeid"
+	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/reward"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test"
+	"github.com/ava-labs/avalanchego/vms/platformvm/test/generate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
@@ -38,7 +40,7 @@ func TestDeferredStakers(t *testing.T) {
 		nodeOwnerKey                  *secp256k1.PrivateKey
 		startTime, endTime, deferTime time.Time
 	}
-	type test struct {
+	type testCase struct {
 		stakers               []staker
 		subnetStakers         []staker
 		deferredStakers       []staker
@@ -55,13 +57,14 @@ func TestDeferredStakers(t *testing.T) {
 	// staker4:                                 		 |---|
 	// staker5Deferred	        |---|--------------------|
 
-	nodeIDs := make([]ids.NodeID, 6)
-	nodeKeys := make([]*secp256k1.PrivateKey, 6)
-	nodeOwnerAddresses := make([]ids.ShortID, 6)
-	nodeOwnerKeys := make([]*secp256k1.PrivateKey, 6)
-	for i := range [6]int{} {
-		nodeKeys[i], nodeIDs[i] = nodeid.GenerateCaminoNodeKeyAndID()
-		nodeOwnerKeys[i], nodeOwnerAddresses[i], _ = generateKeyAndOwner(t)
+	nodesCount := 6
+	nodeIDs := make([]ids.NodeID, nodesCount)
+	nodeKeys := make([]*secp256k1.PrivateKey, nodesCount)
+	nodeOwnerAddresses := make([]ids.ShortID, nodesCount)
+	nodeOwnerKeys := make([]*secp256k1.PrivateKey, nodesCount)
+	for i := 0; i < nodesCount; i++ {
+		nodeKeys[i], nodeIDs[i] = test.Keys[i+nodesCount], ids.NodeID(test.Keys[i+nodesCount].Address())
+		nodeOwnerKeys[i], nodeOwnerAddresses[i], _ = generate.KeyAndOwner(t, test.Keys[i])
 	}
 
 	staker1 := staker{
@@ -69,8 +72,8 @@ func TestDeferredStakers(t *testing.T) {
 		nodeKey:       nodeKeys[0],
 		nodeOwnerAddr: nodeOwnerAddresses[0],
 		nodeOwnerKey:  nodeOwnerKeys[0],
-		startTime:     defaultGenesisTime.Add(1 * time.Minute),
-		endTime:       defaultGenesisTime.Add(10 * defaultMinStakingDuration).Add(1 * time.Minute),
+		startTime:     test.GenesisTime.Add(1 * time.Minute),
+		endTime:       test.GenesisTime.Add(10 * test.MinStakingDuration).Add(1 * time.Minute),
 	}
 	staker2 := staker{
 		nodeID:        nodeIDs[1],
@@ -78,7 +81,7 @@ func TestDeferredStakers(t *testing.T) {
 		nodeOwnerAddr: nodeOwnerAddresses[1],
 		nodeOwnerKey:  nodeOwnerKeys[1],
 		startTime:     staker1.startTime.Add(1 * time.Minute),
-		endTime:       staker1.startTime.Add(1 * time.Minute).Add(defaultMinStakingDuration),
+		endTime:       staker1.startTime.Add(1 * time.Minute).Add(test.MinStakingDuration),
 	}
 	staker3 := staker{
 		nodeID:        nodeIDs[2],
@@ -114,7 +117,7 @@ func TestDeferredStakers(t *testing.T) {
 		deferTime:     staker3.startTime,
 	}
 
-	tests := map[string]test{
+	tests := map[string]testCase{
 		"Staker 5 still in pending set": {
 			stakers:       []staker{staker1, staker2, staker3, staker4, staker5},
 			subnetStakers: []staker{staker1, staker2, staker3, staker4, staker5},
@@ -188,48 +191,46 @@ func TestDeferredStakers(t *testing.T) {
 		},
 	}
 
-	for name, test := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(ts *testing.T) {
 			require := require.New(ts)
 			caminoGenesisConf := api.Camino{
 				VerifyNodeSignature: true,
 				LockModeBondDeposit: true,
-				InitialAdmin:        caminoPreFundedKeys[0].Address(),
+				InitialAdmin:        test.FundedKeys[0].Address(),
 			}
-			env := newCaminoEnvironment( /*postBanff*/ true, true, caminoGenesisConf)
-			env.ctx.Lock.Lock()
-			defer func() {
-				if err := shutdownCaminoEnvironment(env); err != nil {
-					t.Fatal(err)
-				}
-			}()
+			env := newCaminoEnvironment(t, test.PhaseApricot5, caminoGenesisConf)
+			env.addCaminoSubnet(t)
 
 			dummyHeight := uint64(1)
 
 			subnetID := testSubnet1.ID()
 			env.config.TrackedSubnets.Add(subnetID)
-			env.config.Validators.Add(subnetID, validators.NewSet())
 
-			for _, staker := range test.stakers {
+			addrState, err := env.state.GetAddressStates(test.FundedKeys[0].Address())
+			require.NoError(err)
+			env.state.SetAddressStates(test.FundedKeys[0].Address(), addrState|as.AddressStateRoleValidatorAdmin)
+
+			for _, staker := range tt.stakers {
 				_, err := addCaminoPendingValidator(
 					env,
 					staker.startTime,
 					staker.endTime,
 					staker.nodeID,
 					staker.nodeOwnerAddr,
-					[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], staker.nodeKey, staker.nodeOwnerKey},
+					[]*secp256k1.PrivateKey{test.FundedKeys[0], staker.nodeKey, staker.nodeOwnerKey},
 				)
 				require.NoError(err)
 			}
 
-			for _, staker := range test.subnetStakers {
+			for _, staker := range tt.subnetStakers {
 				tx, err := env.txBuilder.NewAddSubnetValidatorTx(
 					10, // Weight
 					uint64(staker.startTime.Unix()),
 					uint64(staker.endTime.Unix()),
 					staker.nodeID, // validator ID
 					subnetID,      // Subnet ID
-					[]*secp256k1.PrivateKey{caminoPreFundedKeys[0], caminoPreFundedKeys[1], staker.nodeKey},
+					[]*secp256k1.PrivateKey{test.FundedKeys[0], test.FundedKeys[1], staker.nodeKey},
 					ids.ShortEmpty,
 				)
 				require.NoError(err)
@@ -246,7 +247,7 @@ func TestDeferredStakers(t *testing.T) {
 			env.state.SetHeight(dummyHeight)
 			require.NoError(env.state.Commit())
 
-			for _, newTime := range test.advanceTimeTo {
+			for _, newTime := range tt.advanceTimeTo {
 				env.clk.Set(newTime)
 				tx, err := env.txBuilder.NewAdvanceTimeTx(newTime)
 				require.NoError(err)
@@ -264,52 +265,56 @@ func TestDeferredStakers(t *testing.T) {
 					Tx:            tx,
 				}
 				require.NoError(tx.Unsigned.Visit(&executor))
-				executor.OnCommitState.Apply(env.state)
+				require.NoError(executor.OnCommitState.Apply(env.state))
 
 				env.state.SetHeight(dummyHeight)
 				require.NoError(env.state.Commit())
 
-				for _, staker := range test.deferredStakers {
+				for _, staker := range tt.deferredStakers {
 					if newTime == staker.deferTime {
-						_, err = deferValidator(env, staker.nodeOwnerAddr, caminoPreFundedKeys[0])
+						_, err = deferValidator(env, staker.nodeOwnerAddr, test.FundedKeys[0])
 						require.NoError(err)
 					}
 				}
 			}
 
-			for stakerNodeID, status := range test.expectedStakers {
+			for stakerNodeID, status := range tt.expectedStakers {
 				switch status {
 				case pending:
 					_, err := env.state.GetPendingValidator(constants.PrimaryNetworkID, stakerNodeID)
 					require.NoError(err)
-					require.False(validators.Contains(env.config.Validators, constants.PrimaryNetworkID, stakerNodeID))
+					_, ok := env.config.Validators.GetValidator(constants.PrimaryNetworkID, stakerNodeID)
+					require.False(ok)
 				case current:
 					_, err := env.state.GetCurrentValidator(constants.PrimaryNetworkID, stakerNodeID)
 					require.NoError(err)
-					require.True(validators.Contains(env.config.Validators, constants.PrimaryNetworkID, stakerNodeID))
+					_, ok := env.config.Validators.GetValidator(constants.PrimaryNetworkID, stakerNodeID)
+					require.True(ok)
 				case expired:
 					_, err := env.state.GetCurrentValidator(constants.PrimaryNetworkID, stakerNodeID)
-					require.Error(err)
+					require.ErrorIs(err, database.ErrNotFound)
 					_, err = env.state.GetPendingValidator(constants.PrimaryNetworkID, stakerNodeID)
-					require.Error(err)
+					require.ErrorIs(err, database.ErrNotFound)
 				}
 			}
 
-			for stakerNodeID, status := range test.expectedSubnetStakers {
+			for stakerNodeID, status := range tt.expectedSubnetStakers {
 				switch status {
 				case pending:
 					_, err := env.state.GetPendingValidator(subnetID, stakerNodeID)
 					require.NoError(err)
-					require.False(validators.Contains(env.config.Validators, subnetID, stakerNodeID))
+					_, ok := env.config.Validators.GetValidator(subnetID, stakerNodeID)
+					require.False(ok)
 				case current:
 					_, err := env.state.GetCurrentValidator(subnetID, stakerNodeID)
 					require.NoError(err)
-					require.True(validators.Contains(env.config.Validators, subnetID, stakerNodeID))
+					_, ok := env.config.Validators.GetValidator(subnetID, stakerNodeID)
+					require.True(ok)
 				case expired:
 					_, err := env.state.GetCurrentValidator(subnetID, stakerNodeID)
-					require.Error(err)
+					require.ErrorIs(err, database.ErrNotFound)
 					_, err = env.state.GetPendingValidator(subnetID, stakerNodeID)
-					require.Error(err)
+					require.ErrorIs(err, database.ErrNotFound)
 				}
 			}
 		})
@@ -374,7 +379,8 @@ func deferValidator(env *caminoEnvironment, nodeOwnerAddress ids.ShortID, key *s
 	tx, err := env.txBuilder.NewAddressStateTx(
 		nodeOwnerAddress,
 		false,
-		txs.AddressStateBitNodeDeferred,
+		as.AddressStateBitNodeDeferred,
+		key.Address(),
 		[]*secp256k1.PrivateKey{key},
 		outputOwners,
 	)
@@ -399,7 +405,9 @@ func deferValidator(env *caminoEnvironment, nodeOwnerAddress ids.ShortID, key *s
 		return nil, err
 	}
 
-	executor.State.Apply(env.state)
+	if err := executor.State.Apply(env.state); err != nil {
+		return nil, err
+	}
 
 	if err := env.state.Commit(); err != nil {
 		return nil, err

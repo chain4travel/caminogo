@@ -34,6 +34,8 @@ var (
 	errUnexpectedTimeout = errors.New("unexpected timeout fired")
 )
 
+// Invariant: The VM is not guaranteed to be initialized until Start has been
+// called, so it must be guaranteed the VM is not used until after Start.
 type bootstrapper struct {
 	Config
 
@@ -81,7 +83,7 @@ type bootstrapper struct {
 	bootstrappedOnce sync.Once
 }
 
-func New(ctx context.Context, config Config, onFinished func(ctx context.Context, lastReqID uint32) error) (common.BootstrapableEngine, error) {
+func New(config Config, onFinished func(ctx context.Context, lastReqID uint32) error) (common.BootstrapableEngine, error) {
 	metrics, err := newMetrics("bs", config.Ctx.Registerer)
 	if err != nil {
 		return nil, err
@@ -103,16 +105,6 @@ func New(ctx context.Context, config Config, onFinished func(ctx context.Context
 		executedStateTransitions: math.MaxInt32,
 	}
 
-	b.parser = &parser{
-		log:         config.Ctx.Log,
-		numAccepted: b.numAccepted,
-		numDropped:  b.numDropped,
-		vm:          b.VM,
-	}
-	if err := b.Blocked.SetParser(ctx, b.parser); err != nil {
-		return nil, err
-	}
-
 	config.Bootstrapable = b
 	b.Bootstrapper = common.NewCommonBootstrapper(config.Config)
 
@@ -129,6 +121,16 @@ func (b *bootstrapper) Start(ctx context.Context, startReqID uint32) error {
 	if err := b.VM.SetState(ctx, snow.Bootstrapping); err != nil {
 		return fmt.Errorf("failed to notify VM that bootstrapping has started: %w",
 			err)
+	}
+
+	b.parser = &parser{
+		log:         b.Ctx.Log,
+		numAccepted: b.numAccepted,
+		numDropped:  b.numDropped,
+		vm:          b.VM,
+	}
+	if err := b.Blocked.SetParser(ctx, b.parser); err != nil {
+		return err
 	}
 
 	// Set the starting height
@@ -249,7 +251,7 @@ func (b *bootstrapper) Connected(ctx context.Context, nodeID ids.NodeID, nodeVer
 		return err
 	}
 	// Ensure fetchFrom reflects proper validator list
-	if b.Beacons.Contains(nodeID) {
+	if _, ok := b.Beacons.GetValidator(b.Ctx.SubnetID, nodeID); ok {
 		b.fetchFrom.Add(nodeID)
 	}
 
@@ -293,6 +295,10 @@ func (*bootstrapper) Gossip(context.Context) error {
 
 func (b *bootstrapper) Shutdown(ctx context.Context) error {
 	b.Ctx.Log.Info("shutting down bootstrapper")
+
+	b.Ctx.Lock.Lock()
+	defer b.Ctx.Lock.Unlock()
+
 	return b.VM.Shutdown(ctx)
 }
 
@@ -309,6 +315,9 @@ func (b *bootstrapper) Notify(_ context.Context, msg common.Message) error {
 }
 
 func (b *bootstrapper) HealthCheck(ctx context.Context) (interface{}, error) {
+	b.Ctx.Lock.Lock()
+	defer b.Ctx.Lock.Unlock()
+
 	vmIntf, vmErr := b.VM.HealthCheck(ctx)
 	intf := map[string]interface{}{
 		"consensus": struct{}{},
@@ -403,7 +412,10 @@ func (b *bootstrapper) markUnavailable(nodeID ids.NodeID) {
 	}
 }
 
-func (b *bootstrapper) Clear() error {
+func (b *bootstrapper) Clear(context.Context) error {
+	b.Ctx.Lock.Lock()
+	defer b.Ctx.Lock.Unlock()
+
 	if err := b.Config.Blocked.Clear(); err != nil {
 		return err
 	}
@@ -456,7 +468,6 @@ func (b *bootstrapper) process(ctx context.Context, blk snowman.Block, processin
 		}
 
 		pushed, err := b.Blocked.Push(ctx, &blockJob{
-			parser:      b.parser,
 			log:         b.Ctx.Log,
 			numAccepted: b.numAccepted,
 			numDropped:  b.numDropped,

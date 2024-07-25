@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 //
 // This file is a derived work, based on ava-labs code whose
 // original notices appear below.
@@ -36,7 +36,7 @@ func TestBuild(t *testing.T) {
 	tlsCert, err := staking.NewTLSCert()
 	require.NoError(err)
 
-	cert := tlsCert.Leaf
+	cert := staking.CertificateFromX509(tlsCert.Leaf)
 	key := tlsCert.PrivateKey.(crypto.Signer)
 
 	builtBlock, err := Build(
@@ -56,11 +56,10 @@ func TestBuild(t *testing.T) {
 	require.Equal(timestamp, builtBlock.Timestamp())
 	require.Equal(innerBlockBytes, builtBlock.Block())
 
-	err = builtBlock.Verify(true, chainID)
-	require.NoError(err)
+	require.NoError(builtBlock.Verify(true, chainID))
 
 	err = builtBlock.Verify(false, chainID)
-	require.Error(err)
+	require.ErrorIs(err, errUnexpectedProposer)
 }
 
 func TestBuildUnsigned(t *testing.T) {
@@ -80,11 +79,10 @@ func TestBuildUnsigned(t *testing.T) {
 	require.Equal(innerBlockBytes, builtBlock.Block())
 	require.Equal(ids.EmptyNodeID, builtBlock.Proposer())
 
-	err = builtBlock.Verify(false, ids.Empty)
-	require.NoError(err)
+	require.NoError(builtBlock.Verify(false, ids.Empty))
 
 	err = builtBlock.Verify(true, ids.Empty)
-	require.Error(err)
+	require.ErrorIs(err, errMissingProposer)
 }
 
 func TestBuildHeader(t *testing.T) {

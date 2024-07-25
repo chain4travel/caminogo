@@ -1,4 +1,4 @@
-// Copyright (C) 2022, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1
@@ -66,15 +66,14 @@ func newCertAndKeyBytesWithNoExt() ([]byte, []byte, error) {
 }
 
 func getPublicKey(t *testing.T, tlsCert *tls.Certificate) []byte {
-	secp256Factory := Factory{}
 	var nodePrivateKey *PrivateKey
 
 	rsaPrivateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok)
 	secpPrivateKey := RsaPrivateKeyToSecp256PrivateKey(rsaPrivateKey)
-	nodePrivateKey, err := secp256Factory.ToPrivateKey(secpPrivateKey.Serialize())
+	nodePrivateKey, err := ToPrivateKey(secpPrivateKey.Serialize())
 	require.NoError(t, err)
-	return nodePrivateKey.PublicKey().Address().Bytes()
+	return nodePrivateKey.Address().Bytes()
 }
 
 func TestRecoverSecp256PublicKey(t *testing.T) {

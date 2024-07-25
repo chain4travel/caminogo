@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023, Chain4Travel AG. All rights reserved.
+// Copyright (C) 2022-2024, Chain4Travel AG. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package utxo
@@ -38,7 +38,7 @@ var (
 	errInputsUTXOsMismatch       = errors.New("number of inputs is different from number of utxos")
 	errBadCredentials            = errors.New("bad credentials")
 	errNotBurnedEnough           = errors.New("burned less tokens, than needed to")
-	errAssetIDMismatch           = errors.New("utxo/input/output assetID is different from expected asset id")
+	errUnexpectedAssetID         = errors.New("utxo/input/output assetID is different from expected asset id")
 	errLockIDsMismatch           = errors.New("input lock ids is different from utxo lock ids")
 	errFailToGetDeposit          = errors.New("couldn't get deposit")
 	errLockedUTXO                = errors.New("can't spend locked utxo")
@@ -361,7 +361,13 @@ func (h *handler) Lock(
 			if toOwnerID != nil {
 				lockedOwnerID = OwnerID{to, toOwnerID}
 			}
-			if changeOwnerID != nil && !h.isMultisigTransferOutput(utxoDB, innerOut) {
+
+			isNestedMsig, err := h.fx.IsNestedMultisig(&innerOut.OutputOwners, utxoDB)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			if changeOwnerID != nil && !isNestedMsig {
 				remainingOwnerID = OwnerID{change, changeOwnerID}
 			}
 		}
@@ -532,7 +538,7 @@ func (h *handler) Unlock(
 		for i, output := range outputs {
 			lockedOut, ok := output.Out.(*locked.Out)
 			if !ok || !lockedOut.IsNewlyLockedWith(removedLockState) {
-				// we'r only intersed in outs locked by this tx
+				// we'r only interested in outs locked by this tx
 				continue
 			}
 			innerOut, ok := lockedOut.TransferableOut.(*secp256k1fx.TransferOutput)
@@ -636,7 +642,7 @@ func (h *handler) UnlockDeposit(
 ) {
 	addrs := set.NewSet[ids.ShortID](len(keys)) // The addresses controlled by [keys]
 	for _, key := range keys {
-		addrs.Add(key.PublicKey().Address())
+		addrs.Add(key.Address())
 	}
 
 	depositTxSet := set.NewSet[ids.ID](len(depositTxIDs))
@@ -850,7 +856,7 @@ func (h *handler) VerifyLockUTXOs(
 				index,
 				utxoAssetID,
 				assetID,
-				errAssetIDMismatch,
+				errUnexpectedAssetID,
 			)
 		}
 
@@ -860,7 +866,7 @@ func (h *handler) VerifyLockUTXOs(
 				index,
 				inputAssetID,
 				assetID,
-				errAssetIDMismatch,
+				errUnexpectedAssetID,
 			)
 		}
 
@@ -938,7 +944,7 @@ func (h *handler) VerifyLockUTXOs(
 				index,
 				outputAssetID,
 				assetID,
-				errAssetIDMismatch,
+				errUnexpectedAssetID,
 			)
 		}
 
@@ -1096,7 +1102,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 				index,
 				utxoAssetID,
 				assetID,
-				errAssetIDMismatch,
+				errUnexpectedAssetID,
 			)
 		}
 
@@ -1106,7 +1112,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 				index,
 				inputAssetID,
 				assetID,
-				errAssetIDMismatch,
+				errUnexpectedAssetID,
 			)
 		}
 
@@ -1138,7 +1144,7 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 
 		if verifyCreds {
 			if err := h.fx.VerifyMultisigTransfer(tx, in, creds[index], out, msigState); err != nil {
-				return fmt.Errorf("failed to verify transfer: %w: %s", errCantSpend, err)
+				return fmt.Errorf("failed to verify transfer: %w: %w", errCantSpend, err)
 			}
 		} else if innerOut, ok := out.(*secp256k1fx.TransferOutput); !ok || innerOut.Amt != consumedAmount {
 			return fmt.Errorf("failed to verify transfer: %w", errUTXOOutTypeOrAmtMismatch)
@@ -1247,29 +1253,6 @@ func (h *handler) VerifyUnlockDepositedUTXOs(
 	return nil
 }
 
-func (*handler) isMultisigTransferOutput(utxoDB avax.UTXOReader, out verify.State) bool {
-	secpOut, ok := out.(*secp256k1fx.TransferOutput)
-	if !ok {
-		// Conversion should succeed, otherwise it will be handled by the caller
-		return false
-	}
-
-	// ! because currently there is no support for adding new msig aliases after genesis,
-	// ! we assume that state diffs won't contain any changes to msig aliases state
-	// ! that must be changed later
-	state, ok := utxoDB.(state.CaminoDiff)
-	if !ok {
-		return false
-	}
-
-	for _, addr := range secpOut.Addrs {
-		if _, err := state.GetMultisigAlias(addr); err == nil {
-			return true
-		}
-	}
-	return false
-}
-
 type innerSortUTXOs struct {
 	utxos          []*avax.UTXO
 	allowedAssetID ids.ID
@@ -1366,7 +1349,7 @@ func getDepositUnlockableAmounts(
 	for depositTxID := range depositTxIDs {
 		deposit, err := chainState.GetDeposit(depositTxID)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s", errFailToGetDeposit, err)
+			return nil, fmt.Errorf("%w: %w", errFailToGetDeposit, err)
 		}
 
 		depositOffer, err := chainState.GetDepositOffer(deposit.DepositOfferID)
