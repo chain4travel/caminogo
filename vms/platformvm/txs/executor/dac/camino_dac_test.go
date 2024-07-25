@@ -211,7 +211,7 @@ func TestProposalVerifierAddMemberProposal(t *testing.T) {
 		"Applicant address is consortium member": {
 			state: func(c *gomock.Controller, utx *txs.AddProposalTx) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetAddressStates(applicantAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(applicantAddress).Return(as.AddressStateConsortium, nil)
 				return s
 			},
 			utx: func() *txs.AddProposalTx {
@@ -327,7 +327,7 @@ func TestProposalExecutorAddMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(applicantAddress).Return(applicantAddressState, nil)
-				s.EXPECT().SetAddressStates(applicantAddress, applicantAddressState|as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(applicantAddress, applicantAddressState|as.AddressStateConsortium)
 				return s
 			},
 			proposal: &dac.AddMemberProposalState{
@@ -408,7 +408,7 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 		"Proposer is not consortium member": {
 			state: func(c *gomock.Controller, utx *txs.AddProposalTx) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateEmpty, nil)
 				return s
 			},
@@ -428,8 +428,8 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 		"Proposer doesn't have registered node": {
 			state: func(c *gomock.Controller, utx *txs.AddProposalTx) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
-				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
+				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.ProposerAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortEmpty, database.ErrNotFound)
 				return s
 			},
@@ -449,8 +449,8 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 		"Proposer doesn't have active validator": {
 			state: func(c *gomock.Controller, utx *txs.AddProposalTx) *state.MockDiff {
 				s := state.NewMockDiff(c)
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
-				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
+				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.ProposerAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, memberNodeID).Return(nil, database.ErrNotFound)
 				return s
@@ -476,8 +476,8 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 				proposalsIterator.EXPECT().Value().Return(&dac.ExcludeMemberProposalState{MemberAddress: memberAddress}, nil)
 				proposalsIterator.EXPECT().Release()
 
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
-				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
+				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.ProposerAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, memberNodeID).Return(memberValidator, nil)
 				s.EXPECT().GetProposalIterator().Return(proposalsIterator, nil)
@@ -504,7 +504,7 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 				proposalsIterator.EXPECT().Release()
 				proposalsIterator.EXPECT().Error().Return(nil)
 
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetProposalIterator().Return(proposalsIterator, nil)
 				return s
 			},
@@ -529,8 +529,8 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 				proposalsIterator.EXPECT().Release()
 				proposalsIterator.EXPECT().Error().Return(nil)
 
-				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortiumMember, nil)
-				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortiumMember, nil)
+				s.EXPECT().GetAddressStates(memberAddress).Return(as.AddressStateConsortium, nil)
+				s.EXPECT().GetAddressStates(utx.ProposerAddress).Return(as.AddressStateConsortium, nil)
 				s.EXPECT().GetShortIDLink(utx.ProposerAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().GetCurrentValidator(constants.PrimaryNetworkID, memberNodeID).Return(memberValidator, nil)
 				s.EXPECT().GetProposalIterator().Return(proposalsIterator, nil)
@@ -569,7 +569,7 @@ func TestProposalVerifierExcludeMemberProposal(t *testing.T) {
 
 func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 	memberAddress := ids.ShortID{1}
-	memberAddressState := as.AddressStateCaminoProposer | as.AddressStateConsortiumMember // just not only c-member
+	memberAddressState := as.AddressStateCaminoProposer | as.AddressStateConsortium // just not only c-member
 	memberNodeShortID := ids.ShortID{2}
 	memberNodeID := ids.NodeID(memberNodeShortID)
 	memberValidator := &state.Staker{TxID: ids.ID{3}}
@@ -583,7 +583,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(memberAddress).Return(memberAddressState, nil)
-				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortium)
 				s.EXPECT().GetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().SetShortIDLink(memberNodeShortID, state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode, nil)
@@ -605,7 +605,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(memberAddress).Return(memberAddressState, nil)
-				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortium)
 				s.EXPECT().GetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().SetShortIDLink(memberNodeShortID, state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode, nil)
@@ -626,7 +626,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(memberAddress).Return(memberAddressState, nil)
-				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortium)
 				s.EXPECT().GetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().SetShortIDLink(memberNodeShortID, state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode, nil)
@@ -646,7 +646,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(memberAddress).Return(memberAddressState, nil)
-				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortium)
 				s.EXPECT().GetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode).Return(memberNodeShortID, nil)
 				s.EXPECT().SetShortIDLink(memberNodeShortID, state.ShortLinkKeyRegisterNode, nil)
 				s.EXPECT().SetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode, nil)
@@ -665,7 +665,7 @@ func TestProposalExecutorExcludeMemberProposal(t *testing.T) {
 			state: func(c *gomock.Controller) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().GetAddressStates(memberAddress).Return(memberAddressState, nil)
-				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortiumMember)
+				s.EXPECT().SetAddressStates(memberAddress, memberAddressState^as.AddressStateConsortium)
 				s.EXPECT().GetShortIDLink(memberAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortEmpty, database.ErrNotFound)
 				return s
 			},
