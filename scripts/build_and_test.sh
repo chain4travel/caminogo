@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# Avalanche root directory
+# Camino root directory
 CAMINOGO_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd .. && pwd )
 
 "$CAMINOGO_PATH"/scripts/build.sh

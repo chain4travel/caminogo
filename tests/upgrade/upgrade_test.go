@@ -32,15 +32,15 @@ var (
 func init() {
 	flag.StringVar(
 		&avalancheGoExecPath,
-		"avalanchego-path",
+		"caminogo-path",
 		"",
-		"avalanchego executable path",
+		"caminogo executable path",
 	)
 	flag.StringVar(
 		&avalancheGoExecPathToUpgradeTo,
-		"avalanchego-path-to-upgrade-to",
+		"caminogo-path-to-upgrade-to",
 		"",
-		"avalanchego executable path to upgrade to",
+		"caminogo executable path to upgrade to",
 	)
 }
 

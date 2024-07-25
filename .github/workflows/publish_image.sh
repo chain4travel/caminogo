@@ -7,23 +7,23 @@ if [[ -z "$DOCKER_USERNAME"  ]]; then
   exit 0;
 fi
 
-# Avalanche root directory
-AVALANCHE_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd ../.. && pwd )
+# Camino root directory
+CAMINO_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )"; cd ../.. && pwd )
 
 # Load the constants
-source "$AVALANCHE_PATH"/scripts/constants.sh
+source "$CAMINO_PATH"/scripts/constants.sh
 
-# Build current avalanchego
-source "$AVALANCHE_PATH"/scripts/build_image.sh -r
+# Build current caminogo
+source "$CAMINO_PATH"/scripts/build_image.sh -r
 
 if [[ $current_branch == "master" ]]; then
-  echo "Tagging current avalanchego image as $avalanchego_dockerhub_repo:latest"
-  docker tag $avalanchego_dockerhub_repo:$current_branch $avalanchego_dockerhub_repo:latest
+  echo "Tagging current caminogo image as $camino_node_dockerhub_repo:latest"
+  docker tag "$camino_node_dockerhub_repo:$current_branch" "$camino_node_dockerhub_repo:latest"
 fi
 
-echo "Pushing: $avalanchego_dockerhub_repo:$current_branch"
+echo "Pushing: $camino_node_dockerhub_repo:$current_branch"
 
 echo "$DOCKER_PASS" | docker login --username "$DOCKER_USERNAME" --password-stdin
 
 ## pushing image with tags
-docker image push -a $avalanchego_dockerhub_repo
+docker image push -a "$camino_node_dockerhub_repo"
