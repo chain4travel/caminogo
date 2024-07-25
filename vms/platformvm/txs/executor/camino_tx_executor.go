@@ -627,7 +627,7 @@ func (e *CaminoProposalTxExecutor) RewardValidatorTx(tx *txs.RewardValidatorTx) 
 		if err != nil {
 			return err
 		}
-		e.OnCommitState.SetAddressStates(nodeOwnerAddressOnAbort, nodeOwnerAddressStateOnAbort&^as.AddressStateNodeDeferred)
+		e.OnAbortState.SetAddressStates(nodeOwnerAddressOnAbort, nodeOwnerAddressStateOnAbort&^as.AddressStateNodeDeferred)
 	}
 
 	txID := e.Tx.ID()
