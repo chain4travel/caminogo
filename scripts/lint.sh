@@ -36,33 +36,20 @@ function test_golangci_lint {
   golangci-lint run --config .golangci.yml
 }
 
-# find_go_files [package]
-# all go files except generated ones
-function find_go_files {
-  local target="${1}"
-  go fmt -n "${target}"  | grep -Eo "([^ ]*)$" | grep -vE "(\\.pb\\.go|\\.pb\\.gw.go)"
-}
-
 # automatically checks license headers
-# to modify the file headers (if missing), remove "--check" flag
-# TESTS='license_header' ADDLICENSE_FLAGS="-v" ./scripts/lint.sh
-# _addlicense_flags=${ADDLICENSE_FLAGS:-"--check -v"}
-# function _test_license_header {
-#   go install -v github.com/google/addlicense@latest
-#   local target="${1}"
-#   local files=()
-#   while IFS= read -r line; do files+=("$line"); done < <(find_go_files "${target}")
+# to modify the file headers (if missing), remove "--verify" flag
+# TESTS='license_header' ./scripts/lint.sh
+function test_license_header {
+  go install -v github.com/chain4travel/camino-license@v0.0.1
+  # TODO: use directory instead of files and do these exclusions from camino-license configuration
+  local files=()
+  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go' ! -name 'camino_mock_*.go' | grep -v '^./tools/camino-network-runner/')
 
-#   # ignore 3rd party code
-#   addlicense \
-#   -f ./LICENSE.header \
-#   "${_addlicense_flags}" \
-#   --ignore 'utils/ip_test.go' \
-#   --ignore 'utils/logging/highlight.go' \
-#   --ignore 'utils/ulimit/ulimit_non_unix.go.go' \
-#   --ignore 'utils/ulimit/ulimit_unix.go' \
-#   "${files[@]}"
-# }
+  # shellcheck disable=SC2086
+  camino-license check\
+  --config=./header.yaml \
+  "${files[@]}"
+}
 
 function test_single_import {
   if grep -R -zo -P --exclude-dir='camino-network-runner' 'import \(\n\t".*"\n\)' .; then
