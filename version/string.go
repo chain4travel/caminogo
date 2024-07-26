@@ -25,8 +25,8 @@ var String string
 func init() {
 	goVersion := runtime.Version()
 	goVersionNumber := strings.TrimPrefix(goVersion, "go")
-	String = fmt.Sprintf("%s [git %s, %s; database: %s, rpcchainvm %d, go: %s]\n",
-		CurrentApp,
+	String = fmt.Sprintf("caminogo: %s [git %s, %s; database: %s, rpcchainvm %d, go: %s]\n",
+		Current,
 		GitVersion,
 		GitCommit,
 		CurrentDatabase,

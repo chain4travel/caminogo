@@ -55,7 +55,7 @@ source ./scripts/constants.sh
 #################################
 echo "building upgrade.test"
 # to install the ginkgo binary (required for test build and run)
-go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1
+go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.4.0
 ACK_GINKGO_RC=true ginkgo build ./tests/upgrade
 ./tests/upgrade/upgrade.test --help
 
