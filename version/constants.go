@@ -145,16 +145,16 @@ var (
 
 	// TODO: update this before release
 	BerlinPhaseTimes = map[uint32]time.Time{
-		constants.KopernikusID: time.Date(2023, time.July, 4, 13, 0, 0, 0, time.UTC),
-		constants.ColumbusID:   time.Date(2023, time.July, 7, 8, 0, 0, 0, time.UTC),
-		constants.CaminoID:     time.Date(2023, time.July, 17, 8, 0, 0, 0, time.UTC),
+		constants.KopernikusID: time.Date(2025, time.July, 4, 13, 0, 0, 0, time.UTC),
+		constants.ColumbusID:   time.Date(2025, time.July, 7, 8, 0, 0, 0, time.UTC),
+		constants.CaminoID:     time.Date(2025, time.July, 17, 8, 0, 0, 0, time.UTC),
 	}
-	BerlinPhaseDefaultTime = time.Date(2023, time.July, 1, 8, 0, 0, 0, time.UTC)
+	BerlinPhaseDefaultTime = time.Date(2025, time.July, 1, 8, 0, 0, 0, time.UTC)
 
 	// TODO: update this before release, must be exactly the same as Berlin
 	CortinaTimes = map[uint32]time.Time{
-		constants.MainnetID: time.Date(2023, time.April, 25, 15, 0, 0, 0, time.UTC),
-		constants.FujiID:    time.Date(2023, time.April, 6, 15, 0, 0, 0, time.UTC),
+		constants.MainnetID: time.Date(2025, time.July, 17, 8, 0, 0, 0, time.UTC),
+		constants.FujiID:    time.Date(2025, time.July, 7, 8, 0, 0, 0, time.UTC),
 	}
 	CortinaXChainStopVertexID map[uint32]ids.ID
 
