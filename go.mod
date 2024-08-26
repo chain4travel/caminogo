@@ -141,4 +141,4 @@ require (
 
 replace github.com/ava-labs/avalanche-ledger-go => github.com/chain4travel/camino-ledger-go v0.0.13-c4t
 
-replace github.com/ava-labs/coreth => github.com/chain4travel/caminoethvm v1.1.0-rc9.0.20240823154304-4ccdc278d4a2
+replace github.com/ava-labs/coreth => github.com/chain4travel/caminoethvm v1.1.0-rc11

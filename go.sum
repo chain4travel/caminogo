@@ -99,8 +99,8 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
-github.com/chain4travel/caminoethvm v1.1.0-rc9.0.20240823154304-4ccdc278d4a2 h1:oZXQ4Uh8WWWovwy8KBYJ7PRMQuqCOrYKgpawv1VNBdA=
-github.com/chain4travel/caminoethvm v1.1.0-rc9.0.20240823154304-4ccdc278d4a2/go.mod h1:UqYeExLmuw9fp8ZqOz52bN8l6o6OhgEcdRsX/Q0C5B8=
+github.com/chain4travel/caminoethvm v1.1.0-rc11 h1:VrtBEpxDF85sT66+nts8/bR9U0YOMn2bDRLFuz59jpQ=
+github.com/chain4travel/caminoethvm v1.1.0-rc11/go.mod h1:UqYeExLmuw9fp8ZqOz52bN8l6o6OhgEcdRsX/Q0C5B8=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
