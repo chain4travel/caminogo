@@ -190,7 +190,7 @@ var (
 
 	// TODO @evlekht update this before release
 	BerlinPhaseTimes = map[uint32]time.Time{
-		constants.KopernikusID: time.Date(2024, time.October, 22, 13, 0, 0, 0, time.UTC),
+		constants.KopernikusID: time.Date(2024, time.October, 23, 8, 0, 0, 0, time.UTC),
 		constants.ColumbusID:   unreachableFutureTime,
 		constants.CaminoID:     unreachableFutureTime,
 	}
@@ -200,7 +200,7 @@ var (
 		constants.MainnetID: time.Date(2023, time.April, 25, 15, 0, 0, 0, time.UTC),
 		constants.FujiID:    time.Date(2023, time.April, 6, 15, 0, 0, 0, time.UTC),
 
-		constants.KopernikusID: time.Date(2024, time.October, 22, 13, 0, 0, 0, time.UTC),
+		constants.KopernikusID: time.Date(2024, time.October, 23, 8, 0, 0, 0, time.UTC),
 		constants.ColumbusID:   unreachableFutureTime,
 		constants.CaminoID:     unreachableFutureTime,
 	}
