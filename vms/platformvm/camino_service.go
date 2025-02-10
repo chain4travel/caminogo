@@ -448,6 +448,68 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 	return nil
 }
 
+type UndepositArgs struct {
+	api.JSONFromAddrs
+
+	DepositTxIDs []ids.ID            `json:"depositTxIDs"`
+	Encoding     formatting.Encoding `json:"encoding"`
+}
+
+type UndepositReply struct {
+	Ins     string          `json:"ins"`
+	Outs    string          `json:"outs"`
+	Signers [][]ids.ShortID `json:"signers"`
+}
+
+func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response *UndepositReply) error {
+	s.vm.ctx.Log.Debug("Platform: Undeposit called")
+
+	privKeys, err := s.getFakeKeys(&args.JSONFromAddrs)
+	if err != nil {
+		return err
+	}
+	if len(privKeys) == 0 {
+		return errNoKeys
+	}
+
+	ins, outs, signers, err := s.vm.txBuilder.UnlockDeposit(
+		s.vm.state,
+		privKeys,
+		args.DepositTxIDs,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errCreateTransferables, err)
+	}
+
+	bytes, err := txs.Codec.Marshal(txs.Version, ins)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errSerializeTransferables, err)
+	}
+
+	if response.Ins, err = formatting.Encode(args.Encoding, bytes); err != nil {
+		return fmt.Errorf("%w: %s", errEncodeTransferables, err)
+	}
+
+	bytes, err = txs.Codec.Marshal(txs.Version, outs)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errSerializeTransferables, err)
+	}
+
+	if response.Outs, err = formatting.Encode(args.Encoding, bytes); err != nil {
+		return fmt.Errorf("%w: %s", errEncodeTransferables, err)
+	}
+
+	response.Signers = make([][]ids.ShortID, len(signers))
+	for i, cred := range signers {
+		response.Signers[i] = make([]ids.ShortID, len(cred))
+		for j, sig := range cred {
+			response.Signers[i][j] = sig.Address()
+		}
+	}
+
+	return nil
+}
+
 type RegisterNodeArgs struct {
 	api.UserPass
 	api.JSONFromAddrs
