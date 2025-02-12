@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
-	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	testState "github.com/ava-labs/avalanchego/vms/platformvm/state/test"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
@@ -344,94 +343,6 @@ func TestNewAddSubnetValidatorTx(t *testing.T) {
 				tt.keys,
 				tt.change,
 			)
-			require.ErrorIs(err, tt.expectedErr)
-			if err != nil {
-				require.Nil(tx)
-				return
-			}
-			expectedTx, err := txs.NewSigned(tt.utx, txs.Codec, tt.signers)
-			require.NoError(err)
-			require.NoError(expectedTx.SyntacticVerify(b.ctx))
-			require.Equal(expectedTx, tx)
-		})
-	}
-}
-
-func TestNewUnlockDepositTx(t *testing.T) {
-	ctx := test.Context(t)
-
-	fundsKey := test.FundedKeys[0]
-	fundsAddr := fundsKey.Address()
-	fundsOwner := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{fundsAddr}}
-
-	depositTxID := ids.ID{1, 1}
-	bondTxID := ids.ID{2, 2}
-	offerID := ids.ID{3, 3}
-
-	depositedAmount := uint64(100)
-	unlockedAmount := depositedAmount / 2
-
-	unlockedUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.TxFee, fundsOwner, ids.Empty, ids.Empty, false)
-	depositedUTXO := generate.UTXO(ids.ID{2}, ctx.AVAXAssetID, depositedAmount/4, fundsOwner, depositTxID, ids.Empty, false)
-	depositedBondedUTXO := generate.UTXO(ids.ID{3}, ctx.AVAXAssetID, depositedAmount/4, fundsOwner, depositTxID, bondTxID, false)
-
-	tests := map[string]struct {
-		state        func(*gomock.Controller) state.State
-		depositTxIDs []ids.ID
-		keys         []*secp256k1.PrivateKey
-		change       *secp256k1fx.OutputOwners
-		utx          *txs.UnlockDepositTx
-		signers      [][]*secp256k1.PrivateKey
-		expectedErr  error
-	}{
-		"OK": {
-			state: func(ctrl *gomock.Controller) state.State {
-				s := state.NewMockState(ctrl)
-				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				expect.UnlockDeposit(t, s,
-					map[ids.ID]*deposits.Deposit{
-						depositTxID: {
-							DepositOfferID: offerID,
-							Start:          test.GenesisTimestamp,
-							UnlockedAmount: unlockedAmount,
-							Amount:         depositedAmount,
-						},
-					},
-					[]*deposits.Offer{{ID: offerID}},
-					[]ids.ShortID{fundsAddr},
-					[]*avax.UTXO{depositedUTXO, depositedBondedUTXO},
-					locked.StateDeposited,
-				)
-				expect.Lock(t, s, map[ids.ShortID][]*avax.UTXO{fundsAddr: {unlockedUTXO, depositedUTXO, depositedBondedUTXO}})
-				return s
-			},
-			depositTxIDs: []ids.ID{depositTxID},
-			keys:         []*secp256k1.PrivateKey{fundsKey},
-			utx: &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-				NetworkID:    ctx.NetworkID,
-				BlockchainID: ctx.ChainID,
-				Ins: []*avax.TransferableInput{
-					generate.InFromUTXO(t, unlockedUTXO, []uint32{0}, false),
-					generate.InFromUTXO(t, depositedUTXO, []uint32{0}, false),
-					generate.InFromUTXO(t, depositedBondedUTXO, []uint32{0}, false),
-				},
-				Outs: []*avax.TransferableOutput{
-					generate.OutFromUTXO(t, depositedUTXO, ids.Empty, ids.Empty),
-					generate.OutFromUTXO(t, depositedBondedUTXO, ids.Empty, bondTxID),
-				},
-			}}},
-			signers: [][]*secp256k1.PrivateKey{
-				{fundsKey}, {fundsKey}, {fundsKey},
-			},
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-			ctrl := gomock.NewController(t)
-			b := newCaminoBuilder(t, tt.state(ctrl), nil, test.PhaseLast)
-
-			tx, err := b.NewUnlockDepositTx(tt.depositTxIDs, tt.keys, tt.change)
 			require.ErrorIs(err, tt.expectedErr)
 			if err != nil {
 				require.Nil(tx)

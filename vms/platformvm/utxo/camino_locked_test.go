@@ -1374,7 +1374,7 @@ func TestUnlockDeposit(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			got, got1, got2, err := testHandler.UnlockDeposit(tt.args.state(ctrl), tt.args.keys, tt.args.depositTxIDs)
+			got, got1, got2, _, err := testHandler.UnlockDeposit(tt.args.state(ctrl), tt.args.keys, tt.args.depositTxIDs) // TODO@ owners
 			if tt.err != nil {
 				require.ErrorContains(t, err, tt.err.Error())
 				return

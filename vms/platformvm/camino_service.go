@@ -451,6 +451,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 type UndepositArgs struct {
 	api.JSONFromAddrs
 
+	AmountToBurn utilsjson.Uint64    `json:"amountToBurn"`
 	DepositTxIDs []ids.ID            `json:"depositTxIDs"`
 	Encoding     formatting.Encoding `json:"encoding"`
 }
@@ -459,6 +460,7 @@ type UndepositReply struct {
 	Ins     string          `json:"ins"`
 	Outs    string          `json:"outs"`
 	Signers [][]ids.ShortID `json:"signers"`
+	Owners  string          `json:"owners"`
 }
 
 func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response *UndepositReply) error {
@@ -472,7 +474,7 @@ func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response
 		return errNoKeys
 	}
 
-	ins, outs, signers, err := s.vm.txBuilder.UnlockDeposit(
+	depositIns, depositOuts, depositSigners, depositOwners, err := s.vm.txBuilder.UnlockDeposit(
 		s.vm.state,
 		privKeys,
 		args.DepositTxIDs,
@@ -480,6 +482,28 @@ func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response
 	if err != nil {
 		return fmt.Errorf("%w: %s", errCreateTransferables, err)
 	}
+
+	ins, outs, signers, owners, err := s.vm.txBuilder.Lock(
+		s.vm.state,
+		privKeys,
+		0,
+		uint64(args.AmountToBurn),
+		locked.StateUnlocked,
+		nil,
+		nil,
+		0,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errCreateTransferables, err)
+	}
+
+	ins = append(ins, depositIns...)
+	outs = append(outs, depositOuts...)
+	signers = append(signers, depositSigners...)
+	owners = append(owners, depositOwners...)
+
+	avax.SortTransferableInputsWithSigners(ins, signers)
+	avax.SortTransferableOutputs(outs, txs.Codec)
 
 	bytes, err := txs.Codec.Marshal(txs.Version, ins)
 	if err != nil {
@@ -505,6 +529,14 @@ func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response
 		for j, sig := range cred {
 			response.Signers[i][j] = sig.Address()
 		}
+	}
+
+	bytes, err = txs.Codec.Marshal(txs.Version, owners)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errSerializeOwners, err)
+	}
+	if response.Owners, err = formatting.Encode(args.Encoding, bytes); err != nil {
+		return fmt.Errorf("%w: %s", errSerializeOwners, err)
 	}
 
 	return nil

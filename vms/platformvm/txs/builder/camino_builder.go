@@ -80,12 +80,6 @@ type CaminoTxBuilder interface {
 		change *secp256k1fx.OutputOwners,
 	) (*txs.Tx, error)
 
-	NewUnlockDepositTx(
-		depositTxIDs []ids.ID,
-		keys []*secp256k1.PrivateKey,
-		change *secp256k1fx.OutputOwners,
-	) (*txs.Tx, error)
-
 	NewClaimTx(
 		claimables []txs.ClaimAmount,
 		claimTo *secp256k1fx.OutputOwners,
@@ -402,56 +396,6 @@ func (b *caminoBuilder) NewDepositTx(
 			Threshold: 1,
 			Addrs:     []ids.ShortID{rewardAddress},
 		},
-	}
-
-	tx, err := txs.NewSigned(utx, txs.Codec, signers)
-	if err != nil {
-		return nil, err
-	}
-	return tx, tx.SyntacticVerify(b.ctx)
-}
-
-func (b *caminoBuilder) NewUnlockDepositTx(
-	depositTxIDs []ids.ID,
-	keys []*secp256k1.PrivateKey,
-	change *secp256k1fx.OutputOwners,
-) (*txs.Tx, error) {
-	caminoGenesis, err := b.state.CaminoConfig()
-	if err != nil {
-		return nil, err
-	}
-	if !caminoGenesis.LockModeBondDeposit {
-		return nil, errWrongLockMode
-	}
-
-	// unlocking
-	ins, outs, signers, err := b.UnlockDeposit(b.state, keys, depositTxIDs)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
-	// burning fee
-	feeIns, feeOuts, feeSigners, _, err := b.Lock(b.state, keys, 0, b.cfg.TxFee, locked.StateUnlocked, nil, change, 0)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't generate tx inputs/outputs: %w", err)
-	}
-
-	ins = append(ins, feeIns...)
-	outs = append(outs, feeOuts...)
-	signers = append(signers, feeSigners...)
-
-	// we need to sort ins/outs/signers before using them in tx
-	// UnlockDeposit returns unsorted results and we appended arrays
-	avax.SortTransferableInputsWithSigners(ins, signers)
-	avax.SortTransferableOutputs(outs, txs.Codec)
-
-	utx := &txs.UnlockDepositTx{
-		BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    b.ctx.NetworkID,
-			BlockchainID: b.ctx.ChainID,
-			Ins:          ins,
-			Outs:         outs,
-		}},
 	}
 
 	tx, err := txs.NewSigned(utx, txs.Codec, signers)
