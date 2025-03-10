@@ -17,6 +17,9 @@ import (
 func TestUnlockDepositTxSyntacticVerify(t *testing.T) {
 	ctx := defaultContext()
 
+	depositTxID := ids.ID{1}
+	bondTxID := ids.ID{2}
+
 	tests := map[string]struct {
 		tx          *UnlockDepositTx
 		expectedErr error
@@ -27,7 +30,8 @@ func TestUnlockDepositTxSyntacticVerify(t *testing.T) {
 				BlockchainID: ctx.ChainID,
 				Ins: []*avax.TransferableInput{
 					generate.In(ctx.AVAXAssetID, 1, ids.Empty, ids.Empty, []uint32{}),
-					generate.In(ctx.AVAXAssetID, 1, ids.ID{1}, ids.Empty, []uint32{}),
+					generate.In(ctx.AVAXAssetID, 1, depositTxID, ids.Empty, []uint32{}),
+					generate.In(ctx.AVAXAssetID, 1, depositTxID, bondTxID, []uint32{}),
 				},
 				Outs: []*avax.TransferableOutput{},
 			}}},
