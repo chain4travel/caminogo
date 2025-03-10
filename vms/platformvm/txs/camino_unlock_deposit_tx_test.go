@@ -59,6 +59,16 @@ func TestUnlockDepositTxSyntacticVerify(t *testing.T) {
 			}}},
 			expectedErr: locked.ErrWrongOutType,
 		},
+		"Bonded & not deposited input": {
+			tx: &UnlockDepositTx{BaseTx: BaseTx{BaseTx: avax.BaseTx{
+				NetworkID:    ctx.NetworkID,
+				BlockchainID: ctx.ChainID,
+				Ins: []*avax.TransferableInput{
+					generate.In(ctx.AVAXAssetID, 1, ids.Empty, bondTxID, []uint32{}),
+				},
+			}}},
+			expectedErr: errNotDepositedLockedInput,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
