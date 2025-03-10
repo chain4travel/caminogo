@@ -40,10 +40,11 @@ import (
 const (
 	maxStakingDuration = 365 * 24 * time.Hour
 
-	MinStakingDuration = 24 * time.Hour
-	ValidatorWeight    = 2 * units.KiloAvax
-	PreFundedBalance   = 100 * ValidatorWeight
-	TxFee              = uint64(100)
+	MinStakingDuration    = 24 * time.Hour
+	ValidatorWeight       = 2 * units.KiloAvax
+	PreFundedBalance      = 100 * ValidatorWeight
+	TxFee                 = uint64(100)
+	DACProposalBondAmount = 100 * units.Avax
 )
 
 var (
@@ -83,6 +84,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 	switch phase {
 	case PhaseD:
 		dTime = LatestPhaseTime
+		fallthrough
 	case PhaseCairo:
 		cairoTime = LatestPhaseTime
 		fallthrough
@@ -130,7 +132,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		CairoPhaseTime:         cairoTime,
 		DPhaseTime:             dTime,
 		CaminoConfig: caminoconfig.Config{
-			DACProposalBondAmount: 100 * units.Avax,
+			DACProposalBondAmount: DACProposalBondAmount,
 		},
 	}
 }
