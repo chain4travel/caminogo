@@ -3585,15 +3585,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 		DepositOfferID: depositOffer.ID,
 	}
 
-	deposit1StartUnlockTime := deposit1.StartTime().
-		Add(time.Duration(deposit1.Duration) * time.Second).
-		Add(-time.Duration(depositOffer.UnlockPeriodDuration) * time.Second)
-	deposit1HalfUnlockTime := deposit1.StartTime().
-		Add(time.Duration(deposit1.Duration) * time.Second).
-		Add(-time.Duration(depositOffer.UnlockPeriodDuration/2) * time.Second)
-	deposit1Expired := deposit1.StartTime().
-		Add(time.Duration(deposit1.Duration) * time.Second)
-
+	deposit1HalfUnlockTime := deposit1.StartUnlockTime(depositOffer).Add(depositOffer.UnlockPeriodDurationNano() / 2)
 	deposit1HalfUnlockableAmount := deposit1.UnlockableAmount(depositOffer, uint64(deposit1HalfUnlockTime.Unix()))
 	deposit2HalfUnlockableAmount := deposit2.UnlockableAmount(depositOffer, uint64(deposit1HalfUnlockTime.Unix()))
 
@@ -3624,7 +3616,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1StartUnlockTime.Add(-1 * time.Second))
+				s.EXPECT().GetTimestamp().Return(deposit1.StartUnlockTime(depositOffer).Add(-time.Second))
 				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
 				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, deposit1UTXO},
@@ -3650,7 +3642,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				s.EXPECT().GetDeposit(depositTxID1).Return(deposit1, nil)
 				return s
 			},
@@ -3664,7 +3656,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				s.EXPECT().GetDeposit(depositTxID1).Return(deposit1, nil)
 				return s
 			},
@@ -3678,7 +3670,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				s.EXPECT().GetDeposit(depositTxID2).Return(deposit2, nil)
 				s.EXPECT().GetDeposit(depositTxID1).Return(deposit1, nil)
 				return s
@@ -3693,7 +3685,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{deposit1UTXO},
 					[]ids.ShortID{
@@ -3741,7 +3733,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			state: func(t *testing.T, c *gomock.Controller, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				s.EXPECT().GetDeposit(depositTxID1).Return(deposit1, nil)
 				return s
 			},
@@ -3783,7 +3775,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s := state.NewMockDiff(c)
 				// checks
 				s.EXPECT().CaminoConfig().Return(&state.CaminoConfig{LockModeBondDeposit: true}, nil)
-				s.EXPECT().GetTimestamp().Return(deposit1Expired)
+				s.EXPECT().GetTimestamp().Return(deposit1.EndTime())
 				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{deposit1WithRewardUTXO},
 					[]ids.ShortID{
@@ -3793,10 +3785,9 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s.EXPECT().GetDeposit(depositWithRewardTxID1).Return(deposit1WithReward, nil).Times(2)
 				s.EXPECT().GetDepositOffer(deposit1WithReward.DepositOfferID).Return(depositOfferWithReward, nil)
 				s.EXPECT().GetClaimable(owner1ID).Return(&state.Claimable{Owner: &owner1}, nil)
-				remainingReward := deposit1WithReward.TotalReward(depositOfferWithReward) - deposit1WithReward.ClaimedRewardAmount
 				s.EXPECT().SetClaimable(owner1ID, &state.Claimable{
 					Owner:                &owner1,
-					ExpiredDepositReward: remainingReward,
+					ExpiredDepositReward: deposit1WithReward.RemainingReward(depositOfferWithReward),
 				})
 				s.EXPECT().RemoveDeposit(depositWithRewardTxID1, deposit1WithReward)
 				// state update: ins/outs/utxos
