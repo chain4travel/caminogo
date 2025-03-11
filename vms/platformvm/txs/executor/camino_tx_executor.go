@@ -106,7 +106,6 @@ var (
 	errNotPermittedToCreateProposal      = errors.New("don't have permission to create proposal of this type")
 	errZeroDepositOfferLimits            = errors.New("deposit offer TotalMaxAmount and TotalMaxRewardAmount are zero")
 	errAddrStateNotChanged               = errors.New("address state wasn't changed")
-	errDepositExpired                    = errors.New("deposit is expired")
 	errNotDepositedInput                 = errors.New("input is not deposited")
 	errNotCairoPhase                     = errors.New("not allowed before CairoPhase")
 	errDepositNotExpired                 = errors.New("deposit is not expired")

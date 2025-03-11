@@ -108,7 +108,7 @@ func (*txMetrics) FinishProposalsTx(*txs.FinishProposalsTx) error {
 	return nil
 }
 
-func (m *txMetrics) UnlockExpiredDepositTx(*txs.UnlockExpiredDepositTx) error {
+func (*txMetrics) UnlockExpiredDepositTx(*txs.UnlockExpiredDepositTx) error {
 	return nil
 }
 
