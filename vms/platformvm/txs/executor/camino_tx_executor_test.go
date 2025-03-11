@@ -8377,7 +8377,7 @@ func TestCaminoStandardTxExecutorUnlockExpiredDepositTx(t *testing.T) {
 		InterestRateNominator: deposit.InterestRateDenominator,
 	}
 	depositOffer3 := &deposit.Offer{
-		ID:                    ids.ID{2},
+		ID:                    ids.ID{3},
 		InterestRateNominator: deposit.InterestRateDenominator,
 	}
 	deposit1 := &deposit.Deposit{
@@ -8393,7 +8393,7 @@ func TestCaminoStandardTxExecutorUnlockExpiredDepositTx(t *testing.T) {
 		RewardOwner:         &rewardOwner1,
 	}
 	deposit3 := &deposit.Deposit{
-		DepositOfferID:      depositOffer2.ID,
+		DepositOfferID:      depositOffer3.ID,
 		Duration:            100,
 		ClaimedRewardAmount: 31,
 		Amount:              13, // depositedUTXO3
@@ -8612,7 +8612,6 @@ func TestCaminoStandardTxExecutorUnlockExpiredDepositTx(t *testing.T) {
 				s.EXPECT().GetClaimable(claimableOwnerID2).Return(nil, database.ErrNotFound)
 				s.EXPECT().SetClaimable(claimableOwnerID2, &state.Claimable{
 					Owner:                &rewardOwner2,
-					ValidatorReward:      0,
 					ExpiredDepositReward: deposit3.TotalReward(depositOffer3) - deposit3.ClaimedRewardAmount,
 				})
 
