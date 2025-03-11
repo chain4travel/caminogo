@@ -344,18 +344,17 @@ func StateGetBondTxIDs(
 	for i, proposalID := range tx.SuccessfulProposalIDs() {
 		dacProposal := proposals[i]
 		s.EXPECT().GetProposal(proposalID).Return(dacProposal, nil)
-		switch proposal := dacProposal.(type) {
-		case *dac.ExcludeMemberProposalState:
-			if accepted, _, _ := proposal.Result(); !accepted {
+		if excludeMemberProposalState, ok := dacProposal.(*dac.ExcludeMemberProposalState); ok {
+			if accepted, _, _ := excludeMemberProposalState.Result(); !accepted {
 				continue
 			}
 			if nodeIDs[j] == ids.EmptyNodeID {
-				s.EXPECT().GetShortIDLink(proposal.MemberAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortEmpty, database.ErrNotFound)
+				s.EXPECT().GetShortIDLink(excludeMemberProposalState.MemberAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortEmpty, database.ErrNotFound)
 				j++
 				continue
 			}
 
-			s.EXPECT().GetShortIDLink(proposal.MemberAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortID(nodeIDs[j]), nil)
+			s.EXPECT().GetShortIDLink(excludeMemberProposalState.MemberAddress, state.ShortLinkKeyRegisterNode).Return(ids.ShortID(nodeIDs[j]), nil)
 
 			if validatorTxIDs[j] == ids.Empty {
 				s.EXPECT().GetPendingValidator(constants.PrimaryNetworkID, nodeIDs[j]).Return(nil, database.ErrNotFound)
