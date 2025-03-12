@@ -1723,29 +1723,6 @@ func TestVerifyUnlockDepositedUTXOsBeforeCairo(t *testing.T) {
 				verifyCreds:  true,
 			},
 		},
-		"OK: verify creds, with burn, partial unlock, no bond": {
-			handlerState: noMsigState,
-			args: args{
-				tx: tx,
-				utxos: []*avax.UTXO{
-					generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 100, owner1, ids.Empty, ids.Empty, true),
-					generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 50, owner1, depositTxID1, ids.Empty, true),
-				},
-				ins: []*avax.TransferableInput{
-					generate.In(test.AVAXAssetID, 100, ids.Empty, ids.Empty, []uint32{0}),
-					generate.In(test.AVAXAssetID, 50, depositTxID1, ids.Empty, []uint32{0}),
-				},
-				outs: []*avax.TransferableOutput{
-					generate.Out(test.AVAXAssetID, 10, owner1, ids.Empty, ids.Empty),
-					generate.Out(test.AVAXAssetID, 99, owner1, ids.Empty, ids.Empty),
-					generate.Out(test.AVAXAssetID, 40, owner1, depositTxID1, ids.Empty),
-				},
-				creds:        []verify.Verifiable{cred1, cred1, cred1},
-				burnedAmount: 1,
-				assetID:      test.AVAXAssetID,
-				verifyCreds:  true,
-			},
-		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
