@@ -2205,7 +2205,6 @@ func TestSortUTXOs(t *testing.T) {
 	}
 }
 
-// TODO@ move to api PR?
 // VerifyUnlockDepositedUTXOs requires outputs to be sorted exactly, that unlocked outs will go first
 func TestAVAXSortTransferableOutputsUnlockedFirst(t *testing.T) {
 	owner1 := secp256k1fx.OutputOwners{
