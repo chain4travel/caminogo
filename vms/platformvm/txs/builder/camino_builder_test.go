@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
+	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
 	"github.com/ava-labs/avalanchego/vms/platformvm/state"
 	testState "github.com/ava-labs/avalanchego/vms/platformvm/state/test"
 	"github.com/ava-labs/avalanchego/vms/platformvm/status"
