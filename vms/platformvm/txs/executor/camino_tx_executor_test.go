@@ -3817,7 +3817,8 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			phase:       test.PhaseBerlin,
 			expectedErr: errNoUnlock,
 		},
-		"Before Cairo/OK: no deposited input": { // we have such txs in network already
+		// we have such txs in network already
+		"Before Cairo/OK: no deposited input": {
 			state: func(t *testing.T, c *gomock.Controller, phase test.Phase, cfg *config.Config, utx *txs.UnlockDepositTx, txID ids.ID) *state.MockDiff {
 				s := state.NewMockDiff(c)
 				// checks
@@ -4039,7 +4040,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 					DepositOfferID: offer.ID,
 				}
 				depositHalfUnlockTime := deposit1.StartUnlockTime(offer).Add(offer.UnlockPeriodDurationNano() / 2)
-				s.EXPECT().GetTimestamp().Return(depositHalfUnlockTime).Times(2)
+				s.EXPECT().GetTimestamp().Return(depositHalfUnlockTime)
 				s.EXPECT().GetBaseFee().Return(test.TxFee, nil)
 				expect.VerifyUnlockDeposit(t, s, utx.Ins,
 					[]*avax.UTXO{feeUTXO, deposit1UTXO},
@@ -4139,7 +4140,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 					[]*avax.UTXO{feeUTXO, deposit1UTXO},
 					[]ids.ShortID{
 						feeOwnerAddr, owner1Addr, // consumed
-						feeOwnerAddr, owner1Addr, // produced unlocked
+						owner1Addr, // produced unlocked
 					}, nil)
 				s.EXPECT().GetDeposit(depositTxID1).Return(&deposit.Deposit{}, nil) // expired deposit
 				return s
@@ -4147,7 +4148,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			utx: func(p test.Phase, c *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
 					Ins:  generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
-					Outs: generate.OutsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}, ids.Empty, ids.Empty),
+					Outs: generate.OutsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}, ids.Empty, ids.Empty),
 				}}}
 			},
 			signers:     [][]*secp256k1.PrivateKey{{feeOwnerKey}, {owner1Key}},
