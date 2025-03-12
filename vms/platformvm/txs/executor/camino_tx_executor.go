@@ -848,7 +848,7 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 	for _, input := range tx.Ins {
 		lockedIn, ok := input.In.(*locked.In)
 		// bonded & not deposited inputs excluded in syntactic verification
-		if ok && lockedIn.DepositTxID != ids.Empty {
+		if ok {
 			deposit, err := e.State.GetDeposit(lockedIn.DepositTxID)
 			if err != nil {
 				return err
