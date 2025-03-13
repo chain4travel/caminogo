@@ -367,3 +367,20 @@ func StateGetBondTxIDs(
 		}
 	}
 }
+
+func GetDepositUnlockableAmounts(
+	t *testing.T,
+	s *state.MockChain,
+	depositTxIDs []ids.ID,
+	deposits []*deposit.Deposit,
+	offers []*deposit.Offer,
+) {
+	t.Helper()
+	require.Len(t, depositTxIDs, len(deposits))
+	for i := range depositTxIDs {
+		s.EXPECT().GetDeposit(depositTxIDs[i]).Return(deposits[i], nil)
+	}
+	for i := range offers {
+		s.EXPECT().GetDepositOffer(deposits[i].DepositOfferID).Return(offers[i], nil)
+	}
+}

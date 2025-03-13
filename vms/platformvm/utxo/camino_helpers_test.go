@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -51,7 +50,7 @@ func defaultCaminoHandler(t *testing.T) *caminoHandler {
 
 	return &caminoHandler{
 		handler: handler{
-			ctx: snow.DefaultContextTest(),
+			ctx: test.Context(t),
 			clk: clk,
 			fx:  fx,
 		},

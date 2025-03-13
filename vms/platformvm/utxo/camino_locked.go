@@ -49,6 +49,7 @@ var (
 	errInvalidToOwner            = errors.New("invalid to-owner")
 	errInvalidChangeOwner        = errors.New("invalid change owner")
 	errNewBondOwner              = errors.New("can't create bond for new owner")
+	errInsufficientUnlockable    = errors.New("insufficient unlockable amount")
 )
 
 // Creates UTXOs from [outs] and adds them to the UTXO set.
@@ -679,7 +680,7 @@ func (h *handler) unlockUTXOs(
 	return ins, outs, nil
 }
 
-// TODO@ think of including fee burn here, so we can
+// TODO@ safe math
 func (h *handler) UnlockDeposit(
 	state state.Chain,
 	keys []*secp256k1.PrivateKey,
@@ -692,7 +693,7 @@ func (h *handler) UnlockDeposit(
 	[]*secp256k1fx.OutputOwners, // owners
 	error,
 ) {
-	addrs := set.NewSet[ids.ShortID](len(keys)) // The addresses controlled by [keys]
+	addrs := set.NewSet[ids.ShortID](len(keys)) // addresses controlled by [keys]
 	for _, key := range keys {
 		addrs.Add(key.Address())
 	}
@@ -702,7 +703,7 @@ func (h *handler) UnlockDeposit(
 		depositTxSet.Add(depositTxID)
 	}
 
-	// Minimum time this transaction will be issued at
+	// earliest time this transaction will be issued at
 	currentTimestamp := uint64(h.clk.Time().Unix())
 
 	unlockableAmounts, err := getDepositUnlockableAmounts(
@@ -712,7 +713,11 @@ func (h *handler) UnlockDeposit(
 		return nil, nil, nil, nil, err
 	}
 
-	// TODO@ make sure that all deposits have enough amount to unlock
+	for depositTxID, amount := range amountsToUndeposit {
+		if unlockableAmounts[depositTxID] < amount {
+			return nil, nil, nil, nil, errInsufficientUnlockable
+		}
+	}
 
 	utxos, err := state.LockedUTXOs(depositTxSet, addrs, locked.StateDeposited)
 	if err != nil {
@@ -721,23 +726,23 @@ func (h *handler) UnlockDeposit(
 
 	// TODO@ sort utxos with small amts first
 
-	kc := secp256k1fx.NewKeychain(keys...) // Keychain consumes UTXOs and creates new ones
+	kc := secp256k1fx.NewKeychain(keys...)
 
 	newUndepositOwner, err := h.GetOwnerWithID(state, undepositToOwner)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: %s", errInvalidToOwner, err)
 	}
 
-	// TODO maybe swap ownerID and depositTxID
-	undepositedAmounts := map[ids.ID]map[ids.ID]uint64{} // ownerID -> depositTxID -> amount
-	// TODO@ remained amounts with both lock IDs ?
+	type OwnerAmounts struct {
+		amounts    map[locked.IDs]uint64 // depositTxID, bondTxID -> amount ; ids might be empty
+		secpOwners *secp256k1fx.OutputOwners
+	}
+	produced := make(map[ids.ID]*OwnerAmounts) // ownerID -> OwnerAmounts
 
 	ins := []*avax.TransferableInput{}
 	outs := []*avax.TransferableOutput{}
 	signers := [][]*secp256k1.PrivateKey{}
 	owners := []*secp256k1fx.OutputOwners{} // owners of consumed utxos
-
-	// TODO@ use undeposit.Amount, see Lock for example, maybe? also verifier
 
 	for _, utxo := range utxos {
 		out, ok := utxo.Out.(*locked.Out)
@@ -750,7 +755,8 @@ func (h *handler) UnlockDeposit(
 			continue
 		}
 
-		if amountsToUndeposit[out.DepositTxID] == 0 {
+		amountToUndeposit := amountsToUndeposit[out.DepositTxID]
+		if amountToUndeposit == 0 {
 			// already undeposited all we needed from this deposit
 			continue
 		}
@@ -765,7 +771,6 @@ func (h *handler) UnlockDeposit(
 			continue
 		}
 
-		// TODO@ maybe we only need ownerID?
 		undepositOwner := ownerWithID{&innerOut.OutputOwners, outOwnerID}
 		if newUndepositOwner != nil {
 			undepositOwner = *newUndepositOwner
@@ -781,7 +786,6 @@ func (h *handler) UnlockDeposit(
 			continue
 		}
 
-		// Add the input to the consumed inputs
 		ins = append(ins, &avax.TransferableInput{
 			UTXOID: avax.UTXOID{
 				TxID:        utxo.TxID,
@@ -796,65 +800,55 @@ func (h *handler) UnlockDeposit(
 
 		remainingValue := in.Amount()
 
-		amountToUndeposit := math.Min(amountsToUndeposit[out.DepositTxID], remainingValue) // amount undeposited from this input
-
-		undepositedAmounts[undepositOwner.id][out.DepositTxID] += amountToUndeposit
+		// amount that will be undeposited from this input, always > 0
+		amountToUndeposit = math.Min(amountToUndeposit, remainingValue)
 		remainingValue -= amountToUndeposit
+
+		// amounts map that will be produced by owner
+		// (either original utxo owner or newUndepositOwner)
+		ownerProducedAmounts, ok := produced[undepositOwner.id]
+		if !ok {
+			ownerProducedAmounts = &OwnerAmounts{
+				amounts:    make(map[locked.IDs]uint64),
+				secpOwners: undepositOwner.secpOwners,
+			}
+			produced[undepositOwner.id] = ownerProducedAmounts
+		}
+
+		ownerProducedAmounts.amounts[out.Unlock(locked.StateDeposited)] += amountToUndeposit
+		if remainingValue > 0 {
+			ownerProducedAmounts.amounts[out.IDs] += remainingValue
+		}
+
 		amountsToUndeposit[out.DepositTxID] -= amountToUndeposit
 		if amountsToUndeposit[out.DepositTxID] == 0 {
 			delete(amountsToUndeposit, out.DepositTxID)
 		}
 
-		// TODO@ account remainingValue > 0, so we can create output for it
-		// TODO@ account undepositedAmount bondTxID, so we can create output for it
-
 		owners = append(owners, &innerOut.OutputOwners) // TODO@ make sure those are correct
 		signers = append(signers, inSigners)
-
-		// TODO@
-		// if newLockIDs := out.Unlock(locked.StateDeposited); newLockIDs.IsLocked() {
-		// 	outs = append(outs, &avax.TransferableOutput{
-		// 		Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
-		// 		Out: &locked.Out{
-		// 			IDs: newLockIDs,
-		// 			TransferableOut: &secp256k1fx.TransferOutput{
-		// 				Amt:          amountToUnlock,
-		// 				OutputOwners: innerOut.OutputOwners,
-		// 			},
-		// 		},
-		// 	})
-		// } else {
-		// 	outs = append(outs, &avax.TransferableOutput{
-		// 		Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
-		// 		Out: &secp256k1fx.TransferOutput{
-		// 			Amt:          amountToUnlock,
-		// 			OutputOwners: innerOut.OutputOwners,
-		// 		},
-		// 	})
-		// }
-
-		// // This input had extra value, so some of it must be returned
-		// if remainingValue > 0 {
-		// 	outs = append(outs, &avax.TransferableOutput{
-		// 		Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
-		// 		Out: &locked.Out{
-		// 			IDs: out.IDs,
-		// 			TransferableOut: &secp256k1fx.TransferOutput{
-		// 				Amt:          remainingValue,
-		// 				OutputOwners: innerOut.OutputOwners,
-		// 			},
-		// 		},
-		// 	})
-		// }
 	}
 
 	if len(amountsToUndeposit) > 0 {
-		return nil, nil, nil, nil, errInsufficientBalance
+		return nil, nil, nil, nil, errInsufficientUnlockable
 	}
 
-	for ownerID, ownerAmounts := range undepositedAmounts {
-		for otherLockTxID, amount := range ownerAmounts {
-
+	for _, ownerAmounts := range produced {
+		for lockIDs, amount := range ownerAmounts.amounts {
+			var out avax.TransferableOut = &secp256k1fx.TransferOutput{
+				Amt:          amount,
+				OutputOwners: *ownerAmounts.secpOwners,
+			}
+			if lockIDs.IsLocked() {
+				out = &locked.Out{
+					IDs:             lockIDs,
+					TransferableOut: out,
+				}
+			}
+			outs = append(outs, &avax.TransferableOutput{
+				Asset: avax.Asset{ID: h.ctx.AVAXAssetID},
+				Out:   out,
+			})
 		}
 	}
 
