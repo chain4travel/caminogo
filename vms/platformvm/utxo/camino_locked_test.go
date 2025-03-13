@@ -1250,6 +1250,7 @@ func TestUnlockDeposit(t *testing.T) {
 	ctx := testHandler.ctx
 	testHandler.clk.Set(time.Now())
 
+	// TODO@ cleanup
 	testID := ids.GenerateTestID()
 	txID := ids.GenerateTestID()
 	depositedAmount := uint64(2000)
@@ -1265,9 +1266,9 @@ func TestUnlockDeposit(t *testing.T) {
 	nowMinus10m := uint64(testHandler.clk.Time().Add(-10 * time.Minute).Unix())
 
 	type args struct {
-		state        func(*gomock.Controller) state.Chain
-		keys         []*secp256k1.PrivateKey
-		depositTxIDs []ids.ID
+		state      func(*gomock.Controller) state.Chain
+		keys       []*secp256k1.PrivateKey
+		undeposits map[ids.ID]uint64
 	}
 	sigIndices := []uint32{0}
 
@@ -1298,8 +1299,8 @@ func TestUnlockDeposit(t *testing.T) {
 					s.EXPECT().LockedUTXOs(depositTxSet, gomock.Any(), locked.StateDeposited).Return(nil, fmt.Errorf("%w: %s", state.ErrMissingParentState, testID))
 					return s
 				},
-				keys:         test.FundedKeys,
-				depositTxIDs: []ids.ID{testID},
+				keys:       test.FundedKeys,
+				undeposits: map[ids.ID]uint64{testID: 0}, // TODO@
 			},
 			err: fmt.Errorf("%w: %s", state.ErrMissingParentState, testID),
 		},
@@ -1325,8 +1326,8 @@ func TestUnlockDeposit(t *testing.T) {
 					s.EXPECT().GetMultisigAlias(test.FundedKeys[0].Address()).Return(nil, database.ErrNotFound)
 					return s
 				},
-				keys:         []*secp256k1.PrivateKey{test.FundedKeys[0]},
-				depositTxIDs: []ids.ID{testID},
+				keys:       []*secp256k1.PrivateKey{test.FundedKeys[0]},
+				undeposits: map[ids.ID]uint64{testID: 0}, // TODO@
 			},
 			want: []*avax.TransferableInput{
 				generate.InFromUTXO(t, depositedUTXOs[0], sigIndices, false),
@@ -1359,8 +1360,8 @@ func TestUnlockDeposit(t *testing.T) {
 					s.EXPECT().GetMultisigAlias(test.FundedKeys[0].Address()).Return(nil, database.ErrNotFound)
 					return s
 				},
-				keys:         []*secp256k1.PrivateKey{test.FundedKeys[0]},
-				depositTxIDs: []ids.ID{testID},
+				keys:       []*secp256k1.PrivateKey{test.FundedKeys[0]},
+				undeposits: map[ids.ID]uint64{testID: 0}, // TODO@
 			},
 			want: []*avax.TransferableInput{
 				generate.InFromUTXO(t, depositedUTXOs[0], sigIndices, false),
@@ -1374,7 +1375,7 @@ func TestUnlockDeposit(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			got, got1, got2, _, err := testHandler.UnlockDeposit(tt.args.state(ctrl), tt.args.keys, tt.args.depositTxIDs) // TODO@ owners
+			got, got1, got2, _, err := testHandler.UnlockDeposit(tt.args.state(ctrl), tt.args.keys, tt.args.undeposits) // TODO@ owners
 			if tt.err != nil {
 				require.ErrorContains(t, err, tt.err.Error())
 				return

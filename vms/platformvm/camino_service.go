@@ -448,11 +448,17 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 	return nil
 }
 
+type Undeposit struct {
+	Amount      utilsjson.Uint64 `json:"amount"`
+	DepositTxID ids.ID           `json:"depositTxID"`
+}
+
 type UndepositArgs struct {
 	api.JSONFromAddrs
 
+	UndepositTo  platformapi.Owner   `json:"undepositTo"`
 	AmountToBurn utilsjson.Uint64    `json:"amountToBurn"`
-	DepositTxIDs []ids.ID            `json:"depositTxIDs"`
+	Undeposits   []Undeposit         `json:"undeposits"`
 	Encoding     formatting.Encoding `json:"encoding"`
 }
 
@@ -463,6 +469,7 @@ type UndepositReply struct {
 	Owners  string          `json:"owners"`
 }
 
+// TODO@ see if we need to sort owners, test unlockDeposit owners; check with how caminojs uses them
 func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response *UndepositReply) error {
 	s.vm.ctx.Log.Debug("Platform: Undeposit called")
 
@@ -474,10 +481,21 @@ func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response
 		return errNoKeys
 	}
 
+	undepositTo, err := s.secpOwnerFromAPI(&args.UndepositTo)
+	if err != nil {
+		return err
+	}
+
+	undeposits := make(map[ids.ID]uint64, len(args.Undeposits))
+	for _, undeposit := range args.Undeposits {
+		undeposits[undeposit.DepositTxID] = uint64(undeposit.Amount)
+	}
+
 	depositIns, depositOuts, depositSigners, depositOwners, err := s.vm.txBuilder.UnlockDeposit(
 		s.vm.state,
 		privKeys,
-		args.DepositTxIDs,
+		undeposits,
+		undepositTo,
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %s", errCreateTransferables, err)
