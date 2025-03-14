@@ -3624,7 +3624,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1-1, owner1, depositTxID1, ids.Empty),
@@ -3647,7 +3647,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 				}}}
 			},
 			phase:       test.PhaseBerlin,
@@ -3665,7 +3665,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO, unlockedUTXOWithLargerTxID}),
+					Ins: generate.InsFromUTXOs(t, deposit1UTXO, unlockedUTXOWithLargerTxID),
 				}}}
 			},
 			phase:       test.PhaseBerlin,
@@ -3685,7 +3685,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit2UTXO, deposit1UTXOLargerTxID}),
+					Ins: generate.InsFromUTXOs(t, deposit2UTXO, deposit1UTXOLargerTxID),
 				}}}
 			},
 			phase:       test.PhaseBerlin,
@@ -3713,7 +3713,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, depositAmount1-1, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, 1, owner1, depositTxID1, ids.Empty),
@@ -3749,7 +3749,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, depositAmount1/2+1, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1/2-1, owner1, depositTxID1, ids.Empty),
@@ -3772,7 +3772,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, depositAmount1-1, owner1, ids.Empty, ids.Empty),
 					},
@@ -3806,7 +3806,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, lessFeeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, lessFeeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, lessFeeUTXO.Out.(avax.Amounter).Amount(), feeOwner, ids.Empty, ids.Empty),
 						generate.OutFromUTXO(t, deposit1UTXO, depositTxID1, ids.Empty),
@@ -3838,7 +3838,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(p test.Phase, c *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{moreFeeUTXO}),
+					Ins: generate.InsFromUTXOs(t, moreFeeUTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, moreFeeUTXO.Out.(avax.Amounter).Amount()-test.TxFee, feeOwner, ids.Empty, ids.Empty),
 					},
@@ -3882,7 +3882,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{deposit1WithRewardUTXO}),
+					Ins: generate.InsFromUTXOs(t, deposit1WithRewardUTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, depositAmount1, owner1, ids.Empty, ids.Empty),
 					},
@@ -3934,7 +3934,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(deposit2.DepositOfferID).Return(offer, nil)
 				s.EXPECT().ModifyDeposit(depositTxID2, &deposit.Deposit{
 					DepositOfferID:      deposit2.DepositOfferID,
-					UnlockedAmount:      deposit2.UnlockedAmount + deposit2.UnlockableAmount(offer, uint64(chainTime.Unix())),
+					UnlockedAmount:      deposit2.UnlockedAmount + deposit2.UnlockableAmountByTime(offer, chainTime),
 					ClaimedRewardAmount: deposit2.ClaimedRewardAmount,
 					Start:               deposit2.Start,
 					Duration:            deposit2.Duration,
@@ -3967,9 +3967,9 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				chainTime := deposit1.StartUnlockTime(offer).Add(offer.UnlockPeriodDurationNano() / 2)
 
 				unlockedDepositAmount1 := depositAmount1 / 2 // unlocking at half of deposit1 unlock period
-				unlockedDepositAmount2 := deposit2.UnlockableAmount(offer, uint64(chainTime.Unix()))
+				unlockedDepositAmount2 := deposit2.UnlockableAmountByTime(offer, chainTime)
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO, deposit2UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO, deposit2UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, unlockedDepositAmount1+unlockedDepositAmount2, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1-unlockedDepositAmount1, owner1, depositTxID1, ids.Empty),
@@ -4017,7 +4017,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, 1, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1-1, owner1, depositTxID1, ids.Empty),
@@ -4054,7 +4054,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, depositAmount1/2+1, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1/2-1, owner1, depositTxID1, ids.Empty),
@@ -4090,7 +4090,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(test.Phase, *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, lessFeeUTXO, deposit1UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, lessFeeUTXO, deposit1UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, lessFeeUTXO.Out.(avax.Amounter).Amount(), feeOwner, ids.Empty, ids.Empty),
 						generate.OutFromUTXO(t, deposit1UTXO, depositTxID1, ids.Empty),
@@ -4118,7 +4118,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(p test.Phase, c *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{moreFeeUTXO}),
+					Ins: generate.InsFromUTXOs(t, moreFeeUTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, moreFeeUTXO.Out.(avax.Amounter).Amount()-test.TxFee, feeOwner, ids.Empty, ids.Empty),
 					},
@@ -4147,7 +4147,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 			},
 			utx: func(p test.Phase, c *config.Config) *txs.UnlockDepositTx {
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins:  generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO}),
+					Ins:  generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO),
 					Outs: generate.OutsFromUTXOs(t, []*avax.UTXO{deposit1UTXO}, ids.Empty, ids.Empty),
 				}}}
 			},
@@ -4199,7 +4199,7 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				s.EXPECT().GetDepositOffer(deposit2.DepositOfferID).Return(offer, nil)
 				s.EXPECT().ModifyDeposit(depositTxID2, &deposit.Deposit{
 					DepositOfferID:      deposit2.DepositOfferID,
-					UnlockedAmount:      deposit2.UnlockedAmount + deposit2.UnlockableAmount(offer, uint64(chainTime.Unix())),
+					UnlockedAmount:      deposit2.UnlockedAmount + deposit2.UnlockableAmountByTime(offer, chainTime),
 					ClaimedRewardAmount: deposit2.ClaimedRewardAmount,
 					Start:               deposit2.Start,
 					Duration:            deposit2.Duration,
@@ -4232,9 +4232,9 @@ func TestCaminoStandardTxExecutorUnlockDepositTx(t *testing.T) {
 				chainTime := deposit1.StartUnlockTime(offer).Add(offer.UnlockPeriodDurationNano() / 2)
 
 				unlockedDepositAmount1 := depositAmount1 / 2 // unlocking at half of deposit1 unlock period
-				unlockedDepositAmount2 := deposit2.UnlockableAmount(offer, uint64(chainTime.Unix()))
+				unlockedDepositAmount2 := deposit2.UnlockableAmountByTime(offer, chainTime)
 				return &txs.UnlockDepositTx{BaseTx: txs.BaseTx{BaseTx: avax.BaseTx{
-					Ins: generate.InsFromUTXOs(t, []*avax.UTXO{feeUTXO, deposit1UTXO, deposit2UTXO}),
+					Ins: generate.InsFromUTXOs(t, feeUTXO, deposit1UTXO, deposit2UTXO),
 					Outs: []*avax.TransferableOutput{
 						generate.Out(test.AVAXAssetID, unlockedDepositAmount1+unlockedDepositAmount2, owner1, ids.Empty, ids.Empty),
 						generate.Out(test.AVAXAssetID, depositAmount1-unlockedDepositAmount1, owner1, depositTxID1, ids.Empty),
@@ -8796,7 +8796,7 @@ func TestCaminoStandardTxExecutorUnlockExpiredDepositTx(t *testing.T) {
 	require.Greater(t, deposit3.TotalReward(depositOffer3), deposit3.ClaimedRewardAmount)
 
 	unlockExpiredDepositTx := &txs.UnlockExpiredDepositTx{
-		Ins:  generate.InsFromUTXOs(t, []*avax.UTXO{depositedUTXO1}),
+		Ins:  generate.InsFromUTXOs(t, depositedUTXO1),
 		Outs: generate.OutsFromUTXOs(t, []*avax.UTXO{depositedUTXO1}, ids.Empty, ids.Empty),
 	}
 

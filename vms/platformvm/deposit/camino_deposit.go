@@ -70,6 +70,13 @@ func (deposit *Deposit) UnlockableAmount(offer *Offer, unlockTime uint64) uint64
 	return bigTotalUnlockableAmount.Uint64() - deposit.UnlockedAmount
 }
 
+// Returns amount of tokens that can be unlocked from [deposit] at [unlockTime] (seconds).
+//
+// Precondition: all args are valid in conjunction.
+func (deposit *Deposit) UnlockableAmountByTime(offer *Offer, unlockTime time.Time) uint64 {
+	return deposit.UnlockableAmount(offer, uint64(unlockTime.Unix()))
+}
+
 // Returns amount of tokens that can be claimed as reward for [deposit] at [claimetime] (seconds).
 //
 // Precondition: all args are valid in conjunction.

@@ -266,7 +266,7 @@ func InFromUTXO(t *testing.T, utxo *avax.UTXO, sigIndices []uint32, initID bool)
 	return input
 }
 
-func InsFromUTXOs(t *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+func InsFromUTXOs(t *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 	t.Helper()
 	return InsFromUTXOsWithSigIndices(t, utxos, []uint32{0})
 }

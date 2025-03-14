@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -718,7 +719,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 	tests := map[string]struct {
 		state            func(*gomock.Controller) *state.MockChain
 		utxos            []*avax.UTXO
-		ins              func(*testing.T, []*avax.UTXO) []*avax.TransferableInput
+		ins              func(*testing.T, ...*avax.UTXO) []*avax.TransferableInput
 		outs             []*avax.TransferableOutput
 		creds            []verify.Verifiable
 		mintedAmount     uint64
@@ -733,7 +734,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 		},
 		"Fail: Inputs length not equal credentials length": {
 			state: noMsigState,
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.In(test.AVAXAssetID, 10, ids.Empty, ids.Empty, []uint32{0}),
 				}
@@ -744,7 +745,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 		},
 		"Fail: Inputs length not equal UTXOs length": {
 			state: noMsigState,
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.In(test.AVAXAssetID, 10, ids.Empty, ids.Empty, []uint32{0}),
 				}
@@ -778,7 +779,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 			utxos: []*avax.UTXO{
 				generate.UTXO(ids.ID{1}, test.AVAXAssetID, 10, outputOwners1, ids.Empty, ids.Empty, true),
 			},
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.In(test.OtherAssetID, 10, ids.Empty, ids.Empty, []uint32{0}),
 				}
@@ -823,7 +824,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 			utxos: []*avax.UTXO{
 				generate.UTXO(ids.ID{1}, test.AVAXAssetID, 10, outputOwners1, ids.Empty, ids.Empty, true),
 			},
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.StakeableIn(test.AVAXAssetID, 10, 0, []uint32{0}),
 				}
@@ -857,7 +858,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 			utxos: []*avax.UTXO{
 				generate.UTXO(ids.ID{1}, test.AVAXAssetID, 10, outputOwners1, depositTxID1, ids.Empty, true),
 			},
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.In(test.AVAXAssetID, 10, depositTxID2, ids.Empty, []uint32{0}),
 				}
@@ -871,7 +872,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 			utxos: []*avax.UTXO{
 				generate.UTXO(ids.ID{1}, test.AVAXAssetID, 10, outputOwners1, depositTxID1, ids.Empty, true),
 			},
-			ins: func(_ *testing.T, utxos []*avax.UTXO) []*avax.TransferableInput {
+			ins: func(_ *testing.T, utxos ...*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
 					generate.In(test.AVAXAssetID, 10, ids.Empty, ids.Empty, []uint32{0}),
 				}
@@ -1110,7 +1111,7 @@ func TestVerifyLockUTXOs(t *testing.T) {
 
 			var ins []*avax.TransferableInput
 			if tt.ins != nil {
-				ins = tt.ins(t, tt.utxos)
+				ins = tt.ins(t, tt.utxos...)
 			}
 
 			err := testHandler.VerifyLockUTXOs(
@@ -1245,77 +1246,240 @@ func TestGetDepositUnlockableAmounts(t *testing.T) {
 	}
 }
 
-// TODO@ maybe fails randomly, check maps and stuff!
+// TODO@ fails randomly! check maps and sorting and etc!
 // TODO@ more test cases
 func TestUnlockDeposit(t *testing.T) {
-	depositOwnerKey, depositOwnerAddr, depositOwner := generate.KeyAndOwner(t, test.Keys[0])
+	depositOwnerKey1, depositOwnerAddr1, depositOwner1 := generate.KeyAndOwner(t, test.Keys[0])
+	// depositOwnerKey2, depositOwnerAddr2, depositOwner2 := generate.KeyAndOwner(t, test.Keys[1])
 
 	depositTxID1 := ids.ID{1}
-	offerID := ids.ID{2}
+	// depositTxID2 := ids.ID{2}
+	// bondTxID := ids.ID{3}
+	offerID := ids.ID{4}
+
 	depositAmount1 := uint64(2000)
+	// depositAmount2 := uint64(2000)
+	deposit1UTXO1 := generate.UTXO(ids.ID{5}, test.AVAXAssetID, depositAmount1/4, depositOwner1, depositTxID1, ids.Empty, true) // 25% of depositAmount1
+	deposit1UTXO2 := generate.UTXO(ids.ID{6}, test.AVAXAssetID, depositAmount1/4, depositOwner1, depositTxID1, ids.Empty, true) // 25% of depositAmount1
+	deposit1UTXO3 := generate.UTXO(ids.ID{7}, test.AVAXAssetID, depositAmount1/2, depositOwner1, depositTxID1, ids.Empty, true) // 50% of depositAmount1
+	deposit1UTXOs := []*avax.UTXO{deposit1UTXO1, deposit1UTXO2, deposit1UTXO3}
+
+	// deposit2UTXO1 := generate.UTXO(ids.ID{8}, test.AVAXAssetID, depositAmount2/4, depositOwner2, depositTxID2, ids.Empty, true)      // 25% of depositAmount2
+	// deposit2UTXO2 := generate.UTXO(ids.ID{9}, test.AVAXAssetID, depositAmount2/2, depositOwner2, depositTxID2, ids.Empty, true)      // 50% of depositAmount2
+	// deposit2BondedUTXO3 := generate.UTXO(ids.ID{10}, test.AVAXAssetID, depositAmount2/4, depositOwner2, depositTxID2, bondTxID, true) // 25% of depositAmount2
+
 	depositUnlockDuration := uint32(100)
 	offer := &deposit.Offer{UnlockPeriodDuration: depositUnlockDuration}
-	depositedUTXO := generate.UTXO(ids.ID{3}, test.AVAXAssetID, depositAmount1, depositOwner, depositTxID1, ids.Empty, true)
 
+	deposit1 := func(now time.Time, unlockPercent uint32) *deposit.Deposit {
+		return &deposit.Deposit{
+			DepositOfferID: offerID,
+			Start:          uint64(now.Add(-time.Duration(depositUnlockDuration*unlockPercent/100) * time.Second).Unix()), // half unlock time
+			Duration:       depositUnlockDuration,
+			Amount:         depositAmount1,
+		}
+	}
+
+	// deposit2 := func(now time.Time, unlockPercent uint32) *deposit.Deposit {
+	// 	return &deposit.Deposit{
+	// 		DepositOfferID: offerID,
+	// 		Start:          uint64(now.Add(-time.Duration(depositUnlockDuration*unlockPercent/100) * time.Second).Unix()), // half unlock time
+	// 		Duration:       depositUnlockDuration,
+	// 		Amount:         depositAmount12,
+	// 	}
+	// }
+
+	// TODO@ unlock percent
 	tests := map[string]struct {
 		state              func(*gomock.Controller, time.Time) state.Chain
 		keys               []*secp256k1.PrivateKey
-		amountsToUndeposit map[ids.ID]uint64
+		amountsToUndeposit func(time.Time) map[ids.ID]uint64
 		undepositToOwner   *secp256k1fx.OutputOwners
 		expectedIns        []*avax.TransferableInput
-		expectedOuts       []*avax.TransferableOutput
+		expectedOuts       func(time.Time) []*avax.TransferableOutput
 		expectedSigners    [][]*secp256k1.PrivateKey
 		expectedOwners     []*secp256k1fx.OutputOwners
 		expectedErr        error
 	}{
-		"OK: undeposit all available unlockable amount (50% of deposited)": {
+		"OK: undeposit all available unlockable amount (35%), use part of utxos": {
 			state: func(ctrl *gomock.Controller, now time.Time) state.Chain {
 				s := state.NewMockChain(ctrl)
 				expect.GetDepositUnlockableAmounts(t, s,
 					[]ids.ID{depositTxID1},
-					[]*deposit.Deposit{{
-						DepositOfferID: offerID,
-						Start:          uint64(now.Add(-time.Duration(depositUnlockDuration/2) * time.Second).Unix()), // half unlock time
-						Duration:       depositUnlockDuration,
-						Amount:         depositAmount1,
-					}},
+					[]*deposit.Deposit{deposit1(now, 35)}, // 35% unlockable
 					[]*deposit.Offer{offer},
 				)
 				s.EXPECT().LockedUTXOs(
 					set.Set[ids.ID]{depositTxID1: struct{}{}},
-					set.Set[ids.ShortID]{depositOwnerAddr: struct{}{}},
+					set.Set[ids.ShortID]{depositOwnerAddr1: struct{}{}},
 					locked.StateDeposited,
-				).Return([]*avax.UTXO{depositedUTXO}, nil)
-				s.EXPECT().GetMultisigAlias(depositOwnerAddr).Return(nil, database.ErrNotFound)
+				).Return(deposit1UTXOs, nil)
+				s.EXPECT().GetMultisigAlias(depositOwnerAddr1).Return(nil, database.ErrNotFound).Times(2) // per number of used utxos
 				return s
 			},
-			keys:               []*secp256k1.PrivateKey{depositOwnerKey},
-			amountsToUndeposit: map[ids.ID]uint64{depositTxID1: 1000},
-			expectedIns: []*avax.TransferableInput{
-				generate.InFromUTXO(t, depositedUTXO, []uint32{0}, false),
+			keys: []*secp256k1.PrivateKey{depositOwnerKey1},
+			amountsToUndeposit: func(now time.Time) map[ids.ID]uint64 {
+				return map[ids.ID]uint64{depositTxID1: deposit1(now, 35).UnlockableAmountByTime(offer, now)} // 35% unlockable
 			},
-			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(test.AVAXAssetID, depositAmount1/2, depositOwner, ids.Empty, ids.Empty),
-				generate.Out(test.AVAXAssetID, depositAmount1/2, depositOwner, depositTxID1, ids.Empty),
+			expectedIns: generate.InsFromUTXOs(t, deposit1UTXO1, deposit1UTXO2),
+			expectedOuts: func(now time.Time) []*avax.TransferableOutput {
+				unlockedAmount := deposit1(now, 35).UnlockableAmountByTime(offer, now)                                                      // 35% unlockable
+				remainingAmount := deposit1UTXO1.Out.(avax.Amounter).Amount() + deposit1UTXO2.Out.(avax.Amounter).Amount() - unlockedAmount // utxo3 is not used
+				return []*avax.TransferableOutput{
+					generate.Out(test.AVAXAssetID, unlockedAmount, depositOwner1, ids.Empty, ids.Empty),
+					generate.Out(test.AVAXAssetID, remainingAmount, depositOwner1, depositTxID1, ids.Empty),
+				}
 			},
-			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey}},
-			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner}, // TODO@
+			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey1}, {depositOwnerKey1}},
+			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner1, &depositOwner1},
+		},
+		"OK: undeposit almost all available unlockable amount (80%-1), use all utxos": {
+			state: func(ctrl *gomock.Controller, now time.Time) state.Chain {
+				s := state.NewMockChain(ctrl)
+				expect.GetDepositUnlockableAmounts(t, s,
+					[]ids.ID{depositTxID1},
+					[]*deposit.Deposit{deposit1(now, 80)}, // 80% unlockable
+					[]*deposit.Offer{offer},
+				)
+				s.EXPECT().LockedUTXOs(
+					set.Set[ids.ID]{depositTxID1: struct{}{}},
+					set.Set[ids.ShortID]{depositOwnerAddr1: struct{}{}},
+					locked.StateDeposited,
+				).Return(deposit1UTXOs, nil)
+				s.EXPECT().GetMultisigAlias(depositOwnerAddr1).Return(nil, database.ErrNotFound).Times(3) // per number of used utxos
+				return s
+			},
+			keys: []*secp256k1.PrivateKey{depositOwnerKey1},
+			amountsToUndeposit: func(now time.Time) map[ids.ID]uint64 {
+				return map[ids.ID]uint64{depositTxID1: deposit1(now, 80).UnlockableAmountByTime(offer, now) - 1} // 80% unlockable - 1
+			},
+			expectedIns: generate.InsFromUTXOs(t, deposit1UTXOs...),
+			expectedOuts: func(now time.Time) []*avax.TransferableOutput {
+				unlockedAmount := deposit1(now, 80).UnlockableAmountByTime(offer, now) - 1 // 80% unlockable - 1
+				return []*avax.TransferableOutput{
+					generate.Out(test.AVAXAssetID, unlockedAmount, depositOwner1, ids.Empty, ids.Empty),
+					generate.Out(test.AVAXAssetID, depositAmount1-unlockedAmount, depositOwner1, depositTxID1, ids.Empty),
+				}
+			},
+			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey1}, {depositOwnerKey1}, {depositOwnerKey1}},
+			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner1, &depositOwner1, &depositOwner1},
+		},
+		"OK: undeposit 1 nCAM, use 1 utxo": {
+			state: func(ctrl *gomock.Controller, now time.Time) state.Chain {
+				s := state.NewMockChain(ctrl)
+				expect.GetDepositUnlockableAmounts(t, s,
+					[]ids.ID{depositTxID1},
+					[]*deposit.Deposit{deposit1(now, 35)}, // 35% unlockable
+					[]*deposit.Offer{offer},
+				)
+				s.EXPECT().LockedUTXOs(
+					set.Set[ids.ID]{depositTxID1: struct{}{}},
+					set.Set[ids.ShortID]{depositOwnerAddr1: struct{}{}},
+					locked.StateDeposited,
+				).Return(deposit1UTXOs, nil)
+				s.EXPECT().GetMultisigAlias(depositOwnerAddr1).Return(nil, database.ErrNotFound) // per number of used utxos
+				return s
+			},
+			keys: []*secp256k1.PrivateKey{depositOwnerKey1},
+			amountsToUndeposit: func(now time.Time) map[ids.ID]uint64 {
+				return map[ids.ID]uint64{depositTxID1: 1}
+			},
+			expectedIns: generate.InsFromUTXOs(t, deposit1UTXO1),
+			expectedOuts: func(now time.Time) []*avax.TransferableOutput {
+				return []*avax.TransferableOutput{
+					generate.Out(test.AVAXAssetID, 1, depositOwner1, ids.Empty, ids.Empty),
+					generate.Out(test.AVAXAssetID, deposit1UTXO1.Out.(avax.Amounter).Amount()-1, depositOwner1, depositTxID1, ids.Empty),
+				}
+			},
+			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey1}},
+			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner1},
+		},
+		"OK: undeposit all from 1 utxo using all unlockable amount (25%)": {
+			state: func(ctrl *gomock.Controller, now time.Time) state.Chain {
+				s := state.NewMockChain(ctrl)
+				expect.GetDepositUnlockableAmounts(t, s,
+					[]ids.ID{depositTxID1},
+					[]*deposit.Deposit{deposit1(now, 25)}, // 25% unlockable
+					[]*deposit.Offer{offer},
+				)
+				s.EXPECT().LockedUTXOs(
+					set.Set[ids.ID]{depositTxID1: struct{}{}},
+					set.Set[ids.ShortID]{depositOwnerAddr1: struct{}{}},
+					locked.StateDeposited,
+				).Return([]*avax.UTXO{deposit1UTXO1}, nil)
+				s.EXPECT().GetMultisigAlias(depositOwnerAddr1).Return(nil, database.ErrNotFound) // per number of used utxos
+				return s
+			},
+			keys: []*secp256k1.PrivateKey{depositOwnerKey1},
+			amountsToUndeposit: func(now time.Time) map[ids.ID]uint64 {
+				return map[ids.ID]uint64{depositTxID1: deposit1(now, 25).UnlockableAmountByTime(offer, now)} // 25% unlockable
+			},
+			expectedIns: generate.InsFromUTXOs(t, deposit1UTXO1),
+			expectedOuts: func(now time.Time) []*avax.TransferableOutput {
+				unlockedAmount := deposit1(now, 25).UnlockableAmountByTime(offer, now) // 25% unlockable
+				return []*avax.TransferableOutput{
+					generate.Out(test.AVAXAssetID, unlockedAmount, depositOwner1, ids.Empty, ids.Empty),
+				}
+			},
+			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey1}},
+			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner1},
+		},
+		"OK: from bonded-deposited from multiple deposits with multiple utxos": { // TODO@
+			state: func(ctrl *gomock.Controller, now time.Time) state.Chain {
+				s := state.NewMockChain(ctrl)
+				expect.GetDepositUnlockableAmounts(t, s,
+					[]ids.ID{depositTxID1},
+					[]*deposit.Deposit{deposit1(now, 80)}, // 80% unlockable
+					[]*deposit.Offer{offer},
+				)
+				s.EXPECT().LockedUTXOs(
+					set.Set[ids.ID]{depositTxID1: struct{}{}},
+					set.Set[ids.ShortID]{depositOwnerAddr1: struct{}{}},
+					locked.StateDeposited,
+				).Return(deposit1UTXOs, nil)
+				s.EXPECT().GetMultisigAlias(depositOwnerAddr1).Return(nil, database.ErrNotFound).Times(3) // per number of used utxos
+				return s
+			},
+			keys: []*secp256k1.PrivateKey{depositOwnerKey1},
+			amountsToUndeposit: func(now time.Time) map[ids.ID]uint64 {
+				return map[ids.ID]uint64{depositTxID1: deposit1(now, 80).UnlockableAmountByTime(offer, now) - 1} // 80% unlockable - 1
+			},
+			expectedIns: generate.InsFromUTXOs(t, deposit1UTXOs...),
+			expectedOuts: func(now time.Time) []*avax.TransferableOutput {
+				unlockedAmount := deposit1(now, 80).UnlockableAmountByTime(offer, now) - 1 // 80% unlockable - 1
+				unlockedAmount1 := deposit1(now).UnlockableAmountByTime(offer, now) - 1
+				unlockedAmount2 := deposit2(now).UnlockableAmountByTime(offer, now) - 1
+				return []*avax.TransferableOutput{
+					generate.Out(test.AVAXAssetID, unlockedAmount1, depositOwner1, ids.Empty, ids.Empty),
+					generate.Out(test.AVAXAssetID, unlockedAmount1, depositOwner2, ids.Empty, bondTxID),
+					generate.Out(test.AVAXAssetID, depositAmount1-unlockedAmount1, depositOwner1, depositTxID1, ids.Empty),
+					generate.Out(test.AVAXAssetID, depositAmount2-unlockedAmount2, depositOwner2, depositTxID2, bondTxID),
+				}
+			},
+			expectedSigners: [][]*secp256k1.PrivateKey{{depositOwnerKey1}, {depositOwnerKey1}, {depositOwnerKey1}},
+			expectedOwners:  []*secp256k1fx.OutputOwners{&depositOwner1, &depositOwner1, &depositOwner1},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			handler := defaultCaminoHandler(t)
+			now := handler.clk.Time()
+
+			expectedOuts := tt.expectedOuts(now)
+
+			require.True(t, utils.IsSortedAndUniqueSortable(tt.expectedIns))
+			require.True(t, avax.IsSortedTransferableOutputs(expectedOuts, txs.Codec))
 
 			ins, outs, signers, owners, err := handler.UnlockDeposit(
-				tt.state(gomock.NewController(t), handler.clk.Time()),
+				tt.state(gomock.NewController(t), now),
 				tt.keys,
-				tt.amountsToUndeposit,
+				tt.amountsToUndeposit(now),
 				tt.undepositToOwner,
 			)
 
 			require.ErrorIs(t, err, tt.expectedErr)
 			require.Equal(t, tt.expectedIns, ins)
-			require.Equal(t, tt.expectedOuts, outs)
+			require.Equal(t, expectedOuts, outs)
 			require.Equal(t, tt.expectedSigners, signers)
 			require.Equal(t, tt.expectedOwners, owners)
 		})
