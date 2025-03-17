@@ -289,7 +289,8 @@ func (h *handler) Lock(
 		return nil, nil, nil, nil, fmt.Errorf("couldn't get UTXOs: %w", err)
 	}
 
-	// TODO@ explain why we need to sort utxos
+	// utxos loop below relies on utxo being sorted in specific order
+	// so loop can do early break, when remaining utxos are not fitting to the requirements
 	sortUTXOs(utxos, h.ctx.AVAXAssetID, appliedLockState)
 
 	kc := secp256k1fx.NewKeychain(signer...) // Keychain consumes UTXOs and creates new ones
@@ -680,7 +681,6 @@ func (h *handler) unlockUTXOs(
 	return ins, outs, nil
 }
 
-// TODO@ safe math
 func (h *handler) UnlockDeposit(
 	state state.Chain,
 	keys []*secp256k1.PrivateKey,
@@ -724,7 +724,51 @@ func (h *handler) UnlockDeposit(
 		return nil, nil, nil, nil, err
 	}
 
-	// TODO@ sort utxos with small amts first
+	// sort utxos to get not-bonded and smallest first
+	// expects deposited or depositedBonded utxos
+	sortUTXOsWithFunc(utxos, func(iUTXO *avax.UTXO, jUTXO *avax.UTXO) bool {
+		iOut := iUTXO.Out
+		iLockIDs := &locked.IDsEmpty
+		if lockedOut, ok := iOut.(*locked.Out); ok {
+			iOut = lockedOut.TransferableOut
+			iLockIDs = &lockedOut.IDs
+		}
+
+		jOut := jUTXO.Out
+		jLockIDs := &locked.IDsEmpty
+		if lockedOut, ok := jOut.(*locked.Out); ok {
+			jOut = lockedOut.TransferableOut
+			jLockIDs = &lockedOut.IDs
+		}
+
+		// utxo with smaller depositTxID goes first
+		switch bytes.Compare(iLockIDs.DepositTxID[:], jLockIDs.DepositTxID[:]) {
+		case -1: // iDepositTxID < jDepositTxID,  i < j
+			return true
+		case 1: // iOtherLockTxID > jOtherLockTxID,  j < i
+			return false
+		}
+
+		// utxo with smaller bondTxID goes first, so we'll have not-bonded utxos first (not bonded == all zeros in bondTxID)
+		switch bytes.Compare(iLockIDs.BondTxID[:], jLockIDs.BondTxID[:]) {
+		case -1: // iBondTxID < jBondTxID,  i < j
+			return true
+		case 1: // iBondTxID > jBondTxID,  j < i
+			return false
+		}
+
+		iAmount := uint64(0)
+		if amounter, ok := iOut.(avax.Amounter); ok {
+			iAmount = amounter.Amount()
+		}
+
+		jAmount := uint64(0)
+		if amounter, ok := jOut.(avax.Amounter); ok {
+			jAmount = amounter.Amount()
+		}
+
+		return iAmount < jAmount
+	})
 
 	kc := secp256k1fx.NewKeychain(keys...)
 
@@ -771,11 +815,6 @@ func (h *handler) UnlockDeposit(
 			continue
 		}
 
-		undepositOwner := ownerWithID{&innerOut.OutputOwners, outOwnerID}
-		if newUndepositOwner != nil {
-			undepositOwner = *newUndepositOwner
-		}
-
 		inIntf, inSigners, err := kc.SpendMultiSig(innerOut, currentTimestamp, state)
 		if err != nil { // should never happen for valid outs
 			continue
@@ -804,20 +843,43 @@ func (h *handler) UnlockDeposit(
 		amountToUndeposit = math.Min(amountToUndeposit, remainingValue)
 		remainingValue -= amountToUndeposit
 
-		// amounts map that will be produced by owner
+		undepositOwner := ownerWithID{&innerOut.OutputOwners, outOwnerID}
+		producedLockIDs := out.Unlock(locked.StateDeposited)
+		if !producedLockIDs.IsLocked() && newUndepositOwner != nil {
+			undepositOwner = *newUndepositOwner
+		}
+
+		// undeposited amounts that will be produced by owner
 		// (either original utxo owner or newUndepositOwner)
-		ownerProducedAmounts, ok := produced[undepositOwner.id]
+		ownerProducedUndepositedAmounts, ok := produced[undepositOwner.id]
 		if !ok {
-			ownerProducedAmounts = &OwnerAmounts{
+			ownerProducedUndepositedAmounts = &OwnerAmounts{
 				amounts:    make(map[locked.IDs]uint64),
 				secpOwners: undepositOwner.secpOwners,
 			}
-			produced[undepositOwner.id] = ownerProducedAmounts
+			produced[undepositOwner.id] = ownerProducedUndepositedAmounts
 		}
 
-		ownerProducedAmounts.amounts[out.Unlock(locked.StateDeposited)] += amountToUndeposit
+		ownerProducedUndepositedAmounts.amounts[producedLockIDs], err = math.Add64(ownerProducedUndepositedAmounts.amounts[producedLockIDs], amountToUndeposit)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to sum undeposit amount (ownerID: %s, lockIDs: %+v): %w", undepositOwner.id, producedLockIDs, err)
+		}
+
 		if remainingValue > 0 {
-			ownerProducedAmounts.amounts[out.IDs] += remainingValue
+			// remaining deposited amount map that will be produced by original owner
+			ownerProducedDepositedAmounts, ok := produced[outOwnerID]
+			if !ok {
+				ownerProducedDepositedAmounts = &OwnerAmounts{
+					amounts:    make(map[locked.IDs]uint64),
+					secpOwners: &innerOut.OutputOwners,
+				}
+				produced[outOwnerID] = ownerProducedDepositedAmounts
+			}
+
+			ownerProducedDepositedAmounts.amounts[out.IDs], err = math.Add64(ownerProducedDepositedAmounts.amounts[out.IDs], remainingValue)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("failed to sum remaining amount (ownerID: %s, lockIDs: %+v): %w", outOwnerID, out.IDs, err)
+			}
 		}
 
 		amountsToUndeposit[out.DepositTxID] -= amountToUndeposit
@@ -851,6 +913,9 @@ func (h *handler) UnlockDeposit(
 			})
 		}
 	}
+
+	avax.SortTransferableInputsWithSigners(ins, signers) // sort inputs and keys
+	avax.SortTransferableOutputs(outs, txs.Codec)        // sort outputs
 
 	return ins, outs, signers, owners, nil
 }
@@ -1551,6 +1616,22 @@ func (h *handler) GetOwnerWithID(aliasGetter secp256k1fx.AliasGetter, secpOwner 
 	return &ownerWithID{secpOwner, id}, nil
 }
 
+// will not retain order by lockTxID if lockState is unlocked
+// Sorts utxos in descending order with following rules:
+//
+// - utxo with allowedAssetID go first
+//
+// - if lockState is unlocked, unlocked utxo go first
+//
+// - utxo that are not locked with lockState go first
+//
+// - utxo with smaller opposite of lockState lockTxID go last (so we'll have not locked utxos in the end)
+//
+// - utxo with smaller amount go first
+func sortUTXOs(utxos []*avax.UTXO, allowedAssetID ids.ID, lockState locked.State) {
+	sort.Sort(&innerSortUTXOs{utxos: utxos, allowedAssetID: allowedAssetID, lockState: lockState})
+}
+
 type innerSortUTXOs struct {
 	utxos          []*avax.UTXO
 	allowedAssetID ids.ID
@@ -1639,9 +1720,27 @@ func (sort *innerSortUTXOs) Swap(i, j int) {
 }
 
 // will not retain order by lockTxID if lockState is unlocked
-// TODO@ explain how its sorted
-func sortUTXOs(utxos []*avax.UTXO, allowedAssetID ids.ID, lockState locked.State) {
-	sort.Sort(&innerSortUTXOs{utxos: utxos, allowedAssetID: allowedAssetID, lockState: lockState})
+// Sorts utxos in descending order with given Less(i,j) func.
+func sortUTXOsWithFunc(utxos []*avax.UTXO, less func(iUTXO *avax.UTXO, jUTXO *avax.UTXO) bool) {
+	sort.Sort(&innerSortUTXOs1{utxos: utxos, less: less})
+}
+
+type innerSortUTXOs1 struct {
+	utxos []*avax.UTXO
+	less  func(iUTXO *avax.UTXO, jUTXO *avax.UTXO) bool
+}
+
+func (sort *innerSortUTXOs1) Less(i, j int) bool {
+	return sort.less(sort.utxos[i], sort.utxos[j])
+}
+
+func (sort *innerSortUTXOs1) Len() int {
+	return len(sort.utxos)
+}
+
+func (sort *innerSortUTXOs1) Swap(i, j int) {
+	u := sort.utxos
+	u[j], u[i] = u[i], u[j]
 }
 
 func getUTXOs(utxoDB avax.UTXOGetter, ins []*avax.TransferableInput) ([]*avax.UTXO, error) {
