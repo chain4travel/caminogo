@@ -688,6 +688,11 @@ func (h *handler) UnlockDeposit(
 	[]*secp256k1fx.OutputOwners, // owners
 	error,
 ) {
+	newUndepositOwner, err := h.GetOwnerWithID(state, undepositToOwner)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("%w: %s", errInvalidToOwner, err)
+	}
+
 	addrs := set.NewSet[ids.ShortID](len(keys)) // addresses controlled by [keys]
 	for _, key := range keys {
 		addrs.Add(key.Address())
@@ -766,11 +771,6 @@ func (h *handler) UnlockDeposit(
 	})
 
 	kc := secp256k1fx.NewKeychain(keys...)
-
-	newUndepositOwner, err := h.GetOwnerWithID(state, undepositToOwner)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("%w: %s", errInvalidToOwner, err)
-	}
 
 	type OwnerAmounts struct {
 		amounts    map[locked.IDs]uint64 // depositTxID, bondTxID -> amount ; ids might be empty
@@ -887,7 +887,7 @@ func (h *handler) UnlockDeposit(
 	}
 
 	if len(amountsToUndeposit) > 0 {
-		return nil, nil, nil, nil, errInsufficientUnlockable
+		return nil, nil, nil, nil, errInsufficientUnlockable // should never happen
 	}
 
 	for _, ownerAmounts := range produced {

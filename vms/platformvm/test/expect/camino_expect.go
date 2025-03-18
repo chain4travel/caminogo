@@ -254,6 +254,52 @@ func StateVerifyMultisigOwner(
 	}
 }
 
+func VerifyMultisigOwner(
+	t *testing.T,
+	s *state.MockChain,
+	owner *secp256k1fx.OutputOwners,
+	msigAliasAddresses []ids.ShortID,
+	msigAliases []*multisig.AliasWithNonce,
+	collectAddresses bool,
+) {
+	t.Helper()
+	if owner == nil {
+		return
+	}
+
+	aliases := make(map[ids.ShortID]*multisig.AliasWithNonce)
+	for i := range msigAliasAddresses {
+		aliases[msigAliasAddresses[i]] = msigAliases[i]
+	}
+
+	addresses := set.Set[ids.ShortID]{}
+
+	if collectAddresses {
+		for _, addr := range owner.Addrs {
+			addresses.Add(addr)
+		}
+		for _, alias := range msigAliases {
+			owner, ok := alias.Owners.(*secp256k1fx.OutputOwners)
+			require.True(t, ok)
+			for _, addr := range owner.Addrs {
+				addresses.Add(addr)
+			}
+		}
+	}
+
+	for _, msigAliasAddress := range msigAliasAddresses {
+		addresses.Add(msigAliasAddress)
+	}
+
+	for addr := range addresses {
+		if _, ok := aliases[addr]; ok {
+			s.EXPECT().GetMultisigAlias(addr).Return(aliases[addr], nil)
+		} else {
+			s.EXPECT().GetMultisigAlias(addr).Return(nil, database.ErrNotFound)
+		}
+	}
+}
+
 func ConsumeUTXOs(t *testing.T, s *state.MockDiff, ins []*avax.TransferableInput) {
 	t.Helper()
 	for _, in := range ins {
