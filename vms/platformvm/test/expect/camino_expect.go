@@ -221,6 +221,8 @@ func StateVerifyMultisigOwner(
 		return
 	}
 
+	require.Len(t, msigAliasAddresses, len(msigAliases))
+
 	aliases := make(map[ids.ShortID]*multisig.AliasWithNonce)
 	for i := range msigAliasAddresses {
 		aliases[msigAliasAddresses[i]] = msigAliases[i]
@@ -266,6 +268,8 @@ func VerifyMultisigOwner(
 	if owner == nil {
 		return
 	}
+
+	require.Len(t, msigAliasAddresses, len(msigAliases))
 
 	aliases := make(map[ids.ShortID]*multisig.AliasWithNonce)
 	for i := range msigAliasAddresses {
@@ -423,6 +427,7 @@ func GetDepositUnlockableAmounts(
 ) {
 	t.Helper()
 	require.Len(t, depositTxIDs, len(deposits))
+	require.Len(t, depositTxIDs, len(offers))
 	for i := range depositTxIDs {
 		s.EXPECT().GetDeposit(depositTxIDs[i]).Return(deposits[i], nil)
 	}
