@@ -264,7 +264,7 @@ func (h *handler) Lock(
 
 	aliasGetter, ok := utxoDB.(secp256k1fx.AliasGetter)
 	if !ok {
-		return nil, nil, nil, nil, fmt.Errorf("utxoDB is not an alias getter")
+		return nil, nil, nil, nil, errors.New("utxoDB is not an alias getter")
 	}
 
 	newOwner, err := h.GetOwnerWithID(aliasGetter, to)
