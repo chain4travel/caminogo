@@ -472,6 +472,10 @@ type UndepositReply struct {
 func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response *UndepositReply) error {
 	s.vm.ctx.Log.Debug("Platform: Undeposit called")
 
+	if len(args.Undeposits) == 0 {
+		return errors.New("no undeposits provided")
+	}
+
 	privKeys, err := s.getFakeKeys(&args.JSONFromAddrs)
 	if err != nil {
 		return err
