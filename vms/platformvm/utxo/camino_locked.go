@@ -882,7 +882,7 @@ func (h *handler) UnlockDeposit(
 			delete(amountsToUndeposit, out.DepositTxID)
 		}
 
-		owners = append(owners, &innerOut.OutputOwners) // TODO@ make sure those are correct
+		owners = append(owners, &innerOut.OutputOwners)
 		signers = append(signers, inSigners)
 	}
 

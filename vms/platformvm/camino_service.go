@@ -469,7 +469,6 @@ type UndepositReply struct {
 	Owners  string          `json:"owners"`
 }
 
-// TODO@ see if we need to sort owners, test unlockDeposit owners; check with how caminojs uses them
 func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response *UndepositReply) error {
 	s.vm.ctx.Log.Debug("Platform: Undeposit called")
 
