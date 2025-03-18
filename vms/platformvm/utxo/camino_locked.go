@@ -229,11 +229,6 @@ type Unlocker interface {
 	)
 }
 
-type Undeposit struct {
-	Amount      uint64
-	DepositTxID ids.ID
-}
-
 func (h *handler) Lock(
 	utxoDB avax.UTXOReader,
 	keys []*secp256k1.PrivateKey,
@@ -388,7 +383,7 @@ func (h *handler) Lock(
 		remainingValue := in.Amount()
 		amountToBurn := uint64(0)
 
-		toOwner := ownerWithID{&innerOut.OutputOwners, outOwnerID}
+		toOwner := &ownerWithID{&innerOut.OutputOwners, outOwnerID}
 		remainingOwner := toOwner
 
 		if !lockIDs.IsLocked() { // utxo isn't locked
@@ -402,12 +397,12 @@ func (h *handler) Lock(
 
 			if newOwner != nil {
 				// transferring unlocked utxo spent tokens to new owner
-				toOwner = *newOwner
+				toOwner = newOwner
 			}
 
 			if changeOwner != nil {
 				// transferring unlocked utxo remainder to change owner
-				remainingOwner = *changeOwner
+				remainingOwner = changeOwner
 			}
 		}
 
