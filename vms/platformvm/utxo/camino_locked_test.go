@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -147,8 +146,6 @@ func TestUnlockUTXOs(t *testing.T) {
 }
 
 func TestLock(t *testing.T) {
-	ctx := snow.DefaultContextTest()
-
 	utxoOwner := secp256k1fx.OutputOwners{
 		Locktime:  0,
 		Threshold: 1,
@@ -374,7 +371,7 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateBonded,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedErr: errInsufficientBalance,
 		},
@@ -385,7 +382,7 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateDeposited,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedErr: errInsufficientBalance,
 		},
@@ -396,7 +393,7 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateBonded,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 10, utxoOwner, ids.Empty, existingTxID, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 10, utxoOwner, ids.Empty, existingTxID, true),
 			},
 			expectedErr: errInsufficientBalance,
 		},
@@ -407,7 +404,7 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateDeposited,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 1, utxoOwner, existingTxID, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 1, utxoOwner, existingTxID, ids.Empty, true),
 			},
 			expectedErr: errInsufficientBalance,
 		},
@@ -435,8 +432,8 @@ func TestLock(t *testing.T) {
 			to:                 &recipientOwner,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 2, utxoOwner, ids.Empty, ids.Empty, true),
-				generate.UTXO(ids.ID{9, 9}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, existingTxID, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 2, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, existingTxID, true),
 			},
 			expectedErr: errInsufficientBalance,
 		},
@@ -449,7 +446,7 @@ func TestLock(t *testing.T) {
 			to:                 &recipientOwner,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -457,8 +454,8 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 1, recipientOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 1, recipientOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]},
@@ -474,7 +471,7 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateUnlocked,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -482,7 +479,7 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]},
@@ -499,7 +496,7 @@ func TestLock(t *testing.T) {
 			change:             &changeOwner,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -507,8 +504,8 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 1, utxoOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 1, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]},
@@ -524,8 +521,8 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateBonded,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
-				generate.UTXO(ids.ID{9, 9}, ctx.AVAXAssetID, 10, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 10, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -534,8 +531,8 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 9, utxoOwner, ids.Empty, locked.ThisTxID),
+				generate.Out(test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 9, utxoOwner, ids.Empty, locked.ThisTxID),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]}, {test.Keys[0]},
@@ -551,8 +548,8 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateBonded,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
-				generate.UTXO(ids.ID{9, 9}, ctx.AVAXAssetID, 10, utxoOwner, existingTxID, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 10, utxoOwner, existingTxID, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -561,9 +558,9 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 1, utxoOwner, existingTxID, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 9, utxoOwner, existingTxID, locked.ThisTxID),
+				generate.Out(test.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 1, utxoOwner, existingTxID, ids.Empty),
+				generate.Out(test.AVAXAssetID, 9, utxoOwner, existingTxID, locked.ThisTxID),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]}, {test.Keys[0]},
@@ -579,8 +576,8 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateDeposited,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
-				generate.UTXO(ids.ID{9, 9}, ctx.AVAXAssetID, 10, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 10, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -589,8 +586,8 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 9, utxoOwner, locked.ThisTxID, ids.Empty),
+				generate.Out(test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 9, utxoOwner, locked.ThisTxID, ids.Empty),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]}, {test.Keys[0]},
@@ -606,8 +603,8 @@ func TestLock(t *testing.T) {
 			appliedLockState:   locked.StateDeposited,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
-				generate.UTXO(ids.ID{9, 9}, ctx.AVAXAssetID, 10, utxoOwner, ids.Empty, existingTxID, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{9, 9}, test.AVAXAssetID, 10, utxoOwner, ids.Empty, existingTxID, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -616,9 +613,9 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 1, utxoOwner, ids.Empty, existingTxID),
-				generate.Out(ctx.AVAXAssetID, 9, utxoOwner, locked.ThisTxID, existingTxID),
+				generate.Out(test.AVAXAssetID, 4, utxoOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 1, utxoOwner, ids.Empty, existingTxID),
+				generate.Out(test.AVAXAssetID, 9, utxoOwner, locked.ThisTxID, existingTxID),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]}, {test.Keys[0]},
@@ -636,7 +633,7 @@ func TestLock(t *testing.T) {
 			change:             &changeOwner,
 			keys:               []*secp256k1.PrivateKey{test.Keys[0]},
 			utxos: []*avax.UTXO{
-				generate.UTXO(ids.ID{8, 8}, ctx.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
+				generate.UTXO(ids.ID{8, 8}, test.AVAXAssetID, 5, utxoOwner, ids.Empty, ids.Empty, true),
 			},
 			expectedIns: func(utxos []*avax.UTXO) []*avax.TransferableInput {
 				return []*avax.TransferableInput{
@@ -644,8 +641,8 @@ func TestLock(t *testing.T) {
 				}
 			},
 			expectedOuts: []*avax.TransferableOutput{
-				generate.Out(ctx.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
-				generate.Out(ctx.AVAXAssetID, 1, recipientOwner, locked.ThisTxID, ids.Empty),
+				generate.Out(test.AVAXAssetID, 3, changeOwner, ids.Empty, ids.Empty),
+				generate.Out(test.AVAXAssetID, 1, recipientOwner, locked.ThisTxID, ids.Empty),
 			},
 			expectedSigners: [][]*secp256k1.PrivateKey{
 				{test.Keys[0]},
