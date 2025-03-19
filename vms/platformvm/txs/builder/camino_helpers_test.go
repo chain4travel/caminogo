@@ -22,7 +22,7 @@ func newCaminoBuilder(
 	t *testing.T,
 	state state.State,
 	sharedMemory atomic.SharedMemory,
-	phase test.Phase,
+	phase test.Phase, //nolint:unparam
 ) *caminoBuilder {
 	t.Helper()
 
