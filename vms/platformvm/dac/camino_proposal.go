@@ -95,7 +95,7 @@ type ProposalState interface {
 	// We want to keep it in caminogo even if its used only in magellan,
 	// cause it contains internal proposal logic that affects success state.
 	// We don't want to care about that in magellan.
-	ForceAddVote(voteIntf Vote) (ProposalState, error)
+	ForceAddVote(voteIntf Vote, isCairoPhase bool) (ProposalState, error)
 }
 
 type AdminProposal struct {

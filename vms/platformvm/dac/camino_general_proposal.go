@@ -230,12 +230,9 @@ func (p *GeneralProposalState) Result() (types.JSONByteSlice, uint32, bool) {
 
 // Will return modified proposal with added vote, original proposal will not be modified!
 func (p *GeneralProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	vote, ok := voteIntf.(*SimpleVote)
-	if !ok {
-		return nil, ErrWrongVote
-	}
-	if int(vote.OptionIndex) >= len(p.Options) {
-		return nil, ErrWrongVote
+	updatedProposal, err := p.verifyVoteAndClone(voteIntf, make([]ids.ShortID, len(p.AllowedVoters)-1), isCairoPhase)
+	if err != nil {
+		return nil, err
 	}
 
 	voterAddrPos, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
@@ -245,43 +242,19 @@ func (p *GeneralProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote, 
 		return nil, ErrNotAllowedToVoteOnProposal
 	}
 
-	var updatedProposal *GeneralProposalState
-	if isCairoPhase {
-		updatedProposal = &GeneralProposalState{
-			Start:         p.Start,
-			End:           p.End,
-			AllowedVoters: make([]ids.ShortID, len(p.AllowedVoters)-1),
-			SimpleVoteOptions: SimpleVoteOptions[[]byte]{
-				Options: make([]SimpleVoteOption[[]byte], len(p.Options)),
-			},
-			TotalAllowedVoters:          p.TotalAllowedVoters,
-			AllowEarlyFinish:            p.AllowEarlyFinish,
-			TotalVotedThreshold:         p.TotalVotedThreshold,
-			MostVotedThresholdNominator: p.MostVotedThresholdNominator,
-		}
-	} else {
-		updatedProposal = &GeneralProposalState{
-			Start:         p.Start,
-			End:           p.End,
-			AllowedVoters: make([]ids.ShortID, len(p.AllowedVoters)-1),
-			SimpleVoteOptions: SimpleVoteOptions[[]byte]{
-				Options: make([]SimpleVoteOption[[]byte], len(p.Options)),
-			},
-			TotalAllowedVoters: p.TotalAllowedVoters,
-		}
-	}
-
 	// we can't use the same slice, cause we need to change its elements
 	copy(updatedProposal.AllowedVoters, p.AllowedVoters[:voterAddrPos])
 	updatedProposal.AllowedVoters = append(updatedProposal.AllowedVoters[:voterAddrPos], p.AllowedVoters[voterAddrPos+1:]...)
-	// we can't use the same slice, cause we need to change its element
-	copy(updatedProposal.Options, p.Options)
-	updatedProposal.Options[vote.OptionIndex].Weight++
+
 	return updatedProposal, nil
 }
 
 // Will return modified proposal with added vote ignoring allowed voters, original proposal will not be modified!
-func (p *GeneralProposalState) ForceAddVote(voteIntf Vote) (ProposalState, error) {
+func (p *GeneralProposalState) ForceAddVote(voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
+	return p.verifyVoteAndClone(voteIntf, p.AllowedVoters, isCairoPhase)
+}
+
+func (p *GeneralProposalState) verifyVoteAndClone(voteIntf Vote, allowedVoters []ids.ShortID, isCairoPhase bool) (*GeneralProposalState, error) {
 	vote, ok := voteIntf.(*SimpleVote)
 	if !ok {
 		return nil, ErrWrongVote
@@ -293,14 +266,16 @@ func (p *GeneralProposalState) ForceAddVote(voteIntf Vote) (ProposalState, error
 	updatedProposal := &GeneralProposalState{
 		Start:         p.Start,
 		End:           p.End,
-		AllowedVoters: p.AllowedVoters,
+		AllowedVoters: allowedVoters,
 		SimpleVoteOptions: SimpleVoteOptions[[]byte]{
 			Options: make([]SimpleVoteOption[[]byte], len(p.Options)),
 		},
-		TotalAllowedVoters:          p.TotalAllowedVoters,
-		AllowEarlyFinish:            p.AllowEarlyFinish,
-		TotalVotedThreshold:         p.TotalVotedThreshold,
-		MostVotedThresholdNominator: p.MostVotedThresholdNominator,
+		TotalAllowedVoters: p.TotalAllowedVoters,
+	}
+	if isCairoPhase {
+		updatedProposal.AllowEarlyFinish = p.AllowEarlyFinish
+		updatedProposal.TotalVotedThreshold = p.TotalVotedThreshold
+		updatedProposal.MostVotedThresholdNominator = p.MostVotedThresholdNominator
 	}
 	// we can't use the same slice, cause we need to change its element
 	copy(updatedProposal.Options, p.Options)

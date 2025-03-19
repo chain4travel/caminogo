@@ -291,8 +291,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: voterAddr1,
-			vote:      &DummyVote{}, // not *SimpleVote
+			voterAddr:    voterAddr1,
+			vote:         &DummyVote{}, // not *SimpleVote
+			isCairoPhase: true,
 			expectedOriginalProposal: &GeneralProposalState{
 				Start:              100,
 				End:                101,
@@ -334,8 +335,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: ids.ShortID{3},
-			vote:      &SimpleVote{OptionIndex: 3},
+			voterAddr:    ids.ShortID{3},
+			vote:         &SimpleVote{OptionIndex: 3},
+			isCairoPhase: true,
 			expectedOriginalProposal: &GeneralProposalState{
 				Start:              100,
 				End:                101,
@@ -367,8 +369,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: ids.ShortID{3},
-			vote:      &SimpleVote{OptionIndex: 0},
+			voterAddr:    ids.ShortID{3},
+			vote:         &SimpleVote{OptionIndex: 0},
+			isCairoPhase: true,
 			expectedOriginalProposal: &GeneralProposalState{
 				AllowedVoters: []ids.ShortID{{1}, {2}},
 				SimpleVoteOptions: SimpleVoteOptions[[]byte]{
@@ -400,8 +403,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: voterAddr1,
-			vote:      &SimpleVote{OptionIndex: 1},
+			voterAddr:    voterAddr1,
+			vote:         &SimpleVote{OptionIndex: 1},
+			isCairoPhase: true,
 			expectedUpdatedProposal: &GeneralProposalState{
 				Start:              100,
 				End:                101,
@@ -458,8 +462,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: voterAddr1,
-			vote:      &SimpleVote{OptionIndex: 2},
+			voterAddr:    voterAddr1,
+			vote:         &SimpleVote{OptionIndex: 2},
+			isCairoPhase: true,
 			expectedUpdatedProposal: &GeneralProposalState{
 				Start:              100,
 				End:                101,
@@ -509,8 +514,9 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				MostVotedThresholdNominator: 2,
 				AllowEarlyFinish:            true,
 			},
-			voterAddr: voterAddr2,
-			vote:      &SimpleVote{OptionIndex: 0},
+			voterAddr:    voterAddr2,
+			vote:         &SimpleVote{OptionIndex: 0},
+			isCairoPhase: true,
 			expectedUpdatedProposal: &GeneralProposalState{
 				Start:              100,
 				End:                101,
@@ -530,6 +536,62 @@ func TestGeneralProposalStateAddVote(t *testing.T) {
 				AllowedVoters:      []ids.ShortID{voterAddr1, voterAddr2, voterAddr3},
 				SimpleVoteOptions: SimpleVoteOptions[[]byte]{
 					Options: []SimpleVoteOption[[]byte]{{Value: []byte{1}}},
+				},
+				TotalVotedThreshold:         1,
+				MostVotedThresholdNominator: 2,
+				AllowEarlyFinish:            true,
+			},
+		},
+		"OK: adding vote before CairoPhase": {
+			proposal: &GeneralProposalState{
+				Start:              100,
+				End:                101,
+				TotalAllowedVoters: 555,
+				AllowedVoters:      []ids.ShortID{voterAddr1},
+				SimpleVoteOptions: SimpleVoteOptions[[]byte]{
+					Options: []SimpleVoteOption[[]byte]{
+						{Value: []byte{1}, Weight: 2}, // 0
+						{Value: []byte{2}, Weight: 0}, // 1
+						{Value: []byte{3}, Weight: 1}, // 2
+					},
+					mostVotedWeight:      2,
+					mostVotedOptionIndex: 0,
+					unambiguous:          true,
+				},
+				TotalVotedThreshold:         1,
+				MostVotedThresholdNominator: 2,
+				AllowEarlyFinish:            true,
+			},
+			voterAddr:    voterAddr1,
+			vote:         &SimpleVote{OptionIndex: 1},
+			isCairoPhase: false,
+			expectedUpdatedProposal: &GeneralProposalState{
+				Start:              100,
+				End:                101,
+				TotalAllowedVoters: 555,
+				AllowedVoters:      []ids.ShortID{},
+				SimpleVoteOptions: SimpleVoteOptions[[]byte]{
+					Options: []SimpleVoteOption[[]byte]{
+						{Value: []byte{1}, Weight: 2}, // 0
+						{Value: []byte{2}, Weight: 1}, // 1
+						{Value: []byte{3}, Weight: 1}, // 2
+					},
+				},
+			},
+			expectedOriginalProposal: &GeneralProposalState{
+				Start:              100,
+				End:                101,
+				TotalAllowedVoters: 555,
+				AllowedVoters:      []ids.ShortID{voterAddr1},
+				SimpleVoteOptions: SimpleVoteOptions[[]byte]{
+					Options: []SimpleVoteOption[[]byte]{
+						{Value: []byte{1}, Weight: 2}, // 0
+						{Value: []byte{2}, Weight: 0}, // 1
+						{Value: []byte{3}, Weight: 1}, // 2
+					},
+					mostVotedWeight:      2,
+					mostVotedOptionIndex: 0,
+					unambiguous:          true,
 				},
 				TotalVotedThreshold:         1,
 				MostVotedThresholdNominator: 2,

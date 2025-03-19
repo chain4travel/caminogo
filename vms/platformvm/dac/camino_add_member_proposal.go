@@ -134,12 +134,9 @@ func (p *AddMemberProposalState) Result() (bool, uint32, bool) {
 
 // Will return modified proposal with added vote, original proposal will not be modified!
 func (p *AddMemberProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	vote, ok := voteIntf.(*SimpleVote)
-	if !ok {
-		return nil, ErrWrongVote
-	}
-	if int(vote.OptionIndex) >= len(p.Options) {
-		return nil, ErrWrongVote
+	updatedProposal, err := p.verifyVoteAndClone(voteIntf, make([]ids.ShortID, len(p.AllowedVoters)-1), isCairoPhase)
+	if err != nil {
+		return nil, err
 	}
 
 	voterAddrPos, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
@@ -149,27 +146,19 @@ func (p *AddMemberProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote
 		return nil, ErrNotAllowedToVoteOnProposal
 	}
 
-	updatedProposal := &AddMemberProposalState{
-		ApplicantAddress: p.ApplicantAddress,
-		Start:            p.Start,
-		End:              p.End,
-		AllowedVoters:    make([]ids.ShortID, len(p.AllowedVoters)-1),
-		SimpleVoteOptions: SimpleVoteOptions[bool]{
-			Options: make([]SimpleVoteOption[bool], len(p.Options)),
-		},
-		TotalAllowedVoters: p.TotalAllowedVoters,
-	}
 	// we can't use the same slice, cause we need to change its elements
 	copy(updatedProposal.AllowedVoters, p.AllowedVoters[:voterAddrPos])
 	updatedProposal.AllowedVoters = append(updatedProposal.AllowedVoters[:voterAddrPos], p.AllowedVoters[voterAddrPos+1:]...)
-	// we can't use the same slice, cause we need to change its element
-	copy(updatedProposal.Options, p.Options)
-	updatedProposal.Options[vote.OptionIndex].Weight++
+
 	return updatedProposal, nil
 }
 
 // Will return modified proposal with added vote ignoring allowed voters, original proposal will not be modified!
-func (p *AddMemberProposalState) ForceAddVote(voteIntf Vote) (ProposalState, error) {
+func (p *AddMemberProposalState) ForceAddVote(voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
+	return p.verifyVoteAndClone(voteIntf, p.AllowedVoters, isCairoPhase)
+}
+
+func (p *AddMemberProposalState) verifyVoteAndClone(voteIntf Vote, allowedVoters []ids.ShortID, isCairoPhase bool) (*AddMemberProposalState, error) {
 	vote, ok := voteIntf.(*SimpleVote)
 	if !ok {
 		return nil, ErrWrongVote
@@ -182,12 +171,13 @@ func (p *AddMemberProposalState) ForceAddVote(voteIntf Vote) (ProposalState, err
 		ApplicantAddress: p.ApplicantAddress,
 		Start:            p.Start,
 		End:              p.End,
-		AllowedVoters:    p.AllowedVoters,
+		AllowedVoters:    allowedVoters,
 		SimpleVoteOptions: SimpleVoteOptions[bool]{
 			Options: make([]SimpleVoteOption[bool], len(p.Options)),
 		},
 		TotalAllowedVoters: p.TotalAllowedVoters,
 	}
+
 	// we can't use the same slice, cause we need to change its element
 	copy(updatedProposal.Options, p.Options)
 	updatedProposal.Options[vote.OptionIndex].Weight++
