@@ -2033,7 +2033,7 @@ func TestVerifyUnlockDepositedUTXOs(t *testing.T) {
 			args: args{
 				tx: tx,
 				utxos: []*avax.UTXO{
-					generate.UTXO(ids.ID{100}, test.AVAXAssetID, 100, owner1, ids.Empty, ids.Empty, true), // TODO@ refactor to be able to call without bool
+					generate.UTXO(ids.ID{100}, test.AVAXAssetID, 100, owner1, ids.Empty, ids.Empty, true),
 					generate.UTXO(ids.ID{101}, test.AVAXAssetID, 50, owner1, depositTxID1, ids.Empty, true),
 				},
 				ins: []*avax.TransferableInput{
