@@ -29,20 +29,20 @@ type SimpleVoteOptions[T any] struct {
 	unambiguous          bool                  // True, if there is an option with weight > then other options weight
 }
 
-func (p SimpleVoteOptions[T]) GetMostVoted() (
+func (vo SimpleVoteOptions[T]) GetMostVoted() (
 	mostVotedWeight uint32,
 	mostVotedIndex uint32,
 	unambiguous bool,
 ) {
-	if p.mostVotedWeight != 0 {
-		return p.mostVotedWeight, p.mostVotedOptionIndex, p.unambiguous
+	if vo.mostVotedWeight != 0 {
+		return vo.mostVotedWeight, vo.mostVotedOptionIndex, vo.unambiguous
 	}
 
 	unambiguous = true
 	mostVotedIndexInt := 0
-	weights := make([]int, len(p.Options))
-	for optionIndex := range p.Options {
-		weights[optionIndex] += int(p.Options[optionIndex].Weight)
+	weights := make([]int, len(vo.Options))
+	for optionIndex := range vo.Options {
+		weights[optionIndex] += int(vo.Options[optionIndex].Weight)
 		if optionIndex != mostVotedIndexInt && weights[optionIndex] == weights[mostVotedIndexInt] {
 			unambiguous = false
 		} else if weights[optionIndex] > weights[mostVotedIndexInt] {
@@ -51,17 +51,38 @@ func (p SimpleVoteOptions[T]) GetMostVoted() (
 		}
 	}
 
-	p.mostVotedWeight = uint32(weights[mostVotedIndexInt])
-	p.mostVotedOptionIndex = uint32(mostVotedIndexInt)
-	p.unambiguous = unambiguous && p.mostVotedWeight > 0
+	vo.mostVotedWeight = uint32(weights[mostVotedIndexInt])
+	vo.mostVotedOptionIndex = uint32(mostVotedIndexInt)
+	vo.unambiguous = unambiguous && vo.mostVotedWeight > 0
 
-	return p.mostVotedWeight, p.mostVotedOptionIndex, p.unambiguous
+	return vo.mostVotedWeight, vo.mostVotedOptionIndex, vo.unambiguous
 }
 
-func (p SimpleVoteOptions[T]) Voted() uint32 {
+func (vo SimpleVoteOptions[T]) Voted() uint32 {
 	voted := uint32(0)
-	for i := range p.Options {
-		voted += p.Options[i].Weight
+	for i := range vo.Options {
+		voted += vo.Options[i].Weight
 	}
 	return voted
+}
+
+// Will not modify original simple vote options
+func (vo SimpleVoteOptions[T]) AddWeight(voteIntf Vote) (*SimpleVoteOptions[T], error) {
+	vote, ok := voteIntf.(*SimpleVote)
+	if !ok {
+		return nil, ErrWrongVote
+	}
+	if int(vote.OptionIndex) >= len(vo.Options) {
+		return nil, ErrWrongVote
+	}
+
+	updatedSimpleVoteOptions := &SimpleVoteOptions[T]{
+		Options: make([]SimpleVoteOption[T], len(vo.Options)),
+	}
+
+	// we can't use the same slice, because we need to change its element
+	copy(updatedSimpleVoteOptions.Options, vo.Options)
+	updatedSimpleVoteOptions.Options[vote.OptionIndex].Weight++
+
+	return updatedSimpleVoteOptions, nil
 }

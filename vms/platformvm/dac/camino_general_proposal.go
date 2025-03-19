@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/types"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -230,46 +229,33 @@ func (p *GeneralProposalState) Result() (types.JSONByteSlice, uint32, bool) {
 
 // Will return modified proposal with added vote, original proposal will not be modified!
 func (p *GeneralProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	updatedProposal, err := p.verifyVoteAndClone(voteIntf, make([]ids.ShortID, len(p.AllowedVoters)-1), isCairoPhase)
+	updatedProposal, err := p.addVote(voteIntf, isCairoPhase)
 	if err != nil {
 		return nil, err
 	}
-
-	voterAddrPos, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
-		return bytes.Compare(id[:], other[:])
-	})
-	if !allowedToVote {
-		return nil, ErrNotAllowedToVoteOnProposal
+	updatedProposal.AllowedVoters, err = excludeFromAllowedVoters(p.AllowedVoters, voterAddress)
+	if err != nil {
+		return nil, err
 	}
-
-	// we can't use the same slice, cause we need to change its elements
-	copy(updatedProposal.AllowedVoters, p.AllowedVoters[:voterAddrPos])
-	updatedProposal.AllowedVoters = append(updatedProposal.AllowedVoters[:voterAddrPos], p.AllowedVoters[voterAddrPos+1:]...)
-
 	return updatedProposal, nil
 }
 
 // Will return modified proposal with added vote ignoring allowed voters, original proposal will not be modified!
 func (p *GeneralProposalState) ForceAddVote(voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	return p.verifyVoteAndClone(voteIntf, p.AllowedVoters, isCairoPhase)
+	return p.addVote(voteIntf, isCairoPhase)
 }
 
-func (p *GeneralProposalState) verifyVoteAndClone(voteIntf Vote, allowedVoters []ids.ShortID, isCairoPhase bool) (*GeneralProposalState, error) {
-	vote, ok := voteIntf.(*SimpleVote)
-	if !ok {
-		return nil, ErrWrongVote
-	}
-	if int(vote.OptionIndex) >= len(p.Options) {
-		return nil, ErrWrongVote
+func (p *GeneralProposalState) addVote(voteIntf Vote, isCairoPhase bool) (*GeneralProposalState, error) {
+	simpleVoteOptions, err := p.AddWeight(voteIntf)
+	if err != nil {
+		return nil, err
 	}
 
 	updatedProposal := &GeneralProposalState{
-		Start:         p.Start,
-		End:           p.End,
-		AllowedVoters: allowedVoters,
-		SimpleVoteOptions: SimpleVoteOptions[[]byte]{
-			Options: make([]SimpleVoteOption[[]byte], len(p.Options)),
-		},
+		Start:              p.Start,
+		End:                p.End,
+		AllowedVoters:      p.AllowedVoters,
+		SimpleVoteOptions:  *simpleVoteOptions,
 		TotalAllowedVoters: p.TotalAllowedVoters,
 	}
 	if isCairoPhase {
@@ -277,9 +263,7 @@ func (p *GeneralProposalState) verifyVoteAndClone(voteIntf Vote, allowedVoters [
 		updatedProposal.TotalVotedThreshold = p.TotalVotedThreshold
 		updatedProposal.MostVotedThresholdNominator = p.MostVotedThresholdNominator
 	}
-	// we can't use the same slice, cause we need to change its element
-	copy(updatedProposal.Options, p.Options)
-	updatedProposal.Options[vote.OptionIndex].Weight++
+
 	return updatedProposal, nil
 }
 

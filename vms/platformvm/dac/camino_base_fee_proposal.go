@@ -4,7 +4,6 @@
 package dac
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
-	"golang.org/x/exp/slices"
 )
 
 const baseFeeProposalMaxOptionsCount = 3
@@ -154,53 +152,35 @@ func (p *BaseFeeProposalState) Result() (uint64, uint32, bool) {
 
 // Will return modified proposal with added vote, original proposal will not be modified!
 func (p *BaseFeeProposalState) AddVote(voterAddress ids.ShortID, voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	updatedProposal, err := p.verifyVoteAndClone(voteIntf, make([]ids.ShortID, len(p.AllowedVoters)-1), isCairoPhase)
+	updatedProposal, err := p.addVote(voteIntf, isCairoPhase)
 	if err != nil {
 		return nil, err
 	}
-
-	voterAddrPos, allowedToVote := slices.BinarySearchFunc(p.AllowedVoters, voterAddress, func(id, other ids.ShortID) int {
-		return bytes.Compare(id[:], other[:])
-	})
-	if !allowedToVote {
-		return nil, ErrNotAllowedToVoteOnProposal
+	updatedProposal.AllowedVoters, err = excludeFromAllowedVoters(p.AllowedVoters, voterAddress)
+	if err != nil {
+		return nil, err
 	}
-
-	// we can't use the same slice, cause we need to change its elements
-	copy(updatedProposal.AllowedVoters, p.AllowedVoters[:voterAddrPos])
-	updatedProposal.AllowedVoters = append(updatedProposal.AllowedVoters[:voterAddrPos], p.AllowedVoters[voterAddrPos+1:]...)
-
 	return updatedProposal, nil
 }
 
 // Will return modified proposal with added vote ignoring allowed voters, original proposal will not be modified!
 func (p *BaseFeeProposalState) ForceAddVote(voteIntf Vote, isCairoPhase bool) (ProposalState, error) {
-	return p.verifyVoteAndClone(voteIntf, p.AllowedVoters, isCairoPhase)
+	return p.addVote(voteIntf, isCairoPhase)
 }
 
-func (p *BaseFeeProposalState) verifyVoteAndClone(voteIntf Vote, allowedVoters []ids.ShortID, isCairoPhase bool) (*BaseFeeProposalState, error) {
-	vote, ok := voteIntf.(*SimpleVote)
-	if !ok {
-		return nil, ErrWrongVote
-	}
-	if int(vote.OptionIndex) >= len(p.Options) {
-		return nil, ErrWrongVote
+func (p *BaseFeeProposalState) addVote(voteIntf Vote, _ bool) (*BaseFeeProposalState, error) {
+	simpleVoteOptions, err := p.AddWeight(voteIntf)
+	if err != nil {
+		return nil, err
 	}
 
-	updatedProposal := &BaseFeeProposalState{
-		Start:         p.Start,
-		End:           p.End,
-		AllowedVoters: allowedVoters,
-		SimpleVoteOptions: SimpleVoteOptions[uint64]{
-			Options: make([]SimpleVoteOption[uint64], len(p.Options)),
-		},
+	return &BaseFeeProposalState{
+		Start:              p.Start,
+		End:                p.End,
+		AllowedVoters:      p.AllowedVoters,
+		SimpleVoteOptions:  *simpleVoteOptions,
 		TotalAllowedVoters: p.TotalAllowedVoters,
-	}
-
-	// we can't use the same slice, cause we need to change its element
-	copy(updatedProposal.Options, p.Options)
-	updatedProposal.Options[vote.OptionIndex].Weight++
-	return updatedProposal, nil
+	}, nil
 }
 
 func (p *BaseFeeProposalState) ExecuteWith(executor Executor) error {
