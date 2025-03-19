@@ -16,9 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	as "github.com/ava-labs/avalanchego/vms/platformvm/addrstate"
 	"github.com/ava-labs/avalanchego/vms/platformvm/api"
-	"github.com/ava-labs/avalanchego/vms/platformvm/config"
 	"github.com/ava-labs/avalanchego/vms/platformvm/dac"
 	"github.com/ava-labs/avalanchego/vms/platformvm/fx"
 	"github.com/ava-labs/avalanchego/vms/platformvm/locked"
@@ -34,117 +32,6 @@ import (
 
 	deposits "github.com/ava-labs/avalanchego/vms/platformvm/deposit"
 )
-
-// only tests pre-berlin upgrade version 0
-func TestNewAddressStateTx(t *testing.T) {
-	ctx := test.Context(t)
-
-	fundsKey := test.FundedKeys[0]
-	fundsAddr := fundsKey.Address()
-	fundsOwner := secp256k1fx.OutputOwners{Threshold: 1, Addrs: []ids.ShortID{fundsAddr}}
-
-	otherAddr := ids.ShortID{1, 1}
-
-	feeUTXO := generate.UTXO(ids.ID{1}, ctx.AVAXAssetID, test.TxFee, fundsOwner, ids.Empty, ids.Empty, false)
-
-	baseTx := txs.BaseTx{BaseTx: avax.BaseTx{
-		NetworkID:    ctx.NetworkID,
-		BlockchainID: ctx.ChainID,
-		Ins: []*avax.TransferableInput{
-			generate.InFromUTXO(t, feeUTXO, []uint32{0}, false),
-		},
-		Outs: []*avax.TransferableOutput{},
-	}}
-
-	tests := map[string]struct {
-		state       func(*gomock.Controller, *config.Config) state.State
-		targetAddr  ids.ShortID
-		remove      bool
-		stateBit    as.AddressStateBit
-		executor    ids.ShortID
-		keys        []*secp256k1.PrivateKey
-		change      *secp256k1fx.OutputOwners
-		utx         *txs.AddressStateTx
-		signers     [][]*secp256k1.PrivateKey
-		expectedErr error
-	}{
-		"Empty address": {
-			state: func(ctrl *gomock.Controller, cfg *config.Config) state.State {
-				s := state.NewMockState(ctrl)
-				expect.Lock(t, s, map[ids.ShortID][]*avax.UTXO{fundsAddr: {feeUTXO}})
-				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, test.PhaseLast, cfg))
-				return s
-			},
-			stateBit:    as.AddressStateBitKYCVerified,
-			keys:        []*secp256k1.PrivateKey{fundsKey},
-			signers:     [][]*secp256k1.PrivateKey{{fundsKey}},
-			expectedErr: errEmptyAddress,
-		},
-		"OK": {
-			state: func(ctrl *gomock.Controller, cfg *config.Config) state.State {
-				s := state.NewMockState(ctrl)
-				expect.Lock(t, s, map[ids.ShortID][]*avax.UTXO{fundsAddr: {feeUTXO}})
-				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, test.PhaseLast, cfg))
-				return s
-			},
-			targetAddr: otherAddr,
-			stateBit:   as.AddressStateBitKYCVerified,
-			keys:       []*secp256k1.PrivateKey{fundsKey},
-			utx: &txs.AddressStateTx{
-				BaseTx:   baseTx,
-				Address:  otherAddr,
-				StateBit: as.AddressStateBitKYCVerified,
-			},
-			signers: [][]*secp256k1.PrivateKey{{fundsKey}},
-		},
-		"OK: remove": {
-			state: func(ctrl *gomock.Controller, cfg *config.Config) state.State {
-				s := state.NewMockState(ctrl)
-				expect.Lock(t, s, map[ids.ShortID][]*avax.UTXO{fundsAddr: {feeUTXO}})
-				s.EXPECT().GetTimestamp().Return(test.PhaseTime(t, test.PhaseLast, cfg))
-				return s
-			},
-			targetAddr: otherAddr,
-			remove:     true,
-			stateBit:   as.AddressStateBitKYCVerified,
-			keys:       []*secp256k1.PrivateKey{fundsKey},
-			utx: &txs.AddressStateTx{
-				BaseTx:   baseTx,
-				Address:  otherAddr,
-				StateBit: as.AddressStateBitKYCVerified,
-				Remove:   true,
-			},
-			signers: [][]*secp256k1.PrivateKey{{fundsKey}},
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-			ctrl := gomock.NewController(t)
-			// only tests pre-berlin upgrade version 0
-
-			b := newCaminoBuilder(t, tt.state(ctrl, test.Config(t, test.PhaseLast)), nil, test.PhaseAthens)
-
-			tx, err := b.NewAddressStateTx(
-				tt.targetAddr,
-				tt.remove,
-				tt.stateBit,
-				tt.executor,
-				tt.keys,
-				tt.change,
-			)
-			require.ErrorIs(err, tt.expectedErr)
-			if err != nil {
-				require.Nil(tx)
-				return
-			}
-			expectedTx, err := txs.NewSigned(tt.utx, txs.Codec, tt.signers)
-			require.NoError(err)
-			require.NoError(expectedTx.SyntacticVerify(b.ctx))
-			require.Equal(expectedTx, tx)
-		})
-	}
-}
 
 func TestNewAddSubnetValidatorTx(t *testing.T) {
 	ctx := test.Context(t)
