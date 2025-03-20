@@ -430,13 +430,7 @@ func (s *CaminoService) Spend(_ *http.Request, args *SpendArgs, response *SpendR
 		return fmt.Errorf("%w: %s", errEncodeTransferables, err)
 	}
 
-	response.Signers = make([][]ids.ShortID, len(signers))
-	for i, cred := range signers {
-		response.Signers[i] = make([]ids.ShortID, len(cred))
-		for j, sig := range cred {
-			response.Signers[i][j] = sig.Address()
-		}
-	}
+	response.Signers = signersFromKeys(signers)
 
 	bytes, err = txs.Codec.Marshal(txs.Version, owners)
 	if err != nil {
@@ -544,13 +538,7 @@ func (s *CaminoService) Undeposit(_ *http.Request, args *UndepositArgs, response
 		return fmt.Errorf("%w: %s", errEncodeTransferables, err)
 	}
 
-	response.Signers = make([][]ids.ShortID, len(signers))
-	for i, cred := range signers {
-		response.Signers[i] = make([]ids.ShortID, len(cred))
-		for j, sig := range cred {
-			response.Signers[i][j] = sig.Address()
-		}
-	}
+	response.Signers = signersFromKeys(signers)
 
 	bytes, err = txs.Codec.Marshal(txs.Version, owners)
 	if err != nil {
@@ -1263,4 +1251,15 @@ func (s *CaminoService) GetCurrentSupply(_ *http.Request, args *GetCurrentSupply
 	}
 	reply.Supply = utilsjson.Uint64(supply)
 	return err
+}
+
+func signersFromKeys(signersKeys [][]*secp256k1.PrivateKey) [][]ids.ShortID {
+	signers := make([][]ids.ShortID, len(signersKeys))
+	for i, keys := range signersKeys {
+		signers[i] = make([]ids.ShortID, len(keys))
+		for j, key := range keys {
+			signers[i][j] = key.Address()
+		}
+	}
+	return signers
 }
