@@ -1287,7 +1287,7 @@ func TestUnlockDeposit(t *testing.T) {
 	deposit1 := func(now time.Time, unlockPercent uint32) *deposit.Deposit {
 		return &deposit.Deposit{
 			DepositOfferID: offerID1,
-			Start:          uint64(now.Add(-time.Duration(depositUnlockDuration1*unlockPercent/100) * time.Second).Unix()), // half unlock time
+			Start:          uint64(now.Add(-time.Duration(depositUnlockDuration1*unlockPercent/100) * time.Second).Unix()),
 			Duration:       depositUnlockDuration1,
 			Amount:         depositAmount1,
 		}
@@ -1296,7 +1296,7 @@ func TestUnlockDeposit(t *testing.T) {
 	deposit2 := func(now time.Time, unlockPercent uint32) *deposit.Deposit {
 		return &deposit.Deposit{
 			DepositOfferID: offerID2,
-			Start:          uint64(now.Add(-time.Duration(depositUnlockDuration2*unlockPercent/100) * time.Second).Unix()), // half unlock time
+			Start:          uint64(now.Add(-time.Duration(depositUnlockDuration2*unlockPercent/100) * time.Second).Unix()),
 			Duration:       depositUnlockDuration2,
 			Amount:         depositAmount2,
 		}
