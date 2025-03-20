@@ -85,6 +85,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 
 	activePhases := []Phase{}
 
+	// collect all active phases in reverse order from last to first
 	switch phase {
 	case PhaseD:
 		activePhases = append(activePhases, PhaseD)
@@ -108,6 +109,7 @@ func Config(t *testing.T, phase Phase) *config.Config {
 		require.FailNowf(t, "", "unknown phase %d (%s)", phase)
 	}
 
+	// set phaseTime to phases from first to last in order to introduce time gaps between them.
 	for i := len(activePhases) - 1; i >= 0; i-- {
 		switch activePhases[i] {
 		case PhaseApricot5:
