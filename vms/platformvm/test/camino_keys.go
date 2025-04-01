@@ -102,6 +102,23 @@ var (
 		"Vhw1gdFvJ941yrHXTZdf4x2BLZNSMqGJ4X1kWiiL4XepzHzmG",
 	}
 
+	nodeKeyStrings5Validators2Multisigs = [5]string{
+		// NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL - Validator 1
+		"26ksbvjbz8jUTtzbCm3MYobKcDh22QPuPQX5dj2faQdR63TRdM",
+
+		// NodeID-D1LbWvUf9iaeEyUbTYYtYq4b7GaYR5tnJ - Validator 2
+		"2ZW6HUePBW2dP7dBGa5stjXe1uvK9LwEgrjebDwXEyL5bDMWWS",
+
+		// NodeID-PM2LqrGsxudhZSP49upMonevbQvnvAciv - Validator 3 - Multisig with 1 owner (threshold 1)
+		"1z5tv4tg04kf4l9ghclw6ssek8zugs7yd65prpl",
+
+		// NodeID-5ZUdznHckQcqucAnNf3vzXnPF97tfRtfn - Validator 5 - Multisig with 2 owners (threshold 2)
+		"1t5qgr9hcmf2vxj7k0hz77kawf9yr389cxte5j0",
+
+		// NodeID-EoYFkbokZEukfWrUovo74YkTFnAMaqTG7 - Validator 4
+		"Vhw1gdFvJ941yrHXTZdf4x2BLZNSMqGJ4X1kWiiL4XepzHzmG",
+	}
+
 	Keys             []*secp256k1.PrivateKey
 	KeysBech32       []string
 	FundedKeys       []*secp256k1.PrivateKey
