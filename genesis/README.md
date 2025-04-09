@@ -1,0 +1,2 @@
+genesis/genesis_local_1_validator.json
+genesis/genesis_local_5_validators.json
