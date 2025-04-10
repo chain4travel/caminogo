@@ -33,7 +33,7 @@
         "--bootstrap-ids=NodeID-D1LbWvUf9iaeEyUbTYYtYq4b7GaYR5tnJ",
         "--staking-tls-key-file=${workspaceFolder}/staking/local/staker1.key",
         "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker1.crt",
-        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--genesis=${workspaceFolder}/genesis/genesis_local_5_validators.json",
         "--db-dir=db",
         "--data-dir=data"
       ],
@@ -66,7 +66,7 @@
         "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
         "--staking-tls-key-file=${workspaceFolder}/staking/local/staker2.key",
         "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker2.crt",
-        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--genesis=${workspaceFolder}/genesis/genesis_local_5_validators.json",
 
         "--db-dir=db",
         "--data-dir=data"
@@ -100,7 +100,7 @@
         "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
         "--staking-tls-key-file=${workspaceFolder}/staking/local/staker3.key",
         "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker3.crt",
-        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--genesis=${workspaceFolder}/genesis/genesis_local_5_validators.json",
         "--db-dir=db",
         "--data-dir=data"
       ],
@@ -134,7 +134,7 @@
         "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
         "--staking-tls-key-file=${workspaceFolder}/staking/local/staker4.key",
         "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker4.crt",
-        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--genesis=${workspaceFolder}/genesis/genesis_local_5_validators.json",
         "--db-dir=db",
         "--data-dir=data"
       ],
@@ -167,7 +167,7 @@
         "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
         "--staking-tls-key-file=${workspaceFolder}/staking/local/staker5.key",
         "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker5.crt",
-        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--genesis=${workspaceFolder}/genesis/genesis_local_5_validators.json",
         "--db-dir=db",
         "--data-dir=data"
       ],
