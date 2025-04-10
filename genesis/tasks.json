@@ -1,0 +1,101 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "GOROOT": "${env:HOME}/.gvm/gos/go1.19",
+      "PATH": "${env:HOME}/.gvm/gos/go1.19/bin:${env:PATH}"
+    }
+  },
+  "tasks": [
+    {
+      // install-dlv-v1.22.0
+      "label": "install-dlv-v1.22.0",
+      "type": "shell",
+      "command": "go install github.com/go-delve/delve/cmd/dlv@v1.22.0",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": false
+      }
+    },
+    {
+      // build
+      "label": "build",
+      "type": "process",
+      "command": "bash",
+      "args": ["./scripts/build.sh"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": ["install-dlv-v1.22.0"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      // cleanup-local-1
+      "label": "cleanup-local-1",
+      "type": "shell",
+      "command": "rm build/local-1 -r -f; mkdir build/local-1",
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "new",
+        "close": true
+      }
+    },
+    {
+      // cleanup-local-2
+      "label": "cleanup-local-2",
+      "type": "shell",
+      "command": "rm build/local-2 -r -f; mkdir build/local-2",
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "new",
+        "close": true
+      }
+    },
+    {
+      // cleanup-local-3
+      "label": "cleanup-local-3",
+      "type": "shell",
+      "command": "rm build/local-3 -r -f; mkdir build/local-3",
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "new",
+        "close": true
+      }
+    },
+    {
+      // cleanup-local-4
+      "label": "cleanup-local-4",
+      "type": "shell",
+      "command": "rm build/local-4 -r -f; mkdir build/local-4",
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "new",
+        "close": true
+      }
+    },
+    {
+      // cleanup-local-5
+      "label": "cleanup-local-5",
+      "type": "shell",
+      "command": "rm build/local-5 -r -f; mkdir build/local-5",
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "new",
+        "close": true
+      }
+    }
+  ]
+}

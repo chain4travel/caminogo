@@ -1,0 +1,189 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Run 5 validators network",
+      "configurations": ["local-1", "local-2", "local-3", "local-4", "local-5"],
+      "preLaunchTask": "build",
+      "stopAll": true,
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19/bin:${env:PATH}"
+      }
+    }
+  ],
+  "configurations": [
+    {
+      // local-1
+      "name": "local-1",
+      "args": [
+        "--public-ip=127.0.0.1",
+        "--http-port=19651",
+        "--staking-port=9651",
+        "--network-id=kopernikus",
+        "--index-enabled=true",
+        // "--log-level=debug",
+        "--api-admin-enabled-secret=<SECRET>",
+        "--bootstrap-ips=",
+        "--bootstrap-ids=",
+        "--bootstrap-ips=127.0.0.1:9652",
+        "--bootstrap-ids=NodeID-D1LbWvUf9iaeEyUbTYYtYq4b7GaYR5tnJ",
+        "--staking-tls-key-file=${workspaceFolder}/staking/local/staker1.key",
+        "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker1.crt",
+        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--db-dir=db",
+        "--data-dir=data"
+      ],
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19.13",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19.13/bin:${env:PATH}"
+      },
+      "preLaunchTask": "cleanup-local-1",
+      "program": "${workspaceFolder}/main/main.go",
+      "cwd": "${workspaceFolder}/build/local-1",
+      "mode": "auto",
+      "type": "go",
+      "request": "launch",
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      // local-2
+      "name": "local-2",
+      "args": [
+        "--public-ip=127.0.0.1",
+        "--http-port=19652",
+        "--staking-port=9652",
+        "--network-id=kopernikus",
+        "--index-enabled",
+        // "--log-level=debug",
+        "--api-admin-enabled-secret=<SECRET>",
+        "--bootstrap-ips=127.0.0.1:9651",
+        "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
+        "--staking-tls-key-file=${workspaceFolder}/staking/local/staker2.key",
+        "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker2.crt",
+        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+
+        "--db-dir=db",
+        "--data-dir=data"
+      ],
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19.13",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19.13/bin:${env:PATH}"
+      },
+      "preLaunchTask": "cleanup-local-2",
+      "program": "${workspaceFolder}/main/main.go",
+      "cwd": "${workspaceFolder}/build/local-2",
+      "mode": "auto",
+      "type": "go",
+      "request": "launch",
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      // local-3
+      "name": "local-3",
+      "args": [
+        "--public-ip=127.0.0.1",
+        "--http-port=19653",
+        "--staking-port=9653",
+        "--network-id=kopernikus",
+        "--index-enabled",
+        // "--log-level=debug",
+        "--api-admin-enabled-secret=<SECRET>",
+        "--bootstrap-ips=127.0.0.1:9651",
+        "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
+        "--staking-tls-key-file=${workspaceFolder}/staking/local/staker3.key",
+        "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker3.crt",
+        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--db-dir=db",
+        "--data-dir=data"
+      ],
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19.13",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19.13/bin:${env:PATH}"
+      },
+
+      "preLaunchTask": "cleanup-local-3",
+      "program": "${workspaceFolder}/main/main.go",
+      "cwd": "${workspaceFolder}/build/local-3",
+      "mode": "auto",
+      "type": "go",
+      "request": "launch",
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      // local-4
+      "name": "local-4",
+      "args": [
+        "--public-ip=127.0.0.1",
+        "--http-port=19654",
+        "--staking-port=9654",
+        "--network-id=kopernikus",
+        "--index-enabled",
+        // "--log-level=debug",
+        "--api-admin-enabled-secret=<SECRET>",
+        "--bootstrap-ips=127.0.0.1:9651",
+        "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
+        "--staking-tls-key-file=${workspaceFolder}/staking/local/staker4.key",
+        "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker4.crt",
+        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--db-dir=db",
+        "--data-dir=data"
+      ],
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19.13",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19.13/bin:${env:PATH}"
+      },
+      "preLaunchTask": "cleanup-local-4",
+      "program": "${workspaceFolder}/main/main.go",
+      "cwd": "${workspaceFolder}/build/local-4",
+      "mode": "auto",
+      "type": "go",
+      "request": "launch",
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      // local-5
+      "name": "local-5",
+      "args": [
+        "--public-ip=127.0.0.1",
+        "--http-port=19655",
+        "--staking-port=9655",
+        "--network-id=kopernikus",
+        "--index-enabled",
+        // "--log-level=debug",
+        "--api-admin-enabled-secret=<SECRET>",
+        "--bootstrap-ips=127.0.0.1:9651",
+        "--bootstrap-ids=NodeID-AK7sPBsZM9rQwse23aLhEEBPHZD5gkLrL",
+        "--staking-tls-key-file=${workspaceFolder}/staking/local/staker5.key",
+        "--staking-tls-cert-file=${workspaceFolder}/staking/local/staker5.crt",
+        "--genesis=${workspaceFolder}/.vscode/genesis_local_5_validators.json",
+        "--db-dir=db",
+        "--data-dir=data"
+      ],
+      "env": {
+        "GOROOT": "${env:HOME}/.gvm/gos/go1.19.13",
+        "PATH": "${env:HOME}/.gvm/gos/go1.19.13/bin:${env:PATH}"
+      },
+      "preLaunchTask": "cleanup-local-5",
+      "program": "${workspaceFolder}/main/main.go",
+      "cwd": "${workspaceFolder}/build/local-5",
+      "mode": "auto",
+      "type": "go",
+      "request": "launch",
+      "presentation": {
+        "hidden": true
+      }
+    }
+  ]
+}
