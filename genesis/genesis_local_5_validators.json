@@ -253,7 +253,7 @@
     ],
     "initialMultisigAddresses": [
       {
-        "memo": "111",
+        "memo": "Multisig Wallet (111)",
         "alias": "X-kopernikus1z5tv4tg04kf4l9ghclw6ssek8zugs7yd65prpl",
         "addresses": [
           "X-kopernikus1g65uqn6t77p656w64023nh8nd9updzmxh8ttv3"
@@ -261,7 +261,7 @@
         "threshold": 1
       },
       {
-        "memo": "222",
+        "memo": "Multisig Wallet (222)",
         "alias": "X-kopernikus1t5qgr9hcmf2vxj7k0hz77kawf9yr389cxte5j0",
         "addresses": [
           "X-kopernikus18jma8ppw3nhx5r4ap8clazz0dps7rv5uuvjh68",
