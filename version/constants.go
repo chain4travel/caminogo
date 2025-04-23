@@ -211,7 +211,7 @@ var (
 	CortinaDefaultTime = time.Date(2020, time.December, 5, 5, 0, 0, 0, time.UTC)
 
 	CairoPhaseTimes = map[uint32]time.Time{
-		constants.KopernikusID: time.Date(2025, time.February, 18, 0, 0, 0, 0, time.UTC),
+		constants.KopernikusID: time.Date(2025, time.April, 23, 13, 0, 0, 0, time.UTC),
 		constants.ColumbusID:   unreachableFutureTime,
 		constants.CaminoID:     unreachableFutureTime,
 	}
