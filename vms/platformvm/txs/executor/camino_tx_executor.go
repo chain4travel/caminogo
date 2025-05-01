@@ -885,12 +885,8 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 		}
 
 		unlockedAmount := consumedDepositedAmount - producedDepositedAmounts[depositTxID]
-		newTotalUnlockedAmount, err := math.Add64(unlockedAmount, deposit.UnlockedAmount)
-		if err != nil {
-			return err
-		}
 
-		if newTotalUnlockedAmount == deposit.UnlockedAmount {
+		if unlockedAmount == 0 {
 			return errNoUnlock
 		}
 
@@ -899,8 +895,13 @@ func (e *CaminoStandardTxExecutor) UnlockDepositTx(tx *txs.UnlockDepositTx) erro
 			return err
 		}
 
-		if unlockableAmount := deposit.UnlockableAmount(offer, chainTimestamp); unlockableAmount < newTotalUnlockedAmount {
+		if unlockableAmount := deposit.UnlockableAmount(offer, chainTimestamp); unlockableAmount < unlockedAmount {
 			return errUnlockedMoreThanAvailable
+		}
+
+		newTotalUnlockedAmount, err := math.Add64(unlockedAmount, deposit.UnlockedAmount)
+		if err != nil {
+			return err
 		}
 
 		e.State.ModifyDeposit(depositTxID, &deposits.Deposit{
