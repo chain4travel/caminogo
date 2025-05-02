@@ -1301,6 +1301,20 @@ func (h *handler) verifyUnlockDepositedUTXOs(
 		}
 	}
 
+	// checking that we burned required amount
+	if consumedUnlocked < amountToBurn {
+		return fmt.Errorf(
+			"asset %s burned %d unlocked, but needed to burn %d: %w",
+			assetID,
+			consumedUnlocked,
+			amountToBurn,
+			errNotBurnedEnough,
+		)
+	}
+	consumedUnlocked -= amountToBurn
+
+	unverifiedProducedUnlocked := uint64(0)
+
 	// iterating over outs, checking produced amounts with consumed map
 	// outputs expected to be sorted, so unlocked outputs are at the beginning
 	for i := len(outs) - 1; i >= 0; i-- {
@@ -1331,8 +1345,9 @@ func (h *handler) verifyUnlockDepositedUTXOs(
 		}
 
 		amountToVerify := out.Amount()
-		verifiedAmount := math.Min(consumedDepositedOwnerAmounts[lockIDs.BondTxID], amountToVerify)
 
+		// try to verify amount from consumed deposited
+		verifiedAmount := math.Min(consumedDepositedOwnerAmounts[lockIDs.BondTxID], amountToVerify)
 		consumedDepositedOwnerAmounts[lockIDs.BondTxID] -= verifiedAmount
 		amountToVerify -= verifiedAmount
 
@@ -1340,21 +1355,40 @@ func (h *handler) verifyUnlockDepositedUTXOs(
 			continue
 		}
 
-		if isLocked || consumedUnlocked < amountToVerify {
+		if isLocked {
 			return fmt.Errorf("owner %s out[%d] produces more than allowed by consumed: %w", ownerID, i, errWrongProducedAmount)
 		}
 
-		consumedUnlocked -= amountToVerify
+		// try to verify amount from consumed unlocked
+		verifiedAmount = math.Min(consumedUnlocked, amountToVerify)
+		consumedUnlocked -= verifiedAmount
+		amountToVerify -= verifiedAmount
+
+		if amountToVerify == 0 {
+			continue
+		}
+
+		// store unverified amount for later verification
+		unverifiedProducedUnlocked, err = math.Add64(unverifiedProducedUnlocked, amountToVerify)
+		if err != nil {
+			return err
+		}
 	}
 
-	// checking that we burned required amount
-	if consumedUnlocked < amountToBurn {
+	for _, consumedDepositedOwnerAmounts := range consumedDeposited {
+		for bondTxID, consumedAmount := range consumedDepositedOwnerAmounts {
+			if bondTxID != ids.Empty {
+				continue
+			}
+			unverifiedProducedUnlocked -= math.Min(consumedAmount, unverifiedProducedUnlocked)
+		}
+	}
+
+	if unverifiedProducedUnlocked > 0 {
 		return fmt.Errorf(
-			"asset %s burned %d unlocked, but needed to burn %d: %w",
-			assetID,
-			consumedUnlocked,
-			amountToBurn,
-			errNotBurnedEnough,
+			"produced more unlocked (%d excess), than consumed: %w",
+			unverifiedProducedUnlocked,
+			errWrongProducedAmount,
 		)
 	}
 
