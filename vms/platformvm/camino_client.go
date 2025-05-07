@@ -82,7 +82,11 @@ func (c *client) GetRegisteredShortIDLink(ctx context.Context, addrOrNodeID stri
 	if err != nil {
 		return ids.ShortEmpty, err
 	}
-	return ids.ShortFromString(res.Address)
+	if _, _, addrBytes, err := address.Parse(res.Address); err == nil {
+		return ids.ToShortID(addrBytes)
+	}
+	nodeID, err := ids.NodeIDFromString(res.Address)
+	return ids.ShortID(nodeID), err
 }
 
 func (c *client) GetDeposits(ctx context.Context, depositTxIDs []ids.ID, options ...rpc.Option) ([]DepositWithAvailableReward, time.Time, error) {
