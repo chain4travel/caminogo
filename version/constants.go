@@ -339,7 +339,7 @@ func GetCompatibility(networkID uint32) Compatibility {
 	return NewCompatibility(
 		CurrentApp,
 		MinimumCompatibleVersion,
-		GetBerlinPhaseTime(networkID).Add(-time.Minute),
+		GetCairoPhaseTime(networkID).Add(-time.Minute),
 		PrevMinimumCompatibleVersion,
 	)
 }
