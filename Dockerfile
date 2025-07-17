@@ -6,7 +6,7 @@
 # README.md
 # go.mod
 # ============= Compilation Stage ================
-FROM golang:1.19.10-bookworm AS builder
+FROM golang:1.19.10-bullseye AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     git \
