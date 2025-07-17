@@ -213,7 +213,7 @@ var (
 	CairoPhaseTimes = map[uint32]time.Time{
 		constants.KopernikusID: time.Date(2025, time.February, 18, 0, 0, 0, 0, time.UTC),
 		constants.ColumbusID:   time.Date(2025, time.July, 16, 11, 0, 0, 0, time.UTC),
-		constants.CaminoID:     time.Date(2025, time.August, 16, 11, 0, 0, 0, time.UTC),
+		constants.CaminoID:     time.Date(2025, time.August, 6, 11, 0, 0, 0, time.UTC),
 	}
 
 	DPhaseTimes = map[uint32]time.Time{
