@@ -6,7 +6,9 @@
 # README.md
 # go.mod
 # ============= Compilation Stage ================
-FROM golang:1.19.10-bullseye AS builder
+FROM public.ecr.aws/docker/library/golang:1.19.10-bullseye AS builder
+
+# Install architecture-specific linux headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     git \
@@ -14,7 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     musl-dev \
     ca-certificates \
-    linux-headers-amd64
+    $(case $(uname -m) in \
+        x86_64) echo "linux-headers-amd64" ;; \
+        aarch64) echo "linux-headers-arm64" ;; \
+        *) echo "linux-headers-generic" ;; \
+    esac)
 WORKDIR /build
 # Copy and download caminogo dependencies using go mod
 COPY go.mod .
@@ -30,7 +36,7 @@ RUN ./scripts/build.sh
 RUN ./scripts/build_tools.sh
 
 # ============= Cleanup Stage ================
-FROM debian:11-slim AS execution
+FROM public.ecr.aws/docker/library/debian:11-slim AS execution
 
 # installing wget to get static ip with wget -O - -q icanhazip.com
 RUN apt-get update && apt-get install -y wget

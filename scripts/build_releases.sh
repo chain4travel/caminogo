@@ -8,6 +8,29 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+print_usage() {
+  printf "Usage: build_releases [OPTIONS]
+
+  Build release binaries for caminogo
+
+  Options:
+
+    -a ARCH    Architecture to build for (amd64, arm64, all) [default: amd64]
+    -h         Show this help message
+"
+}
+
+ARCH="amd64"
+while getopts 'a:h' flag; do
+  case "${flag}" in
+    a) ARCH="${OPTARG}" ;;
+    h) print_usage
+       exit 0 ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
+
 RELEASE_TAG="$(git describe --tag)"
 RELEASE_ID=0
 
@@ -70,24 +93,57 @@ if [ -n "$AUTH_HEADER" ]; then
 	RELEASE_ID=$id
 fi
 
-echo "Building release OS=linux and ARCH=amd64 using GOAMD64 V2 for caminogo version $RELEASE_ID"
-rm -rf "$CAMINOGO_PATH"/build/*
+build_for_arch() {
+	local arch=$1
+	local goarch_flags=""
+	local cc_flags=""
+
+	if [ "$arch" = "amd64" ]; then
+		goarch_flags="GOAMD64=v2"
+		echo "Building release OS=linux and ARCH=amd64 using GOAMD64 V2 for caminogo version $RELEASE_ID"
+	elif [ "$arch" = "arm64" ]; then
+		cc_flags="CC=aarch64-linux-gnu-gcc"
+		echo "Building release OS=linux and ARCH=$arch for caminogo version $RELEASE_ID"
+	else
+		echo "Building release OS=linux and ARCH=$arch for caminogo version $RELEASE_ID"
+	fi
+
+	# Clean build dir for this architecture
+	rm -rf "$CAMINOGO_PATH"/build/*
+
+	# build executables into build dir
+	eval "GOOS=linux GOARCH=$arch $goarch_flags $cc_flags \"$CAMINOGO_PATH\"/scripts/build.sh"
+	# build tools into build dir
+	eval "GOOS=linux GOARCH=$arch $goarch_flags $cc_flags \"$CAMINOGO_PATH\"/scripts/build_tools.sh"
+	# copy the license file
+	cp "$CAMINOGO_PATH"/LICENSE "$CAMINOGO_PATH"/build
+
+	# create the package
+	echo "building artifact for $arch"
+	ARTIFACT=$DEST_PATH/caminogo-linux-$arch-$RELEASE_TAG.tar.gz
+	ARCHIVE_PATH=caminogo-$RELEASE_TAG
+	tar -czf "$ARTIFACT" -C "$CAMINOGO_PATH" build --transform "s,build,$ARCHIVE_PATH,"
+	# publish the newly generated file
+	publish "$ARTIFACT"
+}
 
 DEST_PATH=$CAMINOGO_PATH/dist/
-ARCHIVE_PATH=caminogo-$RELEASE_TAG
 # prepare a fresh dist folder
 rm -rf "$DEST_PATH" && mkdir -p "$DEST_PATH"
 
-# build executables into build dir
-GOOS=linux GOARCH=amd64 GOAMD64=v2 "$CAMINOGO_PATH"/scripts/build.sh
-# build tools into build dir
-GOOS=linux GOARCH=amd64 GOAMD64=v2 "$CAMINOGO_PATH"/scripts/build_tools.sh
-# copy the license file
-cp "$CAMINOGO_PATH"/LICENSE "$CAMINOGO_PATH"/build
-
-# create the package
-echo "building artifact"
-ARTIFACT=$DEST_PATH/caminogo-linux-amd64-$RELEASE_TAG.tar.gz
-tar -czf "$ARTIFACT" -C "$CAMINOGO_PATH" build --transform "s,build,$ARCHIVE_PATH,"
-# publish the newly generated file
-publish "$ARTIFACT"
+case "$ARCH" in
+	"amd64")
+		build_for_arch "amd64"
+		;;
+	"arm64")
+		build_for_arch "arm64"
+		;;
+	"all")
+		build_for_arch "amd64"
+		build_for_arch "arm64"
+		;;
+	*)
+		echo "Error: Unsupported architecture '$ARCH'. Supported: amd64, arm64, all" >&2
+		exit 1
+		;;
+esac
