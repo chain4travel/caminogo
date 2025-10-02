@@ -264,7 +264,7 @@
         "platformAllocations": [
           {
             "amount": 100000000000000,
-            "nodeID": "NodeID-YUy7DaNMhNe9mqdLX9PDsusaQFeRZKSy",
+            "nodeID": "NodeID-vX5aTUG5d7QfiXPWqd4nGjRdWnK8vBXB",
             "validatorDuration": 157680000,
             "depositDuration": 110376000,
             "timestampOffset": 5270400,
@@ -450,7 +450,7 @@
         "platformAllocations": [
           {
             "amount": 100000000000000,
-            "nodeID": "NodeID-ErN1zp6C2abP2F8HL9TxLL8RwT6kTmnAN",
+            "nodeID": "NodeID-E9hRsMmy8RKdgnbg3NNMFhdi6hyknSrXb",
             "validatorDuration": 157680000,
             "depositDuration": 141912000,
             "timestampOffset": 5270400,
