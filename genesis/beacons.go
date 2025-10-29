@@ -26,6 +26,17 @@ type node struct {
 // getIPs returns the beacon IPs for each network
 func getNodes(networkID uint32) []node {
 	switch networkID {
+	case constants.KopernikusID:
+		return []node{
+			{
+				ip:     "34.147.126.167:9651",
+				nodeID: "NodeID-YUy7DaNMhNe9mqdLX9PDsusaQFeRZKSy",
+			},
+			{
+				ip:     "130.211.49.170:9651",
+				nodeID: "NodeID-ErN1zp6C2abP2F8HL9TxLL8RwT6kTmnAN",
+			},
+		}
 	case constants.ColumbusID:
 		return []node{
 			{
