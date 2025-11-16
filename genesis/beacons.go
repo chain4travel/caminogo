@@ -30,11 +30,11 @@ func getNodes(networkID uint32) []node {
 		return []node{
 			{
 				ip:     "63.180.152.175:9651",
-				nodeID: "NodeID-YUy7DaNMhNe9mqdLX9PDsusaQFeRZKSy",
+				nodeID: "NodeID-ErN1zp6C2abP2F8HL9TxLL8RwT6kTmnAN",	
 			},
 			{
 				ip:     "3.122.83.163:9651",
-				nodeID: "NodeID-ErN1zp6C2abP2F8HL9TxLL8RwT6kTmnAN",
+				nodeID: "NodeID-YUy7DaNMhNe9mqdLX9PDsusaQFeRZKSy",	
 			},
 		}
 	case constants.ColumbusID:
