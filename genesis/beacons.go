@@ -29,11 +29,11 @@ func getNodes(networkID uint32) []node {
 	case constants.ColumbusID:
 		return []node{
 			{
-				ip:     "34.91.158.85:9651",
+				ip:     "3.67.25.168:9651",
 				nodeID: "NodeID-6XD16eZ22fadTKq3qsxro9TPFZyxTiFv3",
 			},
 			{
-				ip:     "35.205.189.109:9651",
+				ip:     "3.151.157.253:9651",
 				nodeID: "NodeID-6rsqgkg4F1i3SBjzj4tS5ucQWH7JMEouj",
 			},
 		}
@@ -41,12 +41,12 @@ func getNodes(networkID uint32) []node {
 		return []node{
 			// Camino Foundation
 			{
-				ip:     "34.79.120.198:9651",
+				ip:     "3.15.117.34:9651",
 				nodeID: "NodeID-MUTNPmSqwWtchZhVvkWRfF8SUK8FtfnwP",
 			},
 			// Chain4Travel
 			{
-				ip:     "34.147.107.229:9651",
+				ip:     "63.178.37.67:9651",
 				nodeID: "NodeID-KumZcRwRSAE7CUkFE18ZLMnPsCVDpQXz8",
 			},
 		}
